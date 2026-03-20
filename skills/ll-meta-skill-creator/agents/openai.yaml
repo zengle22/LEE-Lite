@@ -1,0 +1,4 @@
+interface:
+  display_name: "LL Meta Skill Creator"
+  short_description: "Create governed LL workflow skills"
+  default_prompt: "Use $ll-meta-skill-creator to scaffold a governed LEE workflow skill."

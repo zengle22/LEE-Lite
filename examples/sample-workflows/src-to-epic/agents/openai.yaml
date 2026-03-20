@@ -1,0 +1,4 @@
+interface:
+  display_name: "Src To Epic"
+  short_description: "Governed skill for Src To Epic"
+  default_prompt: "Use $src-to-epic to run the governed src-to-epic workflow."

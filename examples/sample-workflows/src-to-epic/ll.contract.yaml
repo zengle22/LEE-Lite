@@ -1,0 +1,63 @@
+skill_id: src-to-epic
+skill_type: workflow
+version: 0.1.0
+workflow_key: product.src-to-epic
+
+roles:
+  executor:
+    required: true
+    evidence_required: true
+    prompt_file: agents/executor.md
+  supervisor:
+    required: true
+    evidence_required: true
+    prompt_file: agents/supervisor.md
+
+input:
+  artifact_type: src
+  contract_file: input/contract.yaml
+  schema_file: input/schema.json
+  structural_validation_required: true
+  semantic_validation_required: true
+
+output:
+  artifact_type: epic
+  contract_file: output/contract.yaml
+  schema_file: output/schema.json
+  template_file: output/template.md
+  structural_validation_required: true
+  semantic_validation_required: true
+
+validation:
+  structural:
+    - "lee validate schema $INPUT"
+    - "lee validate trace $INPUT"
+    - "lee validate freeze $INPUT"
+    - "lee validate schema $OUTPUT"
+    - "lee validate trace $OUTPUT"
+    - "lee validate naming $OUTPUT"
+  semantic:
+    input_checklist: input/semantic-checklist.md
+    output_checklist: output/semantic-checklist.md
+
+evidence:
+  execution_schema: evidence/execution-evidence.schema.json
+  supervision_schema: evidence/supervision-evidence.schema.json
+  report_template: evidence/report.template.md
+
+lifecycle:
+  definition_file: ll.lifecycle.yaml
+  max_revision_rounds: 2
+
+gate:
+  freeze_requires:
+    - input_structural_pass
+    - input_semantic_pass
+    - output_structural_pass
+    - output_semantic_pass
+    - execution_evidence_present
+    - supervision_evidence_present
+  reject_when:
+    - authoritative_input_missing
+    - scope_drift_unresolved
+    - required_evidence_missing

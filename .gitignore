@@ -1,0 +1,35 @@
+# Runtime state stays outside the project tree.
+tmp/
+temp/
+scratch/
+runtime/
+sessions/
+cache/
+logs/
+debug/
+drafts/
+misc/
+stuff/
+backup/
+old/
+final2/
+test2/
+new/
+
+# Python runtime residue.
+__pycache__/
+*.py[cod]
+
+# Local environment and machine files.
+.env
+.env.local
+.DS_Store
+Thumbs.db
+*.log
+*.pid
+*.lock
+
+# Keep the local workspace shell, but ignore its mutable contents.
+.local/*
+!.local/README.md
+!.local/.gitignore

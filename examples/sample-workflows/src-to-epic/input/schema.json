@@ -1,0 +1,23 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "src-to-epic input",
+  "type": "object",
+  "required": [
+    "artifact_type",
+    "status",
+    "schema_version"
+  ],
+  "properties": {
+    "artifact_type": {
+      "type": "string",
+      "const": "src"
+    },
+    "status": {
+      "type": "string"
+    },
+    "schema_version": {
+      "type": "string"
+    }
+  },
+  "additionalProperties": true
+}

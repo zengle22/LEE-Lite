@@ -1,0 +1,31 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "src-to-epic output",
+  "type": "object",
+  "required": [
+    "artifact_type",
+    "status",
+    "schema_version",
+    "source_refs"
+  ],
+  "properties": {
+    "artifact_type": {
+      "type": "string",
+      "const": "epic"
+    },
+    "status": {
+      "type": "string"
+    },
+    "schema_version": {
+      "type": "string"
+    },
+    "source_refs": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "string"
+      }
+    }
+  },
+  "additionalProperties": true
+}

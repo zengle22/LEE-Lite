@@ -1,0 +1,21 @@
+artifact_type: epic
+schema_version: 0.1.0
+required_source_refs:
+  - "SRC-*"
+required_sections:
+  - Overview
+  - Scope
+  - Non-Goals
+  - Constraints
+  - Traceability
+structural_checks:
+  - schema
+  - trace
+  - naming
+semantic_gate:
+  required: true
+forbidden_content:
+  - implementation-level task breakdown
+  - unstated new requirements
+notes:
+  - Replace section names and source ref patterns with workflow-specific values.

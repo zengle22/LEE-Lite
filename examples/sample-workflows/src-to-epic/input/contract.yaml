@@ -1,0 +1,23 @@
+artifact_type: src
+schema_version: 0.1.0
+accepted_states:
+  - frozen
+required_fields:
+  - id
+  - title
+  - summary
+  - scope
+  - constraints
+required_refs:
+  - source_freeze_ref
+structural_checks:
+  - schema
+  - trace
+  - freeze
+forbidden_states:
+  - draft
+  - ambiguous
+forbidden_changes:
+  - unresolved_source_conflicts
+notes:
+  - Replace required fields and refs with workflow-specific requirements.
