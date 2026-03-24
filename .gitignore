@@ -74,3 +74,15 @@ tests/*/*/agent.md
 # Artifact outputs (typically generated)
 artifacts/
 artifacts/*/
+
+# LEE runtime directories
+.lee/
+.lee/*
+.artifacts/
+.artifacts/*
+.project/
+.project/*
+
+# Evidence outputs (runtime)
+evidence/
+evidence/*/
