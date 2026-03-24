@@ -35,10 +35,8 @@ Thumbs.db
 !.local/.gitignore
 !.local/agent.md
 
-# Keep directory knowledge maps visible even inside otherwise ignored folders.
-!**/__pycache__/
-!**/__pycache__/agent.md
-!**/agent.md
+# Claude Code knowledge maps (auto-generated)
+**/agent.md
 
 # Workflow runtime output
 .workflow
