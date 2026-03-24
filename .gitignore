@@ -29,21 +29,48 @@ Thumbs.db
 *.pid
 *.lock
 
-# Keep the local workspace shell, but ignore its mutable contents.
-.local/*
+# Keep the local workspace shell
+# Track specific files, ignore everything else
 !.local/README.md
 !.local/.gitignore
 !.local/agent.md
+.local/*
 
 # Claude Code knowledge maps (auto-generated)
-# Exception for tracked project agent.md
-!agent.md
-**/agent.md
+# Ignore agent.md in all subdirectories
+.claude/agent.md
+.claude/*/agent.md
+.claude/*/*/agent.md
+cli/agent.md
+cli/*/agent.md
+cli/*/*/agent.md
+cli/*/*/*/agent.md
+docs/agent.md
+docs/*/agent.md
+docs/*/*/agent.md
+examples/agent.md
+examples/*/agent.md
+examples/*/*/agent.md
+examples/*/*/*/agent.md
+examples/*/*/*/*/agent.md
+skills/agent.md
+skills/*/agent.md
+skills/*/*/agent.md
+skills/*/*/*/agent.md
+spec/agent.md
+spec/*/agent.md
+spec/*/*/agent.md
+tests/agent.md
+tests/*/agent.md
+tests/*/*/agent.md
+
+# Keep root agent.md (tracked)
+!/agent.md
 
 # Workflow runtime output
-.workflow
+.workflow/
 .workflow/*
 
 # Artifact outputs (typically generated)
-artifacts
-artifacts/*
+artifacts/
+artifacts/*/
