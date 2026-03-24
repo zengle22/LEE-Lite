@@ -1,0 +1,57 @@
+artifact_type: epic_freeze_package
+schema_version: 1.0.0
+authoritative_upstream_skill: ll-product-src-to-epic
+accepted_statuses:
+  - accepted
+  - frozen
+required_runtime_artifacts:
+  - package-manifest.json
+  - epic-freeze.md
+  - epic-freeze.json
+  - epic-review-report.json
+  - epic-acceptance-report.json
+  - epic-defect-list.json
+  - epic-freeze-gate.json
+  - handoff-to-epic-to-feat.json
+  - execution-evidence.json
+  - supervision-evidence.json
+required_candidate_frontmatter_fields:
+  - artifact_type
+  - workflow_key
+  - workflow_run_id
+  - status
+  - epic_freeze_ref
+  - src_root_id
+  - source_refs
+required_candidate_sections:
+  - Epic Intent
+  - Business Goal
+  - Scope
+  - Non-Goals
+  - Decomposition Rules
+  - Constraints and Dependencies
+  - Downstream Handoff
+  - Traceability
+required_refs:
+  - epic_freeze_ref
+  - src_root_id
+  - source_refs
+structural_checks:
+  - required_artifact_presence
+  - upstream_workflow_is_product.src-to-epic
+  - epic_freeze_gate_is_pass
+  - epic_traceability_fields_present
+  - evidence_presence
+semantic_gate:
+  required: true
+forbidden_statuses:
+  - revised
+  - rejected
+forbidden_inputs:
+  - raw_requirement
+  - adr
+  - src_candidate_package
+  - direct_feat_bundle
+notes:
+  - Accept only a governed package that is already freeze-ready at the EPIC layer.
+  - Prefer a package whose handoff explicitly targets `product.epic-to-feat`.

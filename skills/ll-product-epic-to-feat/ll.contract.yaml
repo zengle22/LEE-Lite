@@ -1,0 +1,95 @@
+skill_id: ll-product-epic-to-feat
+skill_type: workflow
+version: 0.2.0
+workflow_key: product.epic-to-feat
+
+authority:
+  canonical_template: E:\ai\LEE\spec-global\departments\product\workflows\templates\epic-to-feat\v1\workflow.yaml
+  upstream_skill: ll-product-src-to-epic
+  downstream_workflows:
+    - workflow.product.task.feat_to_delivery_prep
+    - workflow.product.feat_to_plan_pipeline
+  downstream_artifact_children:
+    - TECH
+    - TASK
+    - TESTSET
+
+roles:
+  executor:
+    required: true
+    evidence_required: true
+    prompt_file: agents/executor.md
+  supervisor:
+    required: true
+    evidence_required: true
+    prompt_file: agents/supervisor.md
+
+runtime:
+  mode: lite_native
+  command: python scripts/epic_to_feat.py run --input <epic-package-dir> --repo-root <repo-root>
+  entry_script: scripts/epic_to_feat.py
+  accepted_input_paths:
+    - artifacts/src-to-epic/<run_id>
+    - direct epic_freeze_package directory path
+  produced_output_dir: artifacts/epic-to-feat/<run_id>
+  required_output_artifacts:
+    - feat-freeze-bundle.md
+    - feat-freeze-bundle.json
+    - feat-review-report.json
+    - feat-acceptance-report.json
+    - feat-defect-list.json
+    - handoff-to-feat-downstreams.json
+    - execution-evidence.json
+    - supervision-evidence.json
+
+input:
+  artifact_type: epic_freeze_package
+  contract_file: input/contract.yaml
+  schema_file: input/schema.json
+  structural_validation_required: true
+  semantic_validation_required: true
+
+output:
+  artifact_type: feat_freeze_package
+  contract_file: output/contract.yaml
+  schema_file: output/schema.json
+  template_file: output/template.md
+  structural_validation_required: true
+  semantic_validation_required: true
+
+validation:
+  structural:
+    - "python scripts/epic_to_feat.py validate-input --input $INPUT"
+    - "python scripts/epic_to_feat.py run --input $INPUT --repo-root $REPO_ROOT --allow-update"
+    - "python scripts/epic_to_feat.py validate-output --artifacts-dir $OUTPUT"
+    - "python scripts/epic_to_feat.py validate-package-readiness --artifacts-dir $OUTPUT"
+    - "python scripts/epic_to_feat.py freeze-guard --artifacts-dir $OUTPUT"
+  semantic:
+    input_checklist: input/semantic-checklist.md
+    output_checklist: output/semantic-checklist.md
+
+evidence:
+  execution_schema: evidence/execution-evidence.schema.json
+  supervision_schema: evidence/supervision-evidence.schema.json
+  report_template: evidence/report.template.md
+
+lifecycle:
+  definition_file: ll.lifecycle.yaml
+  max_revision_rounds: 3
+
+gate:
+  freeze_requires:
+    - input_structural_pass
+    - input_semantic_pass
+    - output_structural_pass
+    - output_semantic_pass
+    - execution_evidence_present
+    - supervision_evidence_present
+  reject_when:
+    - upstream_package_not_freeze_ready
+    - missing_src_to_epic_provenance
+    - epic_boundary_not_decomposed
+    - feat_acceptance_incomplete
+    - missing_feat_refs
+    - missing_downstream_handoff
+    - required_evidence_missing

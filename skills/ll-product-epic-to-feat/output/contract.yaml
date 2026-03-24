@@ -1,0 +1,47 @@
+artifact_type: feat_freeze_package
+schema_version: 1.0.0
+downstream_workflows:
+  - workflow.product.task.feat_to_delivery_prep
+  - workflow.product.feat_to_plan_pipeline
+required_runtime_artifacts:
+  - feat-freeze-bundle.md
+  - feat-freeze-bundle.json
+  - feat-review-report.json
+  - feat-acceptance-report.json
+  - feat-defect-list.json
+  - feat-freeze-gate.json
+  - handoff-to-feat-downstreams.json
+  - execution-evidence.json
+  - supervision-evidence.json
+required_source_refs:
+  - "product.src-to-epic::<run_id>"
+  - "EPIC-*"
+  - "SRC-*"
+required_sections:
+  - FEAT Bundle Intent
+  - EPIC Context
+  - Boundary Matrix
+  - FEAT Inventory
+  - Acceptance and Review
+  - Downstream Handoff
+  - Traceability
+structural_checks:
+  - schema
+  - trace
+  - feat_refs_presence
+  - boundary_matrix_presence
+  - downstream_handoff_presence
+  - acceptance_checks_presence
+semantic_gate:
+  required: true
+forbidden_content:
+  - epic-level restatement without feat boundaries
+  - task-level implementation plan
+  - UI wireframe detail
+  - unstated new requirements
+notes:
+  - The output must be strong enough for downstream delivery-prep and plan flows without re-deriving the parent EPIC.
+  - Each FEAT must carry structured acceptance checks and remain independently acceptable.
+  - Each FEAT must also expose dedicated constraints and explicit overlap boundaries relative to adjacent FEATs.
+  - Shared non-goals should be stated at bundle level; FEAT-level non-responsibility should focus on adjacent capability boundaries.
+  - Traceability and independent-acceptance conventions may live at bundle level instead of consuming FEAT-specific acceptance slots.

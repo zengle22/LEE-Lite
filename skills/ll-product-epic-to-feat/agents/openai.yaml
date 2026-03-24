@@ -1,0 +1,4 @@
+interface:
+  display_name: "LL Product Epic To Feat"
+  short_description: "Governed skill for LL Product Epic To Feat"
+  default_prompt: "Use $ll-product-epic-to-feat to run the governed ll-product-epic-to-feat workflow."

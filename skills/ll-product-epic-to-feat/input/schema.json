@@ -1,0 +1,48 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "ll-product-epic-to-feat input",
+  "type": "object",
+  "required": [
+    "artifact_type",
+    "status",
+    "workflow_key",
+    "workflow_run_id",
+    "epic_freeze_ref",
+    "src_root_id",
+    "primary_artifact_ref"
+  ],
+  "properties": {
+    "artifact_type": {
+      "type": "string",
+      "const": "epic_freeze_package"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "accepted",
+        "frozen"
+      ]
+    },
+    "workflow_key": {
+      "type": "string",
+      "const": "product.src-to-epic"
+    },
+    "workflow_run_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "epic_freeze_ref": {
+      "type": "string",
+      "minLength": 1
+    },
+    "src_root_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "primary_artifact_ref": {
+      "type": "string",
+      "minLength": 1
+    }
+  },
+  "additionalProperties": true
+}
