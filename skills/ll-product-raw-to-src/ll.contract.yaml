@@ -1,0 +1,95 @@
+skill_id: ll-product-raw-to-src
+skill_type: workflow
+version: 0.5.2
+workflow_key: product.raw-to-src
+
+roles:
+  executor:
+    required: true
+    evidence_required: true
+    prompt_file: agents/executor.md
+  supervisor:
+    required: true
+    evidence_required: true
+    prompt_file: agents/supervisor.md
+
+runtime:
+  command: python scripts/raw_to_src.py run --input <path>
+  executor_command: python scripts/raw_to_src.py executor-run --input <path>
+  supervisor_command: python scripts/raw_to_src.py supervisor-review --artifacts-dir <artifacts-dir>
+  artifact_directory: artifacts/raw-to-src
+  primary_artifact_name: src-candidate.md
+  single_output_per_run: true
+  external_gate_required: true
+
+input:
+  artifact_type: raw-input
+  contract_file: input/contract.yaml
+  schema_file: input/schema.json
+  structural_validation_required: true
+  semantic_validation_required: true
+
+output:
+  artifact_type: src_candidate_package
+  contract_file: output/contract.yaml
+  schema_file: output/schema.json
+  template_file: output/template.md
+  structural_validation_required: true
+  semantic_validation_required: true
+  required_runtime_artifacts:
+    - package-manifest.json
+    - src-candidate.md
+    - src-candidate.json
+    - structural-report.json
+    - source-semantic-findings.json
+    - acceptance-report.json
+    - patch-lineage.json
+    - run-state.json
+    - result-summary.json
+    - proposed-next-actions.json
+    - job-proposal.json
+    - retry-budget-report.json
+    - execution-evidence.json
+    - supervision-evidence.json
+
+validation:
+  structural:
+    - "python scripts/raw_to_src.py validate-input --input $INPUT"
+    - "python scripts/raw_to_src.py validate-output --artifacts-dir $ARTIFACTS"
+    - "python scripts/raw_to_src.py validate-package-readiness --artifacts-dir $ARTIFACTS"
+  semantic:
+    input_checklist: input/semantic-checklist.md
+    output_checklist: output/semantic-checklist.md
+
+evidence:
+  execution_schema: evidence/execution-evidence.schema.json
+  supervision_schema: evidence/supervision-evidence.schema.json
+  report_template: evidence/report.template.md
+
+lifecycle:
+  definition_file: ll.lifecycle.yaml
+  max_revision_rounds: 3
+  budgets:
+    structural_fix_budget: 3
+    semantic_fix_budget: 2
+    total_repair_budget: 4
+
+gate:
+  model: external
+  readiness_signal: freeze_readiness_assessment
+  skill_emits:
+    - result-summary.json
+    - proposed-next-actions.json
+    - handoff-proposal.json
+    - job-proposal.json
+  gate_materializes:
+    - gate-decision.json
+    - materialized-handoff.json
+    - materialized-job.json
+  reject_when:
+    - input_already_ssot
+    - gate_materialize_placeholder
+    - multi_topic_input_detected
+    - unresolved_p0_p1_defects
+    - duplicate_title_without_update
+    - required_evidence_missing

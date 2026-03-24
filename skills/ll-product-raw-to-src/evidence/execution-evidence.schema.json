@@ -1,0 +1,125 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "ll-product-raw-to-src execution evidence",
+  "type": "object",
+  "required": [
+    "skill_id",
+    "run_id",
+    "role",
+    "input_path",
+    "outputs",
+    "stage_results",
+    "commands_run",
+    "structural_results",
+    "key_decisions",
+    "uncertainties",
+    "created_artifacts"
+  ],
+  "properties": {
+    "skill_id": {
+      "type": "string"
+    },
+    "run_id": {
+      "type": "string"
+    },
+    "role": {
+      "type": "string",
+      "const": "executor"
+    },
+    "input_path": {
+      "type": "string"
+    },
+    "outputs": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "stage_results": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": [
+          "stage_id",
+          "status",
+          "role",
+          "input_refs",
+          "output_refs",
+          "issues_found",
+          "patches_applied"
+        ],
+        "properties": {
+          "stage_id": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "role": {
+            "type": "string"
+          },
+          "input_refs": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "output_refs": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "issues_found": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "patches_applied": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "details": {
+            "type": "string"
+          },
+          "revalidation_status": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": true
+      }
+    },
+    "commands_run": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "structural_results": {
+      "type": "object"
+    },
+    "key_decisions": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "uncertainties": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "created_artifacts": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    }
+  },
+  "additionalProperties": true
+}

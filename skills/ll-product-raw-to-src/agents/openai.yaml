@@ -1,0 +1,4 @@
+interface:
+  display_name: "LL Product Raw To SRC"
+  short_description: "Normalize raw product inputs into one governed SRC candidate package"
+  default_prompt: "Use $ll-product-raw-to-src to turn raw product input into one SRC candidate package with evidence, proposals, and external-gate handoff."

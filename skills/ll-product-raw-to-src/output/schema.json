@@ -1,0 +1,78 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "LL Product Raw To SRC Candidate Package",
+  "type": "object",
+  "required": [
+    "artifacts_dir",
+    "primary_artifact_ref",
+    "result_summary_ref",
+    "run_state_ref",
+    "patch_lineage_ref",
+    "source_semantic_findings_ref",
+    "acceptance_report_ref",
+    "proposed_actions_ref",
+    "job_proposal_ref",
+    "execution_evidence_ref",
+    "supervision_evidence_ref"
+  ],
+  "properties": {
+    "artifacts_dir": {
+      "type": "string"
+    },
+    "primary_artifact_ref": {
+      "type": "string"
+    },
+    "result_summary_ref": {
+      "type": "string"
+    },
+    "run_state_ref": {
+      "type": "string"
+    },
+    "patch_lineage_ref": {
+      "type": "string"
+    },
+    "source_semantic_findings_ref": {
+      "type": "string"
+    },
+    "acceptance_report_ref": {
+      "type": "string"
+    },
+    "proposed_actions_ref": {
+      "type": "string"
+    },
+    "handoff_proposal_ref": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "job_proposal_ref": {
+      "type": "string"
+    },
+    "execution_evidence_ref": {
+      "type": "string"
+    },
+    "supervision_evidence_ref": {
+      "type": "string"
+    },
+    "recommended_action": {
+      "type": "string",
+      "enum": [
+        "next_skill",
+        "retry",
+        "human_handoff",
+        "blocked"
+      ]
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "freeze_ready",
+        "retry_proposed",
+        "human_handoff_proposed",
+        "blocked"
+      ]
+    }
+  },
+  "additionalProperties": true
+}

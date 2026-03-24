@@ -1,0 +1,39 @@
+artifact_type: raw-input
+schema_version: 1.0.0
+accepted_input_types:
+  - adr
+  - raw_requirement
+  - business_opportunity
+  - business_opportunity_freeze
+supported_file_types:
+  - .md
+  - .txt
+  - .json
+  - .yaml
+  - .yml
+required_fields:
+  - artifact_type
+  - input_type
+  - title
+  - body
+  - source_refs
+required_refs:
+  - source_refs
+structural_checks:
+  - schema
+  - no_ssot_header
+  - no_gate_materialize_placeholder
+  - single_problem_domain
+forbidden_states:
+  - frozen
+  - active
+  - deprecated
+forbidden_markers:
+  - gate-materialize
+  - gate_materialize
+authority_rules:
+  - Input must remain raw and upstream of the SSOT chain.
+  - If the payload already contains ssot_type plus a governed status, reject the run.
+  - If the payload enumerates multiple independent topics, reject and request input splitting.
+notes:
+  - The workflow may infer normalized sections from semi-structured input, but it must preserve source fidelity.

@@ -1,0 +1,66 @@
+artifact_type: src_candidate_package
+schema_version: 1.0.0
+artifact_directory: artifacts/raw-to-src/<run_id>
+primary_artifact: src-candidate.md
+required_runtime_artifacts:
+  - package-manifest.json
+  - src-candidate.md
+  - src-candidate.json
+  - normalized-input.json
+  - input-validation.json
+  - structural-report.json
+  - source-semantic-findings.json
+  - acceptance-report.json
+  - defect-list.json
+  - patch-lineage.json
+  - retry-budget-report.json
+  - run-state.json
+  - result-summary.json
+  - proposed-next-actions.json
+  - job-proposal.json
+  - execution-evidence.json
+  - supervision-evidence.json
+required_candidate_frontmatter_fields:
+  - artifact_type
+  - workflow_key
+  - workflow_run_id
+  - title
+  - status
+  - source_kind
+  - source_refs
+required_candidate_sections:
+  - 问题陈述
+  - 目标用户
+  - 触发场景
+  - 业务动因
+  - 关键约束
+  - 范围边界
+  - 来源追溯
+optional_runtime_artifacts:
+  - handoff-proposal.json
+  - review-report.md
+  - materialized-handoff.json
+  - materialized-job.json
+structural_checks:
+  - candidate_markdown_schema
+  - required_artifact_presence
+  - evidence_presence
+  - handoff_required_for_non_blocked_actions
+  - stage_patch_lineage_presence
+semantic_gate:
+  required: true
+readiness_contract:
+  freeze_ready_status: freeze_ready
+  blocked_status: blocked
+  human_handoff_status: human_handoff_proposed
+job_routing:
+  next_skill_queue: artifacts/jobs/ready/
+  retry_queue: artifacts/jobs/ready/
+  blocked_queue: artifacts/jobs/failed/
+  human_queue: artifacts/human-queue/waiting-human/
+notes:
+  - The skill emits a candidate package only; final freeze and queue materialization are external-gate actions.
+  - If the recommended action is not `blocked`, `handoff-proposal.json` must exist.
+  - `source-semantic-findings.json` and `acceptance-report.json` must remain distinct artifacts and may not be collapsed into a single review object.
+  - For `governance_bridge_src`, the candidate must include a governance summary section and a non-generic Bridge Context.
+  - ADR-derived key sections must not remain at placeholder density or title-rewrite density when the package is marked freeze-ready.

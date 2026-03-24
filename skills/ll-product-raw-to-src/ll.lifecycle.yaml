@@ -1,0 +1,42 @@
+version: 0.2.0
+states:
+  - drafted
+  - intake_validated
+  - normalized
+  - structurally_validated
+  - semantically_reviewed
+  - revised
+  - accepted
+  - frozen
+  - rejected
+
+transitions:
+  drafted:
+    - intake_validated
+    - rejected
+  intake_validated:
+    - normalized
+    - rejected
+  normalized:
+    - structurally_validated
+    - revised
+    - rejected
+  structurally_validated:
+    - semantically_reviewed
+    - revised
+    - rejected
+  semantically_reviewed:
+    - accepted
+    - revised
+    - rejected
+  revised:
+    - normalized
+    - rejected
+  accepted:
+    - frozen
+    - revised
+  frozen: []
+  rejected: []
+
+limits:
+  max_revision_rounds: 3
