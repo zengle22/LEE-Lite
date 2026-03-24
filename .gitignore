@@ -36,6 +36,8 @@ Thumbs.db
 !.local/agent.md
 
 # Claude Code knowledge maps (auto-generated)
+# Exception for tracked project agent.md
+!agent.md
 **/agent.md
 
 # Workflow runtime output
