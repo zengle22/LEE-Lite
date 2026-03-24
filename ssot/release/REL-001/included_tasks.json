@@ -1,0 +1,86 @@
+{
+  "release_ref": "REL-001",
+  "selection_kind": "explicit_manifest",
+  "task_bundle_root": "ssot/tasks/SRC-001",
+  "selection_rule": "Only tasks derived from feat_refs listed in REL-001 are in scope.",
+  "tasks": [
+    {
+      "task_id": "TASK-FEAT-SRC-001-001-001",
+      "version": "v1",
+      "feat_id": "FEAT-SRC-001-001",
+      "path": "ssot/tasks/SRC-001/FEAT-SRC-001-001/TASK-FEAT-SRC-001-001-001__gateway-contract-and-receipt-definition.md"
+    },
+    {
+      "task_id": "TASK-FEAT-SRC-001-001-002",
+      "version": "v1",
+      "feat_id": "FEAT-SRC-001-001",
+      "path": "ssot/tasks/SRC-001/FEAT-SRC-001-001/TASK-FEAT-SRC-001-001-002__gateway-runtime-and-operation-enforcement.md"
+    },
+    {
+      "task_id": "TASK-FEAT-SRC-001-002-001",
+      "version": "v1",
+      "feat_id": "FEAT-SRC-001-002",
+      "path": "ssot/tasks/SRC-001/FEAT-SRC-001-002/TASK-FEAT-SRC-001-002-001__path-policy-rule-model-definition.md"
+    },
+    {
+      "task_id": "TASK-FEAT-SRC-001-002-002",
+      "version": "v1",
+      "feat_id": "FEAT-SRC-001-002",
+      "path": "ssot/tasks/SRC-001/FEAT-SRC-001-002/TASK-FEAT-SRC-001-002-002__path-and-mode-evaluator-implementation.md"
+    },
+    {
+      "task_id": "TASK-FEAT-SRC-001-003-001",
+      "version": "v1",
+      "feat_id": "FEAT-SRC-001-003",
+      "path": "ssot/tasks/SRC-001/FEAT-SRC-001-003/TASK-FEAT-SRC-001-003-001__artifact-minimal-identity-contract-and-registry-schema-definition.md"
+    },
+    {
+      "task_id": "TASK-FEAT-SRC-001-003-002",
+      "version": "v1",
+      "feat_id": "FEAT-SRC-001-003",
+      "path": "ssot/tasks/SRC-001/FEAT-SRC-001-003/TASK-FEAT-SRC-001-003-002__registry-binding-and-managed-read-eligibility-enforcement.md"
+    },
+    {
+      "task_id": "TASK-FEAT-SRC-001-004-001",
+      "version": "v1",
+      "feat_id": "FEAT-SRC-001-004",
+      "path": "ssot/tasks/SRC-001/FEAT-SRC-001-004/TASK-FEAT-SRC-001-004-001__io-contract-and-audit-severity-definition.md"
+    },
+    {
+      "task_id": "TASK-FEAT-SRC-001-004-002",
+      "version": "v1",
+      "feat_id": "FEAT-SRC-001-004",
+      "path": "ssot/tasks/SRC-001/FEAT-SRC-001-004/TASK-FEAT-SRC-001-004-002__workspace-auditor-and-finding-generation.md"
+    },
+    {
+      "task_id": "TASK-FEAT-SRC-001-004-003",
+      "version": "v1",
+      "feat_id": "FEAT-SRC-001-004",
+      "path": "ssot/tasks/SRC-001/FEAT-SRC-001-004/TASK-FEAT-SRC-001-004-003__audit-consumer-integration-for-gate-repair-and-supervision.md"
+    },
+    {
+      "task_id": "TASK-FEAT-SRC-001-005-001",
+      "version": "v1",
+      "feat_id": "FEAT-SRC-001-005",
+      "path": "ssot/tasks/SRC-001/FEAT-SRC-001-005/TASK-FEAT-SRC-001-005-001__external-gate-decision-model-and-input-contract-definition.md"
+    },
+    {
+      "task_id": "TASK-FEAT-SRC-001-005-002",
+      "version": "v1",
+      "feat_id": "FEAT-SRC-001-005",
+      "path": "ssot/tasks/SRC-001/FEAT-SRC-001-005/TASK-FEAT-SRC-001-005-002__materialization-object-schemas-and-state-transition-definition.md"
+    },
+    {
+      "task_id": "TASK-FEAT-SRC-001-005-003",
+      "version": "v1",
+      "feat_id": "FEAT-SRC-001-005",
+      "path": "ssot/tasks/SRC-001/FEAT-SRC-001-005/TASK-FEAT-SRC-001-005-003__gate-ready-consumer-and-decision-evaluation-integration.md"
+    },
+    {
+      "task_id": "TASK-FEAT-SRC-001-005-004",
+      "version": "v1",
+      "feat_id": "FEAT-SRC-001-005",
+      "path": "ssot/tasks/SRC-001/FEAT-SRC-001-005/TASK-FEAT-SRC-001-005-004__formal-materialization-and-follow-up-dispatch-integration.md"
+    }
+  ]
+}

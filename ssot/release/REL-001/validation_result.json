@@ -1,0 +1,31 @@
+{
+  "release_ref": "REL-001",
+  "validated_at": "2026-03-24T10:30:00+08:00",
+  "checks": {
+    "feat_bundle_not_empty": true,
+    "all_feats_frozen": true,
+    "source_refs_resolved": true,
+    "derived_versions_resolved": true,
+    "feat_refs_match_derived_from_ids": true,
+    "task_selection_consistent_with_feat_scope": true,
+    "no_illegal_cross_src_or_epic_mix": true,
+    "dependency_graph_valid": true,
+    "release_scope_text_matches_metadata": true
+  },
+  "feat_refs": [
+    "FEAT-SRC-001-001",
+    "FEAT-SRC-001-002",
+    "FEAT-SRC-001-003",
+    "FEAT-SRC-001-004",
+    "FEAT-SRC-001-005"
+  ],
+  "task_root": "ssot/tasks/SRC-001",
+  "task_selection_ref": "ssot/release/REL-001/included_tasks.json",
+  "task_count": 13,
+  "dependency_ref": "ssot/release/REL-001/feat_dependency_matrix.json",
+  "errors": [],
+  "warnings": [
+    "FEAT-SRC-001-001 and FEAT-SRC-001-003 contain runtime collaboration wording in FEAT text; release planning normalizes this into an acyclic delivery dependency matrix."
+  ],
+  "summary": "Release draft validation passed: source refs resolved, feat versions locked, included task manifest matches feat scope, no cross-scope mix detected, and delivery dependency graph is acyclic."
+}

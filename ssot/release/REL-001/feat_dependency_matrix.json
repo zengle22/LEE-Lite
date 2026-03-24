@@ -1,0 +1,65 @@
+{
+  "release_ref": "REL-001",
+  "matrix_kind": "release_planning_dependencies",
+  "notes": [
+    "delivery_depends_on is the planning dependency consumed by downstream release planning.",
+    "runtime_collaboration_refs captures bidirectional runtime interactions that must not be mistaken for scheduling cycles."
+  ],
+  "feat_entries": [
+    {
+      "feat_id": "FEAT-SRC-001-001",
+      "version": "v1",
+      "delivery_depends_on": [
+        "FEAT-SRC-001-002"
+      ],
+      "runtime_collaboration_refs": [
+        "FEAT-SRC-001-003"
+      ],
+      "rationale": "Gateway delivery is planned after path-policy freeze. Registry interaction is treated as runtime collaboration and downstream integration, not as a release-level prerequisite cycle."
+    },
+    {
+      "feat_id": "FEAT-SRC-001-002",
+      "version": "v1",
+      "delivery_depends_on": [],
+      "runtime_collaboration_refs": [],
+      "rationale": "Path policy is the lowest-level governance base in this release scope."
+    },
+    {
+      "feat_id": "FEAT-SRC-001-003",
+      "version": "v1",
+      "delivery_depends_on": [
+        "FEAT-SRC-001-001",
+        "FEAT-SRC-001-002"
+      ],
+      "runtime_collaboration_refs": [],
+      "rationale": "Registry registration depends on the gateway operation surface and validated target path semantics."
+    },
+    {
+      "feat_id": "FEAT-SRC-001-004",
+      "version": "v1",
+      "delivery_depends_on": [
+        "FEAT-SRC-001-001",
+        "FEAT-SRC-001-002",
+        "FEAT-SRC-001-003"
+      ],
+      "runtime_collaboration_refs": [],
+      "rationale": "Audit enforcement consumes gateway, path-policy, and registry evidence."
+    },
+    {
+      "feat_id": "FEAT-SRC-001-005",
+      "version": "v1",
+      "delivery_depends_on": [
+        "FEAT-SRC-001-001",
+        "FEAT-SRC-001-002",
+        "FEAT-SRC-001-003",
+        "FEAT-SRC-001-004"
+      ],
+      "runtime_collaboration_refs": [],
+      "rationale": "External gate and materialization are the downstream aggregation slice."
+    }
+  ],
+  "graph_checks": {
+    "delivery_graph_acyclic": true,
+    "runtime_collaboration_cycles_allowed": true
+  }
+}
