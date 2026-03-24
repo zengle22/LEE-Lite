@@ -1,6 +1,13 @@
 {
   "release_ref": "REL-001",
   "validated_at": "2026-03-24T10:30:00+08:00",
+  "minimum_validation_scope": [
+    "feat_refs and derived_from_ids consistency",
+    "included_tasks.json contains only tasks derived from listed feat refs",
+    "feat_dependency_matrix.json is solvable and has no illegal delivery-cycle",
+    "release_scope.md matches release metadata",
+    "source_refs, epic_ref, and src_root_id closure consistency"
+  ],
   "checks": {
     "feat_bundle_not_empty": true,
     "all_feats_frozen": true,

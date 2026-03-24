@@ -2,7 +2,7 @@
 id: REL-001
 ssot_type: RELEASE
 title: Managed Artifact IO Governance Foundation Release
-status: draft
+status: accepted
 version: v1
 schema_version: 0.1.0
 release_root_id: release-root-rel-001
@@ -37,7 +37,9 @@ src_root_id: src-root-src-001
 created_at: '2026-03-24T10:30:00+08:00'
 owner: product
 properties:
+  workflow_output_state: release_draft
   release_type: minor
+  release_type_taxonomy_status: provisional
   release_type_definition: single-src, single-epic governance foundation planning release
   release_version: 0.1.0
   release_window:
@@ -108,6 +110,11 @@ properties:
 - 该窗口不是最终上线窗口，也不单独构成 go/no-go 决策承诺。
 - 若规划窗口发生影响范围基线的实质变化，应通过新的 REL revision 体现，而不是只修改说明文档。
 
+## Validation Baseline
+
+- `validation_result_ref` 至少校验：`feat_refs` 与 `derived_from_ids` 一致、`included_tasks.json` 仅包含 listed FEAT 派生 TASK、`feat_dependency_matrix.json` 可解且无非法循环交付依赖、`release_scope.md` 与 metadata 一致、`source_refs` / `epic_ref` / `src_root_id` 闭包一致。
+- 若上述任一校验失败，本 RELEASE 不应被下游 `release-to-devplan` 或 `release-to-testplan` 当作有效规划基线消费。
+
 ## 关键依赖关系
 
 - RELEASE 级依赖以 `feat_dependency_matrix.json` 为准，下游规划应消费其中的 `delivery_depends_on`，而不是把 FEAT 文本中的运行态协作关系直接解释为排期依赖。
@@ -123,6 +130,11 @@ properties:
 - 不在本 RELEASE 内决定 go/no-go 最终发布批准。
 - 不在本 RELEASE 内派生 DEVPLAN/TESTPLAN 具体内容。
 - 不在本对象内重复展开 FEAT/TASK 的实现细节或代码级设计。
+
+## 状态语义
+
+- `status: accepted` 表示这份 RELEASE draft 已通过当前轮评审，能够作为下游规划输入继续使用。
+- `properties.workflow_output_state: release_draft` 仍保留 `feat-to-release` 模板语义，表示它是 release 阶段的规划载体，而不是最终发布批准对象。
 
 ## 下游交接
 
