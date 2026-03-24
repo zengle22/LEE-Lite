@@ -1,0 +1,21 @@
+input_type: adr
+title: ADR-021 Run-Scoped Artifact Placement Governance
+source_refs:
+  - ADR-021
+requirement_overview:
+  description: 建立一套覆盖正式 SSOT 文件与非正式 workflow 产物的统一目录治理方案。
+  target_users:
+    - 产品部门 workflow 运行者
+    - requirement-chain-validation 执行者
+  context: 当前目录治理规则分散，导致交付面质量不可统一审核。
+key_designs:
+  value_chain:
+    direct_value:
+      description: 统一目录治理口径，降低 formal 与 non-formal 产物落点错误。
+  risks_and_boundaries:
+    dependencies:
+      - runtime placement policy
+      - placement manifest contract
+    out_of_scope:
+      - 自动搬运已有错误文件
+      - 修改业务对象主链语义
