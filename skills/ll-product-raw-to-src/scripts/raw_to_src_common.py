@@ -276,6 +276,10 @@ def normalize_candidate(document: dict[str, Any]) -> dict[str, Any]:
         "trigger_scenarios": deepcopy(document["trigger_scenarios"]),
         "business_drivers": deepcopy(document["business_drivers"]),
         "key_constraints": deepcopy(document["key_constraints"]),
+        "target_capability_objects": normalize_list(document.get("metadata", {}).get("target_capability_objects")) or normalize_list(heading_sections(document["body"]).get("目标能力对象")),
+        "expected_outcomes": normalize_list(document.get("metadata", {}).get("expected_outcomes")) or normalize_list(heading_sections(document["body"]).get("成功结果")),
+        "downstream_derivation_requirements": normalize_list(document.get("metadata", {}).get("downstream_derivation_requirements")) or normalize_list(heading_sections(document["body"]).get("下游派生要求")),
+        "bridge_summary": normalize_list(document.get("metadata", {}).get("bridge_summary")) or normalize_list(heading_sections(document["body"]).get("桥接摘要")),
         "in_scope": [f"围绕《{document['title']}》建立稳定、可追溯的需求源。"],
         "out_of_scope": deepcopy(document["non_goals"]),
         "source_refs": deepcopy(document["source_refs"]),
@@ -299,8 +303,91 @@ def normalize_candidate(document: dict[str, Any]) -> dict[str, Any]:
     if document["input_type"] == "adr":
         candidate["source_kind"] = "governance_bridge_src"
         candidate = synthesize_adr_bridge_candidate(candidate, document)
+        candidate = enrich_governance_bridge_candidate(candidate)
     return candidate
 
+def enrich_governance_bridge_candidate(candidate: dict[str, Any]) -> dict[str, Any]:
+    if candidate["source_kind"] != "governance_bridge_src":
+        return candidate
+    def dedupe(values: list[str]) -> list[str]:
+        items: list[str] = []
+        seen: set[str] = set()
+        for value in values:
+            text = str(value).strip()
+            if not text:
+                continue
+            key = text.casefold()
+            if key in seen:
+                continue
+            seen.add(key)
+            items.append(text)
+        return items
+    bridge = candidate.get("bridge_context") or {}
+    source_text = " ".join(
+        [
+            candidate.get("title", ""),
+            candidate.get("problem_statement", ""),
+            " ".join(candidate.get("key_constraints", [])),
+            " ".join(bridge.get("governance_objects", [])),
+        ]
+    ).lower()
+    is_qa_execution = any(token in source_text for token in ("qa test execution", "testenvironmentspec", "testcasepack", "scriptpack", "tse", "evidencebundle"))
+    if not candidate.get("bridge_summary"):
+        candidate["bridge_summary"] = dedupe(
+            [
+                "本 SRC 不重新论证上游 ADR 的正确性，而是将治理结论转译为下游需求链可直接继承的正式边界。",
+                "下游不应再重新讨论核心边界，而应默认继承本 SRC 定义的对象模型、状态语义、冻结规则与证据约束。",
+            ]
+            if is_qa_execution
+            else [
+                "本 SRC 的作用不是重复 ADR 论证，而是把治理结论转译成下游可直接继承的正式边界。",
+                "下游应默认继承这里定义的治理对象、约束和交接边界，而不是重新发明等价规则。",
+            ]
+        )
+    if is_qa_execution:
+        candidate["target_capability_objects"] = dedupe(candidate.get("target_capability_objects", []) + [
+            "skill.qa.test_exec_web_e2e",
+            "skill.runner.test_e2e",
+            "TestEnvironmentSpec contract/schema",
+            "TestCasePack contract/schema/revision policy",
+            "ScriptPack contract/schema/revision policy",
+            "EvidenceBundle minimum evidence policy",
+            "TSE 主文件 contract",
+            "run_status / acceptance_status 状态模型",
+            "rerun / repair lifecycle contract",
+        ])
+        candidate["expected_outcomes"] = dedupe(candidate.get("expected_outcomes", []) + [
+            "skill author 不再自行定义等价对象、状态语义或冻结规则。",
+            "reviewer 可独立判断 run 是否可采信，以及是否已进入最终接受状态。",
+            "report、bug、evidence 与 TSE 消费方可直接按统一 contract 读取产物。",
+            "rerun / repair 不再依赖隐式口头约定或临时人工解释。",
+            "human gate 可稳定区分 execution complete 与 acceptance complete。",
+        ])
+        candidate["downstream_derivation_requirements"] = dedupe(candidate.get("downstream_derivation_requirements", []) + [
+            "宽 skill contract 与 lifecycle",
+            "runner skill contract",
+            "TestEnvironmentSpec schema 与 resolver",
+            "TestCasePack / ScriptPack freeze、revision 与 repair hooks",
+            "compliance、result judgment、output validation 分层",
+            "run_status、acceptance_status 与 gate decision 模型",
+            "EvidenceBundle minimum evidence policy",
+            "rerun mode 与 lineage 规则",
+        ])
+        candidate["governance_change_summary"] = [
+            "从分散的 workflow 模板、runner 和口头约定，升级为可继承的 QA test execution governed skill 边界。",
+            "引入 TestEnvironmentSpec、TestCasePack、ScriptPack、EvidenceBundle、TSE 等结构化对象与冻结链。",
+            "分离执行状态、合规状态与最终接受状态，并明确 rerun / repair / review 的继承规则。",
+        ]
+        candidate["in_scope"] = [
+            "定义 QA test execution governed skill 的对象模型、状态语义、冻结链、证据规则与下游继承边界。",
+            "为后续 contract、schema、policy、script、report、bug bundle 与 TSE 提供统一治理来源。",
+        ]
+        return candidate
+
+    if not candidate.get("target_capability_objects"): candidate["target_capability_objects"] = dedupe([f"{item} 对应的正式对象、contract 或 policy" for item in bridge.get("governance_objects", [])[:5]])
+    if not candidate.get("expected_outcomes"): candidate["expected_outcomes"] = dedupe(["skill author 不再自行定义等价治理对象或边界。", "reviewer 可在不回读原始 ADR 的前提下判断候选是否满足主要约束。", "下游消费方可按统一 contract、boundary 与 lineage 读取正式对象。"])
+    if not candidate.get("downstream_derivation_requirements"): candidate["downstream_derivation_requirements"] = dedupe(["围绕治理对象定义正式 contract、schema、policy 与 lifecycle。", "把关键约束落成可校验的 validation、evidence 与 gate-ready 输出。", "确保下游 EPIC / FEAT / TASK 不遗漏主要治理对象与继承边界。"])
+    return candidate
 
 def structural_check(candidate: dict[str, Any]) -> list[dict[str, str]]:
     issues: list[dict[str, str]] = []
@@ -390,9 +477,18 @@ def render_candidate_markdown(candidate: dict[str, Any]) -> str:
     lines.extend(f"- {one_line(item)}" for item in candidate["trigger_scenarios"])
     lines.extend(["", "## 业务动因", ""])
     lines.extend(f"- {one_line(item)}" for item in candidate["business_drivers"])
+    if candidate.get("target_capability_objects"):
+        lines.extend(["", "## 目标能力对象", ""])
+        lines.extend(f"- {one_line(item)}" for item in candidate["target_capability_objects"])
+    if candidate.get("expected_outcomes"):
+        lines.extend(["", "## 成功结果", ""])
+        lines.extend(f"- {one_line(item)}" for item in candidate["expected_outcomes"])
     if candidate["source_kind"] == "governance_bridge_src" and candidate.get("governance_change_summary"):
         lines.extend(["", "## 治理变更摘要", ""])
         lines.extend(f"- {one_line(item)}" for item in candidate["governance_change_summary"])
+    if candidate.get("downstream_derivation_requirements"):
+        lines.extend(["", "## 下游派生要求", ""])
+        lines.extend(f"- {one_line(item)}" for item in candidate["downstream_derivation_requirements"])
     lines.extend(["", "## 关键约束", ""])
     lines.extend(f"- {one_line(item)}" for item in candidate["key_constraints"])
     lines.extend(["", "## 范围边界", ""])
@@ -402,6 +498,9 @@ def render_candidate_markdown(candidate: dict[str, Any]) -> str:
     lines.append(f"- Source refs: {', '.join(candidate['source_refs'])}")
     lines.append(f"- Input type: {candidate['input_type']}")
     if candidate["source_kind"] == "governance_bridge_src" and candidate.get("bridge_context"):
+        if candidate.get("bridge_summary"):
+            lines.extend(["", "## 桥接摘要", ""])
+            lines.extend(f"- {one_line(item)}" for item in candidate["bridge_summary"])
         bridge = candidate["bridge_context"]
         lines.extend(["", "## Bridge Context", ""])
         lines.append("- 结构化继承元数据区：本节仅用于机器消费与下游继承，不承担正文展开解释。")
@@ -432,6 +531,9 @@ def validate_candidate_markdown(path: Path) -> tuple[list[str], dict[str, Any]]:
     if frontmatter.get("source_kind") == "governance_bridge_src":
         if not sections.get("治理变更摘要") and not sections.get("本次治理变化"):
             errors.append("Missing section: 治理变更摘要")
+        for section in ["目标能力对象", "成功结果", "下游派生要求", "桥接摘要"]:
+            if not sections.get(section):
+                errors.append(f"Missing section: {section}")
         if not sections.get("Bridge Context"):
             errors.append("Missing section: Bridge Context")
     result = {
