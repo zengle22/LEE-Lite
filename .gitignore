@@ -33,3 +33,17 @@ Thumbs.db
 .local/*
 !.local/README.md
 !.local/.gitignore
+!.local/agent.md
+
+# Keep directory knowledge maps visible even inside otherwise ignored folders.
+!**/__pycache__/
+!**/__pycache__/agent.md
+!**/agent.md
+
+# Workflow runtime output
+.workflow
+.workflow/*
+
+# Artifact outputs (typically generated)
+artifacts
+artifacts/*
