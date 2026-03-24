@@ -92,6 +92,15 @@ Allowed:
 - governance references
 - skill-local scripts
 
+Skill-local human checklists must stay inside the owning skill tree.
+When a checklist is primarily for manual acceptance or operator verification of
+one specific skill, the canonical home is:
+
+- `skills/<skill-id>/resources/checklists/acceptance-checklist.md`
+
+Cross-skill playbooks or repo-wide operational guides belong in `docs/`, not in
+an individual skill folder.
+
 Not allowed:
 
 - runtime scratch state
