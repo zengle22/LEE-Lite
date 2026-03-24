@@ -222,6 +222,98 @@ class RawToSrcWorkflowTests(unittest.TestCase):
             self.assertIn("结构化继承元数据区：本节仅用于机器消费与下游继承，不承担正文展开解释。", sections["Bridge Context"])
             self.assertIn("审计链应能回答谁推进了 candidate、谁做了 final decision、为什么允许推进、正式物化了什么对象。", sections["Bridge Context"])
 
+    def test_qa_execution_adr_bridge_emits_objects_outcomes_and_derivation_requirements(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            repo_root = Path(temp_dir)
+            self.make_repo(repo_root)
+            source = repo_root / "ADR-007.md"
+            source.write_text(
+                "\n".join(
+                    [
+                        "---",
+                        "title: ADR-007 QA Test Execution Governed Skill 标准方案",
+                        "input_type: adr",
+                        "source_refs:",
+                        "  - ADR-007",
+                        "  - ADR-001",
+                        "  - ADR-004",
+                        "  - ADR-005",
+                        "  - ADR-006",
+                        "---",
+                        "",
+                        "# ADR-007 QA Test Execution Governed Skill 标准方案",
+                        "",
+                        "## 问题陈述",
+                        "",
+                        "QA 测试执行链当前仍在 workflow、runner 和口头约定之间漂移。",
+                        "",
+                        "- TestSet、TestCasePack、ScriptPack、TSE 边界不稳定。",
+                        "- test_environment_ref 如果不是结构化契约，后续会在 base_url、runner、mock、network 与 retry 上持续产生歧义。",
+                        "- invalid_run、failed 与 completed_with_failures 的语义容易被混用。",
+                        "",
+                        "## 目标用户",
+                        "",
+                        "- QA workflow / orchestration 设计者",
+                        "- skill.qa.test_exec_web_e2e 作者",
+                        "- skill.runner.test_e2e 作者",
+                        "- compliance checker / result judge / reviewer",
+                        "",
+                        "## 触发场景",
+                        "",
+                        "- 当 QA 测试执行链需要正式收敛为 governed skill，而不是分散的 workflow、runner 和自然语言约定时。",
+                        "- 当后续实现需要定义 TestSet、ResolvedSSOTContext、TestCasePack、ScriptPack 与 TSE 的中间产物边界时。",
+                        "",
+                        "## 业务动因",
+                        "",
+                        "- 需要让 QA 测试执行链进入统一治理体系，而不是保留为孤立的脚本执行能力。",
+                        "- 需要让 reviewer、report consumer 与 human gate 对同一 run 使用统一对象与状态语义。",
+                        "",
+                        "## 关键约束",
+                        "",
+                        "- QA test execution skill",
+                        "- TestEnvironmentSpec",
+                        "- TestCasePack 冻结",
+                        "- ScriptPack 冻结",
+                        "- 合规与判定分层",
+                        "- run_status 与 acceptance_status 分层",
+                        "- rerun mode 与 minimum evidence policy",
+                        "",
+                        "## 非目标",
+                        "",
+                        "- 不直接展开 QA runner、schema、CLI 实现细节。",
+                    ]
+                ),
+                encoding="utf-8",
+            )
+
+            result = self.run_cmd(
+                "run",
+                "--input",
+                str(source),
+                "--repo-root",
+                str(repo_root),
+                "--run-id",
+                "test-run-qa-adr",
+            )
+            self.assertEqual(result.returncode, 0, result.stderr)
+            payload = json.loads(result.stdout)
+            self.assertIn(payload["status"], {"freeze_ready", "retry_proposed"})
+
+            content = Path(payload["candidate_path"]).read_text(encoding="utf-8")
+            _, body = parse_frontmatter(content)
+            sections = heading_sections(body)
+            self.assertIn("skill.qa.test_exec_web_e2e", sections["目标能力对象"])
+            self.assertIn("TestEnvironmentSpec contract/schema", sections["目标能力对象"])
+            self.assertIn("rerun / repair lifecycle contract", sections["目标能力对象"])
+            self.assertIn("reviewer 可独立判断 run 是否可采信", sections["成功结果"])
+            self.assertIn("human gate 可稳定区分 execution complete 与 acceptance complete", sections["成功结果"])
+            self.assertIn("宽 skill contract 与 lifecycle", sections["下游派生要求"])
+            self.assertIn("EvidenceBundle minimum evidence policy", sections["下游派生要求"])
+            self.assertIn("本 SRC 不重新论证上游 ADR 的正确性", sections["桥接摘要"])
+            self.assertIn("下游不应再重新讨论核心边界", sections["桥接摘要"])
+            self.assertIn("定义 QA test execution governed skill 的对象模型、状态语义、冻结链、证据规则与下游继承边界。", sections["范围边界"])
+            self.assertNotIn("定义 skill 文件读写、artifact 输入输出边界与路径策略的统一治理边界。", sections["范围边界"])
+
     def test_thin_adr_bridge_requires_retry(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             repo_root = Path(temp_dir)
