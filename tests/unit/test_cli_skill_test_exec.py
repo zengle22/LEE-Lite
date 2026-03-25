@@ -126,7 +126,7 @@ class TestExecSkillRuntimeTest(unittest.TestCase):
         path = Path(ref_value)
         return path if path.is_absolute() else self.workspace / path
 
-    def assert_execution_outputs(self, payload: dict, expected_cases: int, expected_status: str) -> None:
+    def assert_execution_outputs(self, payload: dict, expected_cases: int, expected_status: str) -> tuple[dict, dict, dict]:
         self.assertEqual(payload["run_status"], expected_status)
         for key in (
             "resolved_ssot_context_ref",
@@ -169,6 +169,7 @@ class TestExecSkillRuntimeTest(unittest.TestCase):
         self.assertEqual(candidate["run_status"], expected_status)
         self.assertEqual(candidate["tse_ref"], payload["tse_ref"])
         self.assertEqual(candidate["compliance_result_ref"], payload["compliance_result_ref"])
+        return ui_intent, ui_binding_map, candidate
 
     def test_web_skill_emits_candidate_and_handoff_with_real_testset(self) -> None:
         npm_script, playwright_script = self.write_fake_playwright_scripts()
@@ -203,11 +204,10 @@ class TestExecSkillRuntimeTest(unittest.TestCase):
         self.assertEqual(payload["data"]["skill_ref"], "skill.qa.test_exec_web_e2e")
         self.assertTrue(payload["data"]["candidate_managed_artifact_ref"].startswith("artifacts/active/qa/candidates/"))
         self.assertEqual(payload["data"]["pending_state"], "gate_pending")
-        self.assert_execution_outputs(payload["data"], expected_cases=3, expected_status="completed")
-        ui_intent = read_json(self.resolve_ref(payload["data"]["ui_intent_ref"]))
+        ui_intent, ui_binding_map, candidate = self.assert_execution_outputs(payload["data"], expected_cases=3, expected_status="completed")
         self.assertTrue(all(item["derivation_mode"] in {"governance_inferred", "fallback_smoke"} for item in ui_intent["cases"]))
-        ui_binding_map = read_json(self.resolve_ref(payload["data"]["ui_binding_map_ref"]))
         self.assertTrue(all(item["resolution_status"] in {"partial", "fallback_smoke", "resolved"} for item in ui_binding_map["cases"]))
+        self.assertEqual(candidate["ui_source_spec"], {"codebase_ref": "", "runtime_ref": "", "prototype_ref": ""})
         script_pack = read_json(self.resolve_ref(payload["data"]["script_pack_ref"]))
         self.assertEqual(script_pack["framework"], "playwright")
         spec_file = self.resolve_ref(script_pack["project_refs"]["spec_file_ref"])
@@ -271,6 +271,9 @@ class TestExecSkillRuntimeTest(unittest.TestCase):
                 "test_set_ref": test_set_ref,
                 "test_environment_ref": env_ref,
                 "proposal_ref": "proposal-web-ui-001",
+                "frontend_code_ref": "repo://frontend/app-shell",
+                "ui_runtime_ref": "runtime://staging/web-shell",
+                "ui_source_spec": {"prototype_ref": "proto://login-flow-v1"},
             },
         )
         req = self.request_path("skill-web-ui.json")
@@ -281,11 +284,17 @@ class TestExecSkillRuntimeTest(unittest.TestCase):
             0,
         )
         payload = read_json(response)["data"]
-        self.assert_execution_outputs(payload, expected_cases=1, expected_status="completed")
-        binding_map = read_json(self.resolve_ref(payload["ui_binding_map_ref"]))
+        ui_intent, binding_map, candidate = self.assert_execution_outputs(payload, expected_cases=1, expected_status="completed")
+        self.assertEqual(
+            ui_intent["ui_source_spec"],
+            {"codebase_ref": "repo://frontend/app-shell", "runtime_ref": "runtime://staging/web-shell", "prototype_ref": "proto://login-flow-v1"},
+        )
+        self.assertEqual(binding_map["ui_source_spec"], ui_intent["ui_source_spec"])
+        self.assertEqual(candidate["ui_source_spec"], ui_intent["ui_source_spec"])
         self.assertEqual(binding_map["cases"][0]["resolution_status"], "resolved")
         self.assertEqual(binding_map["cases"][0]["unresolved_targets"], [])
         script_pack = read_json(self.resolve_ref(payload["script_pack_ref"]))
+        self.assertEqual(script_pack["runner_config"]["ui_source_spec"], ui_intent["ui_source_spec"])
         spec_text = self.resolve_ref(script_pack["project_refs"]["spec_file_ref"]).read_text(encoding="utf-8")
         self.assertIn("case 'fill':", spec_text)
         self.assertIn('"testid": "login-email"', spec_text)
