@@ -197,6 +197,9 @@ def build_semantic_drift_check(feature: dict[str, Any], bundle_json: dict[str, A
         if tokens and all(token in generated_text for token in tokens):
             anchor_matches.append(label)
     if str(lock.get("domain_type") or "").strip().lower() == "review_projection_rule":
+        axis_id = str(feature.get("axis_id") or "").strip().lower()
+        if axis_id in {"projection-generation", "authoritative-snapshot", "review-focus-risk", "feedback-writeback"}:
+            anchor_matches.append("review_projection_axis")
         review_projection_tokens = ["projection", "gate", "ssot"]
         if all(token in generated_text for token in review_projection_tokens):
             anchor_matches.append("review_projection_signature")

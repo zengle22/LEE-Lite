@@ -328,7 +328,12 @@ def derive_required_environment_inputs(feature: dict[str, Any], layers: list[str
         payload["feature_flags"] += ["snapshot render guard / trace bind strict mode"]
         payload["ui_or_integration_context"] += ["projection 内 authoritative snapshot 区块上下文"]
     elif profile == "review_focus_risk":
-        payload["data"] += ["review focus fixture", "risk / ambiguity signal 样本", "insufficient_context / untraceable_signal 失败样本"]
+        payload["data"] += [
+            "Machine SSOT context fixture",
+            "review focus fixture",
+            "risk / ambiguity signal 样本",
+            "insufficient_context / untraceable_signal 失败样本",
+        ]
         payload["services"] += ["review focus extractor", "risk / ambiguity analyzer"]
         payload["access"] += [
             "读取 projection context 与写入 review focus / risk block 的权限",

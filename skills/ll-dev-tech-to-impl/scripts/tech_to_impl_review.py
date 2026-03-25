@@ -150,6 +150,7 @@ def build_supervision_evidence(artifacts_dir: Path) -> dict[str, Any]:
     upstream_refs = load_json(artifacts_dir / "upstream-design-refs.json")
     evidence_plan = load_json(artifacts_dir / "dev-evidence-plan.json")
     smoke_gate = load_json(artifacts_dir / "smoke-gate-subject.json")
+    semantic_drift_check = load_json(artifacts_dir / "semantic-drift-check.json")
     findings: list[dict[str, Any]] = []
 
     assessment = bundle_json.get("workstream_assessment") or {}
@@ -180,6 +181,8 @@ def build_supervision_evidence(artifacts_dir: Path) -> dict[str, Any]:
     evidence_rows = evidence_plan.get("rows")
     if not isinstance(evidence_rows, list) or not evidence_rows:
         findings.append({"severity": "P1", "title": "Evidence plan is empty", "detail": "dev-evidence-plan.json must define at least one evidence row before the package can become execution-ready."})
+    if semantic_drift_check.get("semantic_lock_present") and semantic_drift_check.get("semantic_lock_preserved") is not True:
+        findings.append({"severity": "P1", "title": "semantic_lock drift detected", "detail": str(semantic_drift_check.get("summary") or "semantic_lock drift detected.")})
 
     expected_inputs = workstream_required_inputs(assessment)
     actual_inputs = ensure_list(smoke_gate.get("required_inputs"))
@@ -221,6 +224,7 @@ def update_supervisor_outputs(artifacts_dir: Path, supervision: dict[str, Any]) 
     review_report = load_json(artifacts_dir / "impl-review-report.json")
     acceptance_report = load_json(artifacts_dir / "impl-acceptance-report.json")
     smoke_gate_subject = load_json(artifacts_dir / "smoke-gate-subject.json")
+    evidence_plan = load_json(artifacts_dir / "dev-evidence-plan.json")
 
     blocking = [item for item in supervision.get("semantic_findings") or [] if str(item.get("severity") or "") in {"P0", "P1"}]
     passed = supervision.get("decision") == "pass"
@@ -253,15 +257,30 @@ def update_supervisor_outputs(artifacts_dir: Path, supervision: dict[str, Any]) 
             "ready_for_execution": passed,
         }
     )
+    evidence_plan["status"] = bundle_status
 
     frontmatter, body = parse_markdown_frontmatter((artifacts_dir / "impl-bundle.md").read_text(encoding="utf-8"))
     frontmatter["status"] = bundle_status
     (artifacts_dir / "impl-bundle.md").write_text(render_markdown(frontmatter, body), encoding="utf-8")
+    for name in [
+        "impl-task.md",
+        "integration-plan.md",
+        "frontend-workstream.md",
+        "backend-workstream.md",
+        "migration-cutover-plan.md",
+    ]:
+        path = artifacts_dir / name
+        if not path.exists():
+            continue
+        frontmatter, body = parse_markdown_frontmatter(path.read_text(encoding="utf-8"))
+        frontmatter["status"] = bundle_status
+        path.write_text(render_markdown(frontmatter, body), encoding="utf-8")
 
     dump_json(artifacts_dir / "impl-bundle.json", bundle_json)
     dump_json(artifacts_dir / "impl-review-report.json", review_report)
     dump_json(artifacts_dir / "impl-acceptance-report.json", acceptance_report)
     dump_json(artifacts_dir / "impl-defect-list.json", supervision.get("semantic_findings") or [])
+    dump_json(artifacts_dir / "dev-evidence-plan.json", evidence_plan)
     dump_json(artifacts_dir / "smoke-gate-subject.json", smoke_gate_subject)
     dump_json(artifacts_dir / "supervision-evidence.json", supervision)
     dump_json(artifacts_dir / "package-manifest.json", manifest)
@@ -284,6 +303,7 @@ def validate_output_package(artifacts_dir: Path) -> tuple[list[str], dict[str, A
     handoff = load_json(artifacts_dir / "handoff-to-feature-delivery.json")
     upstream_refs = load_json(artifacts_dir / "upstream-design-refs.json")
     evidence_plan = load_json(artifacts_dir / "dev-evidence-plan.json")
+    semantic_drift_check = load_json(artifacts_dir / "semantic-drift-check.json")
 
     if bundle_json.get("artifact_type") != "feature_impl_candidate_package":
         errors.append("impl-bundle.json artifact_type must be feature_impl_candidate_package.")
@@ -296,6 +316,8 @@ def validate_output_package(artifacts_dir: Path) -> tuple[list[str], dict[str, A
     for prefix in ["dev.feat-to-tech::", "FEAT-", "TECH-", "EPIC-", "SRC-"]:
         if not any(ref.startswith(prefix) for ref in source_refs):
             errors.append(f"impl-bundle.json source_refs must include {prefix}.")
+    if bundle_json.get("semantic_lock") and semantic_drift_check.get("semantic_lock_preserved") is not True:
+        errors.append("semantic-drift-check.json must preserve semantic_lock when semantic_lock is present.")
 
     _, bundle_body = parse_markdown_frontmatter((artifacts_dir / "impl-bundle.md").read_text(encoding="utf-8"))
     for heading in REQUIRED_BUNDLE_HEADINGS:
@@ -388,6 +410,7 @@ def validate_output_package(artifacts_dir: Path) -> tuple[list[str], dict[str, A
         "impl_ref": bundle_json.get("impl_ref"),
         "manifest_status": manifest_status,
         "smoke_gate_status": smoke_status,
+        "semantic_lock_preserved": semantic_drift_check.get("semantic_lock_preserved", True),
     }
 
 

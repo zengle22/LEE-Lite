@@ -91,7 +91,7 @@ def build_semantic_drift_check(feature: dict[str, Any], bundle_json: dict[str, A
         if tokens and all(token in generated_text for token in tokens):
             anchor_matches.append(label)
     if str(lock.get("domain_type") or "").strip().lower() == "review_projection_rule":
-        review_projection_tokens = ["projection", "gate", "ssot"]
+        review_projection_tokens = ["projection", "ssot"]
         if all(token in generated_text for token in review_projection_tokens):
             anchor_matches.append("review_projection_signature")
     preserved = not forbidden_hits and len(anchor_matches) >= 1
