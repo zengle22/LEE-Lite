@@ -11,6 +11,7 @@ from cli.commands.evidence.command import handle as handle_evidence
 from cli.commands.gate.command import handle as handle_gate
 from cli.commands.registry.command import handle as handle_registry
 from cli.commands.rollout.command import handle as handle_rollout
+from cli.commands.skill.command import handle as handle_skill
 from cli.commands.validate.command import handle as handle_validate
 
 
@@ -60,6 +61,12 @@ def build_parser() -> argparse.ArgumentParser:
     for action in ("onboard-skill", "cutover-wave", "fallback-wave", "assess-skill", "validate-pilot", "summarize-readiness"):
         _add_action_parser(rollout_sub, action)
     rollout.set_defaults(handler=handle_rollout)
+
+    skill = groups.add_parser("skill")
+    skill_sub = skill.add_subparsers(dest="action", required=True)
+    for action in ("test-exec-web-e2e", "test-exec-cli"):
+        _add_action_parser(skill_sub, action)
+    skill.set_defaults(handler=handle_skill)
 
     validate = groups.add_parser("validate")
     validate_sub = validate.add_subparsers(dest="action", required=True)
