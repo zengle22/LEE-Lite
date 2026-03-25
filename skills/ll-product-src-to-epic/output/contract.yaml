@@ -17,9 +17,13 @@ required_source_refs:
 required_sections:
   - Epic Intent
   - Business Goal
-  - Scope
+  - Business Value and Problem
+  - Product Positioning
+  - Actors and Roles
+  - Capability Scope
+  - Upstream and Downstream
   - Non-Goals
-  - Success Metrics
+  - Epic Success Criteria
   - Decomposition Rules
   - Rollout and Adoption
   - Constraints and Dependencies
@@ -40,5 +44,6 @@ forbidden_content:
   - unstated new requirements
 notes:
   - The output must be strong enough for downstream `product.epic-to-feat` decomposition without re-deriving the source problem space.
+  - EPIC must freeze the product capability block itself, including business value, positioning, actors, and downstream inheritance context.
   - Preserve ADR-025 acceptance semantics as explicit output artifacts, not implied review prose.
   - When the SRC changes shared governance/runtime capability and real effectiveness depends on skill adoption, keep a single EPIC but make rollout/adoption/E2E decomposition explicit inside that EPIC.

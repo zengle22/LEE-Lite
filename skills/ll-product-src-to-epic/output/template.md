@@ -22,21 +22,37 @@ source_refs:
 
 [State the product outcome and why this EPIC exists.]
 
-## Scope
+## Business Value and Problem
+
+[State the business problem, why it matters now, and the user-visible consequence of not doing this EPIC.]
+
+## Product Positioning
+
+[Explain where this EPIC sits in the end-to-end product flow, what upstream it absorbs, and what downstream product slices it enables.]
+
+## Actors and Roles
+
+[List the core product/business roles and what each role is responsible for at the EPIC layer.]
+
+## Capability Scope
 
 [Define what is in scope at the EPIC layer.]
+
+## Upstream and Downstream
+
+[State what upstream package/context this EPIC consumes and what downstream FEAT layer must inherit from it.]
 
 ## Non-Goals
 
 [List what must not be pulled into this EPIC.]
 
-## Success Metrics
+## Epic Success Criteria
 
-[List the measurable outcomes or review-ready indicators.]
+[List the measurable or review-ready product outcomes that prove the EPIC is complete.]
 
 ## Decomposition Rules
 
-[State how downstream FEATs should be split without doing the FEAT work here.]
+[State that downstream FEATs must be split by product behavior slices, while capability axes remain cross-cutting constraints and rollout/adoption stays as overlay.]
 
 ## Rollout and Adoption
 
