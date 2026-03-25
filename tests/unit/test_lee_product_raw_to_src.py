@@ -51,15 +51,7 @@ class RawToSrcWorkflowTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temp_dir:
             repo_root = Path(temp_dir)
             self.make_repo(repo_root)
-            result = self.run_cmd(
-                "run",
-                "--input",
-                str(FIXTURES / "raw-requirement.md"),
-                "--repo-root",
-                str(repo_root),
-                "--run-id",
-                "test-run-basic",
-            )
+            result = self.run_cmd("run", "--input", str(FIXTURES / "raw-requirement.md"), "--repo-root", str(repo_root), "--run-id", "test-run-basic")
             self.assertEqual(result.returncode, 0, result.stderr)
             payload = json.loads(result.stdout)
             self.assertEqual(payload["status"], "freeze_ready")
@@ -84,6 +76,12 @@ class RawToSrcWorkflowTests(unittest.TestCase):
             self.assertTrue((artifacts_dir / "source-semantic-findings.json").exists())
             self.assertTrue((artifacts_dir / "handoff-proposal.json").exists())
             self.assertTrue((artifacts_dir / "job-proposal.json").exists())
+            self.assertTrue((artifacts_dir / "_cli" / "artifact-commit.response.json").exists())
+            self.assertTrue((repo_root / "artifacts" / "registry" / "raw-to-src-test-run-basic-src-candidate.json").exists())
+
+            cli_response = json.loads((artifacts_dir / "_cli" / "artifact-commit.response.json").read_text(encoding="utf-8"))
+            self.assertEqual(cli_response["status_code"], "OK")
+            self.assertEqual(cli_response["data"]["canonical_path"], "artifacts/raw-to-src/test-run-basic/src-candidate.md")
 
             execution = json.loads((artifacts_dir / "execution-evidence.json").read_text(encoding="utf-8"))
             stage_ids = {item["stage_id"] for item in execution["stage_results"]}
@@ -98,15 +96,7 @@ class RawToSrcWorkflowTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temp_dir:
             repo_root = Path(temp_dir)
             self.make_repo(repo_root)
-            result = self.run_cmd(
-                "run",
-                "--input",
-                str(FIXTURES / "adr-bridge.yaml"),
-                "--repo-root",
-                str(repo_root),
-                "--run-id",
-                "test-run-adr",
-            )
+            result = self.run_cmd("run", "--input", str(FIXTURES / "adr-bridge.yaml"), "--repo-root", str(repo_root), "--run-id", "test-run-adr")
             self.assertEqual(result.returncode, 0, result.stderr)
             payload = json.loads(result.stdout)
             content = Path(payload["candidate_path"]).read_text(encoding="utf-8")
@@ -154,15 +144,7 @@ class RawToSrcWorkflowTests(unittest.TestCase):
                 encoding="utf-8",
             )
 
-            result = self.run_cmd(
-                "run",
-                "--input",
-                str(source),
-                "--repo-root",
-                str(repo_root),
-                "--run-id",
-                "test-run-markdown-adr",
-            )
+            result = self.run_cmd("run", "--input", str(source), "--repo-root", str(repo_root), "--run-id", "test-run-markdown-adr")
             self.assertEqual(result.returncode, 0, result.stderr)
             payload = json.loads(result.stdout)
             self.assertEqual(payload["status"], "freeze_ready")
@@ -216,9 +198,12 @@ class RawToSrcWorkflowTests(unittest.TestCase):
             self.assertIn("下游需求链必须将 双会话双队列闭环、文件化 handoff runtime、external gate 独立裁决与物化 视为同一治理闭环的组成部分统一继承", sections["治理变更摘要"])
             self.assertIn("approve、revise、retry、handoff、reject", sections["治理变更摘要"])
             self.assertIn("candidate package 是 gate 消费对象；formal object 是 gate 批准后供下游消费的正式输入。", sections["治理变更摘要"])
+            self.assertIn("ADR-005 为主链文件 IO / 路径治理提供已交付治理基础", sections["治理变更摘要"])
             self.assertIn("external gate 必须以 approve、revise、retry、handoff、reject 形成唯一决策", sections["关键约束"])
             self.assertIn("candidate package 仅作为 gate 消费对象；经 gate 批准并物化后的 formal object 才能作为下游正式输入。", sections["关键约束"])
-            self.assertIn("定义主链中 skill 文件读写、artifact 输入输出边界、路径策略与 handoff、gate、formal materialization 的统一治理边界。", sections["范围边界"])
+            self.assertIn("ADR-005 已提供的治理基础", sections["范围边界"])
+            self.assertIn("不在本 SRC 中重新实现 ADR-005 的 Gateway / Path Policy / Registry 模块", sections["范围边界"])
+            self.assertIn("ADR-005", sections["来源追溯"])
             self.assertIn("结构化继承元数据区：本节仅用于机器消费与下游继承，不承担正文展开解释。", sections["Bridge Context"])
             self.assertIn("审计链应能回答谁推进了 candidate、谁做了 final decision、为什么允许推进、正式物化了什么对象。", sections["Bridge Context"])
 
