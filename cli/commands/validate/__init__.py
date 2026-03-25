@@ -1,0 +1,2 @@
+"""Validate command package."""
+
