@@ -247,13 +247,21 @@ def design_focus(feature: dict[str, Any]) -> list[str]:
 
 def implementation_rules(feature: dict[str, Any]) -> list[str]:
     rules = ensure_list(feature.get("constraints"))[:4]
+    source_refs = ensure_list(feature.get("source_refs"))
+    if "ADR-007" in source_refs and feature_axis(feature) == "adoption_e2e":
+        rules.extend(
+            [
+                "Authoritative inherited constraints：对外暴露一个宽 skill family：`skill.qa.test_exec_web_e2e` 与 `skill.qa.test_exec_cli`。",
+                "Authoritative inherited constraints：内部保留一个窄 runner family：`skill.runner.test_e2e` 与 `skill.runner.test_cli`。",
+            ]
+        )
     for check in feature.get("acceptance_checks") or []:
         if isinstance(check, dict):
             scenario = str(check.get("scenario") or "").strip()
             then = str(check.get("then") or "").strip()
             if scenario and then:
                 rules.append(f"{scenario}: {then}")
-    return unique_strings(rules)[:6]
+    return unique_strings(rules)[:8]
 
 
 def non_functional_requirements(feature: dict[str, Any], package: Any) -> list[str]:
@@ -272,15 +280,15 @@ def architecture_topics(feature: dict[str, Any]) -> list[str]:
     axis = feature_axis(feature)
     if axis == "collaboration":
         return [
-            "Boundary to formalization: 本 FEAT 负责 authoritative handoff submission、gate-pending visibility 与 decision-driven runtime re-entry routing，不负责 decision vocabulary、formalization 语义与 final materialization。",
+            "Boundary to gate decision / publication: 本 FEAT 负责 authoritative handoff submission、gate-pending visibility 与 decision-driven runtime re-entry routing，不负责 decision vocabulary、decision issuance 与 formal publication trigger semantics。",
             "Boundary to admission/layering: 本 FEAT 可以提交 candidate / proposal / evidence，但 formal admission、formal refs 与 downstream read eligibility 由对象分层 FEAT 决定。",
             "Dedicated runtime placement is required so submission receipt、pending visibility 和 re-entry routing 由同一 authoritative carrier 负责，而不是散落在 producer skill 或 gate worker 中。",
         ]
     if axis == "formalization":
         return [
             "Boundary to collaboration runtime: formalization FEAT 消费 authoritative handoff 与 proposal，不重新定义 submission receipt 或 pending visibility。",
-            "Boundary to downstream admission: 本 FEAT 负责 decision 与 formal materialization，不负责 consumer admission policy 本身。",
-            "Dedicated gate/materialization placement is required so decision vocabulary、formal publish 与 lineage bind 保持单一路径。",
+            "Boundary to downstream publication/admission: 本 FEAT 负责 gate brief、pending human decision、authoritative decision object 与 dispatch trigger，不负责 formal publish / consumer admission policy 本身。",
+            "Dedicated gate placement is required so brief、pending、decision、dispatch 使用同一 authoritative path，而不是散落在 gate worker 或 business skill 中。",
         ]
     if axis == "layering":
         return [
@@ -291,12 +299,12 @@ def architecture_topics(feature: dict[str, Any]) -> list[str]:
     if axis == "io_governance":
         return [
             "Boundary to object layering: 本 FEAT 冻结受治理 IO/path 边界，但不决定对象层级与 admission policy。",
-            "Boundary to formalization: 本 FEAT 约束 write/read carrier 与 receipt/registry 行为，不定义 approve/reject 等 decision semantics。",
+            "Boundary to gate decision / publication: 本 FEAT 约束 write/read carrier 与 receipt/registry 行为，不定义 approve/reject 等 decision semantics。",
             "Dedicated gateway placement is required so policy、IO execution、registry bind 与 receipt publication use one governed carrier.",
         ]
     if axis == "adoption_e2e":
         return [
-            "Boundary to foundation FEATs: 本 FEAT 只定义 onboarding/pilot/cutover 挂接边界，不重写 collaboration、formalization、IO foundation internals。",
+            "Boundary to foundation FEATs: 本 FEAT 只定义 onboarding/pilot/cutover 挂接边界，不重写 collaboration、gate decision/publication、IO foundation internals。",
             "Boundary to audit/gate consumption: 本 FEAT 组织 pilot evidence 与 cutover routing，不新建平行 decision 体系。",
             "Dedicated rollout placement is required so wave state、compat mode 与 fallback remain authoritative across skill adoption.",
         ]
@@ -316,9 +324,9 @@ def responsibility_splits(feature: dict[str, Any]) -> list[str]:
         ]
     if axis == "formalization":
         return [
-            "External gate owns approve / revise / retry / handoff / reject decision semantics and emits the only authoritative decision object.",
-            "Formal materialization worker owns candidate -> formal publish after approvable decisions, but does not own downstream admission policy.",
-            "Business skills do not bypass gate by writing formal objects directly.",
+            "External gate owns gate brief build and approve / revise / retry / handoff / reject decision semantics, and emits the only authoritative decision object.",
+            "Dispatch router owns execution / delegate / publication-trigger routing after decision issuance, but does not own formal publish itself or downstream admission policy.",
+            "Business skills do not bypass gate by issuing decision objects or writing formal publication triggers directly.",
         ]
     if axis == "layering":
         return [
@@ -398,32 +406,32 @@ def api_cli_commands(feature: dict[str, Any]) -> list[str]:
     axis = feature_axis(feature)
     if axis == "collaboration":
         return [
-            "`lee gate submit-handoff --producer-ref <producer_ref> --proposal-ref <proposal_ref> --payload-ref <payload_ref> --state <pending_state>` via `cli/commands/gate/command.py`",
-            "`lee gate show-pending --handoff-ref <handoff_ref>` via `cli/commands/gate/command.py`",
+            "`ll gate submit-handoff --request <gate_submit_handoff.request.json> --response-out <gate_submit_handoff.response.json>` via `cli/commands/gate/command.py`",
+            "`ll gate show-pending --request <gate_show_pending.request.json> --response-out <gate_show_pending.response.json>` via `cli/commands/gate/command.py`",
         ]
     if axis == "formalization":
         return [
-            "`lee gate decide --handoff-ref <handoff_ref> --proposal-ref <proposal_ref> --decision <approve|revise|retry|handoff|reject> --review-context <json>` via `cli/commands/gate/command.py`",
-            "`lee registry publish-formal --candidate-ref <candidate_ref> --decision-ref <decision_ref> --target-kind <formal_kind>` via `cli/commands/registry/command.py`",
+            "`ll gate evaluate --request <gate_evaluate.request.json> --response-out <gate_evaluate.response.json>` via `cli/commands/gate/command.py`",
+            "`ll gate dispatch --request <gate_dispatch.request.json> --response-out <gate_dispatch.response.json>` via `cli/commands/gate/command.py`",
         ]
     if axis == "layering":
         return [
-            "`lee registry resolve-formal-ref --requested-ref <object_ref>` via `cli/commands/registry/command.py`",
-            "`lee registry validate-admission --consumer-ref <consumer_ref> --requested-ref <object_ref>` via `cli/commands/registry/command.py`",
+            "`ll registry resolve-formal-ref --request <registry_resolve_formal_ref.request.json> --response-out <registry_resolve_formal_ref.response.json>` via `cli/commands/registry/command.py`",
+            "`ll registry validate-admission --request <registry_validate_admission.request.json> --response-out <registry_validate_admission.response.json>` via `cli/commands/registry/command.py`",
         ]
     if axis == "io_governance":
         return [
-            "`lee artifact commit-governed --logical-path <path> --path-class <class> --mode <read|write> --payload-ref <payload_ref>` via `cli/commands/artifact/command.py`",
-            "`lee artifact read-governed --managed-ref <managed_ref>` via `cli/commands/artifact/command.py`",
+            "`ll artifact commit --request <artifact_commit.request.json> --response-out <artifact_commit.response.json>` via `cli/commands/artifact/command.py`",
+            "`ll artifact read --request <artifact_read.request.json> --response-out <artifact_read.response.json>` via `cli/commands/artifact/command.py`",
         ]
     if axis == "adoption_e2e":
         return [
-            "`lee rollout onboard-skill --skill-ref <skill_ref> --wave-id <wave_id> --compat-mode <mode>` via `cli/commands/rollout/command.py`",
-            "`lee audit submit-pilot-evidence --pilot-chain-ref <chain_ref> --audit-ref <audit_ref>` via `cli/commands/audit/command.py`",
+            "`ll rollout onboard-skill --request <rollout_onboard_skill.request.json> --response-out <rollout_onboard_skill.response.json>` via `cli/commands/rollout/command.py`",
+            "`ll audit submit-pilot-evidence --request <audit_submit_pilot_evidence.request.json> --response-out <audit_submit_pilot_evidence.response.json>` via `cli/commands/audit/command.py`",
         ]
     return [
-        "`lee gate submit-handoff --producer-ref <producer_ref> --proposal-ref <proposal_ref> --payload-ref <payload_ref> --state <pending_state>` via `cli/commands/gate/command.py`",
-        "`lee gate show-pending --handoff-ref <handoff_ref>` via `cli/commands/gate/command.py`",
+        "`ll gate submit-handoff --request <gate_submit_handoff.request.json> --response-out <gate_submit_handoff.response.json>` via `cli/commands/gate/command.py`",
+        "`ll gate show-pending --request <gate_show_pending.request.json> --response-out <gate_show_pending.response.json>` via `cli/commands/gate/command.py`",
     ]
 
 
@@ -432,8 +440,8 @@ def api_command_specs(feature: dict[str, Any]) -> list[dict[str, Any]]:
     if axis == "collaboration":
         return [
             {
-                "command": "lee gate submit-handoff",
-                "surface": "`lee gate submit-handoff --producer-ref <producer_ref> --proposal-ref <proposal_ref> --payload-ref <payload_ref> --state <pending_state>` via `cli/commands/gate/command.py`",
+                "command": "ll gate submit-handoff",
+                "surface": "`ll gate submit-handoff --request <gate_submit_handoff.request.json> --response-out <gate_submit_handoff.response.json>` via `cli/commands/gate/command.py`",
                 "request_schema": [
                     "`producer_ref: string`",
                     "`proposal_ref: string`",
@@ -479,8 +487,8 @@ def api_command_specs(feature: dict[str, Any]) -> list[dict[str, Any]]:
                 ],
             },
             {
-                "command": "lee gate show-pending",
-                "surface": "`lee gate show-pending --handoff-ref <handoff_ref>` via `cli/commands/gate/command.py`",
+                "command": "ll gate show-pending",
+                "surface": "`ll gate show-pending --request <gate_show_pending.request.json> --response-out <gate_show_pending.response.json>` via `cli/commands/gate/command.py`",
                 "request_schema": [
                     "`handoff_ref: string`",
                 ],
@@ -519,92 +527,103 @@ def api_command_specs(feature: dict[str, Any]) -> list[dict[str, Any]]:
     if axis == "formalization":
         return [
             {
-                "command": "lee gate decide",
-                "surface": "`lee gate decide --handoff-ref <handoff_ref> --proposal-ref <proposal_ref> --decision <approve|revise|retry|handoff|reject> --review-context <json>` via `cli/commands/gate/command.py`",
+                "command": "ll gate evaluate",
+                "surface": "`ll gate evaluate --request <gate_evaluate.request.json> --response-out <gate_evaluate.response.json>` via `cli/commands/gate/command.py`",
                 "request_schema": [
                     "`handoff_ref: string`",
                     "`proposal_ref: string`",
-                    "`decision: enum<approve|revise|retry|handoff|reject>`",
-                    "`decision_reason: string`",
-                    "`review_context_ref: string?`",
+                    "`evidence_refs: string[]`",
+                    "`brief_round: integer`",
+                    "`priority_hint: enum<P0|P1|P2>?`",
+                    "`merge_group_hint: string?`",
                 ],
                 "response_schema": [
                     "success envelope=`{ ok: true, command_ref, trace_ref, result }`",
-                    "result fields=`decision_ref`, `decision`, `reentry_allowed`, `materialization_required`, `evidence_ref`",
+                    "result fields=`brief_record_ref`, `pending_human_decision_ref`, `decision_ref`, `decision`, `decision_target`, `decision_basis_refs`, `dispatch_target`, `trace_ref`",
                     "error envelope=`{ ok: false, command_ref, trace_ref, error }`",
                 ],
                 "field_semantics": [
-                    "`decision_ref` is the authoritative gate result for downstream materialization and re-entry consumers.",
-                    "`reentry_allowed` only signals revise/retry routing; it does not itself publish downstream formal refs.",
+                    "`brief_record_ref` is the authoritative gate-brief record built from the handoff submission and evidence set.",
+                    "`pending_human_decision_ref` identifies the uniquely claimed pending-human record consumed by the decision round.",
+                    "`decision_ref` is the only authoritative gate result for downstream execution, delegation, or publication-trigger consumers.",
+                    "`decision_basis_refs` must point back to the exact brief/evidence set used for this decision round.",
                 ],
                 "enum_domain": [
+                    "`priority_hint ∈ {P0, P1, P2}`",
                     "`decision ∈ {approve, revise, retry, handoff, reject}`",
                 ],
                 "invariants": [
+                    "one brief round yields at most one authoritative `brief_record_ref` and one active `pending_human_decision_ref`",
                     "one decision round yields at most one authoritative `decision_ref`",
-                    "approve/handoff are the only materialization-eligible decisions",
+                    "`decision_target` and `decision_basis_refs` must be present before the decision is accepted",
                 ],
                 "canonical_refs": [
+                    "`brief_record_ref`",
+                    "`pending_human_decision_ref`",
                     "`decision_ref`",
                     "`handoff_ref`",
-                    "`evidence_ref`",
+                    "`trace_ref`",
                 ],
                 "errors": [
                     "`handoff_missing`",
                     "`invalid_state`",
                     "`decision_conflict`",
+                    "`missing_basis_refs`",
                 ],
-                "idempotency": "`handoff_ref + decision_round`",
+                "idempotency": "`pending_human_decision_ref + decision_round`",
                 "preconditions": [
                     "`handoff_ref` is already in gate-pending state",
+                    "the pending human decision is active and uniquely claimed",
                 ],
             },
             {
-                "command": "lee registry publish-formal",
-                "surface": "`lee registry publish-formal --candidate-ref <candidate_ref> --decision-ref <decision_ref> --target-kind <formal_kind>` via `cli/commands/registry/command.py`",
+                "command": "ll gate dispatch",
+                "surface": "`ll gate dispatch --request <gate_dispatch.request.json> --response-out <gate_dispatch.response.json>` via `cli/commands/gate/command.py`",
                 "request_schema": [
-                    "`candidate_ref: string`",
                     "`decision_ref: string`",
-                    "`target_kind: string`",
-                    "`publish_mode: enum<replace|append>`",
+                    "`dispatch_target: enum<execution_return|delegated_handler|formal_publication_trigger|reject_terminal>`",
+                    "`decision_target: string`",
+                    "`decision_basis_refs: string[]`",
                 ],
                 "response_schema": [
                     "success envelope=`{ ok: true, command_ref, trace_ref, result }`",
-                    "result fields=`formal_ref`, `lineage_ref`, `publish_status`, `receipt_ref`",
+                    "result fields=`dispatch_receipt_ref`, `dispatch_status`, `materialized_job_ref`, `materialized_handoff_ref`",
                     "error envelope=`{ ok: false, command_ref, trace_ref, error }`",
                 ],
                 "field_semantics": [
-                    "`formal_ref` is the only downstream-consumable reference published by this command.",
-                    "`lineage_ref` binds the resulting formal object back to the originating candidate and decision.",
+                    "`dispatch_target` is derived from the authoritative decision object and is not an independently chosen runtime state.",
+                    "`dispatch_receipt_ref` records the exact downstream handoff or execution return initiated by this command.",
                 ],
                 "enum_domain": [
-                    "`publish_mode ∈ {replace, append}`",
+                    "`dispatch_target ∈ {execution_return, delegated_handler, formal_publication_trigger, reject_terminal}`",
                 ],
                 "invariants": [
-                    "publish must not succeed without an approvable decision",
-                    "successful publish must return both `formal_ref` and `lineage_ref`",
+                    "dispatch must not succeed without an authoritative decision object",
+                    "`formal_publication_trigger` may only be selected for `approve` or `handoff` decisions",
                 ],
                 "canonical_refs": [
-                    "`formal_ref`",
-                    "`lineage_ref`",
-                    "`receipt_ref`",
+                    "`decision_ref`",
+                    "`dispatch_receipt_ref`",
+                    "`materialized_job_ref`",
+                    "`materialized_handoff_ref`",
                 ],
                 "errors": [
-                    "`decision_not_approvable`",
-                    "`registry_bind_failed`",
-                    "`publish_failed`",
+                    "`decision_not_dispatchable`",
+                    "`dispatch_failed`",
+                    "`unknown_dispatch_target`",
                 ],
-                "idempotency": "`candidate_ref + decision_ref`",
+                "idempotency": "`decision_ref + dispatch_target`",
                 "preconditions": [
-                    "`decision_ref` resolves to `approve` or `handoff`",
+                    "`decision_ref` resolves to one authoritative decision object",
+                    "`decision_target` and `decision_basis_refs` are already present on the decision object",
                 ],
             },
         ]
     if axis == "layering":
         return [
             {
-                "command": "lee registry resolve-formal-ref",
-                "surface": "`lee registry resolve-formal-ref --requested-ref <object_ref>` via `cli/commands/registry/command.py`",
+                "command": "ll registry resolve-formal-ref",
+                "surface": "`ll registry resolve-formal-ref --request <registry_resolve_formal_ref.request.json> --response-out <registry_resolve_formal_ref.response.json>` via `cli/commands/registry/command.py`",
                 "request_schema": [
                     "`requested_ref: string`",
                 ],
@@ -637,8 +656,8 @@ def api_command_specs(feature: dict[str, Any]) -> list[dict[str, Any]]:
                 ],
             },
             {
-                "command": "lee registry validate-admission",
-                "surface": "`lee registry validate-admission --consumer-ref <consumer_ref> --requested-ref <object_ref>` via `cli/commands/registry/command.py`",
+                "command": "ll registry validate-admission",
+                "surface": "`ll registry validate-admission --request <registry_validate_admission.request.json> --response-out <registry_validate_admission.response.json>` via `cli/commands/registry/command.py`",
                 "request_schema": [
                     "`consumer_ref: string`",
                     "`requested_ref: string`",
@@ -677,8 +696,8 @@ def api_command_specs(feature: dict[str, Any]) -> list[dict[str, Any]]:
     if axis == "io_governance":
         return [
             {
-                "command": "lee artifact commit-governed",
-                "surface": "`lee artifact commit-governed --logical-path <path> --path-class <class> --mode <read|write> --payload-ref <payload_ref>` via `cli/commands/artifact/command.py`",
+                "command": "ll artifact commit",
+                "surface": "`ll artifact commit --request <artifact_commit.request.json> --response-out <artifact_commit.response.json>` via `cli/commands/artifact/command.py`",
                 "request_schema": [
                     "`logical_path: string`",
                     "`path_class: string`",
@@ -717,8 +736,8 @@ def api_command_specs(feature: dict[str, Any]) -> list[dict[str, Any]]:
                 ],
             },
             {
-                "command": "lee artifact read-governed",
-                "surface": "`lee artifact read-governed --managed-ref <managed_ref>` via `cli/commands/artifact/command.py`",
+                "command": "ll artifact read",
+                "surface": "`ll artifact read --request <artifact_read.request.json> --response-out <artifact_read.response.json>` via `cli/commands/artifact/command.py`",
                 "request_schema": [
                     "`managed_ref: string`",
                 ],
@@ -753,8 +772,8 @@ def api_command_specs(feature: dict[str, Any]) -> list[dict[str, Any]]:
     if axis == "adoption_e2e":
         return [
             {
-                "command": "lee rollout onboard-skill",
-                "surface": "`lee rollout onboard-skill --skill-ref <skill_ref> --wave-id <wave_id> --compat-mode <mode>` via `cli/commands/rollout/command.py`",
+                "command": "ll rollout onboard-skill",
+                "surface": "`ll rollout onboard-skill --request <rollout_onboard_skill.request.json> --response-out <rollout_onboard_skill.response.json>` via `cli/commands/rollout/command.py`",
                 "request_schema": [
                     "`skill_ref: string`",
                     "`wave_id: string`",
@@ -788,8 +807,8 @@ def api_command_specs(feature: dict[str, Any]) -> list[dict[str, Any]]:
                 ],
             },
             {
-                "command": "lee audit submit-pilot-evidence",
-                "surface": "`lee audit submit-pilot-evidence --pilot-chain-ref <chain_ref> --audit-ref <audit_ref>` via `cli/commands/audit/command.py`",
+                "command": "ll audit submit-pilot-evidence",
+                "surface": "`ll audit submit-pilot-evidence --request <audit_submit_pilot_evidence.request.json> --response-out <audit_submit_pilot_evidence.response.json>` via `cli/commands/audit/command.py`",
                 "request_schema": [
                     "`pilot_chain_ref: string`",
                     "`producer_ref: string`",
@@ -851,9 +870,9 @@ def api_compatibility_rules(feature: dict[str, Any]) -> list[str]:
         "command stdout/stderr 与 receipt schema 需要版本化，不允许用隐式文本变化替代 schema 变更。",
     ]
     if axis == "collaboration":
-        rules.append("提交与 pending 可见性命令不得偷带决策语义；`approve / revise / retry / handoff / reject` 只能留在 formalization FEAT。")
+        rules.append("提交与 pending 可见性命令不得偷带决策语义；`approve / revise / retry / handoff / reject` 只能留在 gate decision FEAT。")
     if axis == "formalization":
-        rules.append("`lee gate decide` 与 `lee registry publish-formal` 的 decision vocabulary 必须共享同一份枚举，不允许命名漂移。")
+        rules.append("`ll gate evaluate` 与 `ll gate dispatch` 的 decision vocabulary / dispatch_target 必须共享同一份枚举与 target 语义，不允许把 human decision actions 漂成 runtime states。")
     if axis == "layering":
         rules.append("resolve/admission 命令必须始终返回 authoritative formal refs，不允许退化为路径猜测结果。")
     if axis == "io_governance":
@@ -1007,8 +1026,8 @@ def consistency_check(feature: dict[str, Any], assessment: dict[str, Any]) -> di
         "semantic",
         "Collaboration re-entry boundary",
         reentry_boundary_ok,
-        "When collaboration FEATs mention revise/retry, TECH keeps decision-driven runtime routing in scope while leaving formalization semantics and materialization out of scope.",
-        "The FEAT carries ambiguous or unresolved revise/retry re-entry ownership, so the generated design cannot claim semantic consistency across runtime routing and downstream formalization.",
+        "When collaboration FEATs mention revise/retry, TECH keeps decision-driven runtime routing in scope while leaving gate decision issuance and formal publication semantics out of scope.",
+        "The FEAT carries ambiguous or unresolved revise/retry re-entry ownership, so the generated design cannot claim semantic consistency across runtime routing and downstream gate/publication boundaries.",
     )
 
     if assessment["api_required"]:
@@ -1110,8 +1129,8 @@ def implementation_architecture(feature: dict[str, Any]) -> list[str]:
     if axis == "formalization":
         return [
             "Business skill 只产出 candidate package / proposal / evidence，由 handoff runtime 承接进入 external gate。",
-            "External gate 负责 approve / revise / retry / handoff / reject 决策，并把 decision 与 formal materialization 串成单一路径。",
-            "Formal object 物化后才允许进入 downstream consumer；candidate layer 永远不直接成为正式输入。",
+            "External gate 先把 handoff 压缩成 `gate-brief-record` 与 `gate-pending-human-decision`，再由 reviewer 给出 approve / revise / retry / handoff / reject 决策。",
+            "本 FEAT 只负责 decision issuance、trace persistence 与 downstream dispatch trigger；formal materialization / publish 由相邻 FEAT 消费 decision object 后继续完成。",
         ]
     if axis == "layering":
         return [
@@ -1133,8 +1152,8 @@ def implementation_architecture(feature: dict[str, Any]) -> list[str]:
         ]
     return [
         "Execution loop、gate loop、human review 通过文件化 handoff runtime 协作；authoritative handoff submission、pending visibility、decision-return intake 都以结构化对象驱动。",
-        "Runtime 在收到 gate decision object 后，只负责可见性回写与 revise/retry re-entry routing；decision vocabulary 仍由 formalization FEAT authoritative freeze。",
-        "Formal materialization、approve/handoff 的最终发布语义不在本 FEAT 内实现，本 FEAT 只保留对 formalization FEAT 的 authoritative boundary handoff。",
+        "Runtime 在收到 gate decision object 后，只负责可见性回写与 revise/retry re-entry routing；decision vocabulary 仍由 gate decision FEAT authoritative freeze。",
+        "Formal publication、approve/handoff 的最终发布语义不在本 FEAT 内实现，本 FEAT 只保留对相邻 publication FEAT 的 authoritative boundary handoff。",
     ]
 
 
@@ -1146,8 +1165,9 @@ def implementation_modules(feature: dict[str, Any]) -> list[str]:
     ]
     if axis == "formalization":
         return common + [
-            "Gate decision processor：解析 approve / revise / retry / handoff / reject，并驱动唯一升级链。",
-            "Formal materialization worker：把 candidate 升级成 formal object，并写出 downstream 可消费引用。",
+            "Gate brief builder：负责把 handoff submission 压缩成 `gate-brief-record` 与 `gate-pending-human-decision`。",
+            "Gate decision processor：解析 approve / revise / retry / handoff / reject，并产出带 `decision_target` 与 `decision_basis_refs` 的唯一 authoritative decision object。",
+            "Dispatch router：负责把 decision object 回交给 execution、delegated handler 或 formal publication trigger，而不是直接执行 formal publish。",
         ]
     if axis == "layering":
         return common + [
@@ -1174,7 +1194,7 @@ def state_model(feature: dict[str, Any]) -> list[str]:
     axis = feature_axis(feature)
     if axis == "formalization":
         return [
-            "`candidate_prepared` -> `submitted_to_gate` -> `decision_issued` -> `formal_materialized` -> `downstream_consumable`",
+            "`candidate_prepared` -> `submitted_to_gate` -> `brief_prepared` -> `pending_human_decision` -> `decision_issued` -> `execution_returned|delegated|publication_triggered|rejected`",
             "`decision_issued(revise)` -> `returned_for_revision` -> `candidate_prepared`",
             "`decision_issued(retry)` -> `retry_pending` -> `submitted_to_gate`",
         ]
@@ -1209,11 +1229,13 @@ def architecture_diagram(feature: dict[str, Any]) -> str:
             "[Business Skill]",
             "      |",
             "      v",
-            "[Candidate Package] --> [Handoff Runtime] --> [External Gate] --> [Decision Object]",
+            "[Candidate Package] --> [Handoff Runtime] --> [External Gate] --> [Gate Brief Record]",
             "                                                              |",
-            "                                                              +--> revise/retry --> [Handoff Runtime]",
-            "                                                              |",
-            "                                                              +--> approve/handoff --> [Formal Materialization] --> [Formal Object] --> [Downstream Consumer]",
+            "                                                              +--> [Pending Human Decision] --> [Decision Object]",
+            "                                                                                                  |",
+            "                                                                                                  +--> revise/retry/reject --> [Execution / Runtime Return]",
+            "                                                                                                  |",
+            "                                                                                                  +--> approve/handoff --> [Dispatch Trigger]",
             "```",
         ])
     if axis == "layering":
@@ -1261,10 +1283,11 @@ def tech_runtime_view(feature: dict[str, Any]) -> str:
             "```text",
             "[cli/commands/gate/command.py]",
             "              |",
-            "              v",
-            "[cli/lib/formalization.py] --> [cli/lib/registry_store.py] --> [Formal Ref / Receipt]",
-            "              |",
             "              +--> [cli/lib/protocol.py]",
+            "              |",
+            "              +--> [cli/lib/registry_store.py]",
+            "              |",
+            "              +--> [Gate Brief Record / Pending Human Decision / Gate Decision]",
             "```",
         ])
     if axis == "layering":
@@ -1321,10 +1344,11 @@ def flow_diagram(feature: dict[str, Any]) -> str:
             "```text",
             "Business Skill -> Runtime         : submit candidate + proposal",
             "Runtime        -> External Gate   : enqueue handoff for decision",
-            "External Gate  -> Runtime         : approve / revise / retry / handoff / reject",
-            "Runtime        -> Materializer    : materialize formal object on approve/handoff",
-            "Materializer   -> Consumer        : publish formal refs",
-            "Runtime        -> Business Skill  : return structured decision on revise/retry",
+            "External Gate  -> Runtime         : build gate brief + pending human decision",
+            "Reviewer       -> External Gate   : approve / revise / retry / handoff / reject",
+            "External Gate  -> Runtime         : persist decision object with target/basis",
+            "Runtime        -> Execution Loop  : return structured decision on revise/retry/reject",
+            "Runtime        -> Delegate/Publish Trigger : dispatch handoff or approve trigger",
             "```",
         ])
     if axis == "layering":
@@ -1376,9 +1400,9 @@ def implementation_strategy(feature: dict[str, Any]) -> list[str]:
     axis = feature_axis(feature)
     if axis == "formalization":
         return [
-            "先固化 candidate -> gate -> formal 的对象链与 decision vocabulary，再接入真正的 materialization writer。",
-            "实现 revise / retry 回流时，必须先打通 structured decision 回写，再允许下游消费 formal refs。",
-            "最后用一条真实 candidate-to-formal pilot 验证 formal object、decision 和 evidence 三者闭环。",
+            "先固化 candidate -> brief -> pending human -> decision 的对象链与 decision vocabulary。",
+            "实现 revise / retry / handoff 回流时，必须先打通 structured decision 回写，并确保 `decision_target` 与 `decision_basis_refs` 完整。",
+            "最后把 approve decision 只作为 dispatch trigger 暴露给相邻 formal publication FEAT，不在本 FEAT 内直接 publish。",
         ]
     if axis == "layering":
         return [
@@ -1389,7 +1413,7 @@ def implementation_strategy(feature: dict[str, Any]) -> list[str]:
     if axis == "io_governance":
         return [
             "先接通 runtime 到 ADR-005 Gateway / Path Policy / Registry 的调用路径，再禁止自由写入 fallback。",
-            "把 mainline handoff 与 formalization 写入都切到同一条受治理 IO 链路，避免双轨写盘。",
+            "把 mainline handoff 与 formal publication 相关写入都切到同一条受治理 IO 链路，避免双轨写盘。",
             "最后用真实 handoff write + formal write 两条样例验证 path / mode / registry 行为。",
         ]
     if axis == "adoption_e2e":
@@ -1401,7 +1425,7 @@ def implementation_strategy(feature: dict[str, Any]) -> list[str]:
     return [
         "先冻结 authoritative handoff、pending visibility 和 decision return intake，再接入 human review escalation。",
         "把 revise / retry 收敛为 runtime-owned re-entry routing，不允许 business skill 或 gate worker 私下拼接回流路径。",
-        "最后用至少一条真实 submit -> pending -> decision-return -> re-entry pilot 验证协作闭环成立，同时证明 formalization 仍在本 FEAT 外。",
+        "最后用至少一条真实 submit -> pending -> decision-return -> re-entry pilot 验证协作闭环成立，同时证明 gate decision issuance / formal publication 仍在本 FEAT 外。",
     ]
 
 
@@ -1409,11 +1433,9 @@ def implementation_unit_mapping(feature: dict[str, Any]) -> list[str]:
     axis = feature_axis(feature)
     if axis == "formalization":
         return [
-            "`cli/lib/protocol.py` (`extend`): 定义 `HandoffEnvelope`、`GateDecision`、`FormalMaterializationReceipt` 结构。",
-            "`cli/lib/formalization.py` (`new`): 实现 candidate -> formal 的物化编排与结果回写。",
-            "`cli/lib/registry_store.py` (`extend`): 写入 formal refs、lineage 与 downstream 可消费引用。",
-            "`cli/commands/gate/command.py` (`extend`): 接入 gate decision vocabulary 并驱动 materialization dispatch。",
-            "`cli/commands/registry/command.py` (`extend`): 提供 formal object publish / resolve 能力，依赖 `cli/lib/formalization.py`。",
+            "`cli/lib/protocol.py` (`extend`): 定义 `GateBriefRecord`、`GatePendingHumanDecision`、`GateDecision` 结构。",
+            "`cli/lib/registry_store.py` (`extend`): 写入 brief/decision trace、`decision_target`、`decision_basis_refs` 与 dispatch receipt。",
+            "`cli/commands/gate/command.py` (`extend`): 接入 `evaluate` / `dispatch` 语义，生成 brief record、decision object 与回交流水。",
         ]
     if axis == "layering":
         return [
@@ -1452,8 +1474,8 @@ def interface_contracts(feature: dict[str, Any]) -> list[str]:
     axis = feature_axis(feature)
     if axis == "formalization":
         return [
-            "`GateDecision`: input=`HandoffEnvelope` + `proposal_ref`; output=`decision`, `decision_reason`, `reentry_allowed`, `materialization_required`; errors=`invalid_state`, `unknown_candidate`, `policy_reject`; idempotent=`yes by handoff_ref + decision_round`; precondition=`candidate package 已注册且 gate pending`。",
-            "`FormalMaterializationRequest`: input=`candidate_ref`, `decision_ref`, `target_formal_kind`; output=`formal_ref`, `lineage_ref`, `evidence_ref`; errors=`decision_not_approvable`, `registry_bind_failed`, `publish_failed`; idempotent=`yes by candidate_ref + decision_ref`; precondition=`decision in {approve, handoff}`。",
+            "`GateBriefRecord`: input=`handoff_ref`, `proposal_ref`, `evidence_refs`; output=`brief_record_ref`, `pending_human_decision_ref`, `priority`, `merge_group`, `human_projection`; errors=`invalid_state`, `brief_build_failed`; idempotent=`yes by handoff_ref + brief_round`; precondition=`handoff 已进入 gate pending`。",
+            "`GateDecision`: input=`brief_record_ref`, `pending_human_decision_ref`, `human_action`, `decision_target`, `decision_basis_refs`; output=`decision_ref`, `decision`, `decision_reason`, `decision_target`, `decision_basis_refs`, `dispatch_target`; errors=`invalid_state`, `unknown_target`, `missing_basis_refs`, `policy_reject`; idempotent=`yes by pending_human_decision_ref + decision_round`; precondition=`pending human decision is active and uniquely claimed`。",
         ]
     if axis == "layering":
         return [
@@ -1481,11 +1503,11 @@ def main_sequence(feature: dict[str, Any]) -> list[str]:
     if axis == "formalization":
         return [
             "1. normalize handoff and proposal refs",
-            "2. validate gate-pending state and decision vocabulary",
-            "3. persist gate decision and decision evidence",
-            "4. if approve/handoff then dispatch formal materialization",
-            "5. bind formal refs into registry / lineage store",
-            "6. publish downstream-consumable ref and completion receipt",
+            "2. validate gate-pending state and build `gate-brief-record`",
+            "3. persist `gate-pending-human-decision` and human-facing projection",
+            "4. capture human decision action and persist authoritative decision object",
+            "5. validate `decision_target` and `decision_basis_refs`",
+            "6. dispatch structured result to execution, delegated handler, or formal publication trigger",
         ]
     if axis == "layering":
         return [
@@ -1528,9 +1550,9 @@ def exception_compensation(feature: dict[str, Any]) -> list[str]:
     axis = feature_axis(feature)
     if axis == "formalization":
         return [
-            "decision persisted 但 materialization fail：保留 decision evidence，状态回到 `materialization_pending`，禁止伪造 formal refs。",
-            "materialization success 但 downstream publish fail：允许 partial success，formal object 保持已物化，但必须记录 `publish_pending` 并阻止 consumer admission。",
-            "registry bind fail：回滚 formal publish 指针，保留 candidate 不变，要求人工或 gate repair 后重试。",
+            "brief persisted 但 pending human decision 未建立：保留 `brief_record_ref`，阻止 decision issuance，并记录 `pending_build_failed`。",
+            "decision capture 缺少 `decision_target` 或 `decision_basis_refs`：拒绝落 decision object，保留 active pending human decision，要求补充依据后重试。",
+            "dispatch fail：保留 authoritative decision object，不伪造下游 publish 完成态，并记录 `dispatch_pending` 供后续 repair。",
         ]
     if axis == "layering":
         return [
@@ -1561,8 +1583,8 @@ def integration_points(feature: dict[str, Any]) -> list[str]:
     axis = feature_axis(feature)
     if axis == "formalization":
         return [
-            "调用方：现有 governed skill 通过 handoff runtime 提交 candidate package，由 `cli/commands/gate/command.py` 消费 decision。",
-            "挂接点：file-handoff 发生在 candidate package 写入 runtime 之后，formal materialization 在 external gate approve/handoff 之后。",
+            "调用方：现有 governed skill 通过 handoff runtime 提交 candidate package，由 `cli/commands/gate/command.py` 负责 evaluate / dispatch。",
+            "挂接点：file-handoff 发生在 candidate package 写入 runtime 之后；本 FEAT 只把 approve 决策交接为 formal publication trigger，不直接 materialize formal object。",
             "旧系统兼容：business skill 保持只产出 candidate/proposal/evidence，不新增直接 formal write 路径。",
         ]
     if axis == "layering":
@@ -1596,29 +1618,38 @@ def minimal_code_skeleton(feature: dict[str, Any]) -> dict[str, str]:
         return {
             "happy_path": "\n".join([
                 "```python",
-                "def execute_formalization(handoff_ref: str) -> FormalMaterializationReceipt:",
+                "def evaluate_gate_decision(handoff_ref: str) -> GateDecision:",
                 "    envelope = load_handoff_envelope(handoff_ref)",
-                "    decision = gate_decide(envelope)",
-                "    assert decision.kind in {'approve', 'handoff'}",
-                "    formal_ref = materialize_formal_object(envelope.candidate_ref, decision)",
-                "    bind_lineage(formal_ref, envelope.candidate_ref, decision.decision_ref)",
-                "    publish_downstream_ref(formal_ref)",
-                "    return build_receipt(formal_ref, decision.decision_ref)",
+                "    brief = build_gate_brief_record(envelope)",
+                "    pending = persist_pending_human_decision(brief)",
+                "    action = capture_human_action(pending)",
+                "    decision = persist_gate_decision(",
+                "        pending_ref=pending.ref,",
+                "        human_action=action.kind,",
+                "        decision_target=action.target,",
+                "        decision_basis_refs=action.basis_refs,",
+                "    )",
+                "    dispatch_decision(decision)",
+                "    return decision",
                 "```",
             ]),
             "failure_path": "\n".join([
                 "```python",
-                "def execute_formalization_with_repair(handoff_ref: str) -> RepairOutcome:",
+                "def evaluate_gate_decision_with_repair(handoff_ref: str) -> RepairOutcome:",
                 "    envelope = load_handoff_envelope(handoff_ref)",
-                "    decision = gate_decide(envelope)",
-                "    if decision.kind in {'revise', 'retry'}:",
-                "        return persist_reentry(envelope, decision)",
-                "    try:",
-                "        formal_ref = materialize_formal_object(envelope.candidate_ref, decision)",
-                "        bind_lineage(formal_ref, envelope.candidate_ref, decision.decision_ref)",
-                "    except RegistryBindError:",
-                "        mark_materialization_pending(envelope.handoff_ref, decision.decision_ref)",
-                "        return request_gate_repair(envelope.handoff_ref)",
+                "    brief = build_gate_brief_record(envelope)",
+                "    pending = persist_pending_human_decision(brief)",
+                "    action = capture_human_action(pending)",
+                "    if not action.target or not action.basis_refs:",
+                "        mark_pending_repair_required(pending.ref)",
+                "        return request_basis_completion(pending.ref)",
+                "    decision = persist_gate_decision(",
+                "        pending_ref=pending.ref,",
+                "        human_action=action.kind,",
+                "        decision_target=action.target,",
+                "        decision_basis_refs=action.basis_refs,",
+                "    )",
+                "    return dispatch_with_repair(decision)",
                 "```",
             ]),
         }

@@ -264,6 +264,18 @@ def filtered_implementation_rules(package: Any) -> list[str]:
     return unique_strings(filtered)
 
 
+def normalize_collaboration_boundary_text(text: str) -> str:
+    normalized = str(text or "").strip()
+    if not normalized:
+        return normalized
+    if STALE_REENTRY_RULE in normalized.lower():
+        return (
+            "Submission completion only exposes authoritative handoff and pending visibility; "
+            "decision-driven revise/retry routing stays in runtime while formalization semantics remain outside this FEAT."
+        )
+    return normalized
+
+
 def assess_workstreams(feature: dict[str, Any], package: Any) -> dict[str, Any]:
     axis_id = str(feature.get("axis_id") or feature.get("slice_id") or "").strip().lower()
     segments = implementation_surface_segments(feature, package)
@@ -275,12 +287,7 @@ def assess_workstreams(feature: dict[str, Any], package: Any) -> dict[str, Any]:
         + tech_list(package, "integration_points")
         + tech_list(package, "interface_contracts")
     ).lower()
-    tech_migration_text = " ".join(
-        tech_list(package, "implementation_unit_mapping")
-        + tech_list(package, "integration_points")
-        + tech_list(package, "main_sequence")
-        + tech_list(package, "exception_and_compensation")
-    ).lower()
+    tech_migration_text = " ".join(tech_list(package, "implementation_unit_mapping")).lower()
     explicit_frontend_surface = any(
         marker in tech_surface_text
         for marker in [
@@ -477,7 +484,61 @@ def workstream_required_inputs(assessment: dict[str, Any]) -> list[str]:
     return required
 
 
-def acceptance_checkpoints(feature: dict[str, Any]) -> list[dict[str, str]]:
+def acceptance_checkpoints(
+    feature: dict[str, Any],
+    package: Any | None = None,
+    assessment: dict[str, Any] | None = None,
+) -> list[dict[str, str]]:
+    if package is not None:
+        units = implementation_units(package)
+        unit_paths = ", ".join(unit["path"] for unit in units[:4]) or "the declared runtime units"
+        contracts = tech_list(package, "interface_contracts")
+        main_sequence = tech_list(package, "main_sequence")
+        integration_points = tech_list(package, "integration_points")
+        migration_required = bool((assessment or {}).get("migration_required"))
+        observable_outcomes = ensure_list((feature.get("acceptance_and_testability") or {}).get("observable_outcomes"))
+
+        checkpoints = [
+            {
+                "ref": "AC-001",
+                "scenario": "Frozen touch set is implemented without design drift.",
+                "expectation": f"The declared touch set is updated and evidence-backed: {unit_paths}.",
+            },
+            {
+                "ref": "AC-002",
+                "scenario": "Frozen contracts and runtime sequence execute through the implementation entry.",
+                "expectation": (
+                    "Implementation evidence proves the frozen contract hooks and state transitions are wired. "
+                    + (contracts[0] if contracts else "Use the upstream interface contracts without shadow redefinition.")
+                ),
+            },
+            {
+                "ref": "AC-003",
+                "scenario": "Downstream handoff remains boundary-safe and ready for feature delivery.",
+                "expectation": (
+                    "The implementation package exposes only the frozen pending visibility / boundary handoff behavior, "
+                    "keeps formalization semantics out of scope, and hands off with smoke inputs ready."
+                ),
+            },
+        ]
+        if main_sequence:
+            checkpoints[1]["expectation"] += f" Main sequence evidence covers: {'; '.join(main_sequence[:3])}."
+        if integration_points:
+            checkpoints[2]["expectation"] += f" Integration evidence covers: {'; '.join(integration_points[:2])}."
+        if observable_outcomes:
+            checkpoints[2]["expectation"] += f" Observable outcomes remain externally visible: {'; '.join(observable_outcomes[:2])}."
+        if migration_required:
+            checkpoints.append(
+                {
+                    "ref": "AC-004",
+                    "scenario": "Migration and compat controls are explicit before execution.",
+                    "expectation": "Rollback, compat-mode, and pending repair handling are explicit enough for downstream execution.",
+                }
+            )
+            if observable_outcomes:
+                checkpoints[-1]["expectation"] += f" Migration outcomes remain externally visible: {'; '.join(observable_outcomes[:2])}."
+        return checkpoints
+
     checkpoints: list[dict[str, str]] = []
     for index, check in enumerate(feature.get("acceptance_checks") or [], start=1):
         if not isinstance(check, dict):
@@ -485,8 +546,10 @@ def acceptance_checkpoints(feature: dict[str, Any]) -> list[dict[str, str]]:
         checkpoints.append(
             {
                 "ref": f"AC-{index:03d}",
-                "scenario": str(check.get("scenario") or "").strip() or f"acceptance-{index}",
-                "expectation": str(check.get("then") or "").strip() or "Expectation must be confirmed during execution.",
+                "scenario": normalize_collaboration_boundary_text(str(check.get("scenario") or "").strip())
+                or f"acceptance-{index}",
+                "expectation": normalize_collaboration_boundary_text(str(check.get("then") or "").strip())
+                or "Expectation must be confirmed during execution.",
             }
         )
     if checkpoints:
@@ -512,8 +575,9 @@ def acceptance_checkpoints(feature: dict[str, Any]) -> list[dict[str, str]]:
         checkpoints.append(
             {
                 "ref": f"AC-{index:03d}",
-                "scenario": criterion.strip() or f"acceptance-{index}",
-                "expectation": str(expectation).strip() or "Expectation must be confirmed during execution.",
+                "scenario": normalize_collaboration_boundary_text(criterion.strip()) or f"acceptance-{index}",
+                "expectation": normalize_collaboration_boundary_text(str(expectation).strip())
+                or "Expectation must be confirmed during execution.",
             }
         )
     return checkpoints
@@ -533,7 +597,11 @@ def integration_plan_items(feature: dict[str, Any], assessment: dict[str, Any], 
     return unique_strings(items)[:6]
 
 
-def evidence_rows(feature: dict[str, Any], assessment: dict[str, Any]) -> list[dict[str, Any]]:
+def evidence_rows(
+    feature: dict[str, Any],
+    assessment: dict[str, Any],
+    checkpoints: list[dict[str, str]] | None = None,
+) -> list[dict[str, Any]]:
     evidence_types: list[str] = []
     if assessment["frontend_required"]:
         evidence_types.append("frontend-verification")
@@ -544,7 +612,7 @@ def evidence_rows(feature: dict[str, Any], assessment: dict[str, Any]) -> list[d
     evidence_types.append("smoke-review-input")
 
     rows: list[dict[str, Any]] = []
-    for checkpoint in acceptance_checkpoints(feature):
+    for checkpoint in checkpoints or acceptance_checkpoints(feature):
         rows.append(
             {
                 "acceptance_ref": checkpoint["ref"],

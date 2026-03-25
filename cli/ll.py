@@ -39,25 +39,25 @@ def build_parser() -> argparse.ArgumentParser:
 
     registry = groups.add_parser("registry")
     registry_sub = registry.add_subparsers(dest="action", required=True)
-    for action in ("resolve-formal-ref", "verify-eligibility", "bind-record"):
+    for action in ("resolve-formal-ref", "verify-eligibility", "validate-admission", "publish-formal", "bind-record"):
         _add_action_parser(registry_sub, action)
     registry.set_defaults(handler=handle_registry)
 
     audit = groups.add_parser("audit")
     audit_sub = audit.add_subparsers(dest="action", required=True)
-    for action in ("scan-workspace", "emit-finding-bundle"):
+    for action in ("scan-workspace", "emit-finding-bundle", "submit-pilot-evidence"):
         _add_action_parser(audit_sub, action)
     audit.set_defaults(handler=handle_audit)
 
     gate = groups.add_parser("gate")
     gate_sub = gate.add_subparsers(dest="action", required=True)
-    for action in ("create", "verify", "evaluate", "materialize", "dispatch", "close-run"):
+    for action in ("submit-handoff", "show-pending", "decide", "create", "verify", "evaluate", "materialize", "dispatch", "close-run"):
         _add_action_parser(gate_sub, action)
     gate.set_defaults(handler=handle_gate)
 
     rollout = groups.add_parser("rollout")
     rollout_sub = rollout.add_subparsers(dest="action", required=True)
-    for action in ("assess-skill", "validate-pilot", "summarize-readiness"):
+    for action in ("onboard-skill", "cutover-wave", "fallback-wave", "assess-skill", "validate-pilot", "summarize-readiness"):
         _add_action_parser(rollout_sub, action)
     rollout.set_defaults(handler=handle_rollout)
 
@@ -80,4 +80,3 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
     handler: Handler = args.handler
     return handler(args)
-

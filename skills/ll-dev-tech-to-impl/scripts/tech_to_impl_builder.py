@@ -63,14 +63,14 @@ def build_candidate_package(package: Any, run_id: str) -> dict[str, Any]:
     refs = build_refs(package)
     assessment = assess_workstreams(feature, package)
     consistency = consistency_check(assessment)
-    checkpoints = acceptance_checkpoints(feature)
+    checkpoints = acceptance_checkpoints(feature, package, assessment)
     scope = implementation_scope(feature, package)
     steps = implementation_steps(feature, assessment, package)
     risks = risk_items(feature, assessment, package)
     deliverables = deliverable_files(assessment)
     smoke_required_inputs = workstream_required_inputs(assessment)
     integration_items = integration_plan_items(feature, assessment, package)
-    evidence_plan_rows = evidence_rows(feature, assessment)
+    evidence_plan_rows = evidence_rows(feature, assessment, checkpoints)
     frontend_items = frontend_workstream_items(feature)
     backend_items = backend_workstream_items(feature, package)
     migration_items = migration_plan_items(feature, package)
@@ -94,7 +94,6 @@ def build_candidate_package(package: Any, run_id: str) -> dict[str, Any]:
         "primary_artifacts": {
             "tech_design_bundle": "tech-design-bundle.json",
             "tech_spec": "tech-spec.md",
-            "tech_impl": "tech-impl.md",
             "arch_design": "arch-design.md" if refs["arch_ref"] else None,
             "api_contract": "api-contract.md" if refs["api_ref"] else None,
         },

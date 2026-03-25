@@ -41,6 +41,13 @@ def load_registry_record(workspace_root: Path, artifact_ref: str) -> dict[str, A
     return load_json(target)
 
 
+def list_registry_records(workspace_root: Path) -> list[dict[str, Any]]:
+    root = registry_dir(workspace_root)
+    if not root.exists():
+        return []
+    return [load_json(path) for path in sorted(root.glob("*.json"))]
+
+
 def bind_record(
     workspace_root: Path,
     artifact_ref: str,
@@ -62,8 +69,26 @@ def bind_record(
     return record, record_ref
 
 
+def artifact_layer(record: dict[str, Any]) -> str:
+    metadata = record.get("metadata", {})
+    if isinstance(metadata, dict) and metadata.get("layer"):
+        return str(metadata["layer"])
+    return "formal" if record.get("status") in FORMAL_STATUSES else "candidate"
+
+
+def resolve_registry_record(workspace_root: Path, ref_value: str) -> dict[str, Any]:
+    try:
+        return load_registry_record(workspace_root, ref_value)
+    except CommandError:
+        canonical = to_canonical_path(canonical_to_path(ref_value, workspace_root), workspace_root)
+        for record in list_registry_records(workspace_root):
+            if record.get("managed_artifact_ref") == canonical:
+                return record
+        raise
+
+
 def verify_eligibility(workspace_root: Path, artifact_ref: str, lineage_expectation: str | None = None) -> dict[str, Any]:
-    record = load_registry_record(workspace_root, artifact_ref)
+    record = resolve_registry_record(workspace_root, artifact_ref)
     if record.get("status") not in FORMAL_STATUSES:
         raise CommandError("ELIGIBILITY_DENIED", "artifact is not in a formal status", [record.get("status", "unknown")])
     if lineage_expectation and lineage_expectation not in record.get("lineage", []):
@@ -73,4 +98,3 @@ def verify_eligibility(workspace_root: Path, artifact_ref: str, lineage_expectat
 
 def resolve_content_ref(workspace_root: Path, ref: str) -> str:
     return read_text(canonical_to_path(ref, workspace_root))
-

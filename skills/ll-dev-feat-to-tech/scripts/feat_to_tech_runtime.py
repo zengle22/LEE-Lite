@@ -756,6 +756,27 @@ def validate_output_package(artifacts_dir: Path) -> tuple[list[str], dict[str, A
     if handoff.get("target_workflow") != DOWNSTREAM_WORKFLOW:
         errors.append(f"handoff-to-tech-impl.json must target {DOWNSTREAM_WORKFLOW}.")
 
+    selected_feat = bundle_json.get("selected_feat") or {}
+    selected_source_refs = ensure_list(selected_feat.get("source_refs"))
+    selected_axis_markers = {
+        str(selected_feat.get("resolved_axis") or "").strip().lower(),
+        str(selected_feat.get("axis_id") or "").strip().lower(),
+        str(selected_feat.get("track") or "").strip().lower(),
+    }
+    if "ADR-007" in selected_source_refs and any(marker in {"adoption_e2e", "skill-adoption-e2e"} for marker in selected_axis_markers if marker):
+        implementation_rules = ensure_list((bundle_json.get("tech_design") or {}).get("implementation_rules"))
+        joined_rules = "\n".join(implementation_rules)
+        for marker in [
+            "skill.qa.test_exec_web_e2e",
+            "skill.qa.test_exec_cli",
+            "skill.runner.test_e2e",
+            "skill.runner.test_cli",
+        ]:
+            if marker not in joined_rules:
+                errors.append(
+                    "ADR-007 adoption_e2e TECH must preserve inherited family marker: " + marker
+                )
+
     return errors, {
         "valid": not errors,
         "feat_ref": feat_ref,

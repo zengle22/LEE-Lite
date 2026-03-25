@@ -7,6 +7,7 @@ from pathlib import Path
 
 from cli.lib.errors import ensure
 from cli.lib.fs import canonical_to_path, write_json
+from cli.lib.pilot_chain import submit_pilot_evidence
 from cli.lib.protocol import CommandContext, run_with_protocol
 
 
@@ -51,6 +52,25 @@ def _build_findings(ctx: CommandContext) -> tuple[list[dict[str, object]], list[
 
 def _audit_handler(ctx: CommandContext):
     payload = ctx.payload
+    if ctx.action == "submit-pilot-evidence":
+        for field in ("pilot_chain_ref", "producer_ref", "consumer_ref", "audit_ref", "gate_ref"):
+            ensure(field in payload, "INVALID_REQUEST", f"missing pilot evidence field: {field}")
+        result = submit_pilot_evidence(
+            ctx.workspace_root,
+            trace=ctx.trace,
+            pilot_chain_ref=str(payload["pilot_chain_ref"]),
+            producer_ref=str(payload["producer_ref"]),
+            consumer_ref=str(payload["consumer_ref"]),
+            audit_ref=str(payload["audit_ref"]),
+            gate_ref=str(payload["gate_ref"]),
+        )
+        return "OK", "pilot evidence submitted", {
+            "canonical_path": result["pilot_evidence_ref"],
+            "pilot_evidence_ref": result["pilot_evidence_ref"],
+            "evidence_status": result["evidence_status"],
+            "cutover_recommendation": result["cutover_recommendation"],
+        }, [], [result["pilot_evidence_ref"]]
+
     for field in ("workspace_diff_ref", "gateway_receipt_refs", "registry_refs", "policy_verdict_refs"):
         ensure(field in payload, "INVALID_REQUEST", f"missing audit field: {field}")
     findings, diagnostics = _build_findings(ctx)
@@ -83,4 +103,3 @@ def _severity(findings: list[dict[str, object]]) -> dict[str, int]:
 def handle(args: Namespace) -> int:
     setattr(args, "action", args.action)
     return run_with_protocol(args, _audit_handler)
-
