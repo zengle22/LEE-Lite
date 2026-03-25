@@ -11,7 +11,7 @@ This skill freezes the task-first `tech2impl` boundary. It does not claim code i
 
 - Department ADR: `E:\ai\LEE\spec\adr\ADR-008__dev-department-ssot-alignment-and-workflow-reframe.md`
 - Local ADR: `E:\ai\LEE-Lite-skill-first\ssot\adr\ADR-014-TECH-to-IMPL Lite-Native Skill 实施候选冻结基线.MD`
-- Dev template authority: `E:\ai\LEE\spec-global\departments\dev\workflows\templates\feature-delivery-l2-template.yaml`
+- Dev template authority: `E:\ai\LEE-Lite-skill-first\skills\ll-dev-tech-to-impl\output\template.md`
 - Upstream governed skill: `ll-dev-feat-to-tech`
 - Upstream planning context: `E:\ai\LEE\spec-global\departments\product\workflows\templates\feat-to-delivery-prep\v1\workflow.yaml`
 - Downstream target template: `template.dev.feature_delivery_l2`

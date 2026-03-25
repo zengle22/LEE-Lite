@@ -4,7 +4,7 @@ version: 0.1.0
 workflow_key: dev.tech-to-impl
 
 authority:
-  canonical_template: E:\ai\LEE\spec-global\departments\dev\workflows\templates\feature-delivery-l2-template.yaml
+  canonical_template: E:\ai\LEE-Lite-skill-first\skills\ll-dev-tech-to-impl\output\template.md
   governing_adrs:
     - E:\ai\LEE\spec\adr\ADR-008__dev-department-ssot-alignment-and-workflow-reframe.md
     - E:\ai\LEE-Lite-skill-first\ssot\adr\ADR-013-FEAT-to-TECH Lite-Native Skill 设计派生冻结基线.MD

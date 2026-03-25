@@ -8,7 +8,7 @@ from __future__ import annotations
 import re
 from typing import Any
 
-from tech_to_impl_common import ensure_list, unique_strings
+from tech_to_impl_common import ensure_list, normalize_semantic_lock, unique_strings
 
 
 FRONTEND_KEYWORDS = [
@@ -259,7 +259,7 @@ def filtered_implementation_rules(package: Any) -> list[str]:
     if replaced_stale_rule:
         filtered.append(
             "Submission completion only exposes authoritative handoff and pending visibility; "
-            "decision-driven revise/retry routing stays in runtime while formalization semantics remain outside this FEAT."
+            "decision-driven revise/retry routing stays in runtime while gate decision issuance and formal publication semantics remain outside this FEAT."
         )
     return unique_strings(filtered)
 
@@ -271,13 +271,38 @@ def normalize_collaboration_boundary_text(text: str) -> str:
     if STALE_REENTRY_RULE in normalized.lower():
         return (
             "Submission completion only exposes authoritative handoff and pending visibility; "
-            "decision-driven revise/retry routing stays in runtime while formalization semantics remain outside this FEAT."
+            "decision-driven revise/retry routing stays in runtime while gate decision issuance and formal publication semantics remain outside this FEAT."
         )
     return normalized
 
 
+def is_review_projection_package(feature: dict[str, Any], package: Any) -> bool:
+    lock = normalize_semantic_lock(feature.get("semantic_lock") or package.semantic_lock)
+    if str(lock.get("domain_type") or "").strip().lower() == "review_projection_rule":
+        return True
+    axis_id = str(feature.get("axis_id") or feature.get("slice_id") or "").strip().lower()
+    return axis_id in {
+        "projection-generation",
+        "authoritative-snapshot",
+        "review-focus-risk",
+        "feedback-writeback",
+    }
+
+
 def assess_workstreams(feature: dict[str, Any], package: Any) -> dict[str, Any]:
     axis_id = str(feature.get("axis_id") or feature.get("slice_id") or "").strip().lower()
+    if is_review_projection_package(feature, package):
+        return {
+            "frontend_required": False,
+            "backend_required": True,
+            "migration_required": False,
+            "execution_surface_count": 1,
+            "rationale": {
+                "frontend": ["Review projection implementation does not introduce an end-user UI/page/component surface."],
+                "backend": ["Review projection implementation is carried by renderer/extractor/writeback runtime modules and SSOT integration code."],
+                "migration": ["Review projection FEATs do not require migration, cutover, rollback, or compat-mode planning."],
+            },
+        }
     segments = implementation_surface_segments(feature, package)
     frontend_hits = keyword_hits_in_segments(segments, FRONTEND_KEYWORDS)
     backend_hits = keyword_hits_in_segments(segments, BACKEND_KEYWORDS)
@@ -517,7 +542,7 @@ def acceptance_checkpoints(
                 "scenario": "Downstream handoff remains boundary-safe and ready for feature delivery.",
                 "expectation": (
                     "The implementation package exposes only the frozen pending visibility / boundary handoff behavior, "
-                    "keeps formalization semantics out of scope, and hands off with smoke inputs ready."
+                    "keeps gate decision issuance / formal publication semantics out of scope, and hands off with smoke inputs ready."
                 ),
             },
         ]

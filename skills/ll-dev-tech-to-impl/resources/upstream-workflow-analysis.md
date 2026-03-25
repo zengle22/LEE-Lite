@@ -4,7 +4,7 @@ This reference maps ADR-008, ADR-014, the canonical Dev Feature Delivery L2 temp
 
 ## Canonical Source
 
-- Dev template path: `E:\ai\LEE\spec-global\departments\dev\workflows\templates\feature-delivery-l2-template.yaml`
+- Dev template path: `E:\ai\LEE-Lite-skill-first\skills\ll-dev-tech-to-impl\output\template.md`
 - Dev template id: `template.dev.feature_delivery_l2`
 - Governing ADRs:
   - `E:\ai\LEE\spec\adr\ADR-008__dev-department-ssot-alignment-and-workflow-reframe.md`

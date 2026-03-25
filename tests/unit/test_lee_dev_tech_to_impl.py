@@ -59,7 +59,6 @@ class TechToImplWorkflowTests(unittest.TestCase):
             encoding="utf-8",
         )
         (package_dir / "tech-spec.md").write_text("# TECH\n\ntech spec\n", encoding="utf-8")
-        (package_dir / "tech-impl.md").write_text("# TECH_IMPL\n\ntech impl\n", encoding="utf-8")
         if bundle_json.get("arch_required"):
             (package_dir / "arch-design.md").write_text("# ARCH\n\narch\n", encoding="utf-8")
         if bundle_json.get("api_required"):

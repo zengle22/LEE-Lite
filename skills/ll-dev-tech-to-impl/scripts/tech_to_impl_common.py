@@ -77,6 +77,40 @@ def unique_strings(values: list[str]) -> list[str]:
     return result
 
 
+def normalize_semantic_lock(payload: Any) -> dict[str, Any]:
+    if not isinstance(payload, dict):
+        return {}
+    lock = {
+        "domain_type": str(payload.get("domain_type") or "").strip(),
+        "one_sentence_truth": str(payload.get("one_sentence_truth") or "").strip(),
+        "primary_object": str(payload.get("primary_object") or "").strip(),
+        "lifecycle_stage": str(payload.get("lifecycle_stage") or "").strip(),
+        "allowed_capabilities": ensure_list(payload.get("allowed_capabilities")),
+        "forbidden_capabilities": ensure_list(payload.get("forbidden_capabilities")),
+        "inheritance_rule": str(payload.get("inheritance_rule") or "").strip(),
+    }
+    return {key: value for key, value in lock.items() if value not in ("", [], None)}
+
+
+def semantic_lock_errors(payload: Any) -> list[str]:
+    lock = normalize_semantic_lock(payload)
+    if not lock:
+        return []
+    required_fields = [
+        "domain_type",
+        "one_sentence_truth",
+        "primary_object",
+        "lifecycle_stage",
+        "inheritance_rule",
+    ]
+    errors = [field for field in required_fields if not str(lock.get(field) or "").strip()]
+    if not ensure_list(lock.get("allowed_capabilities")):
+        errors.append("allowed_capabilities")
+    if not ensure_list(lock.get("forbidden_capabilities")):
+        errors.append("forbidden_capabilities")
+    return [f"semantic_lock missing required field: {field}" for field in errors]
+
+
 def slugify(value: str) -> str:
     normalized = re.sub(r"[^A-Za-z0-9]+", "-", value).strip("-")
     normalized = re.sub(r"-{2,}", "-", normalized)
@@ -105,6 +139,7 @@ class TechPackage:
     supervision_evidence: dict[str, Any]
     gate: dict[str, Any]
     handoff: dict[str, Any]
+    semantic_lock: dict[str, Any]
 
     @property
     def run_id(self) -> str:
@@ -150,6 +185,7 @@ def load_tech_package(artifacts_dir: Path) -> TechPackage:
         supervision_evidence=load_json(artifacts_dir / "supervision-evidence.json"),
         gate=load_json(artifacts_dir / "tech-freeze-gate.json"),
         handoff=load_json(artifacts_dir / "handoff-to-tech-impl.json"),
+        semantic_lock=normalize_semantic_lock(load_json(artifacts_dir / "tech-design-bundle.json").get("semantic_lock")),
     )
 
 
@@ -171,6 +207,7 @@ def validate_input_package(artifacts_dir: Path, feat_ref: str, tech_ref: str) ->
 
     package = load_tech_package(artifacts_dir)
     bundle = package.tech_json
+    errors.extend(semantic_lock_errors(bundle.get("semantic_lock")))
     selected_feat = package.selected_feat
 
     artifact_type = str(bundle.get("artifact_type") or "")
@@ -257,6 +294,7 @@ def validate_input_package(artifacts_dir: Path, feat_ref: str, tech_ref: str) ->
         "api_ref": package.api_ref,
         "feat_title": str(selected_feat.get("title") or ""),
         "source_refs": source_refs,
+        "semantic_lock": package.semantic_lock,
     }
     return errors, result
 

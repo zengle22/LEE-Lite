@@ -4,7 +4,7 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from typing import Any
 
-from tech_to_impl_common import ensure_list, unique_strings
+from tech_to_impl_common import ensure_list, normalize_semantic_lock, unique_strings
 from tech_to_impl_derivation import (
     acceptance_checkpoints,
     assess_workstreams,
@@ -27,7 +27,7 @@ from tech_to_impl_derivation import (
 
 
 DOWNSTREAM_TEMPLATE_ID = "template.dev.feature_delivery_l2"
-DOWNSTREAM_TEMPLATE_PATH = "E:\\ai\\LEE\\spec-global\\departments\\dev\\workflows\\templates\\feature-delivery-l2-template.yaml"
+DOWNSTREAM_TEMPLATE_PATH = "E:\\ai\\LEE-Lite-skill-first\\skills\\ll-dev-tech-to-impl\\output\\template.md"
 
 
 def utc_now() -> str:
@@ -58,8 +58,58 @@ def _non_empty_phase_input_names(handoff: dict[str, Any]) -> list[str]:
     return [name for name, items in phase_inputs.items() if ensure_list(items)]
 
 
+def build_semantic_drift_check(feature: dict[str, Any], bundle_json: dict[str, Any], upstream_design_refs: dict[str, Any]) -> dict[str, Any]:
+    lock = normalize_semantic_lock(feature.get("semantic_lock"))
+    if not lock:
+        return {
+            "verdict": "not_applicable",
+            "semantic_lock_present": False,
+            "semantic_lock_preserved": True,
+            "forbidden_axis_detected": [],
+            "anchor_matches": [],
+            "summary": "No semantic_lock present.",
+        }
+
+    generated_text = " ".join(
+        [
+            str(bundle_json.get("title") or ""),
+            str(feature.get("title") or ""),
+            str(feature.get("goal") or ""),
+            " ".join(ensure_list((bundle_json.get("selected_scope") or {}).get("scope"))),
+            " ".join(ensure_list((upstream_design_refs.get("frozen_decisions") or {}).get("implementation_rules"))),
+            " ".join(ensure_list((upstream_design_refs.get("frozen_decisions") or {}).get("integration_points"))),
+        ]
+    ).lower()
+    forbidden_hits = [item for item in lock.get("forbidden_capabilities", []) if str(item).strip().lower() in generated_text]
+    anchor_matches: list[str] = []
+    token_groups = {
+        "domain_type": [str(lock.get("domain_type") or "").replace("_", " ").lower()],
+        "primary_object": [token for token in str(lock.get("primary_object") or "").replace("_", " ").lower().split() if token],
+        "lifecycle_stage": [token for token in str(lock.get("lifecycle_stage") or "").replace("_", " ").lower().split() if token],
+    }
+    for label, tokens in token_groups.items():
+        if tokens and all(token in generated_text for token in tokens):
+            anchor_matches.append(label)
+    if str(lock.get("domain_type") or "").strip().lower() == "review_projection_rule":
+        review_projection_tokens = ["projection", "gate", "ssot"]
+        if all(token in generated_text for token in review_projection_tokens):
+            anchor_matches.append("review_projection_signature")
+    preserved = not forbidden_hits and len(anchor_matches) >= 1
+    return {
+        "verdict": "pass" if preserved else "reject",
+        "semantic_lock_present": True,
+        "semantic_lock_preserved": preserved,
+        "domain_type": lock.get("domain_type"),
+        "one_sentence_truth": lock.get("one_sentence_truth"),
+        "forbidden_axis_detected": forbidden_hits,
+        "anchor_matches": anchor_matches,
+        "summary": "semantic_lock preserved." if preserved else "semantic_lock drift detected.",
+    }
+
+
 def build_candidate_package(package: Any, run_id: str) -> dict[str, Any]:
-    feature = package.selected_feat
+    feature = dict(package.selected_feat)
+    feature["semantic_lock"] = normalize_semantic_lock(feature.get("semantic_lock") or package.semantic_lock)
     refs = build_refs(package)
     assessment = assess_workstreams(feature, package)
     consistency = consistency_check(assessment)
@@ -98,6 +148,7 @@ def build_candidate_package(package: Any, run_id: str) -> dict[str, Any]:
             "api_contract": "api-contract.md" if refs["api_ref"] else None,
         },
         "frozen_source_refs": source_refs,
+        "semantic_lock": feature["semantic_lock"],
         "frozen_decisions": {
             "design_focus": ensure_list((package.tech_json.get("tech_design") or {}).get("design_focus")),
             "implementation_rules": filtered_implementation_rules(package),
@@ -163,6 +214,7 @@ def build_candidate_package(package: Any, run_id: str) -> dict[str, Any]:
         "arch_ref": refs["arch_ref"],
         "api_ref": refs["api_ref"],
         "source_refs": source_refs,
+        "semantic_lock": feature["semantic_lock"],
         "selected_scope": {
             "title": feature.get("title"),
             "goal": feature.get("goal"),
@@ -195,6 +247,15 @@ def build_candidate_package(package: Any, run_id: str) -> dict[str, Any]:
         "consistency_check": consistency,
         "downstream_handoff": handoff,
     }
+    semantic_drift_check = build_semantic_drift_check(feature, bundle_json, upstream_design_refs)
+    if semantic_drift_check["verdict"] == "reject":
+        defects.append(
+            {
+                "severity": "P1",
+                "title": "semantic_lock drift detected",
+                "detail": semantic_drift_check["summary"],
+            }
+        )
 
     bundle_frontmatter = {
         "artifact_type": bundle_json["artifact_type"],
@@ -207,6 +268,7 @@ def build_candidate_package(package: Any, run_id: str) -> dict[str, Any]:
         "impl_ref": bundle_json["impl_ref"],
         "tech_ref": bundle_json["tech_ref"],
         "source_refs": bundle_json["source_refs"],
+        "semantic_lock": bundle_json["semantic_lock"],
     }
 
     bundle_body = "\n\n".join(
@@ -411,6 +473,7 @@ def build_candidate_package(package: Any, run_id: str) -> dict[str, Any]:
         "acceptance_report": acceptance_report,
         "defect_list": defects,
         "handoff": handoff,
+        "semantic_drift_check": semantic_drift_check,
         "execution_decisions": [
             f"Selected TECH package {refs['tech_ref']} from upstream run {package.run_id}.",
             f"frontend_required={assessment['frontend_required']}, backend_required={assessment['backend_required']}, migration_required={assessment['migration_required']}.",
