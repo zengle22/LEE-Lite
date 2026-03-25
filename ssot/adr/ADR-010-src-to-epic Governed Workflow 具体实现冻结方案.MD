@@ -171,6 +171,17 @@ python scripts/src_to_epic.py run --input <src-package-dir> --repo-root <repo-ro
 * FEAT 只是 downstream handoff 的目标，不是本阶段直接产物
 * TASK、实现顺序、UI 线框、实现细节都属于越界内容
 
+同时，当前实现已经不再接受“只有能力轴、没有产品形态”的 EPIC。正式基线要求 EPIC 至少冻结以下产品级信息：
+
+* `Business Value / Problem`
+* `Product Positioning`
+* `Actors / Roles`
+* `Capability Scope`
+* `Upstream / Downstream`
+* `Epic Success Criteria`
+
+这意味着 `src-to-epic` 不能只产出一份“轻量治理原则单”，而必须产出一个下游 FEAT 作者无需反向补产品定义的正式 EPIC。
+
 ## 5.2 多 FEAT 判定
 
 当前实现通过 `multi_feat_score()` 对输入做 EPIC 合法性判断。判定信号来自：
@@ -193,6 +204,16 @@ python scripts/src_to_epic.py run --input <src-package-dir> --repo-root <repo-ro
 * 在需要 rollout 时，再追加技能接入与跨 skill 闭环验证能力
 
 这意味着对治理型 SRC，EPIC 不是从上游条目机械平移，而是强制上浮到受治理主链能力层。
+
+但下游 FEAT 切分不再直接镜像 capability axis 名称；当前实现已把这些 capability axes 作为 EPIC 的上位能力块，并通过 decomposition rules 指向更接近产品行为的 FEAT 切片，例如：
+
+* 主链候选交接提交流
+* 主链 gate 审核与裁决流
+* formal 物化与下游准入流
+* 主链受治理 IO 落盘流
+* governed skill 接入与 pilot 闭环流
+
+因此，capability axis 是 EPIC 语义，不是 FEAT 标题模板本身。
 
 ## 5.4 Rollout / Adoption 决策
 

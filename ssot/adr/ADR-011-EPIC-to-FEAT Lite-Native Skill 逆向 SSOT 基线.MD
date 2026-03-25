@@ -240,6 +240,15 @@ freeze-ready EPIC package
 * `Downstream Handoff`
 * `Traceability`
 
+其中 `FEAT Inventory` 在当前基线下不再允许只列 `goal / scope / constraints / acceptance checks`。每个 FEAT 还必须冻结以下产品级子块：
+
+* `Identity and Scenario`
+* `Business Flow`
+* `Product Objects and Deliverables`
+* `Collaboration and Timeline`
+* `Acceptance and Testability`
+* `Frozen Downstream Boundary`
+
 正式 JSON 最小头字段为：
 
 * `artifact_type = feat_freeze_package`
@@ -275,9 +284,25 @@ freeze-ready EPIC package
 
 * 每个 FEAT 必须有 `feat_ref`
 * 每个 FEAT 必须有 `title`
+* 每个 FEAT 必须有 `business_value`
+* 每个 FEAT 必须有 `identity_and_scenario`
+* 每个 FEAT 必须有 `business_flow`
+* 每个 FEAT 必须有 `product_objects_and_deliverables`
+* 每个 FEAT 必须有 `collaboration_and_timeline`
+* 每个 FEAT 必须有 `acceptance_and_testability`
+* 每个 FEAT 必须有 `frozen_downstream_boundary`
 * 每个 FEAT 至少有 3 条 `acceptance_checks`
 * 每个 FEAT 至少有 4 条 `constraints`
 * 每个 FEAT 至少有 3 条 `scope` bullets
+
+这意味着当前实现正式拒绝“抽象治理切片 FEAT”。如果一个 FEAT 不能让下游在不回读 TECH 的情况下说清：
+
+* 谁在什么场景下使用它
+* 业务如何流转
+* 交付物是什么
+* 哪些业务语义已经冻结
+
+那么该 FEAT 就还不合格。
 
 bundle 级还必须满足：
 
