@@ -3,7 +3,7 @@ id: ARCH-SRC-001-001
 ssot_type: ARCHITECTURE
 title: Managed Artifact IO Governance Architecture Overview
 status: active
-version: v2
+version: v3
 schema_version: 0.1.0
 architecture_root_id: arch-root-src-001-001
 parent_id: SRC-001
@@ -39,6 +39,8 @@ properties:
     - TECH-FEAT-SRC-001-003
     - TECH-FEAT-SRC-001-004
     - TECH-FEAT-SRC-001-005
+  companion_arch_refs:
+    - ARCH-SRC-001-002
   precedence_rule: if this overview conflicts with an ADR, the ADR wins; if it conflicts with a TECH on component implementation detail, the TECH wins
   provisional_slices:
     - external gate decision and materialization remains provisional until ADR-006 is frozen or equivalent rules are frozen into a formal baseline
@@ -53,6 +55,7 @@ properties:
 - 关键架构决策以 `ADR` 为准。
 - 系统整体蓝图与组件关系以本文为准。
 - 单组件或单能力的实现收口以 `TECH` 为准。
+- workflow skill 如何接 candidate governance、gate 如何接 formal materialization 的补充说明，以 [ARCH-SRC-001-002__governed-skill-candidate-and-gate-materialization-integration.md](E:/ai/LEE-Lite-skill-first/ssot/architecture/ARCH-SRC-001-002__governed-skill-candidate-and-gate-materialization-integration.md) 为准。
 - 若本文与 `ADR` 冲突，以 `ADR` 为准；若本文与 `TECH` 的实现细节冲突，以 `TECH` 为准。
 
 ## 系统目标与边界

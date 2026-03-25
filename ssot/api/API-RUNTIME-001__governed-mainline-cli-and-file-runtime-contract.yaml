@@ -2,7 +2,7 @@ id: API-RUNTIME-001
 ssot_type: API
 title: Governed Mainline CLI and File Runtime Contract
 status: active
-version: v1
+version: v2
 schema_version: 0.1.0
 parent_id: ARCH-SRC-001-001
 derived_from_ids:
@@ -28,6 +28,7 @@ source_refs:
   - SRC-001
   - EPIC-001
   - ARCH-SRC-001-001
+  - ARCH-SRC-001-002
   - TECH-FEAT-SRC-001-001
   - TECH-FEAT-SRC-001-002
   - TECH-FEAT-SRC-001-003
@@ -200,6 +201,7 @@ caller_assumptions:
   - 调用方运行在本地文件系统语境中，而不是远程 RPC 语境中。
   - 调用方可以读写 request/response/evidence 文件，但不能越权改写 formal object。
   - governed skill 只负责 candidate/evidence/proposal，不负责最终 decision/materialization。
+  - formal ssot object、materialized handoff、materialized job 与 run closure 只能由 gate/control 层物化。
   - human gate 可通过文件对象与 loop 消费链协作，不要求必须先有 Web UI。
 interfaces:
   - interface_id: artifact_operations
