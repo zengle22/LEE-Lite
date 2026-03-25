@@ -57,6 +57,37 @@ NEGATION_MARKERS = [
     "do not",
 ]
 
+REVIEW_PROJECTION_AXIS_MAP = {
+    "projection-generation": "projection_generation",
+    "authoritative-snapshot": "authoritative_snapshot",
+    "review-focus-risk": "review_focus_risk",
+    "feedback-writeback": "feedback_writeback",
+}
+
+
+def review_projection_axis(feature: dict[str, Any]) -> str:
+    lock = feature.get("semantic_lock") or {}
+    domain_type = str(lock.get("domain_type") or "").strip().lower()
+    axis_id = str(feature.get("axis_id") or "").strip().lower()
+    if axis_id in REVIEW_PROJECTION_AXIS_MAP:
+        return REVIEW_PROJECTION_AXIS_MAP[axis_id]
+    title = str(feature.get("title") or "").strip().lower()
+    if "projection" in title and "生成" in title:
+        return "projection_generation"
+    if "snapshot" in title:
+        return "authoritative_snapshot"
+    if "review focus" in title or "风险提示" in title or "ambigu" in title:
+        return "review_focus_risk"
+    if "回写" in title or "writeback" in title or "批注" in title:
+        return "feedback_writeback"
+    if domain_type == "review_projection_rule":
+        return "projection_generation"
+    return ""
+
+
+def is_review_projection_axis(axis: str) -> bool:
+    return axis in set(REVIEW_PROJECTION_AXIS_MAP.values())
+
 
 def feature_text(feature: dict[str, Any]) -> str:
     parts: list[str] = []
@@ -136,6 +167,9 @@ def build_refs(feature: dict[str, Any], package: Any) -> dict[str, str]:
 
 
 def explicit_axis(feature: dict[str, Any]) -> str:
+    review_axis = review_projection_axis(feature)
+    if review_axis:
+        return review_axis
     axis_id = str(feature.get("axis_id") or "").strip().lower()
     mapping = {
         "collaboration-loop": "collaboration",
@@ -196,6 +230,13 @@ def selected_feat_snapshot(feature: dict[str, Any]) -> dict[str, Any]:
 
 def assess_optional_artifacts(feature: dict[str, Any], package: Any) -> dict[str, Any]:
     axis = feature_axis(feature)
+    if is_review_projection_axis(axis):
+        return {
+            "arch_required": False,
+            "api_required": False,
+            "arch_rationale": ["Review projection FEATs stay inside renderer/extractor/writeback implementation and do not require separate ARCH output."],
+            "api_rationale": ["Review projection FEATs do not freeze an external command or cross-boundary API surface at TECH layer."],
+        }
     arch_hits = keyword_hits(feature, ARCH_KEYWORDS)
     strong_api_hits = keyword_hits(feature, STRONG_API_KEYWORDS)
     weak_api_hits = keyword_hits(feature, WEAK_API_KEYWORDS)
@@ -278,6 +319,30 @@ def non_functional_requirements(feature: dict[str, Any], package: Any) -> list[s
 
 def architecture_topics(feature: dict[str, Any]) -> list[str]:
     axis = feature_axis(feature)
+    if axis == "projection_generation":
+        return [
+            "Boundary to Machine SSOT: 输入只读取冻结后的 SSOT authoritative fields，不改写 SSOT 本体。",
+            "Boundary to reviewer: 本 FEAT 只生成 Human Review Projection，不负责 gate decision issuance 或 formal publication。",
+            "Dedicated renderer placement is required so template rendering、derived-only marker 与 traceability stay in one implementation surface.",
+        ]
+    if axis == "authoritative_snapshot":
+        return [
+            "Boundary to Projection narrative: 只提取 completed state、authoritative output、frozen boundary、open technical decisions，不扩张 narrative。",
+            "Boundary to SSOT authority: Snapshot 只能解释 SSOT 已有约束，不能新增 authoritative semantics。",
+            "Dedicated snapshot extractor placement is required so authoritative fields remain short, stable, and traceable.",
+        ]
+    if axis == "review_focus_risk":
+        return [
+            "Boundary to human narrative: 本 FEAT 生成 Review Focus / Risks / Ambiguities，帮助 reviewer 聚焦判断，不替代 SSOT 或 Snapshot。",
+            "Boundary to adjacent runtime/governance: 不定义 handoff orchestration、formal publication、governed IO、queue 或 registry。",
+            "Dedicated analysis placement is required so risk extraction、ambiguity highlighting and review prompts stay deterministic.",
+        ]
+    if axis == "feedback_writeback":
+        return [
+            "Boundary to reviewer comments: Projection comments 只是修订输入，不是新的真相源。",
+            "Boundary to SSOT authority: 所有修订必须回写 Machine SSOT，再重新生成 Projection，不允许直接 patch Projection。",
+            "Dedicated writeback placement is required so comment mapping、SSOT revision request 与 regeneration stay traceable.",
+        ]
     if axis == "collaboration":
         return [
             "Boundary to gate decision / publication: 本 FEAT 负责 authoritative handoff submission、gate-pending visibility 与 decision-driven runtime re-entry routing，不负责 decision vocabulary、decision issuance 与 formal publication trigger semantics。",
@@ -316,11 +381,35 @@ def architecture_topics(feature: dict[str, Any]) -> list[str]:
 
 def responsibility_splits(feature: dict[str, Any]) -> list[str]:
     axis = feature_axis(feature)
+    if axis == "projection_generation":
+        return [
+            "Projection renderer owns template rendering and derived-only markers.",
+            "SSOT owner owns authoritative source updates and field stability.",
+            "Reviewer consumes the projection but does not treat it as an inheritable source.",
+        ]
+    if axis == "authoritative_snapshot":
+        return [
+            "Snapshot extractor owns authoritative field selection and short-form rendering.",
+            "SSOT owner owns the underlying completed state / output / boundary truth.",
+            "Reviewer uses Snapshot for hard-constraint checks without redefining authority.",
+        ]
+    if axis == "review_focus_risk":
+        return [
+            "Risk analyzer owns focus prompts, ambiguity detection, and reviewer-facing issue highlighting.",
+            "Projection renderer owns placement of Review Focus / Risks blocks in the review view.",
+            "Reviewer decides based on highlighted focus areas, but SSOT remains the only authoritative source.",
+        ]
+    if axis == "feedback_writeback":
+        return [
+            "Reviewer owns comments and revision intent only.",
+            "Writeback mapper owns mapping comments back to SSOT fields and creating revision requests.",
+            "SSOT owner owns authoritative updates and projection regeneration.",
+        ]
     if axis == "collaboration":
         return [
             "Execution loop owns candidate/proposal/evidence preparation and authoritative submission initiation.",
             "Gate loop and human review own decision semantics; this FEAT only consumes returned decision objects as structured inputs for visibility and routing.",
-            "Runtime owns gate-pending visibility and revise/retry re-entry routing after decision return, but does not own formal materialization or final approval semantics.",
+            "Runtime owns gate-pending visibility and revise/retry re-entry routing after decision return, but does not own formal publication or final approval semantics.",
         ]
     if axis == "formalization":
         return [
@@ -360,6 +449,8 @@ def responsibility_splits(feature: dict[str, Any]) -> list[str]:
 
 def api_surfaces(feature: dict[str, Any]) -> list[str]:
     axis = feature_axis(feature)
+    if is_review_projection_axis(axis):
+        return []
     if axis == "collaboration":
         return [
             "handoff submission contract",
@@ -1020,7 +1111,7 @@ def consistency_check(feature: dict[str, Any], assessment: dict[str, Any]) -> di
         elif reentry_scope == "routing":
             reentry_boundary_ok = (
                 any("decision-driven runtime re-entry routing" in topic for topic in architecture_topics(feature))
-                and any("Formal materialization" in item for item in implementation_architecture(feature))
+                and any("Formal publication" in item or "formal publication" in item for item in implementation_architecture(feature))
             )
     add_check(
         "semantic",
@@ -1126,11 +1217,35 @@ def collaboration_reentry_scope(feature: dict[str, Any]) -> str:
 
 def implementation_architecture(feature: dict[str, Any]) -> list[str]:
     axis = feature_axis(feature)
+    if axis == "projection_generation":
+        return [
+            "Machine SSOT remains the only authority; renderer reads frozen SSOT fields and produces a Human Review Projection as a derived-only artifact.",
+            "Projection template、derived-only markers and traceability metadata are produced in one rendering surface so reviewer-facing output stays stable across runs.",
+            "No handoff runtime, gate-decision engine, formal publication, or governed IO platform is introduced in this FEAT.",
+        ]
+    if axis == "authoritative_snapshot":
+        return [
+            "Snapshot extractor reads authoritative SSOT fields and emits a short Authoritative Snapshot inside the Projection.",
+            "Snapshot rendering stays separate from narrative rendering so hard constraints remain compact, explicit, and traceable.",
+            "The extractor never adds new authority; it only reorders and shortens fields already frozen by SSOT.",
+        ]
+    if axis == "review_focus_risk":
+        return [
+            "Review Focus / Risks generation analyzes SSOT content and existing projection blocks to surface what the human reviewer should inspect next.",
+            "Risk prompts and ambiguity hints are derived artifacts for reviewer attention management, not new runtime or governance objects.",
+            "The analyzer must remain deterministic enough that the same SSOT yields the same review emphasis under the same template version.",
+        ]
+    if axis == "feedback_writeback":
+        return [
+            "Reviewer comments map back to SSOT-owned fields through a writeback mapper; Projection is regenerated only after SSOT changes land.",
+            "Writeback flow freezes traceability between comment, revision request, updated SSOT, and regenerated Projection.",
+            "Direct Projection patching is forbidden; the writeback path protects SSOT as the only authoritative source.",
+        ]
     if axis == "formalization":
         return [
             "Business skill 只产出 candidate package / proposal / evidence，由 handoff runtime 承接进入 external gate。",
             "External gate 先把 handoff 压缩成 `gate-brief-record` 与 `gate-pending-human-decision`，再由 reviewer 给出 approve / revise / retry / handoff / reject 决策。",
-            "本 FEAT 只负责 decision issuance、trace persistence 与 downstream dispatch trigger；formal materialization / publish 由相邻 FEAT 消费 decision object 后继续完成。",
+            "本 FEAT 只负责 decision issuance、trace persistence 与 downstream dispatch trigger；formal publication 由相邻 FEAT 消费 decision object 后继续完成。",
         ]
     if axis == "layering":
         return [
@@ -1140,7 +1255,7 @@ def implementation_architecture(feature: dict[str, Any]) -> list[str]:
         ]
     if axis == "io_governance":
         return [
-            "Governed skill、handoff runtime、formal materialization 都通过 ADR-005 提供的 Gateway / Path Policy / Registry 接入受治理 IO。",
+            "Governed skill、handoff runtime、formal publication 相关写入都通过 ADR-005 提供的 Gateway / Path Policy / Registry 接入受治理 IO。",
             "Mainline handoff 与 formal writes 共享同一套 path / mode 约束，不允许局部目录策略绕过受治理写入。",
             "全局文件治理、仓库级目录重构与非 governed skill 自由写入不进入本实现范围。",
         ]
@@ -1159,6 +1274,30 @@ def implementation_architecture(feature: dict[str, Any]) -> list[str]:
 
 def implementation_modules(feature: dict[str, Any]) -> list[str]:
     axis = feature_axis(feature)
+    if axis == "projection_generation":
+        return [
+            "Projection template resolver：负责选择稳定模板块并绑定 SSOT trace refs。",
+            "Projection renderer：负责把 Product Summary / Roles / Main Flow / Deliverables 等块渲染为 reviewer-facing view。",
+            "Projection marker guard：负责注入 derived-only / non-authoritative / non-inheritable markers。",
+        ]
+    if axis == "authoritative_snapshot":
+        return [
+            "Authoritative field selector：负责选择 completed state、authoritative output、frozen boundary、open technical decisions。",
+            "Snapshot formatter：负责把 authoritative fields 压缩成 reviewer 可快速核对的短摘要。",
+            "Traceability binder：负责把 Snapshot 字段回链到对应 SSOT refs。",
+        ]
+    if axis == "review_focus_risk":
+        return [
+            "Review focus extractor：负责从 SSOT / Projection 中提取 reviewer 应优先关注的产品判断点。",
+            "Risk and ambiguity analyzer：负责识别术语歧义、边界遗漏、异常流缺失等风险提示。",
+            "Review prompt composer：负责把 focus/risk 输出成稳定的 reviewer-facing blocks。",
+        ]
+    if axis == "feedback_writeback":
+        return [
+            "Comment mapper：负责把 reviewer comment 映射回 SSOT field / section / boundary。",
+            "Revision request builder：负责生成可追踪的 SSOT revision request，并保留 comment provenance。",
+            "Projection regeneration trigger：负责在 SSOT 更新后触发 Projection 重新生成。",
+        ]
     common = [
         "Handoff runtime adapter：负责把受治理对象写入/读取主链 runtime，并维持 traceability。",
         "Decision boundary adapter：负责把上游 FEAT 约束映射成 runtime 可执行边界，不把实现责任散落到业务 skill。",
@@ -1192,6 +1331,26 @@ def implementation_modules(feature: dict[str, Any]) -> list[str]:
 
 def state_model(feature: dict[str, Any]) -> list[str]:
     axis = feature_axis(feature)
+    if axis == "projection_generation":
+        return [
+            "`ssot_ready` -> `projection_requested` -> `projection_rendered` -> `review_visible`",
+            "`projection_rendered` must always retain `derived_only_marked` and `traceable_to_ssot` invariants.",
+        ]
+    if axis == "authoritative_snapshot":
+        return [
+            "`projection_rendered` -> `snapshot_extracted` -> `snapshot_attached` -> `constraint_check_visible`",
+            "`snapshot_extracted` only succeeds when authoritative SSOT fields remain resolvable.",
+        ]
+    if axis == "review_focus_risk":
+        return [
+            "`projection_rendered` -> `focus_extracted` -> `risk_flags_attached` -> `review_guidance_visible`",
+            "`risk_flags_attached` must remain derived-only and traceable to source SSOT content.",
+        ]
+    if axis == "feedback_writeback":
+        return [
+            "`review_comment_captured` -> `writeback_mapped` -> `ssot_revision_requested` -> `ssot_updated` -> `projection_regenerated`",
+            "`writeback_mapped(fail)` -> `comment_mapping_pending`, and Projection must not be edited in place.",
+        ]
     if axis == "formalization":
         return [
             "`candidate_prepared` -> `submitted_to_gate` -> `brief_prepared` -> `pending_human_decision` -> `decision_issued` -> `execution_returned|delegated|publication_triggered|rejected`",
@@ -1223,6 +1382,34 @@ def state_model(feature: dict[str, Any]) -> list[str]:
 
 def architecture_diagram(feature: dict[str, Any]) -> str:
     axis = feature_axis(feature)
+    if axis == "projection_generation":
+        return "\n".join([
+            "```text",
+            "[Machine SSOT] -> [Template Resolver] -> [Projection Renderer] -> [Human Review Projection]",
+            "                                      |",
+            "                                      +--> [Derived-only / Trace Markers]",
+            "```",
+        ])
+    if axis == "authoritative_snapshot":
+        return "\n".join([
+            "```text",
+            "[Machine SSOT] -> [Authoritative Field Selector] -> [Snapshot Formatter] -> [Authoritative Snapshot]",
+            "                                                                        |",
+            "                                                                        +--> [Projection]",
+            "```",
+        ])
+    if axis == "review_focus_risk":
+        return "\n".join([
+            "```text",
+            "[Machine SSOT / Projection] -> [Focus Extractor] -> [Risk Analyzer] -> [Review Focus / Risks Block]",
+            "```",
+        ])
+    if axis == "feedback_writeback":
+        return "\n".join([
+            "```text",
+            "[Reviewer Comment] -> [Comment Mapper] -> [SSOT Revision Request] -> [Machine SSOT Update] -> [Projection Regeneration]",
+            "```",
+        ])
     if axis == "formalization":
         return "\n".join([
             "```text",
@@ -1278,6 +1465,42 @@ def architecture_diagram(feature: dict[str, Any]) -> str:
 
 def tech_runtime_view(feature: dict[str, Any]) -> str:
     axis = feature_axis(feature)
+    if axis == "projection_generation":
+        return "\n".join([
+            "```text",
+            "[review_projection/template.py]",
+            "              |",
+            "              v",
+            "[review_projection/renderer.py] --> [review_projection/markers.py]",
+            "```",
+        ])
+    if axis == "authoritative_snapshot":
+        return "\n".join([
+            "```text",
+            "[review_projection/snapshot.py]",
+            "              |",
+            "              v",
+            "[review_projection/field_selector.py] --> [review_projection/traceability.py]",
+            "```",
+        ])
+    if axis == "review_focus_risk":
+        return "\n".join([
+            "```text",
+            "[review_projection/focus.py]",
+            "              |",
+            "              v",
+            "[review_projection/risk_analyzer.py] --> [review_projection/prompt_blocks.py]",
+            "```",
+        ])
+    if axis == "feedback_writeback":
+        return "\n".join([
+            "```text",
+            "[review_projection/writeback.py]",
+            "              |",
+            "              v",
+            "[review_projection/revision_request.py] --> [review_projection/regeneration.py]",
+            "```",
+        ])
     if axis == "formalization":
         return "\n".join([
             "```text",
@@ -1339,6 +1562,41 @@ def tech_runtime_view(feature: dict[str, Any]) -> str:
 
 def flow_diagram(feature: dict[str, Any]) -> str:
     axis = feature_axis(feature)
+    if axis == "projection_generation":
+        return "\n".join([
+            "```text",
+            "Machine SSOT     -> Template Resolver   : load frozen authoritative fields",
+            "Template Resolver-> Projection Renderer : render stable review template",
+            "Projection Renderer -> Marker Guard     : attach derived-only markers",
+            "Marker Guard     -> Reviewer            : publish Human Review Projection",
+            "```",
+        ])
+    if axis == "authoritative_snapshot":
+        return "\n".join([
+            "```text",
+            "Machine SSOT       -> Field Selector      : select authoritative fields",
+            "Field Selector     -> Snapshot Formatter  : compress into short authoritative view",
+            "Snapshot Formatter -> Projection          : attach Snapshot block",
+            "Projection         -> Reviewer            : expose hard constraints",
+            "```",
+        ])
+    if axis == "review_focus_risk":
+        return "\n".join([
+            "```text",
+            "Machine SSOT / Projection -> Focus Extractor : gather review anchors",
+            "Focus Extractor           -> Risk Analyzer   : detect ambiguity / omission / risk",
+            "Risk Analyzer             -> Reviewer        : expose Review Focus / Risks / Ambiguities",
+            "```",
+        ])
+    if axis == "feedback_writeback":
+        return "\n".join([
+            "```text",
+            "Reviewer          -> Comment Mapper        : submit revision intent",
+            "Comment Mapper    -> Revision Request      : map comment to SSOT-owned fields",
+            "Revision Request  -> Machine SSOT          : apply authoritative update",
+            "Machine SSOT      -> Projection Regeneration : render updated Projection",
+            "```",
+        ])
     if axis == "formalization":
         return "\n".join([
             "```text",
@@ -1398,6 +1656,30 @@ def flow_diagram(feature: dict[str, Any]) -> str:
 
 def implementation_strategy(feature: dict[str, Any]) -> list[str]:
     axis = feature_axis(feature)
+    if axis == "projection_generation":
+        return [
+            "先冻结 Projection 模板块和 traceability 字段，再实现渲染器本体。",
+            "把 derived-only / non-authoritative / non-inheritable markers 作为硬约束统一注入，避免视图误被当成新真相源。",
+            "最后用同类 SSOT 输入重复渲染，验证模板稳定性和 reviewer 可读性。",
+        ]
+    if axis == "authoritative_snapshot":
+        return [
+            "先冻结 Snapshot 必含字段集合，再实现 authoritative field selector。",
+            "把 Snapshot 与 narrative rendering 解耦，避免 hard constraints 被 narrative 噪音淹没。",
+            "最后验证 Snapshot 只引用 SSOT 已有字段，不引入新的权威定义。",
+        ]
+    if axis == "review_focus_risk":
+        return [
+            "先冻结 Review Focus / Risks / Ambiguities 的输出模板和优先级规则。",
+            "把风险与歧义提取限制在 SSOT 已有内容和边界推断，不引入新的执行语义。",
+            "最后用多组同类 SSOT 样本验证 focus/risk 输出稳定且可复现。",
+        ]
+    if axis == "feedback_writeback":
+        return [
+            "先冻结 comment -> SSOT field 的映射规则，再实现 revision request 生成。",
+            "确保所有 Projection comment 都通过 SSOT writeback 闭环，不允许直接 patch Projection。",
+            "最后验证 SSOT 更新后 Projection 必须重生成，并保留 comment provenance。",
+        ]
     if axis == "formalization":
         return [
             "先固化 candidate -> brief -> pending human -> decision 的对象链与 decision vocabulary。",
@@ -1431,6 +1713,30 @@ def implementation_strategy(feature: dict[str, Any]) -> list[str]:
 
 def implementation_unit_mapping(feature: dict[str, Any]) -> list[str]:
     axis = feature_axis(feature)
+    if axis == "projection_generation":
+        return [
+            "`review_projection/template.py` (`new`): 定义 Projection 固定模板块与字段绑定。",
+            "`review_projection/renderer.py` (`new`): 从 Machine SSOT 渲染 Human Review Projection。",
+            "`review_projection/markers.py` (`new`): 注入 derived-only / non-authoritative / non-inheritable markers 与 trace refs。",
+        ]
+    if axis == "authoritative_snapshot":
+        return [
+            "`review_projection/field_selector.py` (`new`): 选择 completed state、authoritative output、frozen boundary、open technical decisions。",
+            "`review_projection/snapshot.py` (`new`): 生成 Authoritative Snapshot 短摘要。",
+            "`review_projection/traceability.py` (`new`): 绑定 Snapshot 字段到对应 SSOT refs。",
+        ]
+    if axis == "review_focus_risk":
+        return [
+            "`review_projection/focus.py` (`new`): 生成 Review Focus 提示项。",
+            "`review_projection/risk_analyzer.py` (`new`): 提取风险、遗漏和歧义点。",
+            "`review_projection/prompt_blocks.py` (`new`): 把 focus/risk 输出编排进 Projection 模板。",
+        ]
+    if axis == "feedback_writeback":
+        return [
+            "`review_projection/writeback.py` (`new`): 将 reviewer comments 映射回 SSOT-owned fields。",
+            "`review_projection/revision_request.py` (`new`): 生成可追踪的 SSOT revision request。",
+            "`review_projection/regeneration.py` (`new`): 在 SSOT 更新后触发 Projection 重生成。",
+        ]
     if axis == "formalization":
         return [
             "`cli/lib/protocol.py` (`extend`): 定义 `GateBriefRecord`、`GatePendingHumanDecision`、`GateDecision` 结构。",
@@ -1472,6 +1778,26 @@ def implementation_unit_mapping(feature: dict[str, Any]) -> list[str]:
 
 def interface_contracts(feature: dict[str, Any]) -> list[str]:
     axis = feature_axis(feature)
+    if axis == "projection_generation":
+        return [
+            "`ProjectionRenderRequest`: input=`ssot_ref`, `template_version`, `review_stage`; output=`projection_ref`, `derived_markers`, `trace_refs`; errors=`ssot_not_ready`, `template_missing`; idempotent=`yes by ssot_ref + template_version`; precondition=`Machine SSOT freeze-ready for gate review`。",
+            "`ProjectionRenderResult`: input=`projection_ref`; output=`review_blocks`, `derived_only`, `non_authoritative`, `non_inheritable`; errors=`marker_missing`; idempotent=`yes`; precondition=`projection rendered`。",
+        ]
+    if axis == "authoritative_snapshot":
+        return [
+            "`SnapshotExtractionRequest`: input=`ssot_ref`, `projection_ref?`; output=`snapshot_ref`, `field_refs`; errors=`authoritative_field_missing`; idempotent=`yes by ssot_ref`; precondition=`SSOT authoritative fields resolvable`。",
+            "`AuthoritativeSnapshot`: input=`snapshot_ref`; output=`completed_state`, `authoritative_output`, `frozen_downstream_boundary`, `open_technical_decisions`; errors=`incomplete_snapshot`; idempotent=`yes`; precondition=`snapshot extracted`。",
+        ]
+    if axis == "review_focus_risk":
+        return [
+            "`ReviewFocusRequest`: input=`ssot_ref`, `projection_ref`; output=`focus_ref`, `focus_items`, `risk_items`, `ambiguity_items`; errors=`insufficient_context`; idempotent=`yes by ssot_ref + projection_ref`; precondition=`Projection already rendered`。",
+            "`RiskSignal`: input=`focus_ref`; output=`signal_type`, `source_trace_refs`, `review_prompt`; errors=`signal_untraceable`; idempotent=`yes`; precondition=`focus extraction complete`。",
+        ]
+    if axis == "feedback_writeback":
+        return [
+            "`ProjectionComment`: input=`projection_ref`, `comment_ref`, `comment_text`, `comment_author`; output=`mapped_field_refs`, `revision_request_ref`; errors=`mapping_failed`; idempotent=`yes by comment_ref`; precondition=`projection rendered for review`。",
+            "`ProjectionRegenerationRequest`: input=`revision_request_ref`, `updated_ssot_ref`; output=`regenerated_projection_ref`; errors=`ssot_update_missing`; idempotent=`yes by revision_request_ref + updated_ssot_ref`; precondition=`Machine SSOT already updated`。",
+        ]
     if axis == "formalization":
         return [
             "`GateBriefRecord`: input=`handoff_ref`, `proposal_ref`, `evidence_refs`; output=`brief_record_ref`, `pending_human_decision_ref`, `priority`, `merge_group`, `human_projection`; errors=`invalid_state`, `brief_build_failed`; idempotent=`yes by handoff_ref + brief_round`; precondition=`handoff 已进入 gate pending`。",
@@ -1500,6 +1826,36 @@ def interface_contracts(feature: dict[str, Any]) -> list[str]:
 
 def main_sequence(feature: dict[str, Any]) -> list[str]:
     axis = feature_axis(feature)
+    if axis == "projection_generation":
+        return [
+            "1. resolve freeze-ready Machine SSOT",
+            "2. resolve Projection template version",
+            "3. render Product Summary / Roles / Main Flow / Deliverables blocks",
+            "4. attach derived-only markers and source trace refs",
+            "5. publish Human Review Projection to gate reviewer",
+        ]
+    if axis == "authoritative_snapshot":
+        return [
+            "1. resolve authoritative SSOT fields",
+            "2. extract completed state / authoritative output / frozen boundary / open technical decisions",
+            "3. compress fields into Authoritative Snapshot",
+            "4. attach Snapshot to Projection with trace refs",
+        ]
+    if axis == "review_focus_risk":
+        return [
+            "1. collect SSOT and Projection context relevant to review",
+            "2. extract review focus items",
+            "3. detect risk / ambiguity / omission signals",
+            "4. render Review Focus / Risks / Ambiguities blocks into Projection",
+        ]
+    if axis == "feedback_writeback":
+        return [
+            "1. capture reviewer comment against Projection",
+            "2. map comment to SSOT-owned field or boundary",
+            "3. create SSOT revision request and preserve provenance",
+            "4. update Machine SSOT",
+            "5. regenerate Projection from updated SSOT",
+        ]
     if axis == "formalization":
         return [
             "1. normalize handoff and proposal refs",
@@ -1548,6 +1904,27 @@ def main_sequence(feature: dict[str, Any]) -> list[str]:
 
 def exception_compensation(feature: dict[str, Any]) -> list[str]:
     axis = feature_axis(feature)
+    if axis == "projection_generation":
+        return [
+            "SSOT 可读但模板缺失：拒绝自由发挥 narrative，返回 `template_missing` 并保留 review request。",
+            "Projection rendered 但 markers 缺失：阻止发布给 reviewer，要求补齐 derived-only markers。",
+            "trace refs persist fail：允许暂存 Projection，但标记 `traceability_pending`，不得进入正式 reviewer gate。",
+        ]
+    if axis == "authoritative_snapshot":
+        return [
+            "authoritative fields 缺失：返回 `authoritative_field_missing`，Projection 必须显示约束缺失提示而不是捏造内容。",
+            "Snapshot build 成功但 trace bind fail：标记 `snapshot_trace_pending`，不得把该 Snapshot 视为可审核完成态。",
+        ]
+    if axis == "review_focus_risk":
+        return [
+            "focus extraction context 不足：返回 `insufficient_context`，保留空模板位并提示 reviewer 直接查看 SSOT。",
+            "risk signal 无法回链到 SSOT：丢弃该 signal，不允许把不可追溯提示写入 Projection。",
+        ]
+    if axis == "feedback_writeback":
+        return [
+            "comment mapping fail：保留 comment，标记 `comment_mapping_pending`，禁止直接编辑 Projection。",
+            "SSOT 更新成功但 regeneration fail：保留 revision request completed 状态，标记 `projection_regeneration_pending` 并阻止旧 Projection 继续作为当前审核视图。",
+        ]
     if axis == "formalization":
         return [
             "brief persisted 但 pending human decision 未建立：保留 `brief_record_ref`，阻止 decision issuance，并记录 `pending_build_failed`。",
@@ -1581,6 +1958,30 @@ def exception_compensation(feature: dict[str, Any]) -> list[str]:
 
 def integration_points(feature: dict[str, Any]) -> list[str]:
     axis = feature_axis(feature)
+    if axis == "projection_generation":
+        return [
+            "调用方：gate review surface 在进入审核前调用 Projection renderer，输入只能是 Machine SSOT ref。",
+            "挂接点：Projection 在 gate 审核阶段生成，不进入下游 TECH/TASK/TESTSET 继承入口。",
+            "旧系统兼容：缺少 Projection 时 reviewer 可回看 SSOT，但不得把自由 narrative 当成正式 Projection。",
+        ]
+    if axis == "authoritative_snapshot":
+        return [
+            "调用方：Projection renderer 在生成 reviewer view 时同步调用 Snapshot extractor。",
+            "挂接点：Snapshot 固定出现在 Projection 的 authoritative check 区块，不单独成为下游 authority object。",
+            "旧系统兼容：若 Snapshot 暂不可得，必须显式标记字段缺失，不允许 silent omission。",
+        ]
+    if axis == "review_focus_risk":
+        return [
+            "调用方：review projection flow 在 Projection 渲染后调用 focus/risk analyzer。",
+            "挂接点：Review Focus / Risks / Ambiguities 块只服务 reviewer 决策，不输出给下游继承。",
+            "旧系统兼容：analysis 结果不可用时退化为空块和缺失提示，不得退化到 runtime governance 语义。",
+        ]
+    if axis == "feedback_writeback":
+        return [
+            "调用方：reviewer 在 Projection 上提出 comment，writeback mapper 将其回写到 SSOT revision request。",
+            "挂接点：Projection regeneration 发生在 SSOT authoritative update 之后，而不是 comment capture 当下。",
+            "旧系统兼容：历史 Projection 批注只能作为 comment provenance，不能直接视为 authoritative patch。",
+        ]
     if axis == "formalization":
         return [
             "调用方：现有 governed skill 通过 handoff runtime 提交 candidate package，由 `cli/commands/gate/command.py` 负责 evaluate / dispatch。",
@@ -1595,7 +1996,7 @@ def integration_points(feature: dict[str, Any]) -> list[str]:
         ]
     if axis == "io_governance":
         return [
-            "调用方：runtime、formal materialization、governed skill 的正式写入都通过 `cli/commands/artifact/command.py` 进入 Gateway。",
+            "调用方：runtime、formal publication 相关写入、governed skill 的正式写入都通过 `cli/commands/artifact/command.py` 进入 Gateway。",
             "挂接点：file-handoff 写入发生在 policy preflight 之后、registry bind 之前；external gate 读取 formal refs 时只消费 managed artifact ref。",
             "旧系统兼容：compat mode 仅允许受控 read fallback；正式 write 不允许 bypass Gateway。",
         ]
@@ -1614,6 +2015,90 @@ def integration_points(feature: dict[str, Any]) -> list[str]:
 
 def minimal_code_skeleton(feature: dict[str, Any]) -> dict[str, str]:
     axis = feature_axis(feature)
+    if axis == "projection_generation":
+        return {
+            "happy_path": "\n".join([
+                "```python",
+                "def render_projection(request: ProjectionRenderRequest) -> ProjectionRenderResult:",
+                "    ssot = load_machine_ssot(request.ssot_ref)",
+                "    template = load_projection_template(request.template_version)",
+                "    blocks = render_review_blocks(ssot, template)",
+                "    markers = attach_projection_markers(ssot.ref, template.version)",
+                "    return ProjectionRenderResult(blocks=blocks, markers=markers)",
+                "```",
+            ]),
+            "failure_path": "\n".join([
+                "```python",
+                "def render_projection_or_fail(request: ProjectionRenderRequest) -> ProjectionRenderResult:",
+                "    template = load_projection_template(request.template_version)",
+                "    if template is None:",
+                "        raise ProjectionRenderError('template_missing')",
+                "    return render_projection(request)",
+                "```",
+            ]),
+        }
+    if axis == "authoritative_snapshot":
+        return {
+            "happy_path": "\n".join([
+                "```python",
+                "def build_authoritative_snapshot(ssot_ref: str) -> AuthoritativeSnapshot:",
+                "    ssot = load_machine_ssot(ssot_ref)",
+                "    fields = select_authoritative_fields(ssot)",
+                "    return format_authoritative_snapshot(fields)",
+                "```",
+            ]),
+            "failure_path": "\n".join([
+                "```python",
+                "def build_authoritative_snapshot_or_flag(ssot_ref: str) -> AuthoritativeSnapshot:",
+                "    fields = select_authoritative_fields(load_machine_ssot(ssot_ref))",
+                "    if not fields:",
+                "        raise SnapshotError('authoritative_field_missing')",
+                "    return format_authoritative_snapshot(fields)",
+                "```",
+            ]),
+        }
+    if axis == "review_focus_risk":
+        return {
+            "happy_path": "\n".join([
+                "```python",
+                "def build_review_focus(ssot_ref: str, projection_ref: str) -> ReviewFocusResult:",
+                "    context = load_review_context(ssot_ref, projection_ref)",
+                "    focus_items = extract_review_focus(context)",
+                "    risk_items = detect_risk_signals(context)",
+                "    return ReviewFocusResult(focus_items=focus_items, risk_items=risk_items)",
+                "```",
+            ]),
+            "failure_path": "\n".join([
+                "```python",
+                "def build_review_focus_or_empty(ssot_ref: str, projection_ref: str) -> ReviewFocusResult:",
+                "    context = load_review_context(ssot_ref, projection_ref)",
+                "    if not context:",
+                "        return ReviewFocusResult.empty(reason='insufficient_context')",
+                "    return build_review_focus(ssot_ref, projection_ref)",
+                "```",
+            ]),
+        }
+    if axis == "feedback_writeback":
+        return {
+            "happy_path": "\n".join([
+                "```python",
+                "def writeback_projection_comment(comment: ProjectionComment) -> ProjectionRegenerationRequest:",
+                "    mapped = map_comment_to_ssot_fields(comment)",
+                "    revision = create_revision_request(mapped)",
+                "    updated_ssot = apply_ssot_revision(revision)",
+                "    return request_projection_regeneration(revision.ref, updated_ssot.ref)",
+                "```",
+            ]),
+            "failure_path": "\n".join([
+                "```python",
+                "def writeback_projection_comment_or_hold(comment: ProjectionComment) -> ProjectionRegenerationRequest:",
+                "    mapped = map_comment_to_ssot_fields(comment)",
+                "    if not mapped:",
+                "        raise WritebackError('mapping_failed')",
+                "    return writeback_projection_comment(comment)",
+                "```",
+            ]),
+        }
     if axis == "formalization":
         return {
             "happy_path": "\n".join([

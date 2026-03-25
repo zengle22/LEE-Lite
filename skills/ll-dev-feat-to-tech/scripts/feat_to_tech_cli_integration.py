@@ -65,7 +65,6 @@ def write_executor_outputs(output_dir: Path, repo_root: Path, package: Any, gene
     markdown_text = render_markdown(generated.frontmatter, generated.markdown_body)
     cli_commit = _commit_markdown(repo_root, output_dir, run_id, markdown_text, "tech-design-bundle-executor-commit")
     write_markdown(output_dir / "tech-spec.md", generated.tech_frontmatter, generated.tech_body)
-    write_markdown(output_dir / "tech-impl.md", generated.tech_impl_frontmatter, generated.tech_impl_body)
     if generated.arch_frontmatter:
         write_markdown(arch_path, generated.arch_frontmatter, generated.arch_body)
     elif arch_path.exists():
@@ -80,6 +79,7 @@ def write_executor_outputs(output_dir: Path, repo_root: Path, package: Any, gene
     dump_json(output_dir / "tech-acceptance-report.json", generated.acceptance_report)
     dump_json(output_dir / "tech-defect-list.json", generated.defect_list)
     dump_json(output_dir / "handoff-to-tech-impl.json", generated.handoff)
+    dump_json(output_dir / "semantic-drift-check.json", generated.semantic_drift_check)
     dump_json(
         output_dir / "package-manifest.json",
         {
@@ -94,6 +94,7 @@ def write_executor_outputs(output_dir: Path, repo_root: Path, package: Any, gene
             "acceptance_report_ref": str(output_dir / "tech-acceptance-report.json"),
             "defect_list_ref": str(output_dir / "tech-defect-list.json"),
             "handoff_ref": str(output_dir / "handoff-to-tech-impl.json"),
+            "semantic_drift_check_ref": str(output_dir / "semantic-drift-check.json"),
             "execution_evidence_ref": str(output_dir / "execution-evidence.json"),
             "supervision_evidence_ref": str(output_dir / "supervision-evidence.json"),
             "status": generated.json_payload["status"],
@@ -120,6 +121,8 @@ def write_executor_outputs(output_dir: Path, repo_root: Path, package: Any, gene
             "commands_run": [command_name],
             "structural_results": {
                 "input_validation": "pass",
+                "semantic_lock_present": bool(generated.json_payload.get("semantic_lock")),
+                "semantic_lock_preserved": generated.semantic_drift_check.get("semantic_lock_preserved", True),
                 "tech_present": True,
                 "arch_required": generated.json_payload["arch_required"],
                 "api_required": generated.json_payload["api_required"],
@@ -164,6 +167,7 @@ def build_gate_result(generated: Any, supervision_evidence: dict[str, Any]) -> d
         "optional_outputs_match_assessment": True,
         "cross_artifact_consistency_passed": consistency["passed"],
         "downstream_handoff_present": True,
+        "semantic_lock_preserved": generated.semantic_drift_check.get("semantic_lock_preserved", True),
     }
     freeze_ready = supervision_evidence["decision"] == "pass" and all(checks.values())
     return {
@@ -203,6 +207,7 @@ def update_supervisor_outputs(
     dump_json(artifacts_dir / "tech-review-report.json", generated.review_report)
     dump_json(artifacts_dir / "tech-acceptance-report.json", generated.acceptance_report)
     dump_json(artifacts_dir / "tech-defect-list.json", generated.defect_list)
+    dump_json(artifacts_dir / "semantic-drift-check.json", generated.semantic_drift_check)
     dump_json(artifacts_dir / "supervision-evidence.json", supervision)
     dump_json(artifacts_dir / "tech-freeze-gate.json", gate)
     manifest = load_json(artifacts_dir / "package-manifest.json")

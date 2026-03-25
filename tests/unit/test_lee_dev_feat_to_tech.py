@@ -67,7 +67,7 @@ class FeatToTechWorkflowTests(unittest.TestCase):
             "",
             "## Downstream Handoff",
             "",
-            "- workflow.product.task.feat_to_delivery_prep",
+            "- workflow.dev.feat_to_tech",
             "",
             "## Traceability",
             "",
@@ -86,10 +86,10 @@ class FeatToTechWorkflowTests(unittest.TestCase):
             "feat-freeze-gate.json": {"workflow_key": "product.epic-to-feat", "freeze_ready": True, "decision": "pass"},
             "handoff-to-feat-downstreams.json": {
                 "target_workflows": [
-                    {"workflow": "workflow.product.task.feat_to_delivery_prep"},
-                    {"workflow": "workflow.product.feat_to_plan_pipeline"},
+                    {"workflow": "workflow.dev.feat_to_tech"},
+                    {"workflow": "workflow.qa.feat_to_testset"},
                 ],
-                "derivable_children": ["TECH", "TASK", "TESTSET"],
+                "derivable_children": ["TECH", "TESTSET"],
             },
             "execution-evidence.json": {"run_id": run_id, "decision": "pass"},
             "supervision-evidence.json": {"run_id": run_id, "decision": "pass"},
@@ -111,8 +111,8 @@ class FeatToTechWorkflowTests(unittest.TestCase):
             "src_root_id": "SRC-001",
             "feat_refs": [feat_ref],
             "downstream_workflows": [
-                "workflow.product.task.feat_to_delivery_prep",
-                "workflow.product.feat_to_plan_pipeline",
+                "workflow.dev.feat_to_tech",
+                "workflow.qa.feat_to_testset",
             ],
             "source_refs": [
                 f"product.epic-to-feat::{run_id}",
@@ -190,7 +190,7 @@ class FeatToTechWorkflowTests(unittest.TestCase):
             execution = json.loads((artifacts_dir / "execution-evidence.json").read_text(encoding="utf-8"))
 
             self.assertTrue((artifacts_dir / "tech-spec.md").exists())
-            self.assertTrue((artifacts_dir / "tech-impl.md").exists())
+            self.assertFalse((artifacts_dir / "tech-impl.md").exists())
             self.assertTrue((artifacts_dir / "arch-design.md").exists())
             self.assertTrue((artifacts_dir / "api-contract.md").exists())
             self.assertEqual(design["workflow_key"], "dev.feat-to-tech")
@@ -223,9 +223,9 @@ class FeatToTechWorkflowTests(unittest.TestCase):
             self.assertIn("## Contract Scope", api_md)
             self.assertIn("## Response Envelope", api_md)
             self.assertIn("## Command Contracts", api_md)
-            self.assertIn("lee gate submit-handoff", api_md)
-            self.assertIn("lee gate show-pending", api_md)
-            self.assertNotIn("lee gate decide", api_md)
+            self.assertIn("ll gate submit-handoff", api_md)
+            self.assertIn("ll gate show-pending", api_md)
+            self.assertNotIn("ll gate evaluate", api_md)
             self.assertIn("pending_state ∈ {gate_pending, human_review_pending, reentry_pending, retry_pending}", api_md)
             self.assertIn("gate_pending_ref", api_md)
             self.assertIn("Idempotency key: `producer_ref + proposal_ref + payload_digest`", api_md)
@@ -290,7 +290,7 @@ class FeatToTechWorkflowTests(unittest.TestCase):
             design = json.loads((artifacts_dir / "tech-design-bundle.json").read_text(encoding="utf-8"))
 
             self.assertTrue((artifacts_dir / "tech-spec.md").exists())
-            self.assertTrue((artifacts_dir / "tech-impl.md").exists())
+            self.assertFalse((artifacts_dir / "tech-impl.md").exists())
             self.assertFalse((artifacts_dir / "arch-design.md").exists())
             self.assertFalse((artifacts_dir / "api-contract.md").exists())
             self.assertFalse(design["arch_required"])
@@ -349,8 +349,8 @@ class FeatToTechWorkflowTests(unittest.TestCase):
             self.assertIn("Path policy owns allow/deny and mode decisions before any governed read/write executes.", arch_body)
             self.assertIn("cli/lib/managed_gateway.py", tech_body)
             self.assertIn("GatewayWriteRequest", tech_body)
-            self.assertIn("lee artifact commit-governed", api_body)
-            self.assertIn("lee artifact read-governed", api_body)
+            self.assertIn("ll artifact commit", api_body)
+            self.assertIn("ll artifact read", api_body)
             self.assertIn("PolicyVerdict", tech_body)
             self.assertIn("Canonical refs:", api_body)
 
@@ -504,12 +504,12 @@ class FeatToTechWorkflowTests(unittest.TestCase):
             self.assertEqual(design["selected_feat"]["resolved_axis"], "formalization")
             self.assertEqual(design["selected_feat"]["authoritative_artifact"], "authoritative decision object")
             self.assertEqual(design["selected_feat"]["downstream_feat"], ["FEAT-SRC-001-011"])
-            self.assertIn("cli/lib/formalization.py", tech_body)
+            self.assertIn("GateBriefRecord", tech_body)
             self.assertIn("GateDecision", tech_body)
-            self.assertIn("lee gate decide", api_body)
-            self.assertIn("lee registry publish-formal", api_body)
+            self.assertIn("ll gate evaluate", api_body)
+            self.assertIn("ll gate dispatch", api_body)
             self.assertNotIn("validate-admission", api_body)
-            self.assertIn("materialization_pending", tech_body)
+            self.assertIn("dispatch_pending", tech_body)
             self.assertNotIn("Onboarding registry", tech_body)
             self.assertTrue(design["api_required"])
 
@@ -550,11 +550,13 @@ class FeatToTechWorkflowTests(unittest.TestCase):
             artifacts_dir = Path(json.loads(result.stdout)["artifacts_dir"])
             api_md = (artifacts_dir / "api-contract.md").read_text(encoding="utf-8")
 
-            self.assertIn("lee gate decide", api_md)
-            self.assertIn("lee registry publish-formal", api_md)
-            self.assertIn("decision_reason", api_md)
-            self.assertIn("formal_ref", api_md)
-            self.assertIn("decision_not_approvable", api_md)
+            self.assertIn("ll gate evaluate", api_md)
+            self.assertIn("ll gate dispatch", api_md)
+            self.assertIn("decision_ref", api_md)
+            self.assertIn("decision_target", api_md)
+            self.assertIn("decision_basis_refs", api_md)
+            self.assertIn("dispatch_receipt_ref", api_md)
+            self.assertIn("decision_not_dispatchable", api_md)
             self.assertIn("Success envelope", api_md)
 
     def test_adoption_e2e_feat_emits_api_contract(self) -> None:
@@ -597,8 +599,8 @@ class FeatToTechWorkflowTests(unittest.TestCase):
             api_md = (artifacts_dir / "api-contract.md").read_text(encoding="utf-8")
 
             self.assertTrue(design["api_required"])
-            self.assertIn("lee rollout onboard-skill", api_md)
-            self.assertIn("lee audit submit-pilot-evidence", api_md)
+            self.assertIn("ll rollout onboard-skill", api_md)
+            self.assertIn("ll audit submit-pilot-evidence", api_md)
             self.assertIn("compat_mode", api_md)
             self.assertIn("cutover_recommendation", api_md)
             self.assertIn("Canonical refs:", api_md)

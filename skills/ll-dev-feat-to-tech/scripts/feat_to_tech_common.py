@@ -81,6 +81,40 @@ def unique_strings(values: list[str]) -> list[str]:
     return result
 
 
+def normalize_semantic_lock(payload: Any) -> dict[str, Any]:
+    if not isinstance(payload, dict):
+        return {}
+    lock = {
+        "domain_type": str(payload.get("domain_type") or "").strip(),
+        "one_sentence_truth": str(payload.get("one_sentence_truth") or "").strip(),
+        "primary_object": str(payload.get("primary_object") or "").strip(),
+        "lifecycle_stage": str(payload.get("lifecycle_stage") or "").strip(),
+        "allowed_capabilities": ensure_list(payload.get("allowed_capabilities")),
+        "forbidden_capabilities": ensure_list(payload.get("forbidden_capabilities")),
+        "inheritance_rule": str(payload.get("inheritance_rule") or "").strip(),
+    }
+    return {key: value for key, value in lock.items() if value not in ("", [], None)}
+
+
+def semantic_lock_errors(payload: Any) -> list[str]:
+    lock = normalize_semantic_lock(payload)
+    if not lock:
+        return []
+    required_fields = [
+        "domain_type",
+        "one_sentence_truth",
+        "primary_object",
+        "lifecycle_stage",
+        "inheritance_rule",
+    ]
+    errors = [field for field in required_fields if not str(lock.get(field) or "").strip()]
+    if not ensure_list(lock.get("allowed_capabilities")):
+        errors.append("allowed_capabilities")
+    if not ensure_list(lock.get("forbidden_capabilities")):
+        errors.append("forbidden_capabilities")
+    return [f"semantic_lock missing required field: {field}" for field in errors]
+
+
 def guess_repo_root_from_input(input_path: Path) -> Path:
     parts = list(input_path.parts)
     for index, part in enumerate(parts):
@@ -103,6 +137,7 @@ class FeatPackage:
     supervision_evidence: dict[str, Any]
     gate: dict[str, Any]
     handoff: dict[str, Any]
+    semantic_lock: dict[str, Any]
 
     @property
     def run_id(self) -> str:
@@ -129,6 +164,7 @@ def load_feat_package(artifacts_dir: Path) -> FeatPackage:
         supervision_evidence=load_json(artifacts_dir / "supervision-evidence.json"),
         gate=load_json(artifacts_dir / "feat-freeze-gate.json"),
         handoff=load_json(artifacts_dir / "handoff-to-feat-downstreams.json"),
+        semantic_lock=normalize_semantic_lock(load_json(artifacts_dir / "feat-freeze-bundle.json").get("semantic_lock")),
     )
 
 
@@ -156,6 +192,7 @@ def validate_input_package(artifacts_dir: Path, feat_ref: str) -> tuple[list[str
         return errors, {"valid": False, "missing_files": errors}
 
     package = load_feat_package(artifacts_dir)
+    errors.extend(semantic_lock_errors(package.feat_json.get("semantic_lock")))
 
     artifact_type = str(package.feat_json.get("artifact_type") or "")
     if artifact_type != "feat_freeze_package":
@@ -203,5 +240,6 @@ def validate_input_package(artifacts_dir: Path, feat_ref: str) -> tuple[list[str
         "epic_freeze_ref": package.feat_json.get("epic_freeze_ref"),
         "src_root_id": package.feat_json.get("src_root_id"),
         "source_refs": source_refs,
+        "semantic_lock": package.semantic_lock,
     }
     return errors, result

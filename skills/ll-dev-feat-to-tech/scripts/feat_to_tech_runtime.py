@@ -23,6 +23,7 @@ from feat_to_tech_common import (
     guess_repo_root_from_input,
     load_feat_package,
     load_json,
+    normalize_semantic_lock,
     parse_markdown_frontmatter,
     unique_strings,
     validate_input_package,
@@ -68,6 +69,7 @@ REQUIRED_OUTPUT_FILES = [
     "tech-defect-list.json",
     "tech-freeze-gate.json",
     "handoff-to-tech-impl.json",
+    "semantic-drift-check.json",
     "execution-evidence.json",
     "supervision-evidence.json",
 ]
@@ -128,8 +130,6 @@ class GeneratedTechPackage:
     json_payload: dict[str, Any]
     tech_frontmatter: dict[str, Any]
     tech_body: str
-    tech_impl_frontmatter: dict[str, Any]
-    tech_impl_body: str
     arch_frontmatter: dict[str, Any] | None
     arch_body: str | None
     api_frontmatter: dict[str, Any] | None
@@ -138,10 +138,53 @@ class GeneratedTechPackage:
     acceptance_report: dict[str, Any]
     defect_list: list[dict[str, Any]]
     handoff: dict[str, Any]
+    semantic_drift_check: dict[str, Any]
     execution_decisions: list[str]
     execution_uncertainties: list[str]
 
+
+def build_semantic_drift_check(feature: dict[str, Any], generated_text_parts: list[str]) -> dict[str, Any]:
+    lock = normalize_semantic_lock(feature.get("semantic_lock"))
+    if not lock:
+        return {
+            "verdict": "not_applicable",
+            "semantic_lock_present": False,
+            "semantic_lock_preserved": True,
+            "forbidden_axis_detected": [],
+            "anchor_matches": [],
+            "summary": "No semantic_lock present.",
+        }
+
+    generated_text = " ".join(part for part in generated_text_parts if str(part).strip()).lower()
+    forbidden_hits = [item for item in lock.get("forbidden_capabilities", []) if str(item).strip().lower() in generated_text]
+    anchor_matches: list[str] = []
+    token_groups = {
+        "domain_type": [str(lock.get("domain_type") or "").replace("_", " ").lower()],
+        "primary_object": [token for token in str(lock.get("primary_object") or "").replace("_", " ").lower().split() if token],
+        "lifecycle_stage": [token for token in str(lock.get("lifecycle_stage") or "").replace("_", " ").lower().split() if token],
+    }
+    for label, tokens in token_groups.items():
+        if tokens and all(token in generated_text for token in tokens):
+            anchor_matches.append(label)
+    if str(lock.get("domain_type") or "").strip().lower() == "review_projection_rule":
+        review_projection_tokens = ["projection", "gate", "ssot"]
+        if all(token in generated_text for token in review_projection_tokens):
+            anchor_matches.append("review_projection_signature")
+    preserved = not forbidden_hits and len(anchor_matches) >= 1
+    return {
+        "verdict": "pass" if preserved else "reject",
+        "semantic_lock_present": True,
+        "semantic_lock_preserved": preserved,
+        "domain_type": lock.get("domain_type"),
+        "one_sentence_truth": lock.get("one_sentence_truth"),
+        "forbidden_axis_detected": forbidden_hits,
+        "anchor_matches": anchor_matches,
+        "summary": "semantic_lock preserved." if preserved else "semantic_lock drift detected.",
+    }
+
 def build_tech_package(package: Any, feature: dict[str, Any], feat_ref: str, run_id: str) -> GeneratedTechPackage:
+    feature = dict(feature)
+    feature["semantic_lock"] = normalize_semantic_lock(feature.get("semantic_lock") or package.semantic_lock)
     refs = build_refs(feature, package)
     assessment = assess_optional_artifacts(feature, package)
     focus = design_focus(feature)
@@ -168,6 +211,20 @@ def build_tech_package(package: Any, feature: dict[str, Any], feat_ref: str, run
         + ensure_list(feature.get("source_refs"))
         + ensure_list(package.feat_json.get("source_refs"))
     )
+    semantic_drift_check = build_semantic_drift_check(
+        feature,
+        [
+            str(feature.get("title") or ""),
+            str(feature.get("goal") or ""),
+            explicit_axis(feature) or "",
+            " ".join(focus),
+            " ".join(rules),
+            " ".join(implementation_arch),
+            " ".join(modules),
+            " ".join(contracts),
+            " ".join(integrations),
+        ],
+    )
 
     artifact_refs = {
         "tech_spec": "tech-spec.md",
@@ -190,6 +247,14 @@ def build_tech_package(package: Any, feature: dict[str, Any], feat_ref: str, run
                 "severity": "P1",
                 "title": "Cross-artifact consistency failed",
                 "detail": "; ".join(consistency["issues"]),
+            }
+        )
+    if semantic_drift_check["verdict"] == "reject":
+        defects.append(
+            {
+                "severity": "P1",
+                "title": "semantic_lock drift detected",
+                "detail": semantic_drift_check["summary"],
             }
         )
 
@@ -232,6 +297,7 @@ def build_tech_package(package: Any, feature: dict[str, Any], feat_ref: str, run
         "epic_freeze_ref": refs["epic_ref"],
         "src_root_id": refs["src_ref"],
         "source_refs": source_refs,
+        "semantic_lock": feature["semantic_lock"],
         "arch_required": assessment["arch_required"],
         "api_required": assessment["api_required"],
         "need_assessment": assessment,
@@ -283,6 +349,7 @@ def build_tech_package(package: Any, feature: dict[str, Any], feat_ref: str, run
         "design_consistency_check": consistency,
         "downstream_handoff": handoff,
         "traceability": traceability,
+        "semantic_drift_check": semantic_drift_check,
     }
 
     frontmatter = {
@@ -296,6 +363,7 @@ def build_tech_package(package: Any, feature: dict[str, Any], feat_ref: str, run
         "arch_required": assessment["arch_required"],
         "api_required": assessment["api_required"],
         "source_refs": source_refs,
+        "semantic_lock": feature["semantic_lock"],
     }
 
     markdown_body = "\n\n".join(
@@ -469,29 +537,6 @@ def build_tech_package(package: Any, feature: dict[str, Any], feat_ref: str, run
             "## Traceability\n\n" + "\n".join(f"- {item['design_section']}: {', '.join(item['source_refs'])}" for item in traceability),
         ]
     )
-    tech_impl_frontmatter = {
-        "artifact_type": "TECH_IMPL",
-        "status": json_payload["status"],
-        "schema_version": "1.0.0",
-        "tech_ref": refs["tech_ref"],
-        "feat_ref": refs["feat_ref"],
-        "source_refs": source_refs,
-    }
-    tech_impl_body = "\n\n".join(
-        [
-            f"# TECH-IMPL-{refs['feat_ref']}",
-            "## ASCII Architecture View\n\n" + "\n".join(f"- {item}" for item in implementation_arch) + "\n\n" + runtime_view,
-            "## State Model\n\n" + "\n".join(f"- {item}" for item in states),
-            "## Module Plan\n\n" + "\n".join(f"- {item}" for item in modules),
-            "## Implementation Strategy\n\n" + "\n".join(f"- {item}" for item in strategy),
-            "## Implementation Unit Mapping\n\n" + "\n".join(f"- {item}" for item in unit_mapping),
-            "## Interface Contracts\n\n" + "\n".join(f"- {item}" for item in contracts),
-            "## Main Sequence\n\n" + "\n".join(f"- {item}" for item in sequence_steps) + "\n\n" + main_flow_diagram,
-            "## Exception and Compensation\n\n" + "\n".join(f"- {item}" for item in exception_rules),
-            "## Integration Points\n\n" + "\n".join(f"- {item}" for item in integrations),
-            "## Minimal Code Skeleton\n\n- Happy path:\n\n" + skeleton["happy_path"] + "\n\n- Failure path:\n\n" + skeleton["failure_path"],
-        ]
-    )
     arch_frontmatter = None
     arch_body = None
     if assessment["arch_required"]:
@@ -635,7 +680,7 @@ def build_tech_package(package: Any, feature: dict[str, Any], feat_ref: str, run
             },
             "downstream_readiness": {
                 "status": "pass" if not defects else "fail",
-                "note": "Output remains actionable for workflow.dev.tech_to_impl." if not defects else "Output is not freeze-ready for tech-impl.",
+                "note": "Output remains actionable for workflow.dev.tech_to_impl." if not defects else "Output is not freeze-ready for downstream implementation planning.",
             },
         },
         "summary": "TECH acceptance review passed." if not defects else "TECH acceptance review requires revision.",
@@ -658,8 +703,6 @@ def build_tech_package(package: Any, feature: dict[str, Any], feat_ref: str, run
         json_payload=json_payload,
         tech_frontmatter=tech_frontmatter,
         tech_body=tech_body,
-        tech_impl_frontmatter=tech_impl_frontmatter,
-        tech_impl_body=tech_impl_body,
         arch_frontmatter=arch_frontmatter,
         arch_body=arch_body,
         api_frontmatter=api_frontmatter,
@@ -668,6 +711,7 @@ def build_tech_package(package: Any, feature: dict[str, Any], feat_ref: str, run
         acceptance_report=acceptance_report,
         defect_list=defects,
         handoff=handoff,
+        semantic_drift_check=semantic_drift_check,
         execution_decisions=execution_decisions,
         execution_uncertainties=execution_uncertainties,
     )
@@ -740,6 +784,9 @@ def validate_output_package(artifacts_dir: Path) -> tuple[list[str], dict[str, A
         required_keys = {"passed", "structural_passed", "semantic_passed", "checks", "issues", "minor_open_items"}
         if not required_keys.issubset(set(consistency.keys())):
             errors.append("design_consistency_check must include passed/structural_passed/semantic_passed/checks/issues/minor_open_items.")
+    semantic_drift_check = load_json(artifacts_dir / "semantic-drift-check.json")
+    if bundle_json.get("semantic_lock") and semantic_drift_check.get("semantic_lock_preserved") is not True:
+        errors.append("semantic-drift-check.json must preserve semantic_lock when semantic_lock is present.")
 
     markdown_text = (artifacts_dir / "tech-design-bundle.md").read_text(encoding="utf-8")
     _, markdown_body = parse_markdown_frontmatter(markdown_text)
@@ -783,6 +830,7 @@ def validate_output_package(artifacts_dir: Path) -> tuple[list[str], dict[str, A
         "tech_ref": tech_ref,
         "arch_required": arch_required,
         "api_required": api_required,
+        "semantic_lock_preserved": semantic_drift_check.get("semantic_lock_preserved", True),
     }
 
 def validate_package_readiness(artifacts_dir: Path) -> tuple[bool, list[str]]:
@@ -803,6 +851,8 @@ def executor_run(input_path: Path, feat_ref: str, repo_root: Path, run_id: str, 
     feature = find_feature(package, feat_ref)
     if feature is None:
         raise ValueError(f"Selected feat_ref not found: {feat_ref}")
+    feature = dict(feature)
+    feature["semantic_lock"] = normalize_semantic_lock(feature.get("semantic_lock") or package.semantic_lock)
 
     effective_run_id = run_id or f"{package.run_id}--{feat_ref.lower()}"
     generated = build_tech_package(package, feature, feat_ref, effective_run_id)
@@ -837,6 +887,8 @@ def supervisor_review(artifacts_dir: Path, repo_root: Path, run_id: str, allow_u
     feature = find_feature(package, feat_ref)
     if feature is None:
         raise ValueError(f"Selected feat_ref not found: {feat_ref}")
+    feature = dict(feature)
+    feature["semantic_lock"] = normalize_semantic_lock(feature.get("semantic_lock") or package.semantic_lock)
     effective_run_id = run_id or artifacts_dir.name
     generated = build_tech_package(package, feature, feat_ref, effective_run_id)
     supervision = build_supervision_evidence(artifacts_dir, generated)
