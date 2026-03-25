@@ -1,0 +1,17 @@
+{
+  "objects": [
+    {"directory": "adr", "classification": "canonical", "filename_regex": "^ADR-\\d{3}-.*\\.(?:MD|md)$"},
+    {"directory": "src", "classification": "canonical", "filename_regex": "^SRC-\\d{3}__.*\\.(?:md|MD)$"},
+    {"directory": "epic", "classification": "canonical", "filename_regex": "^EPIC-\\d{3}__.*\\.(?:md|MD)$"},
+    {"directory": "feat", "classification": "canonical", "filename_regex": "^FEAT-[A-Z0-9-]+__.*\\.(?:md|MD)$"},
+    {"directory": "tech", "classification": "canonical", "filename_regex": "^(TECH-[A-Z0-9-]+__.*\\.(?:md|MD)|SRC-\\d{3})$", "allow_any_nested": true},
+    {"directory": "impl", "classification": "canonical", "filename_regex": "^IMPL-[A-Z0-9-]+__.*\\.(?:md|MD)$"},
+    {"directory": "testset", "classification": "canonical", "filename_regex": "^TESTSET-[A-Z0-9-]+__.*\\.(?:yaml|yml)$"},
+    {"directory": "api", "classification": "canonical", "filename_regex": "^API-[A-Z0-9-]+__.*\\.(?:yaml|yml)$"},
+    {"directory": "architecture", "classification": "historical", "filename_regex": "^ARCH-[A-Z0-9-]+__.*\\.(?:md|MD)$"},
+    {"directory": "devplan", "classification": "historical", "filename_regex": "^DEVPLAN-[A-Z0-9-]+__.*\\.(?:yaml|yml)$"},
+    {"directory": "tasks", "classification": "historical", "filename_regex": "^(SRC-\\d{3}|FEAT-[A-Z0-9-]+|TASK-[A-Z0-9-]+__.*\\.(?:md|MD))$", "allow_any_nested": true},
+    {"directory": "release", "classification": "historical", "filename_regex": "^(REL-[A-Z0-9-]+.*|RELEASE_NOTE-[A-Z0-9-]+.*)$", "allow_any_nested": true},
+    {"directory": "testplan", "classification": "historical", "filename_regex": "^(TESTPLAN-[A-Z0-9-]+.*|REL-[A-Z0-9-]+)$", "allow_any_nested": true}
+  ]
+}

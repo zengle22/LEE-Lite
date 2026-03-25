@@ -1,0 +1,40 @@
+artifact_type: gate_decision_package
+schema_version: 1.0.0
+required_runtime_artifacts:
+  - package-manifest.json
+  - gate-decision-bundle.md
+  - gate-decision-bundle.json
+  - runtime-artifact-refs.json
+  - gate-review-report.json
+  - gate-acceptance-report.json
+  - gate-defect-list.json
+  - gate-freeze-gate.json
+  - handoff-to-gate-downstreams.json
+  - execution-evidence.json
+  - supervision-evidence.json
+required_sections:
+  - Input Package
+  - Brief Record
+  - Pending Human Decision
+  - Decision Result
+  - Dispatch Result
+  - Materialization
+  - Traceability
+structural_checks:
+  - schema
+  - runtime_refs_present
+  - machine_ssot_ref_present
+  - human_projection_ref_present
+  - projection_marker_guard
+  - decision_target_present
+  - decision_basis_refs_present
+  - dispatch_receipt_present
+semantic_gate:
+  required: true
+forbidden_content:
+  - human decision action presented as runtime state
+  - approve without materialization evidence
+  - revise or retry with false formalization success
+notes:
+  - The package may be semantically accepted even when the decision action is revise, retry, handoff, or reject.
+  - `approve` must carry materialization evidence on the default path.

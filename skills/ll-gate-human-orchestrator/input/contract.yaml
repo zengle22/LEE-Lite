@@ -1,0 +1,30 @@
+artifact_type: gate_ready_package
+schema_version: 1.0.0
+authoritative_upstream_skill: governed mainline runtime
+accepted_statuses:
+  - complete
+  - ready
+required_runtime_artifacts:
+  - gate-ready-package.json
+required_bundle_fields:
+  - payload
+required_payload_fields:
+  - candidate_ref
+  - machine_ssot_ref
+  - acceptance_ref
+  - evidence_bundle_ref
+structural_checks:
+  - required_artifact_presence
+  - candidate_ref_present
+  - machine_ssot_ref_present
+  - acceptance_ref_present
+  - evidence_bundle_ref_present
+semantic_gate:
+  required: true
+forbidden_inputs:
+  - raw_requirement
+  - src_candidate_package
+  - direct_formal_artifact
+notes:
+  - The wrapper accepts either a directory containing `gate-ready-package.json` or the JSON file itself.
+  - Audit finding refs may be supplied externally and are not required to live inside the package directory.

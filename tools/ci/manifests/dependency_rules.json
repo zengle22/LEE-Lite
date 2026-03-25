@@ -1,0 +1,70 @@
+{
+  "governed_prefixes": [
+    "ssot/",
+    "spec/contracts/",
+    "spec/governance/",
+    "spec/skill-standard/",
+    "skills/",
+    "cli/"
+  ],
+  "rules": [
+    {
+      "name": "ssot-or-spec-foundation",
+      "patterns": [
+        "ssot/**",
+        "spec/contracts/**",
+        "spec/governance/**",
+        "spec/skill-standard/**"
+      ],
+      "tests": [
+        "tests/unit/test_lee_product_raw_to_src.py",
+        "tests/unit/test_lee_product_src_to_epic.py",
+        "tests/unit/test_lee_product_epic_to_feat.py",
+        "tests/unit/test_lee_dev_feat_to_tech.py",
+        "tests/unit/test_lee_dev_tech_to_impl.py",
+        "tests/unit/test_lee_qa_feat_to_testset.py",
+        "tests/unit/test_cli_runtime_governed_flows.py",
+        "tests/unit/test_cli_skill_test_exec.py"
+      ]
+    },
+    {
+      "name": "raw-to-src",
+      "patterns": ["skills/ll-product-raw-to-src/**"],
+      "tests": ["tests/unit/test_lee_product_raw_to_src.py"]
+    },
+    {
+      "name": "src-to-epic",
+      "patterns": ["skills/ll-product-src-to-epic/**"],
+      "tests": ["tests/unit/test_lee_product_src_to_epic.py"]
+    },
+    {
+      "name": "epic-to-feat",
+      "patterns": ["skills/ll-product-epic-to-feat/**"],
+      "tests": ["tests/unit/test_lee_product_epic_to_feat.py"]
+    },
+    {
+      "name": "feat-to-tech",
+      "patterns": ["skills/ll-dev-feat-to-tech/**"],
+      "tests": ["tests/unit/test_lee_dev_feat_to_tech.py"]
+    },
+    {
+      "name": "tech-to-impl",
+      "patterns": ["skills/ll-dev-tech-to-impl/**"],
+      "tests": ["tests/unit/test_lee_dev_tech_to_impl.py"]
+    },
+    {
+      "name": "feat-to-testset",
+      "patterns": ["skills/ll-qa-feat-to-testset/**"],
+      "tests": ["tests/unit/test_lee_qa_feat_to_testset.py"]
+    },
+    {
+      "name": "cli-runtime",
+      "patterns": ["cli/**"],
+      "tests": [
+        "tests/unit/test_cli_runtime.py",
+        "tests/unit/test_cli_runtime_governed_flows.py",
+        "tests/unit/test_cli_skill_test_exec.py"
+      ]
+    }
+  ]
+}

@@ -1,0 +1,25 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "ll-gate-human-orchestrator input",
+  "type": "object",
+  "required": ["payload"],
+  "properties": {
+    "payload": {
+      "type": "object",
+      "required": ["candidate_ref", "machine_ssot_ref", "acceptance_ref", "evidence_bundle_ref"],
+      "properties": {
+        "candidate_ref": {"type": "string"},
+        "machine_ssot_ref": {"type": "string"},
+        "acceptance_ref": {"type": "string"},
+        "evidence_bundle_ref": {"type": "string"},
+        "handoff_ref": {"type": "string"},
+        "proposal_ref": {"type": "string"}
+      },
+      "additionalProperties": true
+    },
+    "trace": {
+      "type": "object"
+    }
+  },
+  "additionalProperties": true
+}

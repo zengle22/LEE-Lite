@@ -1,0 +1,4 @@
+interface:
+  display_name: "LL Gate Human Orchestrator"
+  short_description: "Governed gate review and approve-auto-materialize workflow"
+  default_prompt: "Use $ll-gate-human-orchestrator to turn one gate_ready_package into a governed gate decision package through the real ll gate runtime."

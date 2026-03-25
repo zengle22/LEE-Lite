@@ -1,0 +1,97 @@
+skill_id: ll-gate-human-orchestrator
+skill_type: workflow
+version: 0.1.0
+workflow_key: governance.gate-human-orchestrator
+
+authority:
+  canonical_template: E:\ai\LEE-Lite-skill-first\skills\ll-gate-human-orchestrator\output\template.md
+  governing_adrs:
+    - E:\ai\LEE-Lite-skill-first\ssot\adr\ADR-016-Gate Skill 作为第二会话 Human Gate Orchestrator 的实现基线.MD
+    - E:\ai\LEE-Lite-skill-first\ssot\adr\ADR-015.MD
+    - E:\ai\LEE-Lite-skill-first\ssot\adr\ADR-001.MD
+  upstream_skill: governed mainline runtime
+  downstream_runtime: ll gate dispatch / ll gate materialize
+
+roles:
+  executor:
+    required: true
+    evidence_required: true
+    prompt_file: agents/executor.md
+  supervisor:
+    required: true
+    evidence_required: true
+    prompt_file: agents/supervisor.md
+
+runtime:
+  mode: lite_native
+  command: python scripts/gate_human_orchestrator.py run --input <gate-ready-dir> --repo-root <repo-root>
+  entry_script: scripts/gate_human_orchestrator.py
+  accepted_input_paths:
+    - artifacts/active/gates/packages
+    - direct gate_ready_package directory path
+    - direct gate-ready-package.json path
+  produced_output_dir: artifacts/gate-human-orchestrator/<run_id>
+  required_output_artifacts:
+    - package-manifest.json
+    - gate-decision-bundle.md
+    - gate-decision-bundle.json
+    - runtime-artifact-refs.json
+    - gate-review-report.json
+    - gate-acceptance-report.json
+    - gate-defect-list.json
+    - gate-freeze-gate.json
+    - handoff-to-gate-downstreams.json
+    - execution-evidence.json
+    - supervision-evidence.json
+
+input:
+  artifact_type: gate_ready_package
+  contract_file: input/contract.yaml
+  schema_file: input/schema.json
+  structural_validation_required: true
+  semantic_validation_required: true
+
+output:
+  artifact_type: gate_decision_package
+  contract_file: output/contract.yaml
+  schema_file: output/schema.json
+  template_file: output/template.md
+  structural_validation_required: true
+  semantic_validation_required: true
+
+validation:
+  structural:
+    - "python scripts/gate_human_orchestrator.py validate-input --input $INPUT"
+    - "python scripts/gate_human_orchestrator.py run --input $INPUT --repo-root $REPO_ROOT --allow-update"
+    - "python scripts/gate_human_orchestrator.py validate-output --artifacts-dir $OUTPUT"
+    - "python scripts/gate_human_orchestrator.py validate-package-readiness --artifacts-dir $OUTPUT"
+    - "python scripts/gate_human_orchestrator.py freeze-guard --artifacts-dir $OUTPUT"
+  semantic:
+    input_checklist: input/semantic-checklist.md
+    output_checklist: output/semantic-checklist.md
+
+evidence:
+  execution_schema: evidence/execution-evidence.schema.json
+  supervision_schema: evidence/supervision-evidence.schema.json
+  report_template: evidence/report.template.md
+
+lifecycle:
+  definition_file: ll.lifecycle.yaml
+  max_revision_rounds: 3
+
+gate:
+  freeze_requires:
+    - input_structural_pass
+    - input_semantic_pass
+    - output_structural_pass
+    - output_semantic_pass
+    - execution_evidence_present
+    - supervision_evidence_present
+    - runtime_decision_present
+  reject_when:
+    - gate_ready_package_missing
+    - missing_candidate_ref
+    - missing_decision_target
+    - missing_decision_basis_refs
+    - dispatch_receipt_missing
+    - required_evidence_missing

@@ -1,0 +1,49 @@
+---
+name: ll-gate-human-orchestrator
+description: Governed LL workflow skill for orchestrating human gate review over a gate_ready_package, producing authoritative brief, pending-human, decision, dispatch, and approve-auto-materialization outcomes through the mainline gate runtime.
+---
+
+# LL Gate Human Orchestrator
+
+This skill is the governed gate workflow for turning one `gate_ready_package` into one authoritative gate decision package. It wraps the real `ll gate evaluate`, `ll gate dispatch`, and `ll gate materialize` runtime surface instead of inventing a parallel gate engine.
+
+## Canonical Authority
+
+- Governing ADRs: `E:\ai\LEE-Lite-skill-first\ssot\adr\ADR-016-Gate Skill 作为第二会话 Human Gate Orchestrator 的实现基线.MD`, `ADR-015`, `ADR-001`
+- Upstream runtime object: `gate_ready_package`
+- Primary runtime command: `python scripts/gate_human_orchestrator.py run --input <gate-ready-dir> --repo-root <repo-root>`
+- Real execution surface: `ll gate evaluate`, `ll gate dispatch`, `ll gate materialize`
+
+## Required Read Order
+
+1. `ll.contract.yaml`
+2. `input/contract.yaml`
+3. `output/contract.yaml`
+4. `agents/executor.md`
+5. `agents/supervisor.md`
+6. `input/semantic-checklist.md`
+7. `output/semantic-checklist.md`
+
+## Execution Protocol
+
+1. Accept only a governed `gate_ready_package` directory or the canonical `gate-ready-package.json` file.
+2. Validate the package structure before issuing any gate decision.
+3. Use the mainline gate runtime to build `gate-brief-record`, `gate-pending-human-decision`, and `gate-decision`.
+4. Treat `approve` as approval plus immediate materialization on the default runtime path.
+5. Always dispatch the authoritative decision after evaluation.
+6. Record execution evidence and then require a supervisor pass before freeze.
+7. Freeze only after `validate-package-readiness` returns success.
+
+## Workflow Boundary
+
+- Input: one `gate_ready_package`
+- Output: one `gate_decision_package`
+- Out of scope: upstream candidate authoring, FEAT/TECH derivation, and replacing the underlying `ll gate ...` runtime
+
+## Non-Negotiable Rules
+
+- Do not bypass `ll gate evaluate` with handwritten decision files.
+- Do not treat human decision actions as runtime states.
+- Do not require a second skill for materialization after `approve`.
+- Do not accept raw requirements or standalone markdown as gate input.
+- Do not self-approve semantic validity without supervisor evidence.

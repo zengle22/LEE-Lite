@@ -1,0 +1,100 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+      - master
+      - "codex/**"
+
+jobs:
+  repo-hygiene:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - run: python -m pip install --upgrade pip pytest pyyaml
+      - run: python tools/ci/write_changed_files.py --event-name "${{ github.event_name }}" --event-path "${{ github.event_path }}" --head-sha "${{ github.sha }}" --output .ci-changed-files.txt
+      - run: python -m tools.ci.run_checks repo-hygiene --changed-files .ci-changed-files.txt --output-dir .artifacts/ci/repo-hygiene
+
+  unit-fast:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - run: python -m pip install --upgrade pip pytest pyyaml
+      - run: python -m tools.ci.run_checks run-test-manifest unit_fast --output-dir .artifacts/ci/unit-fast
+
+  ssot-governance:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - run: python -m pip install --upgrade pip pytest pyyaml
+      - run: python tools/ci/write_changed_files.py --event-name "${{ github.event_name }}" --event-path "${{ github.event_path }}" --head-sha "${{ github.sha }}" --output .ci-changed-files.txt
+      - run: python -m tools.ci.run_checks ssot-governance --changed-files .ci-changed-files.txt --output-dir .artifacts/ci/ssot-governance
+
+  code-size-governance:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - run: python -m pip install --upgrade pip pytest pyyaml
+      - run: python tools/ci/write_changed_files.py --event-name "${{ github.event_name }}" --event-path "${{ github.event_path }}" --head-sha "${{ github.sha }}" --output .ci-changed-files.txt --base-output .ci-base-ref.txt
+      - run: |
+          BASE_REF=$(cat .ci-base-ref.txt)
+          python -m tools.ci.run_checks code-size-governance --changed-files .ci-changed-files.txt --output-dir .artifacts/ci/code-size-governance --base-ref "$BASE_REF"
+
+  skill-governance:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - run: python -m pip install --upgrade pip pytest pyyaml
+      - run: python tools/ci/write_changed_files.py --event-name "${{ github.event_name }}" --event-path "${{ github.event_path }}" --head-sha "${{ github.sha }}" --output .ci-changed-files.txt
+      - run: python -m tools.ci.run_checks skill-governance --changed-files .ci-changed-files.txt --output-dir .artifacts/ci/skill-governance --run-tests
+
+  cli-governance:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - run: python -m pip install --upgrade pip pytest pyyaml
+      - run: python tools/ci/write_changed_files.py --event-name "${{ github.event_name }}" --event-path "${{ github.event_path }}" --head-sha "${{ github.sha }}" --output .ci-changed-files.txt
+      - run: python -m tools.ci.run_checks cli-governance --changed-files .ci-changed-files.txt --output-dir .artifacts/ci/cli-governance --run-tests
+
+  cross-domain-compat:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - run: python -m pip install --upgrade pip pytest pyyaml
+      - run: python tools/ci/write_changed_files.py --event-name "${{ github.event_name }}" --event-path "${{ github.event_path }}" --head-sha "${{ github.sha }}" --output .ci-changed-files.txt
+      - run: python -m tools.ci.run_checks cross-domain-compat --changed-files .ci-changed-files.txt --output-dir .artifacts/ci/cross-domain-compat --run-tests

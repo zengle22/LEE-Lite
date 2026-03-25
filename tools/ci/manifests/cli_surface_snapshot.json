@@ -1,0 +1,1321 @@
+{
+  "artifact": {
+    "actions": {
+      "read": {
+        "args": [
+          {
+            "dest": "request",
+            "required": true,
+            "option_strings": [
+              "--request"
+            ]
+          },
+          {
+            "dest": "response_out",
+            "required": true,
+            "option_strings": [
+              "--response-out"
+            ]
+          },
+          {
+            "dest": "evidence_out",
+            "required": false,
+            "option_strings": [
+              "--evidence-out"
+            ]
+          },
+          {
+            "dest": "workspace_root",
+            "required": false,
+            "option_strings": [
+              "--workspace-root"
+            ]
+          },
+          {
+            "dest": "strict",
+            "required": false,
+            "option_strings": [
+              "--strict"
+            ]
+          }
+        ]
+      },
+      "write": {
+        "args": [
+          {
+            "dest": "request",
+            "required": true,
+            "option_strings": [
+              "--request"
+            ]
+          },
+          {
+            "dest": "response_out",
+            "required": true,
+            "option_strings": [
+              "--response-out"
+            ]
+          },
+          {
+            "dest": "evidence_out",
+            "required": false,
+            "option_strings": [
+              "--evidence-out"
+            ]
+          },
+          {
+            "dest": "workspace_root",
+            "required": false,
+            "option_strings": [
+              "--workspace-root"
+            ]
+          },
+          {
+            "dest": "strict",
+            "required": false,
+            "option_strings": [
+              "--strict"
+            ]
+          }
+        ]
+      },
+      "commit": {
+        "args": [
+          {
+            "dest": "request",
+            "required": true,
+            "option_strings": [
+              "--request"
+            ]
+          },
+          {
+            "dest": "response_out",
+            "required": true,
+            "option_strings": [
+              "--response-out"
+            ]
+          },
+          {
+            "dest": "evidence_out",
+            "required": false,
+            "option_strings": [
+              "--evidence-out"
+            ]
+          },
+          {
+            "dest": "workspace_root",
+            "required": false,
+            "option_strings": [
+              "--workspace-root"
+            ]
+          },
+          {
+            "dest": "strict",
+            "required": false,
+            "option_strings": [
+              "--strict"
+            ]
+          }
+        ]
+      },
+      "promote": {
+        "args": [
+          {
+            "dest": "request",
+            "required": true,
+            "option_strings": [
+              "--request"
+            ]
+          },
+          {
+            "dest": "response_out",
+            "required": true,
+            "option_strings": [
+              "--response-out"
+            ]
+          },
+          {
+            "dest": "evidence_out",
+            "required": false,
+            "option_strings": [
+              "--evidence-out"
+            ]
+          },
+          {
+            "dest": "workspace_root",
+            "required": false,
+            "option_strings": [
+              "--workspace-root"
+            ]
+          },
+          {
+            "dest": "strict",
+            "required": false,
+            "option_strings": [
+              "--strict"
+            ]
+          }
+        ]
+      },
+      "append-run-log": {
+        "args": [
+          {
+            "dest": "request",
+            "required": true,
+            "option_strings": [
+              "--request"
+            ]
+          },
+          {
+            "dest": "response_out",
+            "required": true,
+            "option_strings": [
+              "--response-out"
+            ]
+          },
+          {
+            "dest": "evidence_out",
+            "required": false,
+            "option_strings": [
+              "--evidence-out"
+            ]
+          },
+          {
+            "dest": "workspace_root",
+            "required": false,
+            "option_strings": [
+              "--workspace-root"
+            ]
+          },
+          {
+            "dest": "strict",
+            "required": false,
+            "option_strings": [
+              "--strict"
+            ]
+          }
+        ]
+      }
+    }
+  },
+  "registry": {
+    "actions": {
+      "resolve-formal-ref": {
+        "args": [
+          {
+            "dest": "request",
+            "required": true,
+            "option_strings": [
+              "--request"
+            ]
+          },
+          {
+            "dest": "response_out",
+            "required": true,
+            "option_strings": [
+              "--response-out"
+            ]
+          },
+          {
+            "dest": "evidence_out",
+            "required": false,
+            "option_strings": [
+              "--evidence-out"
+            ]
+          },
+          {
+            "dest": "workspace_root",
+            "required": false,
+            "option_strings": [
+              "--workspace-root"
+            ]
+          },
+          {
+            "dest": "strict",
+            "required": false,
+            "option_strings": [
+              "--strict"
+            ]
+          }
+        ]
+      },
+      "verify-eligibility": {
+        "args": [
+          {
+            "dest": "request",
+            "required": true,
+            "option_strings": [
+              "--request"
+            ]
+          },
+          {
+            "dest": "response_out",
+            "required": true,
+            "option_strings": [
+              "--response-out"
+            ]
+          },
+          {
+            "dest": "evidence_out",
+            "required": false,
+            "option_strings": [
+              "--evidence-out"
+            ]
+          },
+          {
+            "dest": "workspace_root",
+            "required": false,
+            "option_strings": [
+              "--workspace-root"
+            ]
+          },
+          {
+            "dest": "strict",
+            "required": false,
+            "option_strings": [
+              "--strict"
+            ]
+          }
+        ]
+      },
+      "validate-admission": {
+        "args": [
+          {
+            "dest": "request",
+            "required": true,
+            "option_strings": [
+              "--request"
+            ]
+          },
+          {
+            "dest": "response_out",
+            "required": true,
+            "option_strings": [
+              "--response-out"
+            ]
+          },
+          {
+            "dest": "evidence_out",
+            "required": false,
+            "option_strings": [
+              "--evidence-out"
+            ]
+          },
+          {
+            "dest": "workspace_root",
+            "required": false,
+            "option_strings": [
+              "--workspace-root"
+            ]
+          },
+          {
+            "dest": "strict",
+            "required": false,
+            "option_strings": [
+              "--strict"
+            ]
+          }
+        ]
+      },
+      "publish-formal": {
+        "args": [
+          {
+            "dest": "request",
+            "required": true,
+            "option_strings": [
+              "--request"
+            ]
+          },
+          {
+            "dest": "response_out",
+            "required": true,
+            "option_strings": [
+              "--response-out"
+            ]
+          },
+          {
+            "dest": "evidence_out",
+            "required": false,
+            "option_strings": [
+              "--evidence-out"
+            ]
+          },
+          {
+            "dest": "workspace_root",
+            "required": false,
+            "option_strings": [
+              "--workspace-root"
+            ]
+          },
+          {
+            "dest": "strict",
+            "required": false,
+            "option_strings": [
+              "--strict"
+            ]
+          }
+        ]
+      },
+      "bind-record": {
+        "args": [
+          {
+            "dest": "request",
+            "required": true,
+            "option_strings": [
+              "--request"
+            ]
+          },
+          {
+            "dest": "response_out",
+            "required": true,
+            "option_strings": [
+              "--response-out"
+            ]
+          },
+          {
+            "dest": "evidence_out",
+            "required": false,
+            "option_strings": [
+              "--evidence-out"
+            ]
+          },
+          {
+            "dest": "workspace_root",
+            "required": false,
+            "option_strings": [
+              "--workspace-root"
+            ]
+          },
+          {
+            "dest": "strict",
+            "required": false,
+            "option_strings": [
+              "--strict"
+            ]
+          }
+        ]
+      }
+    }
+  },
+  "audit": {
+    "actions": {
+      "scan-workspace": {
+        "args": [
+          {
+            "dest": "request",
+            "required": true,
+            "option_strings": [
+              "--request"
+            ]
+          },
+          {
+            "dest": "response_out",
+            "required": true,
+            "option_strings": [
+              "--response-out"
+            ]
+          },
+          {
+            "dest": "evidence_out",
+            "required": false,
+            "option_strings": [
+              "--evidence-out"
+            ]
+          },
+          {
+            "dest": "workspace_root",
+            "required": false,
+            "option_strings": [
+              "--workspace-root"
+            ]
+          },
+          {
+            "dest": "strict",
+            "required": false,
+            "option_strings": [
+              "--strict"
+            ]
+          }
+        ]
+      },
+      "emit-finding-bundle": {
+        "args": [
+          {
+            "dest": "request",
+            "required": true,
+            "option_strings": [
+              "--request"
+            ]
+          },
+          {
+            "dest": "response_out",
+            "required": true,
+            "option_strings": [
+              "--response-out"
+            ]
+          },
+          {
+            "dest": "evidence_out",
+            "required": false,
+            "option_strings": [
+              "--evidence-out"
+            ]
+          },
+          {
+            "dest": "workspace_root",
+            "required": false,
+            "option_strings": [
+              "--workspace-root"
+            ]
+          },
+          {
+            "dest": "strict",
+            "required": false,
+            "option_strings": [
+              "--strict"
+            ]
+          }
+        ]
+      },
+      "submit-pilot-evidence": {
+        "args": [
+          {
+            "dest": "request",
+            "required": true,
+            "option_strings": [
+              "--request"
+            ]
+          },
+          {
+            "dest": "response_out",
+            "required": true,
+            "option_strings": [
+              "--response-out"
+            ]
+          },
+          {
+            "dest": "evidence_out",
+            "required": false,
+            "option_strings": [
+              "--evidence-out"
+            ]
+          },
+          {
+            "dest": "workspace_root",
+            "required": false,
+            "option_strings": [
+              "--workspace-root"
+            ]
+          },
+          {
+            "dest": "strict",
+            "required": false,
+            "option_strings": [
+              "--strict"
+            ]
+          }
+        ]
+      }
+    }
+  },
+  "gate": {
+    "actions": {
+      "submit-handoff": {
+        "args": [
+          {
+            "dest": "request",
+            "required": true,
+            "option_strings": [
+              "--request"
+            ]
+          },
+          {
+            "dest": "response_out",
+            "required": true,
+            "option_strings": [
+              "--response-out"
+            ]
+          },
+          {
+            "dest": "evidence_out",
+            "required": false,
+            "option_strings": [
+              "--evidence-out"
+            ]
+          },
+          {
+            "dest": "workspace_root",
+            "required": false,
+            "option_strings": [
+              "--workspace-root"
+            ]
+          },
+          {
+            "dest": "strict",
+            "required": false,
+            "option_strings": [
+              "--strict"
+            ]
+          }
+        ]
+      },
+      "show-pending": {
+        "args": [
+          {
+            "dest": "request",
+            "required": true,
+            "option_strings": [
+              "--request"
+            ]
+          },
+          {
+            "dest": "response_out",
+            "required": true,
+            "option_strings": [
+              "--response-out"
+            ]
+          },
+          {
+            "dest": "evidence_out",
+            "required": false,
+            "option_strings": [
+              "--evidence-out"
+            ]
+          },
+          {
+            "dest": "workspace_root",
+            "required": false,
+            "option_strings": [
+              "--workspace-root"
+            ]
+          },
+          {
+            "dest": "strict",
+            "required": false,
+            "option_strings": [
+              "--strict"
+            ]
+          }
+        ]
+      },
+      "decide": {
+        "args": [
+          {
+            "dest": "request",
+            "required": true,
+            "option_strings": [
+              "--request"
+            ]
+          },
+          {
+            "dest": "response_out",
+            "required": true,
+            "option_strings": [
+              "--response-out"
+            ]
+          },
+          {
+            "dest": "evidence_out",
+            "required": false,
+            "option_strings": [
+              "--evidence-out"
+            ]
+          },
+          {
+            "dest": "workspace_root",
+            "required": false,
+            "option_strings": [
+              "--workspace-root"
+            ]
+          },
+          {
+            "dest": "strict",
+            "required": false,
+            "option_strings": [
+              "--strict"
+            ]
+          }
+        ]
+      },
+      "create": {
+        "args": [
+          {
+            "dest": "request",
+            "required": true,
+            "option_strings": [
+              "--request"
+            ]
+          },
+          {
+            "dest": "response_out",
+            "required": true,
+            "option_strings": [
+              "--response-out"
+            ]
+          },
+          {
+            "dest": "evidence_out",
+            "required": false,
+            "option_strings": [
+              "--evidence-out"
+            ]
+          },
+          {
+            "dest": "workspace_root",
+            "required": false,
+            "option_strings": [
+              "--workspace-root"
+            ]
+          },
+          {
+            "dest": "strict",
+            "required": false,
+            "option_strings": [
+              "--strict"
+            ]
+          }
+        ]
+      },
+      "verify": {
+        "args": [
+          {
+            "dest": "request",
+            "required": true,
+            "option_strings": [
+              "--request"
+            ]
+          },
+          {
+            "dest": "response_out",
+            "required": true,
+            "option_strings": [
+              "--response-out"
+            ]
+          },
+          {
+            "dest": "evidence_out",
+            "required": false,
+            "option_strings": [
+              "--evidence-out"
+            ]
+          },
+          {
+            "dest": "workspace_root",
+            "required": false,
+            "option_strings": [
+              "--workspace-root"
+            ]
+          },
+          {
+            "dest": "strict",
+            "required": false,
+            "option_strings": [
+              "--strict"
+            ]
+          }
+        ]
+      },
+      "evaluate": {
+        "args": [
+          {
+            "dest": "request",
+            "required": true,
+            "option_strings": [
+              "--request"
+            ]
+          },
+          {
+            "dest": "response_out",
+            "required": true,
+            "option_strings": [
+              "--response-out"
+            ]
+          },
+          {
+            "dest": "evidence_out",
+            "required": false,
+            "option_strings": [
+              "--evidence-out"
+            ]
+          },
+          {
+            "dest": "workspace_root",
+            "required": false,
+            "option_strings": [
+              "--workspace-root"
+            ]
+          },
+          {
+            "dest": "strict",
+            "required": false,
+            "option_strings": [
+              "--strict"
+            ]
+          }
+        ]
+      },
+      "materialize": {
+        "args": [
+          {
+            "dest": "request",
+            "required": true,
+            "option_strings": [
+              "--request"
+            ]
+          },
+          {
+            "dest": "response_out",
+            "required": true,
+            "option_strings": [
+              "--response-out"
+            ]
+          },
+          {
+            "dest": "evidence_out",
+            "required": false,
+            "option_strings": [
+              "--evidence-out"
+            ]
+          },
+          {
+            "dest": "workspace_root",
+            "required": false,
+            "option_strings": [
+              "--workspace-root"
+            ]
+          },
+          {
+            "dest": "strict",
+            "required": false,
+            "option_strings": [
+              "--strict"
+            ]
+          }
+        ]
+      },
+      "dispatch": {
+        "args": [
+          {
+            "dest": "request",
+            "required": true,
+            "option_strings": [
+              "--request"
+            ]
+          },
+          {
+            "dest": "response_out",
+            "required": true,
+            "option_strings": [
+              "--response-out"
+            ]
+          },
+          {
+            "dest": "evidence_out",
+            "required": false,
+            "option_strings": [
+              "--evidence-out"
+            ]
+          },
+          {
+            "dest": "workspace_root",
+            "required": false,
+            "option_strings": [
+              "--workspace-root"
+            ]
+          },
+          {
+            "dest": "strict",
+            "required": false,
+            "option_strings": [
+              "--strict"
+            ]
+          }
+        ]
+      },
+      "close-run": {
+        "args": [
+          {
+            "dest": "request",
+            "required": true,
+            "option_strings": [
+              "--request"
+            ]
+          },
+          {
+            "dest": "response_out",
+            "required": true,
+            "option_strings": [
+              "--response-out"
+            ]
+          },
+          {
+            "dest": "evidence_out",
+            "required": false,
+            "option_strings": [
+              "--evidence-out"
+            ]
+          },
+          {
+            "dest": "workspace_root",
+            "required": false,
+            "option_strings": [
+              "--workspace-root"
+            ]
+          },
+          {
+            "dest": "strict",
+            "required": false,
+            "option_strings": [
+              "--strict"
+            ]
+          }
+        ]
+      }
+    }
+  },
+  "rollout": {
+    "actions": {
+      "onboard-skill": {
+        "args": [
+          {
+            "dest": "request",
+            "required": true,
+            "option_strings": [
+              "--request"
+            ]
+          },
+          {
+            "dest": "response_out",
+            "required": true,
+            "option_strings": [
+              "--response-out"
+            ]
+          },
+          {
+            "dest": "evidence_out",
+            "required": false,
+            "option_strings": [
+              "--evidence-out"
+            ]
+          },
+          {
+            "dest": "workspace_root",
+            "required": false,
+            "option_strings": [
+              "--workspace-root"
+            ]
+          },
+          {
+            "dest": "strict",
+            "required": false,
+            "option_strings": [
+              "--strict"
+            ]
+          }
+        ]
+      },
+      "cutover-wave": {
+        "args": [
+          {
+            "dest": "request",
+            "required": true,
+            "option_strings": [
+              "--request"
+            ]
+          },
+          {
+            "dest": "response_out",
+            "required": true,
+            "option_strings": [
+              "--response-out"
+            ]
+          },
+          {
+            "dest": "evidence_out",
+            "required": false,
+            "option_strings": [
+              "--evidence-out"
+            ]
+          },
+          {
+            "dest": "workspace_root",
+            "required": false,
+            "option_strings": [
+              "--workspace-root"
+            ]
+          },
+          {
+            "dest": "strict",
+            "required": false,
+            "option_strings": [
+              "--strict"
+            ]
+          }
+        ]
+      },
+      "fallback-wave": {
+        "args": [
+          {
+            "dest": "request",
+            "required": true,
+            "option_strings": [
+              "--request"
+            ]
+          },
+          {
+            "dest": "response_out",
+            "required": true,
+            "option_strings": [
+              "--response-out"
+            ]
+          },
+          {
+            "dest": "evidence_out",
+            "required": false,
+            "option_strings": [
+              "--evidence-out"
+            ]
+          },
+          {
+            "dest": "workspace_root",
+            "required": false,
+            "option_strings": [
+              "--workspace-root"
+            ]
+          },
+          {
+            "dest": "strict",
+            "required": false,
+            "option_strings": [
+              "--strict"
+            ]
+          }
+        ]
+      },
+      "assess-skill": {
+        "args": [
+          {
+            "dest": "request",
+            "required": true,
+            "option_strings": [
+              "--request"
+            ]
+          },
+          {
+            "dest": "response_out",
+            "required": true,
+            "option_strings": [
+              "--response-out"
+            ]
+          },
+          {
+            "dest": "evidence_out",
+            "required": false,
+            "option_strings": [
+              "--evidence-out"
+            ]
+          },
+          {
+            "dest": "workspace_root",
+            "required": false,
+            "option_strings": [
+              "--workspace-root"
+            ]
+          },
+          {
+            "dest": "strict",
+            "required": false,
+            "option_strings": [
+              "--strict"
+            ]
+          }
+        ]
+      },
+      "validate-pilot": {
+        "args": [
+          {
+            "dest": "request",
+            "required": true,
+            "option_strings": [
+              "--request"
+            ]
+          },
+          {
+            "dest": "response_out",
+            "required": true,
+            "option_strings": [
+              "--response-out"
+            ]
+          },
+          {
+            "dest": "evidence_out",
+            "required": false,
+            "option_strings": [
+              "--evidence-out"
+            ]
+          },
+          {
+            "dest": "workspace_root",
+            "required": false,
+            "option_strings": [
+              "--workspace-root"
+            ]
+          },
+          {
+            "dest": "strict",
+            "required": false,
+            "option_strings": [
+              "--strict"
+            ]
+          }
+        ]
+      },
+      "summarize-readiness": {
+        "args": [
+          {
+            "dest": "request",
+            "required": true,
+            "option_strings": [
+              "--request"
+            ]
+          },
+          {
+            "dest": "response_out",
+            "required": true,
+            "option_strings": [
+              "--response-out"
+            ]
+          },
+          {
+            "dest": "evidence_out",
+            "required": false,
+            "option_strings": [
+              "--evidence-out"
+            ]
+          },
+          {
+            "dest": "workspace_root",
+            "required": false,
+            "option_strings": [
+              "--workspace-root"
+            ]
+          },
+          {
+            "dest": "strict",
+            "required": false,
+            "option_strings": [
+              "--strict"
+            ]
+          }
+        ]
+      }
+    }
+  },
+  "skill": {
+    "actions": {
+      "test-exec-web-e2e": {
+        "args": [
+          {
+            "dest": "request",
+            "required": true,
+            "option_strings": [
+              "--request"
+            ]
+          },
+          {
+            "dest": "response_out",
+            "required": true,
+            "option_strings": [
+              "--response-out"
+            ]
+          },
+          {
+            "dest": "evidence_out",
+            "required": false,
+            "option_strings": [
+              "--evidence-out"
+            ]
+          },
+          {
+            "dest": "workspace_root",
+            "required": false,
+            "option_strings": [
+              "--workspace-root"
+            ]
+          },
+          {
+            "dest": "strict",
+            "required": false,
+            "option_strings": [
+              "--strict"
+            ]
+          }
+        ]
+      },
+      "test-exec-cli": {
+        "args": [
+          {
+            "dest": "request",
+            "required": true,
+            "option_strings": [
+              "--request"
+            ]
+          },
+          {
+            "dest": "response_out",
+            "required": true,
+            "option_strings": [
+              "--response-out"
+            ]
+          },
+          {
+            "dest": "evidence_out",
+            "required": false,
+            "option_strings": [
+              "--evidence-out"
+            ]
+          },
+          {
+            "dest": "workspace_root",
+            "required": false,
+            "option_strings": [
+              "--workspace-root"
+            ]
+          },
+          {
+            "dest": "strict",
+            "required": false,
+            "option_strings": [
+              "--strict"
+            ]
+          }
+        ]
+      }
+    }
+  },
+  "validate": {
+    "actions": {
+      "request": {
+        "args": [
+          {
+            "dest": "request",
+            "required": true,
+            "option_strings": [
+              "--request"
+            ]
+          },
+          {
+            "dest": "response_out",
+            "required": true,
+            "option_strings": [
+              "--response-out"
+            ]
+          },
+          {
+            "dest": "evidence_out",
+            "required": false,
+            "option_strings": [
+              "--evidence-out"
+            ]
+          },
+          {
+            "dest": "workspace_root",
+            "required": false,
+            "option_strings": [
+              "--workspace-root"
+            ]
+          },
+          {
+            "dest": "strict",
+            "required": false,
+            "option_strings": [
+              "--strict"
+            ]
+          }
+        ]
+      },
+      "response": {
+        "args": [
+          {
+            "dest": "request",
+            "required": true,
+            "option_strings": [
+              "--request"
+            ]
+          },
+          {
+            "dest": "response_out",
+            "required": true,
+            "option_strings": [
+              "--response-out"
+            ]
+          },
+          {
+            "dest": "evidence_out",
+            "required": false,
+            "option_strings": [
+              "--evidence-out"
+            ]
+          },
+          {
+            "dest": "workspace_root",
+            "required": false,
+            "option_strings": [
+              "--workspace-root"
+            ]
+          },
+          {
+            "dest": "strict",
+            "required": false,
+            "option_strings": [
+              "--strict"
+            ]
+          }
+        ]
+      }
+    }
+  },
+  "evidence": {
+    "actions": {
+      "bundle": {
+        "args": [
+          {
+            "dest": "request",
+            "required": true,
+            "option_strings": [
+              "--request"
+            ]
+          },
+          {
+            "dest": "response_out",
+            "required": true,
+            "option_strings": [
+              "--response-out"
+            ]
+          },
+          {
+            "dest": "evidence_out",
+            "required": false,
+            "option_strings": [
+              "--evidence-out"
+            ]
+          },
+          {
+            "dest": "workspace_root",
+            "required": false,
+            "option_strings": [
+              "--workspace-root"
+            ]
+          },
+          {
+            "dest": "strict",
+            "required": false,
+            "option_strings": [
+              "--strict"
+            ]
+          }
+        ]
+      }
+    }
+  }
+}

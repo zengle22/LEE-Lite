@@ -1,0 +1,53 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "ll-gate-human-orchestrator output",
+  "type": "object",
+  "required": [
+    "artifact_type",
+    "workflow_key",
+    "workflow_run_id",
+    "status",
+    "decision_ref",
+    "decision",
+    "decision_target",
+    "machine_ssot_ref",
+    "human_projection_ref",
+    "projection_status",
+    "decision_basis_refs",
+    "dispatch_target",
+    "source_refs"
+  ],
+  "properties": {
+    "artifact_type": {"type": "string", "const": "gate_decision_package"},
+    "workflow_key": {"type": "string"},
+    "workflow_run_id": {"type": "string"},
+    "status": {"type": "string"},
+    "decision_ref": {"type": "string"},
+    "decision": {"type": "string"},
+    "decision_target": {"type": "string"},
+    "machine_ssot_ref": {"type": "string"},
+    "human_projection_ref": {"type": "string"},
+    "projection_status": {"type": "string"},
+    "projection_markers": {"type": "object"},
+    "projection_trace_refs": {
+      "type": "array",
+      "items": {"type": "string"}
+    },
+    "snapshot_ref": {"type": "string"},
+    "focus_ref": {"type": "string"},
+    "decision_basis_refs": {
+      "type": "array",
+      "minItems": 1,
+      "items": {"type": "string"}
+    },
+    "dispatch_target": {"type": "string"},
+    "materialized_handoff_ref": {"type": "string"},
+    "materialized_job_ref": {"type": "string"},
+    "source_refs": {
+      "type": "array",
+      "minItems": 1,
+      "items": {"type": "string"}
+    }
+  },
+  "additionalProperties": true
+}
