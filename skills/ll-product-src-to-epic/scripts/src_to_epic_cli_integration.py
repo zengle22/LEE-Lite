@@ -62,6 +62,7 @@ def write_executor_outputs(output_dir: Path, repo_root: Path, package: Any, gene
     dump_json(output_dir / "epic-acceptance-report.json", generated.acceptance_report)
     dump_json(output_dir / "epic-defect-list.json", generated.defect_list)
     dump_json(output_dir / "handoff-to-epic-to-feat.json", generated.handoff)
+    dump_json(output_dir / "semantic-drift-check.json", generated.semantic_drift_check)
     dump_json(
         output_dir / "package-manifest.json",
         {
@@ -72,6 +73,7 @@ def write_executor_outputs(output_dir: Path, repo_root: Path, package: Any, gene
             "acceptance_report_ref": str(output_dir / "epic-acceptance-report.json"),
             "defect_list_ref": str(output_dir / "epic-defect-list.json"),
             "handoff_ref": str(output_dir / "handoff-to-epic-to-feat.json"),
+            "semantic_drift_check_ref": str(output_dir / "semantic-drift-check.json"),
             "execution_evidence_ref": str(output_dir / "execution-evidence.json"),
             "supervision_evidence_ref": str(output_dir / "supervision-evidence.json"),
             "status": generated.json_payload["status"],
@@ -96,6 +98,7 @@ def write_executor_outputs(output_dir: Path, repo_root: Path, package: Any, gene
                     "epic-acceptance-report.json",
                     "epic-defect-list.json",
                     "handoff-to-epic-to-feat.json",
+                    "semantic-drift-check.json",
                 ],
                 "cli_executor_commit_ref": str(cli_commit["response_path"]),
                 "cli_executor_receipt_ref": cli_commit["response"]["data"].get("receipt_ref", ""),
@@ -150,6 +153,7 @@ def build_gate_result(generated: Any, supervision_evidence: dict[str, Any]) -> d
             "adr025_acceptance_complete": generated.acceptance_report["decision"] == "approve",
             "multi_feat_boundary_preserved": not generated.defect_list,
             "rollout_plan_present_when_required": (not generated.json_payload["rollout_requirement"]["required"]) or bool(generated.json_payload.get("rollout_plan", {}).get("required_feat_families")),
+            "semantic_lock_preserved": generated.semantic_drift_check.get("semantic_lock_preserved", True),
         },
         "created_at": generated.acceptance_report["created_at"],
     }

@@ -430,6 +430,26 @@ def semantic_review(candidate: dict[str, Any], duplicate_path: Any) -> tuple[dic
         findings.append({"severity": "P1", "type": "duplicate_title", "description": f"Duplicate SRC title already exists at {duplicate_path}"})
     if re.search(r"\b(epic|feat|task)\b", candidate["problem_statement"], flags=re.IGNORECASE):
         findings.append({"severity": "P1", "type": "layer_boundary", "description": "Problem statement drifts into downstream artifact layers."})
+    semantic_lock = candidate.get("semantic_lock") or {}
+    if semantic_lock:
+        required_fields = ["domain_type", "one_sentence_truth", "primary_object", "lifecycle_stage", "inheritance_rule"]
+        missing_fields = [field for field in required_fields if not semantic_lock.get(field)]
+        if missing_fields:
+            findings.append(
+                {
+                    "severity": "P1",
+                    "type": "semantic_lock_incomplete",
+                    "description": f"semantic_lock is missing required fields: {', '.join(missing_fields)}.",
+                }
+            )
+        if not semantic_lock.get("allowed_capabilities") or not semantic_lock.get("forbidden_capabilities"):
+            findings.append(
+                {
+                    "severity": "P1",
+                    "type": "semantic_lock_capability_bounds_missing",
+                    "description": "semantic_lock must declare both allowed_capabilities and forbidden_capabilities.",
+                }
+            )
     if candidate["source_kind"] == "governance_bridge_src":
         bridge = candidate.get("bridge_context") or {}
         if not bridge:

@@ -33,8 +33,10 @@ from src_to_epic_derivation import (
     derive_validation_findings,
     epic_source_refs,
     flatten_constraint_groups,
+    is_review_projection_package,
     multi_feat_score,
     prerequisite_foundations,
+    semantic_lock,
 )
 from src_to_epic_common import (
     dump_json,
@@ -42,6 +44,7 @@ from src_to_epic_common import (
     guess_repo_root_from_input,
     load_json,
     load_src_package,
+    normalize_semantic_lock,
     parse_markdown_frontmatter,
     unique_strings,
     validate_input_package,
@@ -55,7 +58,7 @@ from src_to_epic_cli_integration import (
 )
 REQUIRED_OUTPUT_FILES = (
     "epic-freeze.md", "epic-freeze.json", "epic-review-report.json", "epic-acceptance-report.json",
-    "epic-defect-list.json", "epic-freeze-gate.json", "handoff-to-epic-to-feat.json",
+    "epic-defect-list.json", "epic-freeze-gate.json", "handoff-to-epic-to-feat.json", "semantic-drift-check.json",
     "execution-evidence.json", "supervision-evidence.json",
 )
 REQUIRED_MARKDOWN_HEADINGS = (
@@ -90,6 +93,64 @@ class GeneratedEpic:
     defect_list: list[dict[str, Any]]
     handoff: dict[str, Any]
     rollout_plan: dict[str, Any]
+    semantic_drift_check: dict[str, Any]
+
+
+def build_semantic_drift_check(
+    package: Any,
+    epic_title: str,
+    business_goal: str,
+    scope: list[str],
+    product_behavior_slices: list[dict[str, Any]],
+) -> dict[str, Any]:
+    lock = semantic_lock(package)
+    if not lock:
+        return {
+            "verdict": "not_applicable",
+            "semantic_lock_present": False,
+            "semantic_lock_preserved": True,
+            "forbidden_axis_detected": [],
+            "anchor_matches": [],
+            "summary": "No semantic_lock present.",
+        }
+
+    generated_text = " ".join(
+        [
+            epic_title,
+            business_goal,
+            " ".join(scope),
+            " ".join(str(item.get("name") or "") for item in product_behavior_slices),
+            " ".join(str(item.get("goal") or "") for item in product_behavior_slices),
+        ]
+    ).lower()
+    forbidden_hits = [item for item in lock.get("forbidden_capabilities", []) if str(item).strip().lower() in generated_text]
+    anchor_matches: list[str] = []
+    token_groups = {
+        "domain_type": [str(lock.get("domain_type") or "").replace("_", " ").lower()],
+        "primary_object": [token for token in str(lock.get("primary_object") or "").replace("_", " ").lower().split() if token],
+        "lifecycle_stage": [token for token in str(lock.get("lifecycle_stage") or "").replace("_", " ").lower().split() if token],
+    }
+    for label, tokens in token_groups.items():
+        if tokens and all(token in generated_text for token in tokens):
+            anchor_matches.append(label)
+    if str(lock.get("domain_type") or "").strip().lower() == "review_projection_rule":
+        review_projection_tokens = ["projection", "gate", "ssot"]
+        if all(token in generated_text for token in review_projection_tokens):
+            anchor_matches.append("review_projection_signature")
+    preserved = not forbidden_hits and len(anchor_matches) >= 1
+    summary = "semantic_lock preserved." if preserved else "semantic_lock drift detected."
+    return {
+        "verdict": "pass" if preserved else "reject",
+        "semantic_lock_present": True,
+        "semantic_lock_preserved": preserved,
+        "domain_type": lock.get("domain_type"),
+        "one_sentence_truth": lock.get("one_sentence_truth"),
+        "forbidden_axis_detected": forbidden_hits,
+        "anchor_matches": anchor_matches,
+        "summary": summary,
+    }
+
+
 def build_epic_payload(package: Any, workflow_run_id: str | None = None) -> GeneratedEpic:
     active_run_id = workflow_run_id or package.run_id
     src_root_id = choose_src_root_id(package)
@@ -109,6 +170,7 @@ def build_epic_payload(package: Any, workflow_run_id: str | None = None) -> Gene
     product_positioning = derive_product_positioning(package, capability_axes, product_behavior_slices)
     actors_and_roles = derive_actors_and_roles(package, rollout_requirement)
     upstream_downstream = derive_upstream_downstream(package, rollout_requirement)
+    semantic_drift_check = build_semantic_drift_check(package, epic_title, business_goal, scope, product_behavior_slices)
 
     epic_intent = (
         f"将《{package.src_candidate.get('title') or package.run_id}》中的治理问题空间进一步收敛为“{epic_title}”这一 EPIC 级产品能力块，"
@@ -145,6 +207,14 @@ def build_epic_payload(package: Any, workflow_run_id: str | None = None) -> Gene
     }
 
     defects: list[dict[str, Any]] = list(validation_findings)
+    if semantic_drift_check["verdict"] == "reject":
+        defects.append(
+            {
+                "severity": "P1",
+                "title": "semantic_lock drift detected",
+                "detail": semantic_drift_check["summary"],
+            }
+        )
     if not multi_feat["is_multi_feat_ready"]:
         defects.append(
             {
@@ -232,6 +302,8 @@ def build_epic_payload(package: Any, workflow_run_id: str | None = None) -> Gene
         "rollout_requirement": rollout_requirement,
         "rollout_plan": rollout_plan,
         "prerequisite_foundations": prereq,
+        "semantic_lock": semantic_lock(package) or None,
+        "semantic_drift_check": semantic_drift_check,
     }
 
     frontmatter = {
@@ -245,6 +317,7 @@ def build_epic_payload(package: Any, workflow_run_id: str | None = None) -> Gene
         "downstream_workflow": "product.epic-to-feat",
         "source_refs": source_refs,
         "rollout_required": rollout_requirement["required"],
+        "semantic_lock": semantic_lock(package) or None,
     }
 
     rollout_lines = [f"- rollout_required: `{str(rollout_requirement['required']).lower()}`", f"- trigger_score: `{rollout_requirement['score']}`"]
@@ -350,6 +423,7 @@ def build_epic_payload(package: Any, workflow_run_id: str | None = None) -> Gene
         defect_list=defects,
         handoff=handoff,
         rollout_plan=rollout_plan,
+        semantic_drift_check=semantic_drift_check,
     )
 
 
@@ -380,10 +454,15 @@ def validate_output_package(artifacts_dir: Path) -> tuple[list[str], dict[str, A
         errors.append("epic-freeze.json must include src_root_id.")
 
     source_refs = ensure_list(epic_json.get("source_refs"))
+    semantic_lock_payload = normalize_semantic_lock(epic_json.get("semantic_lock"))
+    is_review_projection = str((semantic_lock_payload or {}).get("domain_type") or "").strip().lower() == "review_projection_rule"
     if not any(ref.startswith("product.raw-to-src::") for ref in source_refs):
         errors.append("epic-freeze.json source_refs must include product.raw-to-src::<run_id>.")
     if not any(ref.startswith("SRC-") for ref in source_refs):
         errors.append("epic-freeze.json source_refs must include SRC-*.")
+    drift_check = load_json(artifacts_dir / "semantic-drift-check.json")
+    if drift_check.get("semantic_lock_present") and drift_check.get("semantic_lock_preserved") is not True:
+        errors.append("semantic-drift-check.json must report semantic_lock_preserved=true when semantic_lock is present.")
     rollout_requirement = epic_json.get("rollout_requirement") or {}
     rollout_plan = epic_json.get("rollout_plan") or {}
     if rollout_requirement.get("required") and "adoption_e2e" not in ensure_list(rollout_plan.get("required_feat_tracks")):
@@ -405,9 +484,9 @@ def validate_output_package(artifacts_dir: Path) -> tuple[list[str], dict[str, A
     decomposition_rules = ensure_list(epic_json.get("decomposition_rules"))
     if has_governance_layers and not any("产品行为切片" in rule for rule in decomposition_rules):
         errors.append("epic-freeze.json decomposition_rules must declare product behavior slices as the primary FEAT decomposition unit.")
-    if has_governance_layers and not any("cross-cutting constraints" in rule for rule in decomposition_rules):
+    if has_governance_layers and not is_review_projection and not any("cross-cutting constraints" in rule for rule in decomposition_rules):
         errors.append("epic-freeze.json decomposition_rules must declare capability axes as cross-cutting constraints rather than direct FEATs.")
-    if has_governance_layers and not any("mandatory overlays" in rule or "mandatory cross-cutting overlays" in rule or "mandatory overlays" in rule for rule in decomposition_rules):
+    if has_governance_layers and not is_review_projection and not any("mandatory overlays" in rule or "mandatory cross-cutting overlays" in rule or "mandatory overlays" in rule for rule in decomposition_rules):
         errors.append("epic-freeze.json decomposition_rules must declare rollout families as mandatory cross-cutting overlays.")
     product_behavior_slices = epic_json.get("product_behavior_slices")
     if not isinstance(product_behavior_slices, list) or not product_behavior_slices:
@@ -429,7 +508,7 @@ def validate_output_package(artifacts_dir: Path) -> tuple[list[str], dict[str, A
         ("formal publish", "materialization"),
         ("adoption / cutover / fallback", "rollout verification"),
     ):
-        if has_governance_layers and token not in metrics_text:
+        if has_governance_layers and not is_review_projection and token not in metrics_text:
             errors.append(f"epic-freeze.json success_metrics must include the {label} completion signal.")
 
     markdown_text = (artifacts_dir / "epic-freeze.md").read_text(encoding="utf-8")
@@ -452,6 +531,7 @@ def validate_output_package(artifacts_dir: Path) -> tuple[list[str], dict[str, A
         "src_root_id": src_root_id,
         "source_refs": source_refs,
         "rollout_required": bool(rollout_requirement.get("required")),
+        "semantic_lock_preserved": drift_check.get("semantic_lock_preserved"),
     }
     return errors, result
 

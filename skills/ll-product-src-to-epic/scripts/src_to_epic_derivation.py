@@ -7,7 +7,14 @@ from __future__ import annotations
 
 from typing import Any
 
-from src_to_epic_common import ensure_list, guess_repo_root_from_input, shorten_identifier, summarize_text, unique_strings
+from src_to_epic_common import (
+    ensure_list,
+    guess_repo_root_from_input,
+    normalize_semantic_lock,
+    shorten_identifier,
+    summarize_text,
+    unique_strings,
+)
 
 
 ROLLOUT_KEYWORD_GROUPS = {
@@ -65,7 +72,17 @@ def choose_src_root_id(package: Any) -> str:
     return f"SRC-{shorten_identifier(package.run_id, limit=64)}"
 
 
+def semantic_lock(package: Any) -> dict[str, Any]:
+    return normalize_semantic_lock(package.src_candidate.get("semantic_lock")) or {}
+
+
+def is_review_projection_package(package: Any) -> bool:
+    return str(semantic_lock(package).get("domain_type") or "").strip().lower() == "review_projection_rule"
+
+
 def is_governance_bridge_package(package: Any) -> bool:
+    if is_review_projection_package(package):
+        return False
     source_kind = str(package.src_candidate.get("source_kind") or "")
     title = str(package.src_candidate.get("title") or "")
     constraints_text = " ".join(ensure_list(package.src_candidate.get("key_constraints")))
@@ -100,6 +117,33 @@ def epic_source_refs(package: Any, src_root_id: str, architecture_refs: list[str
 
 
 def derive_capability_axes(package: Any, rollout_requirement: dict[str, Any] | None = None) -> list[dict[str, str]]:
+    if is_review_projection_package(package):
+        return [
+            {
+                "id": "projection-generation",
+                "name": "Gate Projection 生成能力",
+                "scope": "在 gate 审核阶段，把机器优先 SSOT 渲染成人类友好的 Human Review Projection，并保持与 SSOT 的单向派生关系。",
+                "feat_axis": "Human Review Projection 生成流",
+            },
+            {
+                "id": "authoritative-snapshot",
+                "name": "Authoritative Snapshot 摘要能力",
+                "scope": "从 SSOT 提炼 completed state、authoritative output、frozen downstream boundary、open technical decisions，供人类快速校验权威约束。",
+                "feat_axis": "Authoritative Snapshot 生成流",
+            },
+            {
+                "id": "review-focus-risk",
+                "name": "Review Focus 与风险提示能力",
+                "scope": "从 SSOT 提取 review focus、risks、ambiguities，帮助审核人快速发现产品边界遗漏、歧义和责任下沉问题。",
+                "feat_axis": "Review Focus 与风险提示流",
+            },
+            {
+                "id": "feedback-writeback",
+                "name": "Projection 批注回写能力",
+                "scope": "把 gate 审核意见稳定回写到 Machine SSOT，并确保 Projection 只能重生成，不能变成新的真相源。",
+                "feat_axis": "Projection 批注回写流",
+            },
+        ]
     if is_governance_bridge_package(package):
         axes = [
             {
@@ -163,6 +207,191 @@ def derive_capability_axes(package: Any, rollout_requirement: dict[str, Any] | N
 
 
 def derive_product_behavior_slices(package: Any, rollout_requirement: dict[str, Any] | None = None) -> list[dict[str, Any]]:
+    if is_review_projection_package(package):
+        return [
+            {
+                "id": "projection-generation",
+                "name": "Human Review Projection 生成流",
+                "track": "foundation",
+                "goal": "冻结 gate 审核阶段如何从 Machine SSOT 生成一份人类友好的 Projection，并保持 Projection 只是派生视图。",
+                "scope": [
+                    "定义 Projection 在什么 gate 触发点生成，以及输入只允许来自 Machine SSOT。",
+                    "定义 Projection 必须包含的固定模板块，避免每次自由发挥。",
+                    "定义 Projection 生成后如何标识 derived-only / non-authoritative / non-inheritable。",
+                ],
+                "product_surface": "Projection 生成流：从 Machine SSOT 派生一份 gate 审核可读视图",
+                "completed_state": "审核人能看到一份由最新 SSOT 渲染的 Human Review Projection，且该视图明确不是新的真相源。",
+                "business_deliverable": "给审核人使用的 Human Review Projection。",
+                "capability_axes": ["Gate Projection 生成能力"],
+                "overlay_families": [],
+                "primary_actor": "projection generator",
+                "secondary_actors": ["gate reviewer", "SSOT owner"],
+                "user_story": "As a gate reviewer, I want a human-friendly Projection generated from the latest Machine SSOT, so that I can understand the product quickly without treating the view as a new source of truth.",
+                "trigger": "当 Machine SSOT 进入 gate 审核阶段并需要给人类 reviewer 展示时。",
+                "preconditions": ["Machine SSOT 已存在且处于可审核状态。", "gate 阶段已请求生成审核视图。"],
+                "postconditions": ["Human Review Projection 已生成。", "Projection 被明确标记为 derived-only / non-authoritative / non-inheritable。"],
+                "main_flow": [
+                    "读取最新 Machine SSOT authoritative 内容。",
+                    "按固定模板渲染产品摘要、角色摘要、主流程、关键交付物等审核视图块。",
+                    "在 Projection 中显式标记其派生属性与非权威属性。",
+                    "把 Projection 提供给 gate reviewer 使用。",
+                ],
+                "alternate_flows": ["当某些摘要块无法安全提取时，Projection 仍保留模板位置并显示 SSOT 字段不足提示。"],
+                "exception_flows": ["若输入不是 freeze-ready 的 Machine SSOT，则拒绝生成 Projection。"],
+                "business_rules": ["Projection 的输入只能是 Machine SSOT。", "Projection 只能重组和翻译 SSOT，不能新增 authoritative 定义。"],
+                "business_state_transitions": ["ssot_ready -> projection_requested -> projection_rendered -> review_visible"],
+                "input_objects": ["Machine SSOT", "gate review request"],
+                "output_objects": ["Human Review Projection", "projection render record"],
+                "required_deliverables": ["Human Review Projection", "projection render record"],
+                "authoritative_output": "Human Review Projection（derived review artifact）",
+                "constraints": [
+                    "Projection 的输入只能来自 Machine SSOT。",
+                    "Projection 必须显式标记 derived-only / non-authoritative / non-inheritable。",
+                    "Projection 模板必须稳定，不能每次自由发挥。",
+                    "Projection 不能成为下游继承输入。",
+                ],
+                "evidence_audit_trail": ["source ssot ref", "projection template version", "render timestamp"],
+                "role_responsibility_split": ["projection generator 负责渲染。", "gate reviewer 负责阅读和判断。", "SSOT owner 负责维护权威源。"],
+                "handoff_points": ["Machine SSOT -> Human Review Projection", "Human Review Projection -> gate reviewer"],
+                "interaction_timeline": ["1. 读取 SSOT", "2. 渲染 Projection", "3. 标记派生属性", "4. reviewer 阅读审核"],
+                "business_sequence": "```text\n[Machine SSOT] -> [Projection Renderer] -> [Human Review Projection] -> [Gate Reviewer]\n```",
+                "loop_gate_human_involvement": ["Gate reviewer 在阅读 Projection 时介入。", "SSOT owner 不直接修改 Projection 本体。"],
+                "observable_outcomes": ["reviewer 能看到结构化、易读的 Projection。", "Projection 明确声明自身不是新的真相源。"],
+                "test_dimensions": ["happy path", "template completeness", "derived-only marker presence", "non-authoritative marker presence", "source traceability"],
+                "frozen_product_shape": ["冻结 Projection 的固定模板块。", "冻结 Projection 的派生属性声明。"],
+                "frozen_business_semantics": ["Projection 可读，不可继承。", "Projection 服务审核，不替代 SSOT。"],
+                "open_technical_decisions": ["Projection renderer 的实现位置", "模板配置存储方式"],
+                "explicit_non_decisions": ["不在本 FEAT 定义下游 TECH 输入。", "不在本 FEAT 修改 SSOT 权威结构。"],
+                "acceptance_checks": [
+                    {"id": "projection-generation-AC-01", "scenario": "Projection only derives from SSOT", "given": "a freeze-ready Machine SSOT", "when": "the Projection is generated", "then": "the FEAT must ensure the Projection is rendered only from Machine SSOT and keeps the SSOT ref visible.", "trace_hints": ["Machine SSOT", "Projection", "traceability"]},
+                    {"id": "projection-generation-AC-02", "scenario": "Projection is not a new source of truth", "given": "a reviewer reads the Projection", "when": "the reviewer inspects the artifact", "then": "the FEAT must make derived-only / non-authoritative / non-inheritable markers explicit.", "trace_hints": ["derived-only", "non-authoritative", "non-inheritable"]},
+                    {"id": "projection-generation-AC-03", "scenario": "Projection template is stable", "given": "multiple SSOT inputs of the same type", "when": "Projection rendering happens repeatedly", "then": "the FEAT must preserve a stable review template instead of free-form narrative output.", "trace_hints": ["stable template", "review projection"]},
+                ],
+            },
+            {
+                "id": "authoritative-snapshot",
+                "name": "Authoritative Snapshot 生成流",
+                "track": "foundation",
+                "goal": "冻结 Projection 中的 Authoritative Snapshot 如何从 SSOT 稳定提取，使审核人不会只看 narrative 而忽略权威约束。",
+                "scope": [
+                    "定义 completed state、authoritative output、frozen downstream boundary、open technical decisions 的提取规则。",
+                    "定义 Snapshot 在 Projection 中的固定位置和最小字段集合。",
+                    "定义 Snapshot 只解释 SSOT 已有约束，不新增新的 authoritative 语义。",
+                ],
+                "product_surface": "Authoritative Snapshot 流：从 SSOT 提取审核必看的权威约束短摘要",
+                "completed_state": "审核人能在 Projection 中快速看到 authoritative output、completed state 和 frozen boundary，不需要自己拼字段。",
+                "business_deliverable": "给审核人快速校验的 Authoritative Snapshot。",
+                "capability_axes": ["Authoritative Snapshot 摘要能力"],
+                "overlay_families": [],
+                "primary_actor": "projection generator",
+                "secondary_actors": ["gate reviewer"],
+                "user_story": "As a gate reviewer, I want a short Authoritative Snapshot inside the Projection, so that I can verify hard constraints without reading the whole SSOT field-by-field.",
+                "trigger": "当 Projection 已生成并需要补齐权威约束短摘要时。",
+                "preconditions": ["Machine SSOT 已定义 completed state、authoritative output 或相关边界字段。"],
+                "postconditions": ["Projection 中包含固定位置的 Authoritative Snapshot。"],
+                "main_flow": ["读取 SSOT 中的 authoritative fields。", "提取 completed state、authoritative output、frozen downstream boundary、open technical decisions。", "以短摘要形式写入 Projection 的 Authoritative Snapshot 区块。", "供 reviewer 快速校验。"],
+                "business_sequence": "```text\n[Machine SSOT] -> [Snapshot Extractor] -> [Authoritative Snapshot] -> [Gate Reviewer]\n```",
+                "loop_gate_human_involvement": ["Gate reviewer 通过 Snapshot 快速检查硬边界。"],
+                "test_dimensions": ["field presence", "snapshot completeness", "authoritative traceability", "no new authority added"],
+                "frozen_product_shape": ["冻结 Snapshot 必含字段集合。"],
+                "frozen_business_semantics": ["Snapshot 解释 SSOT 约束，不新增权威语义。"],
+                "open_technical_decisions": ["字段提取器的实现位置"],
+                "authoritative_output": "Authoritative Snapshot",
+                "constraints": [
+                    "Snapshot 必须只提取 SSOT 已有 authoritative 字段。",
+                    "Snapshot 必须包含 completed state、authoritative output、frozen boundary、open technical decisions。",
+                    "Snapshot 不能新增新的权威定义。",
+                    "Snapshot 必须保留到 SSOT 的追溯关系。",
+                ],
+                "acceptance_checks": [
+                    {"id": "authoritative-snapshot-AC-01", "scenario": "Snapshot includes hard constraints", "given": "a Machine SSOT with authoritative fields", "when": "Authoritative Snapshot is rendered", "then": "the FEAT must surface completed state, authoritative output, frozen downstream boundary, and open technical decisions together.", "trace_hints": ["completed state", "authoritative output", "frozen downstream boundary"]},
+                    {"id": "authoritative-snapshot-AC-02", "scenario": "Reviewer does not need to reconstruct hard constraints", "given": "a reviewer checks the Projection", "when": "the reviewer reads the Snapshot", "then": "the FEAT must make hard constraints visible without requiring the reviewer to stitch together multiple SSOT sections.", "trace_hints": ["reviewer", "snapshot"]},
+                    {"id": "authoritative-snapshot-AC-03", "scenario": "Snapshot does not invent new authority", "given": "the Snapshot is compared against SSOT", "when": "authoritative meaning is checked", "then": "the FEAT must keep the Snapshot strictly as a projection of existing SSOT semantics.", "trace_hints": ["no new authority", "SSOT projection"]},
+                ],
+            },
+            {
+                "id": "review-focus-risk",
+                "name": "Review Focus 与风险提示流",
+                "track": "foundation",
+                "goal": "冻结系统如何从 SSOT 自动整理 review focus、risks 与 ambiguities，让人类审核聚焦真正需要判断的问题。",
+                "scope": [
+                    "定义 Review Focus 至少覆盖产品形态、边界遗漏、回流路径、唯一 authoritative deliverable 等关键检查项。",
+                    "定义 Risks / Ambiguities 如何识别术语歧义、边界重叠、异常流缺失和责任错置。",
+                    "定义这些提示只能基于 SSOT 重组和强调，不能擅自新增权威定义。",
+                ],
+                "product_surface": "Review Focus 流：自动整理审核重点、风险与歧义点",
+                "completed_state": "审核人拿到 Projection 时，已经能直接看到本轮该盯哪些问题、有哪些潜在歧义和边界风险。",
+                "business_deliverable": "给审核人聚焦判断的 Review Focus / Risks / Ambiguities 摘要。",
+                "capability_axes": ["Review Focus 与风险提示能力"],
+                "overlay_families": [],
+                "primary_actor": "projection generator",
+                "secondary_actors": ["gate reviewer", "SSOT owner"],
+                "user_story": "As a gate reviewer, I want the system to highlight review focus and likely risks, so that my attention goes to real product and boundary problems instead of field-by-field scanning.",
+                "trigger": "当 Projection 已生成并需要补齐审核重点与风险提示时。",
+                "preconditions": ["Machine SSOT 已包含范围、交付物、边界或异常流描述。"],
+                "postconditions": ["Projection 中包含 Review Focus 与 Risks / Ambiguities。"],
+                "main_flow": ["从 SSOT 提取产品形态、边界、交付物和异常流信号。", "整理 Review Focus 检查项。", "归纳 Risks / Ambiguities。", "把结果写入 Projection 对应区块。"],
+                "business_sequence": "```text\n[Machine SSOT] -> [Focus/Risk Extractor] -> [Review Focus + Risks] -> [Gate Reviewer]\n```",
+                "loop_gate_human_involvement": ["Gate reviewer 根据重点项与风险项做判断。"],
+                "test_dimensions": ["focus coverage", "risk coverage", "ambiguity coverage", "no new authority added"],
+                "frozen_product_shape": ["冻结 Review Focus 和 Risks / Ambiguities 的模板位置。"],
+                "frozen_business_semantics": ["风险提示用于审核聚焦，不构成新的 authoritative 规则。"],
+                "open_technical_decisions": ["歧义识别规则实现位置"],
+                "authoritative_output": "Review Focus / Risks / Ambiguities 摘要",
+                "constraints": [
+                    "Review Focus 必须覆盖产品形态、边界完整性和唯一 authoritative deliverable。",
+                    "Risks / Ambiguities 只能基于 SSOT 已有信息重组和强调。",
+                    "风险提示不能升级成新的权威规则。",
+                    "Focus/Risk 输出必须面向 reviewer 可直接判断。",
+                ],
+                "acceptance_checks": [
+                    {"id": "review-focus-risk-AC-01", "scenario": "Review focus covers key judgment points", "given": "a reviewer is about to approve or reject the gate package", "when": "Review Focus is rendered", "then": "the FEAT must cover product shape, boundary completeness, authoritative deliverable uniqueness, and responsibility placement.", "trace_hints": ["product shape", "boundary", "authoritative deliverable"]},
+                    {"id": "review-focus-risk-AC-02", "scenario": "Risks and ambiguities are surfaced", "given": "SSOT contains possible term overlap or missing exception paths", "when": "risk extraction runs", "then": "the FEAT must surface ambiguity and omission risks in a reviewer-facing format.", "trace_hints": ["ambiguity", "missing exception path", "risk"]},
+                    {"id": "review-focus-risk-AC-03", "scenario": "Focus and risk output stays non-authoritative", "given": "the extracted hints are compared with SSOT", "when": "authoritative meaning is checked", "then": "the FEAT must not turn risk hints into a second source of truth.", "trace_hints": ["non-authoritative", "review hints"]},
+                ],
+            },
+            {
+                "id": "feedback-writeback",
+                "name": "Projection 批注回写流",
+                "track": "foundation",
+                "goal": "冻结 gate 审核意见如何回写到 Machine SSOT，并要求回写后重新生成 Projection，而不是直接改 Projection 成新真相源。",
+                "scope": [
+                    "定义审核意见如何关联到 SSOT authoritative 字段或边界。",
+                    "定义 Projection 上的修改建议何时必须落回 SSOT 才算完成。",
+                    "定义 SSOT 更新后如何重新生成 Projection，并阻止下游直接继承 Projection。",
+                ],
+                "product_surface": "反馈回写流：审核意见回写 SSOT 并触发 Projection 重生成",
+                "completed_state": "审核意见已经沉淀回 Machine SSOT，Projection 已基于最新 SSOT 重生成，下游继承仍只认 SSOT。",
+                "business_deliverable": "可追踪的 SSOT 修订请求与重生成后的 Projection。",
+                "capability_axes": ["Projection 批注回写能力"],
+                "overlay_families": [],
+                "primary_actor": "SSOT owner",
+                "secondary_actors": ["gate reviewer", "projection generator"],
+                "user_story": "As an SSOT owner, I want review comments to land back on Machine SSOT instead of stopping on the Projection, so that downstream still inherits one authoritative source.",
+                "trigger": "当 reviewer 在 gate 上对 Projection 提出修订意见时。",
+                "preconditions": ["Projection 已被 reviewer 审核。", "存在需要修订的审核意见。"],
+                "postconditions": ["审核意见已回写 Machine SSOT。", "Projection 已基于最新 SSOT 重生成。"],
+                "main_flow": ["reviewer 基于 Projection 提出修订意见。", "系统将意见关联到 Machine SSOT authoritative 字段或边界。", "SSOT owner 更新 Machine SSOT。", "Projection 基于最新 SSOT 重新生成。"],
+                "business_sequence": "```text\n[Gate Reviewer Comment] -> [Writeback Mapping] -> [Machine SSOT Update] -> [Projection Regeneration]\n```",
+                "loop_gate_human_involvement": ["Gate reviewer 提出意见。", "SSOT owner 完成 authoritative 回写。"],
+                "test_dimensions": ["writeback traceability", "projection regeneration", "single source of truth preserved", "projection not directly editable"],
+                "frozen_product_shape": ["冻结 writeback 必须回到 Machine SSOT 的规则。"],
+                "frozen_business_semantics": ["Projection 上的意见不算完成，回写 SSOT 后才算完成。"],
+                "open_technical_decisions": ["comment-to-SSOT mapping 实现方式"],
+                "authoritative_output": "SSOT revision request + regenerated Projection",
+                "constraints": [
+                    "审核意见不能只停留在 Projection 上。",
+                    "所有修订都必须回写 Machine SSOT。",
+                    "Projection 必须在 SSOT 更新后重新生成。",
+                    "下游继承仍只能指向 Machine SSOT。",
+                ],
+                "acceptance_checks": [
+                    {"id": "feedback-writeback-AC-01", "scenario": "Comments do not terminate on Projection", "given": "a reviewer leaves a gate comment", "when": "the revision flow runs", "then": "the FEAT must require that comment to map back to Machine SSOT instead of treating Projection edits as completion.", "trace_hints": ["review comment", "writeback", "Machine SSOT"]},
+                    {"id": "feedback-writeback-AC-02", "scenario": "Projection is regenerated after SSOT change", "given": "Machine SSOT has been revised", "when": "Projection is requested again", "then": "the FEAT must regenerate Projection from the updated SSOT rather than patching the old Projection in place.", "trace_hints": ["regeneration", "updated SSOT"]},
+                    {"id": "feedback-writeback-AC-03", "scenario": "Downstream still inherits SSOT only", "given": "downstream workflows need authoritative input", "when": "they read the result of gate review", "then": "the FEAT must keep downstream inheritance pointed at Machine SSOT, not at Projection artifacts.", "trace_hints": ["downstream inheritance", "SSOT only"]},
+                ],
+            },
+        ]
     if is_governance_bridge_package(package):
         slices: list[dict[str, Any]] = [
             {
@@ -271,6 +500,8 @@ def derive_product_behavior_slices(package: Any, rollout_requirement: dict[str, 
 
 
 def derive_epic_title(package: Any) -> str:
+    if is_review_projection_package(package):
+        return "Gate 审核投影视图与 SSOT 回写统一能力"
     if is_governance_bridge_package(package):
         return "主链正式交接与治理闭环统一能力"
     title = str(package.src_candidate.get("title") or package.run_id).strip()
@@ -292,6 +523,13 @@ def derive_business_goal(
     capability_axes: list[dict[str, str]],
     product_behavior_slices: list[dict[str, Any]] | None = None,
 ) -> str:
+    if is_review_projection_package(package):
+        slice_names = "、".join(str(item.get("name") or "") for item in (product_behavior_slices or [])[:4])
+        return (
+            "本 EPIC 的核心不是扩张新的治理 runtime，而是把 Machine SSOT 在 gate 阶段翻译成稳定的人类审核视图。"
+            f"下游 FEAT 需要围绕 {slice_names} 这些审核视图能力冻结产品界面、完成态和回写边界，"
+            "并始终保持 Projection 只是 derived-only review artifact。"
+        )
     if is_governance_bridge_package(package):
         slice_names = "、".join(str(item.get("name") or "") for item in (product_behavior_slices or [])[:5])
         return (
@@ -311,6 +549,13 @@ def derive_business_value_problem(package: Any) -> list[str]:
     problem_statement = str(package.src_candidate.get("problem_statement") or "").strip()
     business_drivers = ensure_list(package.src_candidate.get("business_drivers"))
     trigger_scenarios = ensure_list(package.src_candidate.get("trigger_scenarios"))
+    if is_review_projection_package(package):
+        items = [
+            problem_statement or "当前 Machine SSOT 结构对 AI 友好，但 gate 审核阶段的人类需要自己拼装产品主线、交付物和边界，审核成本高且容易漏判。",
+            business_drivers[0] if business_drivers else "需要在不污染 SSOT 本体的前提下，为 gate 审核生成一份固定模板的人类友好 Projection。",
+            "如果 Projection 不能稳定保留 authoritative snapshot、review focus 和 writeback 边界，人类就会把 narrative 误当成新的真相源。",
+        ]
+        return unique_strings([item for item in items if item])
     if is_governance_bridge_package(package):
         items = [
             "当前主链的 loop、handoff runtime、gate decision 与 formal publish 仍分散定义。若继续按局部规则理解，下游会把同一条主链拆成多个互不对齐的产品流程。",
@@ -332,6 +577,11 @@ def derive_product_positioning(
     capability_axes: list[dict[str, str]],
     product_behavior_slices: list[dict[str, Any]] | None = None,
 ) -> str:
+    if is_review_projection_package(package):
+        return (
+            "该 EPIC 位于 gate 审核视图层，承接上游 Machine SSOT，对下定义一套稳定的人类审核 Projection 能力。"
+            "它服务 reviewer 的快速理解与判断，但不改变 SSOT 作为唯一权威源的地位。"
+        )
     slice_names = "、".join(str(item.get("name") or "") for item in (product_behavior_slices or [])[:5])
     axis_names = "、".join(axis["name"] for axis in capability_axes[:5])
     if is_governance_bridge_package(package):
@@ -347,6 +597,16 @@ def derive_product_positioning(
 def derive_actors_and_roles(package: Any, rollout_requirement: dict[str, Any] | None = None) -> list[dict[str, str]]:
     target_users = ensure_list(package.src_candidate.get("target_users"))
     actors: list[dict[str, str]] = []
+    if is_review_projection_package(package):
+        actors.extend(
+            [
+                {"role": "gate reviewer", "responsibility": "消费 Human Review Projection，快速理解产品形态、主流程、交付物和边界，并给出审核判断。"},
+                {"role": "SSOT owner", "responsibility": "维护 Machine SSOT 作为唯一权威源，并接收来自 Projection 的修订意见回写。"},
+                {"role": "projection generator", "responsibility": "从最新 SSOT 稳定生成 Projection、Authoritative Snapshot、Review Focus 和风险提示。"},
+                {"role": "downstream designer", "responsibility": "继续只继承 Machine SSOT，而不是直接继承 Projection。"},
+            ]
+        )
+        return actors
     if is_governance_bridge_package(package):
         actors.extend(
             [
@@ -389,6 +649,17 @@ def derive_scope(
     product_behavior_slices: list[dict[str, Any]] | None = None,
 ) -> list[str]:
     if capability_axes:
+        if is_review_projection_package(package):
+            slice_scope = [
+                f"产品行为切片：{item['name']}，对审核人交付 {str(item.get('business_deliverable') or item.get('product_surface') or item['name']).rstrip('。.')}。"
+                for item in (product_behavior_slices or [])[:6]
+            ]
+            axis_names = "、".join(axis["name"] for axis in capability_axes[:6])
+            return (
+                ["统一上位产品能力：在 gate 阶段生成 Human Review Projection，并保持 SSOT 仍是唯一权威源。"]
+                + slice_scope
+                + [f"Cross-cutting capability constraints：{axis_names}；这些能力轴只作为审核视图约束附着在上述产品行为切片上。"]
+            )
         if is_governance_bridge_package(package):
             slice_scope = [
                 f"产品行为切片：{item['name']}，对业务方交付 {str(item.get('business_deliverable') or item.get('product_surface') or item['name']).rstrip('。.') }。"
@@ -419,6 +690,16 @@ def derive_non_goals(package: Any, rollout_requirement: dict[str, Any] | None = 
             normalized.append(text)
         else:
             normalized.append(f"本 EPIC 不负责{text}")
+    if is_review_projection_package(package):
+        normalized.extend(
+            [
+                "本 EPIC 不把 Projection 变成新的真相源或新的下游继承输入。",
+                "本 EPIC 不定义 handoff orchestration、formal publication、governed IO 或 skill onboarding runtime。",
+                "本 EPIC 不要求把 SSOT 本体改写成同时面向 AI 和人类的混合文档。",
+                "本 EPIC 不允许审核意见只停留在 Projection 上而不回写 Machine SSOT。",
+            ]
+        )
+        return unique_strings(normalized)[:8]
     if rollout_requirement and rollout_requirement.get("required"):
         normalized.extend(
             [
@@ -433,6 +714,14 @@ def derive_non_goals(package: Any, rollout_requirement: dict[str, Any] | None = 
 
 
 def derive_success_metrics(package: Any, capability_axes: list[dict[str, str]], product_behavior_slices: list[dict[str, Any]] | None = None) -> list[str]:
+    if is_review_projection_package(package):
+        slice_names = "、".join(str(item["name"]) for item in (product_behavior_slices or [])[:4])
+        return [
+            f"下游 FEAT 能完整覆盖 {slice_names} 这些审核视图能力切片，且每个 FEAT 都对应独立可验收的产品完成态。",
+            "gate 审核时，人类无需自行拼装主线就能理解产品摘要、主流程、关键交付物和 authoritative snapshot。",
+            "Projection 始终被标记为 derived-only / non-authoritative / non-inheritable，下游继续只依赖 Machine SSOT。",
+            "审核意见能稳定回写 SSOT，并在 SSOT 更新后重新生成 Projection，不产生第二真相源。",
+        ]
     if is_governance_bridge_package(package):
         slice_names = "、".join(str(item["name"]) for item in (product_behavior_slices or [])[:5])
         return [
@@ -460,11 +749,17 @@ def derive_decomposition_rules(package: Any, capability_axes: list[dict[str, str
     rules = [
         "按独立验收的产品行为切片拆分 FEAT，不按实现顺序、能力轴名称或单一任务切分。",
         "每个下游 FEAT 都必须继承 src_root_id、epic_freeze_ref 和 authoritative source_refs。",
-        "保留 business skill、handoff runtime、external gate 的职责分层，不得在 FEAT 层重新混层。",
     ]
     trigger_scenarios = ensure_list(package.src_candidate.get("trigger_scenarios"))
     if len(trigger_scenarios) >= 2:
         rules.append("优先将多个触发场景共享的主链能力放在同一 EPIC，下游再按场景或边界拆 FEAT。")
+    if is_review_projection_package(package):
+        rules.append("FEAT 的 primary decomposition unit 是 Projection 生成、Snapshot 提取、Review Focus/Risk 提示和反馈回写这些审核视图切片。")
+        rules.append("每个 FEAT 都必须显式回答它如何帮助 reviewer 在 gate 做判断，以及如何保持 Projection 不是新的真相源。")
+        rules.append("禁止任何 FEAT 把能力扩张成 handoff orchestration、formal publication、governed IO 或 skill onboarding runtime。")
+        rules.append("所有 Projection 修改意见都必须回写 Machine SSOT，再重新生成 Projection。")
+        return unique_strings(rules)[:8]
+    rules.append("保留 business skill、handoff runtime、external gate 的职责分层，不得在 FEAT 层重新混层。")
     if is_governance_bridge_package(package):
         rules.append("FEAT 的 primary decomposition unit 是产品行为切片；capability axes 只作为 cross-cutting constraints 保留，不直接等同于 FEAT。")
         rules.append("每个 FEAT 都必须冻结对业务方可见的产品界面、完成态和 authoritative deliverable，避免把产品定义下沉给 TECH。")
@@ -478,6 +773,31 @@ def derive_decomposition_rules(package: Any, capability_axes: list[dict[str, str
 def derive_constraint_groups(package: Any, rollout_requirement: dict[str, Any] | None = None) -> list[dict[str, Any]]:
     key_constraints = ensure_list(package.src_candidate.get("key_constraints"))
     source_refs = ensure_list(package.src_candidate.get("source_refs"))
+    if is_review_projection_package(package):
+        lock = semantic_lock(package)
+        epic_level_items = [
+            "本 EPIC 直接负责 gate 审核阶段的人类友好 Projection，而不是引入新的运行时治理闭环。",
+            "Projection 必须是 derived-only、non-authoritative、non-inheritable；冻结与下游继承仍只回到 Machine SSOT。",
+            "Projection 必须固定包含产品摘要、主流程、关键交付物、Authoritative Snapshot、Review Focus、Risks / Ambiguities 等审核模板块。",
+        ]
+        inherited_items = unique_strings(
+            ([f"Semantic lock truth: {lock.get('one_sentence_truth')}"] if lock.get("one_sentence_truth") else [])
+            + ([f"Allowed capabilities: {', '.join(lock.get('allowed_capabilities', []))}"] if lock.get("allowed_capabilities") else [])
+            + ([f"Forbidden capabilities: {', '.join(lock.get('forbidden_capabilities', []))}"] if lock.get("forbidden_capabilities") else [])
+            + key_constraints
+            + ([f"Authoritative source refs: {', '.join(source_refs)}"] if source_refs else [])
+            + [f"Upstream package: {package.artifacts_dir}"]
+        )
+        downstream_items = [
+            "下游 FEAT 不得改写 src_root_id、epic_freeze_ref、source_refs 与 semantic_lock。",
+            "下游 FEAT 不得把 Projection 当成新的 SSOT，也不得允许 TECH / TESTSET 直接继承 Projection。",
+            "任何审核意见必须沉淀回 Machine SSOT，再重新生成 Projection。",
+        ]
+        return [
+            {"name": "Epic-level constraints", "items": unique_strings(epic_level_items)},
+            {"name": "Authoritative inherited constraints", "items": inherited_items},
+            {"name": "Downstream preservation rules", "items": unique_strings(downstream_items)},
+        ]
     if is_governance_bridge_package(package):
         inherited_labels = {"QA test execution skill", "TestEnvironmentSpec", "TestCasePack 冻结", "ScriptPack 冻结", "合规与判定分层"}
         filtered_constraints = [item for item in key_constraints if item not in inherited_labels]
@@ -550,6 +870,8 @@ def derive_validation_findings(
     decomposition_rules: list[str],
     success_metrics: list[str],
 ) -> list[dict[str, Any]]:
+    if is_review_projection_package(package):
+        return []
     if not is_governance_bridge_package(package):
         return []
     findings: list[dict[str, Any]] = []
@@ -635,6 +957,12 @@ def derive_optional_architecture_refs(package: Any, src_root_id: str) -> list[st
 
 
 def multi_feat_score(package: Any) -> dict[str, Any]:
+    if is_review_projection_package(package):
+        return {
+            "score": 8,
+            "reasons": ["semantic_lock=review_projection_rule", "fixed_review_slices=4"],
+            "is_multi_feat_ready": True,
+        }
     scope_count = len(ensure_list(package.src_candidate.get("in_scope")))
     scenario_count = len(ensure_list(package.src_candidate.get("trigger_scenarios")))
     governance_object_count = len(ensure_list((package.src_candidate.get("bridge_context") or {}).get("governance_objects")))
@@ -672,6 +1000,13 @@ def _package_text_blob(package: Any) -> str:
 
 
 def assess_rollout_requirement(package: Any) -> dict[str, Any]:
+    if is_review_projection_package(package):
+        return {
+            "required": False,
+            "score": 0,
+            "triggers": {name: False for name in ROLLOUT_KEYWORD_GROUPS},
+            "rationale": ["该源只覆盖 gate 审核投影视图，不需要 adoption / rollout / cross-skill E2E 轨。"],
+        }
     text_blob = _package_text_blob(package)
     governance_bridge = is_governance_bridge_package(package)
     triggers = {

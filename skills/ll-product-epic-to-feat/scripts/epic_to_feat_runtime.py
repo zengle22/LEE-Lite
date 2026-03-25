@@ -16,6 +16,7 @@ from epic_to_feat_common import (
     guess_repo_root_from_input,
     load_epic_package,
     load_json,
+    normalize_semantic_lock,
     parse_markdown_frontmatter,
     render_markdown,
     unique_strings,
@@ -45,7 +46,7 @@ from epic_to_feat_derivation import (
 )
 
 
-REQUIRED_OUTPUT_FILES = ["feat-freeze-bundle.md", "feat-freeze-bundle.json", "feat-review-report.json", "feat-acceptance-report.json", "feat-defect-list.json", "feat-freeze-gate.json", "handoff-to-feat-downstreams.json", "execution-evidence.json", "supervision-evidence.json"]
+REQUIRED_OUTPUT_FILES = ["feat-freeze-bundle.md", "feat-freeze-bundle.json", "feat-review-report.json", "feat-acceptance-report.json", "feat-defect-list.json", "feat-freeze-gate.json", "handoff-to-feat-downstreams.json", "semantic-drift-check.json", "execution-evidence.json", "supervision-evidence.json"]
 REQUIRED_MARKDOWN_HEADINGS = ["FEAT Bundle Intent", "EPIC Context", "Canonical Glossary", "Boundary Matrix", "FEAT Inventory", "Prohibited Inference Rules", "Acceptance and Review", "Downstream Handoff", "Traceability"]
 REQUIRED_FEAT_SUBHEADINGS = [
     "#### Identity and Scenario",
@@ -83,6 +84,55 @@ class GeneratedFeatBundle:
     acceptance_report: dict[str, Any]
     defect_list: list[dict[str, Any]]
     handoff: dict[str, Any]
+    semantic_drift_check: dict[str, Any]
+
+
+def build_semantic_drift_check(package: Any, feats: list[dict[str, Any]]) -> dict[str, Any]:
+    lock = normalize_semantic_lock(package.epic_json.get("semantic_lock") or package.epic_frontmatter.get("semantic_lock"))
+    if not lock:
+        return {
+            "verdict": "not_applicable",
+            "semantic_lock_present": False,
+            "semantic_lock_preserved": True,
+            "forbidden_axis_detected": [],
+            "anchor_matches": [],
+            "summary": "No semantic_lock present.",
+        }
+
+    generated_text = " ".join(
+        [
+            str(package.epic_json.get("title") or ""),
+            str(package.epic_json.get("business_goal") or ""),
+            " ".join(str(feat.get("title") or "") for feat in feats),
+            " ".join(str(feat.get("goal") or "") for feat in feats),
+            " ".join(str(feat.get("identity_and_scenario", {}).get("product_interface") or "") for feat in feats),
+        ]
+    ).lower()
+    forbidden_hits = [item for item in lock.get("forbidden_capabilities", []) if str(item).strip().lower() in generated_text]
+    anchor_matches: list[str] = []
+    token_groups = {
+        "domain_type": [str(lock.get("domain_type") or "").replace("_", " ").lower()],
+        "primary_object": [token for token in str(lock.get("primary_object") or "").replace("_", " ").lower().split() if token],
+        "lifecycle_stage": [token for token in str(lock.get("lifecycle_stage") or "").replace("_", " ").lower().split() if token],
+    }
+    for label, tokens in token_groups.items():
+        if tokens and all(token in generated_text for token in tokens):
+            anchor_matches.append(label)
+    if str(lock.get("domain_type") or "").strip().lower() == "review_projection_rule":
+        review_projection_tokens = ["projection", "gate", "ssot"]
+        if all(token in generated_text for token in review_projection_tokens):
+            anchor_matches.append("review_projection_signature")
+    preserved = not forbidden_hits and len(anchor_matches) >= 1
+    return {
+        "verdict": "pass" if preserved else "reject",
+        "semantic_lock_present": True,
+        "semantic_lock_preserved": preserved,
+        "domain_type": lock.get("domain_type"),
+        "one_sentence_truth": lock.get("one_sentence_truth"),
+        "forbidden_axis_detected": forbidden_hits,
+        "anchor_matches": anchor_matches,
+        "summary": "semantic_lock preserved." if preserved else "semantic_lock drift detected.",
+    }
 
 
 def build_feat_bundle(package: Any, workflow_run_id: str | None = None) -> GeneratedFeatBundle:
@@ -100,8 +150,17 @@ def build_feat_bundle(package: Any, workflow_run_id: str | None = None) -> Gener
     source_refs = unique_strings([f"product.src-to-epic::{package.run_id}", epic_ref, src_ref] + inherited_source_refs)
     feat_track_map = [{"feat_ref": feat["feat_ref"], "title": feat["title"], "track": feat["track"]} for feat in feats]
     prerequisites = prerequisite_foundations(package, axes)
+    semantic_drift_check = build_semantic_drift_check(package, feats)
 
     defects: list[dict[str, Any]] = []
+    if semantic_drift_check["verdict"] == "reject":
+        defects.append(
+            {
+                "severity": "P1",
+                "title": "semantic_lock drift detected",
+                "detail": semantic_drift_check["summary"],
+            }
+        )
     if not assessment["is_valid"]:
         defects.append(
             {
@@ -251,6 +310,8 @@ def build_feat_bundle(package: Any, workflow_run_id: str | None = None) -> Gener
             },
         ],
         "feat_count_assessment": assessment,
+        "semantic_lock": normalize_semantic_lock(package.epic_json.get("semantic_lock") or package.epic_frontmatter.get("semantic_lock")),
+        "semantic_drift_check": semantic_drift_check,
     }
 
     frontmatter = {
@@ -264,6 +325,7 @@ def build_feat_bundle(package: Any, workflow_run_id: str | None = None) -> Gener
         "feat_refs": [feat["feat_ref"] for feat in feats],
         "downstream_workflows": DOWNSTREAM_WORKFLOWS,
         "source_refs": source_refs,
+        "semantic_lock": normalize_semantic_lock(package.epic_json.get("semantic_lock") or package.epic_frontmatter.get("semantic_lock")),
     }
 
     epic_context_lines = [
@@ -566,6 +628,7 @@ def build_feat_bundle(package: Any, workflow_run_id: str | None = None) -> Gener
         acceptance_report=acceptance_report,
         defect_list=defects,
         handoff=handoff,
+        semantic_drift_check=semantic_drift_check,
     )
 
 
@@ -590,6 +653,7 @@ def validate_output_package(artifacts_dir: Path) -> tuple[list[str], dict[str, A
     src_root_id = str(feat_json.get("src_root_id") or "")
     feat_refs = ensure_list(feat_json.get("feat_refs"))
     source_refs = ensure_list(feat_json.get("source_refs"))
+    drift_check = load_json(artifacts_dir / "semantic-drift-check.json")
     downstream_workflows = ensure_list(feat_json.get("downstream_workflows"))
     if not epic_ref:
         errors.append("feat-freeze-bundle.json must include epic_freeze_ref.")
@@ -603,6 +667,8 @@ def validate_output_package(artifacts_dir: Path) -> tuple[list[str], dict[str, A
         errors.append("feat-freeze-bundle.json source_refs must include EPIC-*.")
     if not any(ref.startswith("SRC-") for ref in source_refs):
         errors.append("feat-freeze-bundle.json source_refs must include SRC-*.")
+    if drift_check.get("semantic_lock_present") and drift_check.get("semantic_lock_preserved") is not True:
+        errors.append("semantic-drift-check.json must report semantic_lock_preserved=true when semantic_lock is present.")
     for workflow in DOWNSTREAM_WORKFLOWS:
         if workflow not in downstream_workflows:
             errors.append(f"feat-freeze-bundle.json downstream_workflows must include {workflow}.")
@@ -726,6 +792,7 @@ def validate_output_package(artifacts_dir: Path) -> tuple[list[str], dict[str, A
         "src_root_id": src_root_id,
         "feat_refs": feat_refs,
         "source_refs": source_refs,
+        "semantic_lock_preserved": drift_check.get("semantic_lock_preserved"),
     }
 
 

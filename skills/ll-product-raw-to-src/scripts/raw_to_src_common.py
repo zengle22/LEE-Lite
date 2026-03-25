@@ -26,6 +26,13 @@ VALID_INPUT_TYPES = {
 }
 FORBIDDEN_STATUSES = {"frozen", "active", "deprecated"}
 FORBIDDEN_MARKERS = {"gate-materialize", "gate_materialize"}
+SEMANTIC_LOCK_REQUIRED_FIELDS = (
+    "domain_type",
+    "one_sentence_truth",
+    "primary_object",
+    "lifecycle_stage",
+    "inheritance_rule",
+)
 REQUIRED_CANDIDATE_SECTIONS = [
     "问题陈述",
     "目标用户",
@@ -96,6 +103,23 @@ def normalize_list(value: Any) -> list[str]:
             items.extend(normalize_list(entry))
         return items
     return [str(value)]
+
+
+def normalize_semantic_lock(value: Any) -> dict[str, Any] | None:
+    if not isinstance(value, dict):
+        return None
+    normalized = {
+        "domain_type": normalize_title(value.get("domain_type"), ""),
+        "one_sentence_truth": normalize_title(value.get("one_sentence_truth"), ""),
+        "primary_object": normalize_title(value.get("primary_object"), ""),
+        "lifecycle_stage": normalize_title(value.get("lifecycle_stage"), ""),
+        "allowed_capabilities": normalize_list(value.get("allowed_capabilities")),
+        "forbidden_capabilities": normalize_list(value.get("forbidden_capabilities")),
+        "inheritance_rule": normalize_title(value.get("inheritance_rule"), ""),
+    }
+    if not any(normalized.values()):
+        return None
+    return normalized
 
 
 def find_nested(payload: Any, *paths: str) -> Any:
@@ -224,6 +248,10 @@ def load_raw_input(path: Path) -> dict[str, Any]:
         "metadata": metadata,
         "payload": payload,
         "path": str(path),
+        "semantic_lock": normalize_semantic_lock(
+            metadata.get("semantic_lock")
+            or find_nested(payload, "semantic_lock", "bridge_context.semantic_lock", "business_output.semantic_lock")
+        ),
         "problem_statement": normalize_title(
             find_nested(
                 payload,
@@ -260,6 +288,33 @@ def validate_input_document(document: dict[str, Any]) -> tuple[list[dict[str, st
         issues.append({"code": "missing_title", "severity": "error", "message": "Input title is missing or too short."})
     if len(document["body"].strip()) < 10 and not document["problem_statement"]:
         issues.append({"code": "missing_body", "severity": "error", "message": "Input body is too short to normalize safely."})
+    semantic_lock = document.get("semantic_lock")
+    if semantic_lock:
+        missing_fields = [field for field in SEMANTIC_LOCK_REQUIRED_FIELDS if not semantic_lock.get(field)]
+        if missing_fields:
+            issues.append(
+                {
+                    "code": "semantic_lock_incomplete",
+                    "severity": "error",
+                    "message": f"semantic_lock is missing required fields: {', '.join(missing_fields)}",
+                }
+            )
+        if not semantic_lock.get("allowed_capabilities"):
+            issues.append(
+                {
+                    "code": "semantic_lock_missing_allowed_capabilities",
+                    "severity": "error",
+                    "message": "semantic_lock must declare allowed_capabilities.",
+                }
+            )
+        if not semantic_lock.get("forbidden_capabilities"):
+            issues.append(
+                {
+                    "code": "semantic_lock_missing_forbidden_capabilities",
+                    "severity": "error",
+                    "message": "semantic_lock must declare forbidden_capabilities.",
+                }
+            )
     return issues, {"valid": not any(item["severity"] == "error" for item in issues), "issue_count": len(issues), "issues": issues}
 
 
@@ -271,6 +326,7 @@ def normalize_candidate(document: dict[str, Any]) -> dict[str, Any]:
         "title": document["title"],
         "status": "needs_review",
         "input_type": document["input_type"],
+        "semantic_lock": deepcopy(document.get("semantic_lock")),
         "problem_statement": document["problem_statement"] or first_paragraph(document["body"]),
         "target_users": deepcopy(document["target_users"]),
         "trigger_scenarios": deepcopy(document["trigger_scenarios"]),
@@ -478,6 +534,8 @@ def render_candidate_markdown(candidate: dict[str, Any]) -> str:
         "source_kind": candidate["source_kind"],
         "source_refs": candidate["source_refs"],
     }
+    if candidate.get("semantic_lock"):
+        frontmatter["semantic_lock"] = candidate["semantic_lock"]
     header = yaml.safe_dump(frontmatter, allow_unicode=True, sort_keys=False).strip()
     lines = ["---", header, "---", "", f"# {candidate['title']}", "", "## 问题陈述", "", one_line(candidate["problem_statement"]), "", "## 目标用户", ""]
     lines.extend(f"- {one_line(item)}" for item in candidate["target_users"])
@@ -494,6 +552,16 @@ def render_candidate_markdown(candidate: dict[str, Any]) -> str:
     if candidate["source_kind"] == "governance_bridge_src" and candidate.get("governance_change_summary"):
         lines.extend(["", "## 治理变更摘要", ""])
         lines.extend(f"- {one_line(item)}" for item in candidate["governance_change_summary"])
+    if candidate.get("semantic_lock"):
+        lock = candidate["semantic_lock"]
+        lines.extend(["", "## Semantic Lock", ""])
+        lines.append(f"- domain_type: {one_line(lock.get('domain_type', ''))}")
+        lines.append(f"- one_sentence_truth: {one_line(lock.get('one_sentence_truth', ''))}")
+        lines.append(f"- primary_object: {one_line(lock.get('primary_object', ''))}")
+        lines.append(f"- lifecycle_stage: {one_line(lock.get('lifecycle_stage', ''))}")
+        lines.append(f"- allowed_capabilities: {'; '.join(one_line(item) for item in lock.get('allowed_capabilities', []))}")
+        lines.append(f"- forbidden_capabilities: {'; '.join(one_line(item) for item in lock.get('forbidden_capabilities', []))}")
+        lines.append(f"- inheritance_rule: {one_line(lock.get('inheritance_rule', ''))}")
     if candidate.get("downstream_derivation_requirements"):
         lines.extend(["", "## 下游派生要求", ""])
         lines.extend(f"- {one_line(item)}" for item in candidate["downstream_derivation_requirements"])

@@ -26,6 +26,13 @@ REQUIRED_INPUT_FILES = [
     "execution-evidence.json",
     "supervision-evidence.json",
 ]
+SEMANTIC_LOCK_REQUIRED_FIELDS = (
+    "domain_type",
+    "one_sentence_truth",
+    "primary_object",
+    "lifecycle_stage",
+    "inheritance_rule",
+)
 
 
 def load_json(path: Path) -> Any:
@@ -63,6 +70,23 @@ def ensure_list(value: Any) -> list[str]:
         return []
     text = str(value).strip()
     return [text] if text else []
+
+
+def normalize_semantic_lock(value: Any) -> dict[str, Any] | None:
+    if not isinstance(value, dict):
+        return None
+    normalized = {
+        "domain_type": str(value.get("domain_type") or "").strip(),
+        "one_sentence_truth": str(value.get("one_sentence_truth") or "").strip(),
+        "primary_object": str(value.get("primary_object") or "").strip(),
+        "lifecycle_stage": str(value.get("lifecycle_stage") or "").strip(),
+        "allowed_capabilities": ensure_list(value.get("allowed_capabilities")),
+        "forbidden_capabilities": ensure_list(value.get("forbidden_capabilities")),
+        "inheritance_rule": str(value.get("inheritance_rule") or "").strip(),
+    }
+    if not any(normalized.values()):
+        return None
+    return normalized
 
 
 def slugify(value: str) -> str:
@@ -176,6 +200,15 @@ def validate_input_package(artifacts_dir: Path) -> tuple[list[str], dict[str, An
     source_refs = ensure_list(package.src_candidate.get("source_refs"))
     if not source_refs:
         errors.append("src-candidate.json must include source_refs.")
+    semantic_lock = normalize_semantic_lock(package.src_candidate.get("semantic_lock") or package.src_frontmatter.get("semantic_lock"))
+    if semantic_lock:
+        missing_fields = [field for field in SEMANTIC_LOCK_REQUIRED_FIELDS if not semantic_lock.get(field)]
+        if missing_fields:
+            errors.append(f"src-candidate semantic_lock is missing required fields: {', '.join(missing_fields)}")
+        if not semantic_lock.get("allowed_capabilities"):
+            errors.append("src-candidate semantic_lock must include allowed_capabilities.")
+        if not semantic_lock.get("forbidden_capabilities"):
+            errors.append("src-candidate semantic_lock must include forbidden_capabilities.")
 
     required_fields = [
         "artifact_type",
@@ -204,5 +237,6 @@ def validate_input_package(artifacts_dir: Path) -> tuple[list[str], dict[str, An
         "run_id": package.run_id,
         "source_refs": source_refs,
         "recommended_target_skill": recommended_target,
+        "semantic_lock": semantic_lock,
     }
     return errors, result

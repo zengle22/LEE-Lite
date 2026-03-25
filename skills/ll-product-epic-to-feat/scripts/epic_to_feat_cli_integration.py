@@ -62,6 +62,7 @@ def write_executor_outputs(output_dir: Path, repo_root: Path, package: Any, gene
     dump_json(output_dir / "feat-acceptance-report.json", generated.acceptance_report)
     dump_json(output_dir / "feat-defect-list.json", generated.defect_list)
     dump_json(output_dir / "handoff-to-feat-downstreams.json", generated.handoff)
+    dump_json(output_dir / "semantic-drift-check.json", generated.semantic_drift_check)
     dump_json(
         output_dir / "package-manifest.json",
         {
@@ -74,6 +75,7 @@ def write_executor_outputs(output_dir: Path, repo_root: Path, package: Any, gene
             "acceptance_report_ref": str(output_dir / "feat-acceptance-report.json"),
             "defect_list_ref": str(output_dir / "feat-defect-list.json"),
             "handoff_ref": str(output_dir / "handoff-to-feat-downstreams.json"),
+            "semantic_drift_check_ref": str(output_dir / "semantic-drift-check.json"),
             "execution_evidence_ref": str(output_dir / "execution-evidence.json"),
             "supervision_evidence_ref": str(output_dir / "supervision-evidence.json"),
             "status": generated.json_payload["status"],
@@ -98,6 +100,7 @@ def write_executor_outputs(output_dir: Path, repo_root: Path, package: Any, gene
                     "feat-acceptance-report.json",
                     "feat-defect-list.json",
                     "handoff-to-feat-downstreams.json",
+                    "semantic-drift-check.json",
                 ],
                 "cli_executor_commit_ref": str(cli_commit["response_path"]),
                 "cli_executor_receipt_ref": cli_commit["response"]["data"].get("receipt_ref", ""),
@@ -151,6 +154,7 @@ def build_gate_result(generated: Any, supervision_evidence: dict[str, Any]) -> d
             "downstream_handoff_present": True,
             "structured_acceptance_checks_complete": not generated.defect_list,
             "feat_count_valid": len(generated.frontmatter["feat_refs"]) >= 2,
+            "semantic_lock_preserved": generated.semantic_drift_check.get("semantic_lock_preserved", True),
         },
         "created_at": generated.acceptance_report["created_at"],
     }

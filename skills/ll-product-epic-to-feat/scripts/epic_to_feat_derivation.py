@@ -204,6 +204,9 @@ def feat_business_value(axis: dict[str, str], package: Any) -> str:
 
 
 def feat_primary_actor(axis: dict[str, str]) -> str:
+    explicit = str(axis.get("primary_actor") or "").strip()
+    if explicit:
+        return explicit
     mapping = {
         "collaboration-loop": "governed skill / execution loop",
         "handoff-formalization": "gate loop / reviewer",
@@ -215,6 +218,9 @@ def feat_primary_actor(axis: dict[str, str]) -> str:
 
 
 def feat_secondary_actors(axis: dict[str, str]) -> list[str]:
+    explicit = ensure_list(axis.get("secondary_actors"))
+    if explicit:
+        return explicit
     mapping = {
         "collaboration-loop": ["gate loop", "human reviewer"],
         "handoff-formalization": ["execution loop", "formalization actor"],
@@ -226,6 +232,9 @@ def feat_secondary_actors(axis: dict[str, str]) -> list[str]:
 
 
 def feat_user_story(axis: dict[str, str]) -> str:
+    explicit = str(axis.get("user_story") or "").strip()
+    if explicit:
+        return explicit
     stories = {
         "collaboration-loop": "As a governed skill owner, I want candidate submission to always form an authoritative handoff object, so that gate 和后续 loop 不需要再靠隐式上下文理解上游状态。",
         "handoff-formalization": "As a gate / reviewer owner, I want every candidate to go through one explicit review-and-decision flow, so that approve、revise、retry、reject 的结果都可追踪、可回流、可验收。",
@@ -237,6 +246,9 @@ def feat_user_story(axis: dict[str, str]) -> str:
 
 
 def feat_trigger(axis: dict[str, str]) -> str:
+    explicit = str(axis.get("trigger") or "").strip()
+    if explicit:
+        return explicit
     mapping = {
         "collaboration-loop": "当 governed skill 产出 candidate package 并准备提交给主链时。",
         "handoff-formalization": "当 gate 开始审核候选对象并需要给出正式裁决时。",
@@ -248,6 +260,9 @@ def feat_trigger(axis: dict[str, str]) -> str:
 
 
 def feat_preconditions(axis: dict[str, str]) -> list[str]:
+    explicit = ensure_list(axis.get("preconditions"))
+    if explicit:
+        return explicit
     mapping = {
         "collaboration-loop": ["governed skill 已形成 candidate package、proposal 与 evidence。", "主链 runtime 已可接收 handoff object。"] ,
         "handoff-formalization": ["authoritative handoff object 已进入 gate pending 状态。", "reviewer / gate loop 可消费 proposal 与 evidence。"],
@@ -259,6 +274,9 @@ def feat_preconditions(axis: dict[str, str]) -> list[str]:
 
 
 def feat_postconditions(axis: dict[str, str]) -> list[str]:
+    explicit = ensure_list(axis.get("postconditions"))
+    if explicit:
+        return explicit
     mapping = {
         "collaboration-loop": ["主链形成 authoritative handoff object。", "提交完成后 gate 接管消费，待审批状态与交接责任边界清晰且可追踪。"] ,
         "handoff-formalization": ["每次 gate 裁决都会形成 authoritative decision object。", "revise / retry / reject / handoff 的返回去向明确。"],
@@ -270,6 +288,9 @@ def feat_postconditions(axis: dict[str, str]) -> list[str]:
 
 
 def feat_main_flow(axis: dict[str, str]) -> list[str]:
+    explicit = ensure_list(axis.get("main_flow"))
+    if explicit:
+        return explicit
     flows = {
         "collaboration-loop": [
             "execution loop 收到业务完成信号后整理 candidate package、proposal、evidence。",
@@ -306,6 +327,9 @@ def feat_main_flow(axis: dict[str, str]) -> list[str]:
 
 
 def feat_alternate_flows(axis: dict[str, str]) -> list[str]:
+    explicit = ensure_list(axis.get("alternate_flows"))
+    if explicit:
+        return explicit
     flows = {
         "collaboration-loop": ["candidate 在提交前发现缺失 evidence，则保留在 execution loop，不进入 gate。"],
         "handoff-formalization": ["当 reviewer 需要补充上下文时，可返回 revise 或 handoff 到指定处理者而不直接 approve。"],
@@ -317,6 +341,9 @@ def feat_alternate_flows(axis: dict[str, str]) -> list[str]:
 
 
 def feat_exception_flows(axis: dict[str, str]) -> list[str]:
+    explicit = ensure_list(axis.get("exception_flows"))
+    if explicit:
+        return explicit
     flows = {
         "collaboration-loop": ["handoff 对象不完整或状态非法时，必须拒绝进入 gate，并返回可追踪错误。"] ,
         "handoff-formalization": ["reject 会终止正式推进；revise / retry 会带着 decision object 回流到 execution loop。"],
@@ -328,6 +355,9 @@ def feat_exception_flows(axis: dict[str, str]) -> list[str]:
 
 
 def feat_business_rules(axis: dict[str, str], package: Any) -> list[str]:
+    explicit = ensure_list(axis.get("business_rules"))
+    if explicit:
+        return explicit
     rules = {
         "collaboration-loop": [
             "candidate 提交后必须形成 authoritative handoff object，不能只靠目录约定或隐式上下文表示“已提交”。",
@@ -357,6 +387,9 @@ def feat_business_rules(axis: dict[str, str], package: Any) -> list[str]:
 
 
 def feat_business_state_transitions(axis: dict[str, str]) -> list[str]:
+    explicit = ensure_list(axis.get("business_state_transitions"))
+    if explicit:
+        return explicit
     transitions = {
         "collaboration-loop": ["candidate_prepared -> handoff_submitted -> gate_pending"],
         "handoff-formalization": ["gate_pending -> under_review -> decision_issued -> approved|revised|retried|rejected|handed_off"],
@@ -368,6 +401,9 @@ def feat_business_state_transitions(axis: dict[str, str]) -> list[str]:
 
 
 def feat_input_objects(axis: dict[str, str]) -> list[str]:
+    explicit = ensure_list(axis.get("input_objects"))
+    if explicit:
+        return explicit
     mapping = {
         "collaboration-loop": ["candidate package", "proposal", "evidence bundle"],
         "handoff-formalization": ["authoritative handoff object", "proposal ref", "review context"],
@@ -379,6 +415,9 @@ def feat_input_objects(axis: dict[str, str]) -> list[str]:
 
 
 def feat_output_objects(axis: dict[str, str]) -> list[str]:
+    explicit = ensure_list(axis.get("output_objects"))
+    if explicit:
+        return explicit
     mapping = {
         "collaboration-loop": ["authoritative handoff object", "handoff trace ref", "submission accepted marker"],
         "handoff-formalization": ["decision object", "review outcome", "re-entry directive or formal publication trigger"],
@@ -390,6 +429,9 @@ def feat_output_objects(axis: dict[str, str]) -> list[str]:
 
 
 def feat_required_deliverables(axis: dict[str, str]) -> list[str]:
+    explicit = ensure_list(axis.get("required_deliverables"))
+    if explicit:
+        return explicit
     mapping = {
         "collaboration-loop": ["authoritative handoff submission", "handoff trace ref / submission receipt", "gate pending visibility result"],
         "handoff-formalization": ["authoritative decision result", "review outcome record", "formal publication trigger or delegation result"],
@@ -401,6 +443,9 @@ def feat_required_deliverables(axis: dict[str, str]) -> list[str]:
 
 
 def feat_authoritative_output(axis: dict[str, str]) -> str:
+    explicit = str(axis.get("authoritative_output") or "").strip()
+    if explicit:
+        return explicit
     mapping = {
         "collaboration-loop": "authoritative handoff object",
         "handoff-formalization": "authoritative decision object",
@@ -412,6 +457,9 @@ def feat_authoritative_output(axis: dict[str, str]) -> str:
 
 
 def feat_evidence_audit_trail(axis: dict[str, str]) -> list[str]:
+    explicit = ensure_list(axis.get("evidence_audit_trail"))
+    if explicit:
+        return explicit
     mapping = {
         "collaboration-loop": ["提交时间、提交者、handoff ref、下一跳责任人"],
         "handoff-formalization": ["review context、decision reason、decision round、返回去向"],
@@ -423,6 +471,9 @@ def feat_evidence_audit_trail(axis: dict[str, str]) -> list[str]:
 
 
 def feat_role_responsibility_split(axis: dict[str, str]) -> list[str]:
+    explicit = ensure_list(axis.get("role_responsibility_split"))
+    if explicit:
+        return explicit
     mapping = {
         "collaboration-loop": ["execution loop 负责提交 candidate 与补充 evidence。", "gate loop 负责接收 handoff 并决定是否进入审核。", "human loop 只在需要人工参与时介入。"],
         "handoff-formalization": ["gate / reviewer 负责做出裁决。", "execution loop 只消费 revise / retry / reject 等结果，不自行批准。", "formalization actor 只消费 decision object 作为 formal 发布 trigger。"],
@@ -434,6 +485,9 @@ def feat_role_responsibility_split(axis: dict[str, str]) -> list[str]:
 
 
 def feat_handoff_points(axis: dict[str, str]) -> list[str]:
+    explicit = ensure_list(axis.get("handoff_points"))
+    if explicit:
+        return explicit
     mapping = {
         "collaboration-loop": ["candidate package -> authoritative handoff object", "authoritative handoff object -> gate pending state"],
         "handoff-formalization": ["handoff object -> reviewer context", "decision object -> execution loop / delegated handler / formal publication flow"],
@@ -445,6 +499,9 @@ def feat_handoff_points(axis: dict[str, str]) -> list[str]:
 
 
 def feat_interaction_timeline(axis: dict[str, str]) -> list[str]:
+    explicit = ensure_list(axis.get("interaction_timeline"))
+    if explicit:
+        return explicit
     mapping = {
         "collaboration-loop": ["1. execution loop 整理 candidate", "2. governed skill 提交 authoritative handoff", "3. runtime 路由到 gate loop", "4. 上游看到提交完成并等待裁决"],
         "handoff-formalization": ["1. gate 接收 handoff", "2. reviewer 审核 proposal/evidence", "3. 生成 decision object", "4. decision 返回 execution、delegated handler 或 formal 发布流"],
@@ -456,6 +513,9 @@ def feat_interaction_timeline(axis: dict[str, str]) -> list[str]:
 
 
 def feat_business_sequence(axis: dict[str, str]) -> str:
+    explicit = str(axis.get("business_sequence") or "").strip()
+    if explicit:
+        return explicit
     diagrams = {
         "collaboration-loop": "\n".join([
             "```text",
@@ -493,6 +553,9 @@ def feat_business_sequence(axis: dict[str, str]) -> str:
 
 
 def feat_observable_outcomes(axis: dict[str, str]) -> list[str]:
+    explicit = ensure_list(axis.get("observable_outcomes"))
+    if explicit:
+        return explicit
     mapping = {
         "collaboration-loop": ["上游可以观察到 authoritative handoff 已建立。", "gate 可以观察到 handoff 已进入 pending intake。"],
         "handoff-formalization": ["每次审核都有 decision object。", "approve / reject / revise / retry / handoff 的结果可被外部观察。"],
@@ -504,6 +567,9 @@ def feat_observable_outcomes(axis: dict[str, str]) -> list[str]:
 
 
 def feat_test_dimensions(axis: dict[str, str]) -> list[str]:
+    explicit = ensure_list(axis.get("test_dimensions"))
+    if explicit:
+        return explicit
     mapping = {
         "collaboration-loop": [
             "happy path",
@@ -555,6 +621,9 @@ def feat_test_dimensions(axis: dict[str, str]) -> list[str]:
 
 
 def feat_frozen_product_shape(axis: dict[str, str]) -> list[str]:
+    explicit = ensure_list(axis.get("frozen_product_shape"))
+    if explicit:
+        return explicit
     mapping = {
         "collaboration-loop": ["冻结 authoritative handoff 的形成条件。", "冻结候选提交完成后对上游与 gate 可见的产品结果。"],
         "handoff-formalization": ["冻结 decision vocabulary 及其输出物。", "冻结裁决回流与继续推进的业务结果。"],
@@ -566,6 +635,9 @@ def feat_frozen_product_shape(axis: dict[str, str]) -> list[str]:
 
 
 def feat_frozen_business_semantics(axis: dict[str, str]) -> list[str]:
+    explicit = ensure_list(axis.get("frozen_business_semantics"))
+    if explicit:
+        return explicit
     mapping = {
         "collaboration-loop": ["提交 candidate 不等于获得批准。", "进入 gate 前后由不同角色负责。"],
         "handoff-formalization": ["approve / revise / retry / handoff / reject 是互斥且完备的裁决结果。", "裁决结果必须形成 authoritative decision object。"],
@@ -577,6 +649,9 @@ def feat_frozen_business_semantics(axis: dict[str, str]) -> list[str]:
 
 
 def feat_open_technical_decisions(axis: dict[str, str]) -> list[str]:
+    explicit = ensure_list(axis.get("open_technical_decisions"))
+    if explicit:
+        return explicit
     mapping = {
         "collaboration-loop": ["handoff object 的 schema 字段", "runtime 模块划分", "具体 CLI surface"],
         "handoff-formalization": ["decision object schema", "gate implementation 位置", "formalization runtime 调度方式"],
@@ -588,6 +663,9 @@ def feat_open_technical_decisions(axis: dict[str, str]) -> list[str]:
 
 
 def feat_explicit_non_decisions(axis: dict[str, str]) -> list[str]:
+    explicit = ensure_list(axis.get("explicit_non_decisions"))
+    if explicit:
+        return explicit
     mapping = {
         "collaboration-loop": ["不在本 FEAT 决定 formal output 的物理落盘方式。", "不在本 FEAT 决定实现态模块和命令名。"],
         "handoff-formalization": ["不在本 FEAT 决定 consumer admission 实现。", "不在本 FEAT 决定 registry / path 物理实现。"],
@@ -652,6 +730,9 @@ def feat_governance_intermediates(axis: dict[str, str]) -> list[str]:
 
 
 def feat_loop_gate_human_involvement(axis: dict[str, str]) -> list[str]:
+    explicit = ensure_list(axis.get("loop_gate_human_involvement"))
+    if explicit:
+        return explicit
     mapping = {
         "collaboration-loop": [
             "Execution loop 在 candidate 整理和提交时介入。",
@@ -710,6 +791,9 @@ def select_constraints(package: Any, keywords: list[str], fallback_count: int = 
 
 
 def feat_constraints(axis: dict[str, str], package: Any) -> list[str]:
+    explicit = ensure_list(axis.get("constraints"))
+    if explicit:
+        return explicit
     key = axis_key(axis)
     selected = {
         "collaboration-loop": select_constraints(package, ["双会话双队列", "execution loop", "human loop", "queue"], fallback_count=3),
@@ -782,6 +866,9 @@ def feat_dependencies(axis: dict[str, str], package: Any | None = None) -> list[
 
 
 def build_acceptance_checks(feat_ref: str, epic_ref: str, axis: dict[str, str]) -> list[dict[str, Any]]:
+    explicit = axis.get("acceptance_checks")
+    if isinstance(explicit, list) and explicit:
+        return explicit
     key = axis_key(axis)
     checks = {
         "collaboration-loop": [
@@ -927,7 +1014,8 @@ def derive_feat_axes(package: Any) -> list[dict[str, str]]:
         for index, item in enumerate(product_behavior_slices, start=1):
             if not isinstance(item, dict):
                 continue
-            normalized.append(
+            normalized_item = dict(item)
+            normalized_item.update(
                 {
                     "id": str(item.get("id") or f"slice-{index}").strip(),
                     "name": str(item.get("name") or f"Feature Slice {index}").strip(),
@@ -942,6 +1030,7 @@ def derive_feat_axes(package: Any) -> list[dict[str, str]]:
                     "overlay_families": ensure_list(item.get("overlay_families")),
                 }
             )
+            normalized.append(normalized_item)
         if rollout_required and "adoption_e2e" in required_tracks and not any(axis_key(item) == "skill-adoption-e2e" for item in normalized):
             normalized.append(
                 {

@@ -26,6 +26,13 @@ REQUIRED_INPUT_FILES = [
     "execution-evidence.json",
     "supervision-evidence.json",
 ]
+SEMANTIC_LOCK_REQUIRED_FIELDS = (
+    "domain_type",
+    "one_sentence_truth",
+    "primary_object",
+    "lifecycle_stage",
+    "inheritance_rule",
+)
 
 
 def load_json(path: Path) -> Any:
@@ -63,6 +70,23 @@ def ensure_list(value: Any) -> list[str]:
         return []
     text = str(value).strip()
     return [text] if text else []
+
+
+def normalize_semantic_lock(value: Any) -> dict[str, Any] | None:
+    if not isinstance(value, dict):
+        return None
+    normalized = {
+        "domain_type": str(value.get("domain_type") or "").strip(),
+        "one_sentence_truth": str(value.get("one_sentence_truth") or "").strip(),
+        "primary_object": str(value.get("primary_object") or "").strip(),
+        "lifecycle_stage": str(value.get("lifecycle_stage") or "").strip(),
+        "allowed_capabilities": ensure_list(value.get("allowed_capabilities")),
+        "forbidden_capabilities": ensure_list(value.get("forbidden_capabilities")),
+        "inheritance_rule": str(value.get("inheritance_rule") or "").strip(),
+    }
+    if not any(normalized.values()):
+        return None
+    return normalized
 
 
 def slugify(value: str) -> str:
@@ -224,6 +248,15 @@ def validate_input_package(artifacts_dir: Path) -> tuple[list[str], dict[str, An
     source_refs = ensure_list(package.epic_json.get("source_refs"))
     if not source_refs:
         errors.append("epic-freeze.json must include source_refs.")
+    semantic_lock = normalize_semantic_lock(package.epic_json.get("semantic_lock") or package.epic_frontmatter.get("semantic_lock"))
+    if semantic_lock:
+        missing_fields = [field for field in SEMANTIC_LOCK_REQUIRED_FIELDS if not semantic_lock.get(field)]
+        if missing_fields:
+            errors.append(f"epic-freeze semantic_lock is missing required fields: {', '.join(missing_fields)}")
+        if not semantic_lock.get("allowed_capabilities"):
+            errors.append("epic-freeze semantic_lock must include allowed_capabilities.")
+        if not semantic_lock.get("forbidden_capabilities"):
+            errors.append("epic-freeze semantic_lock must include forbidden_capabilities.")
 
     src_ref = extract_src_ref(source_refs, fallback=str(package.epic_json.get("src_root_id") or ""))
     if not src_ref:
@@ -241,5 +274,6 @@ def validate_input_package(artifacts_dir: Path) -> tuple[list[str], dict[str, An
         "src_root_id": package.epic_json.get("src_root_id"),
         "source_refs": source_refs,
         "src_ref": src_ref,
+        "semantic_lock": semantic_lock,
     }
     return errors, result
