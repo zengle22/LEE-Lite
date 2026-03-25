@@ -86,6 +86,3 @@ artifacts/*/
 # Evidence outputs (runtime)
 evidence/
 evidence/*/
-!cli/commands/evidence/
-!cli/commands/evidence/__init__.py
-!cli/commands/evidence/command.py

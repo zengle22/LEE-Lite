@@ -33,31 +33,31 @@ def build_parser() -> argparse.ArgumentParser:
 
     artifact = groups.add_parser("artifact")
     artifact_sub = artifact.add_subparsers(dest="action", required=True)
-    for action in ("read", "write", "commit", "promote", "append-run-log", "commit-governed", "read-governed"):
+    for action in ("read", "write", "commit", "promote", "append-run-log"):
         _add_action_parser(artifact_sub, action)
     artifact.set_defaults(handler=handle_artifact)
 
     registry = groups.add_parser("registry")
     registry_sub = registry.add_subparsers(dest="action", required=True)
-    for action in ("resolve-formal-ref", "verify-eligibility", "validate-admission", "bind-record", "publish-formal"):
+    for action in ("resolve-formal-ref", "verify-eligibility", "bind-record"):
         _add_action_parser(registry_sub, action)
     registry.set_defaults(handler=handle_registry)
 
     audit = groups.add_parser("audit")
     audit_sub = audit.add_subparsers(dest="action", required=True)
-    for action in ("scan-workspace", "emit-finding-bundle", "submit-pilot-evidence"):
+    for action in ("scan-workspace", "emit-finding-bundle"):
         _add_action_parser(audit_sub, action)
     audit.set_defaults(handler=handle_audit)
 
     gate = groups.add_parser("gate")
     gate_sub = gate.add_subparsers(dest="action", required=True)
-    for action in ("create", "verify", "submit-handoff", "show-pending", "evaluate", "decide", "materialize", "dispatch", "close-run"):
+    for action in ("create", "verify", "evaluate", "materialize", "dispatch", "close-run"):
         _add_action_parser(gate_sub, action)
     gate.set_defaults(handler=handle_gate)
 
     rollout = groups.add_parser("rollout")
     rollout_sub = rollout.add_subparsers(dest="action", required=True)
-    for action in ("assess-skill", "onboard-skill", "validate-pilot", "record-fallback", "check-scope", "summarize-readiness"):
+    for action in ("assess-skill", "validate-pilot", "summarize-readiness"):
         _add_action_parser(rollout_sub, action)
     rollout.set_defaults(handler=handle_rollout)
 
