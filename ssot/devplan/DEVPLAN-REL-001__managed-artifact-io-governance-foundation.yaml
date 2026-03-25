@@ -2,6 +2,12 @@ id: DEVPLAN-REL-001
 ssot_type: DEVPLAN
 title: 主链正式交接与治理闭环统一能力 Development Plan
 status: draft
+lifecycle_state: historical_only
+higher_order_status: superseded
+superseded_by:
+- ADR-013
+- ADR-014
+historical_note: This DEVPLAN artifact is retained for historical traceability only. The active chain is FEAT -> TECH -> IMPL -> TESTSET.
 version: 2.0.0
 ssot_revision: v2
 schema_version: development-plan-contract/v1

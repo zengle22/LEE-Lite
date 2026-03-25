@@ -2,6 +2,12 @@ id: TESTPLAN-REL-001
 ssot_type: TESTPLAN
 title: 主链正式交接与治理闭环统一能力 Test Plan
 status: draft
+lifecycle_state: historical_only
+higher_order_status: superseded
+superseded_by:
+- ADR-013
+- ADR-014
+historical_note: This TESTPLAN artifact is retained for historical traceability only. The active chain is FEAT -> TECH -> IMPL -> TESTSET.
 version: v2
 schema_version: test-plan-v2/v1
 contract_ref: E:/ai/LEE/spec-global/departments/qa/contracts/test-plan-v2/v1/schema.yaml

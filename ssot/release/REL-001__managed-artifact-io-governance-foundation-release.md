@@ -3,6 +3,12 @@ id: REL-001
 ssot_type: RELEASE
 title: 主链正式交接与治理闭环统一能力 Release
 status: accepted
+lifecycle_state: historical_only
+higher_order_status: superseded
+superseded_by:
+- ADR-013
+- ADR-014
+historical_note: This RELEASE artifact belongs to the earlier release/devplan/testplan world and is no longer an active mainline SSOT object in this repository.
 version: v2
 schema_version: 0.1.0
 release_root_id: release-root-rel-001
