@@ -6,7 +6,7 @@ status: frozen
 version: v2
 schema_version: 0.1.0
 feat_root_id: feat-root-feat-src-001-001
-workflow_key: workflow.product.task.epic_to_feat
+workflow_key: product.epic-to-feat
 workflow_run_id: src001-from-frozen-src-20260324
 source_refs:
   - EPIC-001
@@ -47,7 +47,7 @@ frozen_at: '2026-03-24T12:30:00Z'
 
 - 将主链协作边界收敛成单一 FEAT 能力面。
 - 明确对象交接、状态推进与回流条件由谁负责。
-- 为下游 delivery-prep / TECH / TASK 提供可独立验收的 loop 协作定义。
+- 为下游 `workflow.dev.feat_to_tech` / `workflow.qa.feat_to_testset` 提供可独立验收的 loop 协作定义，并为后续 `TECH -> IMPL` 保持稳定协作语义。
 
 ## 输出
 

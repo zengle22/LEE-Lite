@@ -6,7 +6,7 @@ status: frozen
 version: v2
 schema_version: 0.1.0
 feat_root_id: feat-root-feat-src-001-003
-workflow_key: workflow.product.task.epic_to_feat
+workflow_key: product.epic-to-feat
 workflow_run_id: src001-from-frozen-src-20260324
 source_refs:
   - EPIC-001
@@ -47,7 +47,7 @@ frozen_at: '2026-03-24T12:30:00Z'
 
 - 固定对象层级、引用方向与准入规则。
 - 阻断业务 skill 在 candidate 层承担 gate 或 formal admission 职责。
-- 为下游 delivery、TECH、TASK 和 TESTSET 提供统一的分层准则。
+- 为下游 `workflow.dev.feat_to_tech` / `workflow.qa.feat_to_testset` 提供统一的分层准则，并为后续 `TECH -> IMPL` 保持稳定对象分层约束。
 
 ## 输出
 

@@ -194,7 +194,7 @@ LL / LEE 正式采用：
 
 * Projection 不是权威源；
 * Projection 不能替代 SSOT；
-* Projection 不能直接作为下游 `TECH / TASK / TESTSET / IMPL` 的输入；
+* Projection 不能直接作为下游 `TECH / TESTSET / IMPL` 的输入；
 * Projection 上的人类批注，只有在回写 SSOT 后才算正式修订。
 
 正式口径如下：
@@ -436,7 +436,7 @@ Projection 只能解释与组织 SSOT，不能新增 authoritative 定义。
 
 ## 9.4 禁止下游直接继承 Projection
 
-`TECH / TASK / TESTSET / IMPL` 只能继承 `Machine SSOT`。
+`TECH / TESTSET / IMPL` 只能继承 `Machine SSOT`。
 
 ## 9.5 禁止用 narrative 掩盖 authoritative 约束
 

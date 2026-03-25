@@ -52,7 +52,7 @@ LL 当前主链已经明确了上游派生路径：
 
 * runtime 不知道该为哪一个 FEAT 出设计；
 * 一次 run 会混写多个设计对象；
-* 下游 `tech-impl` 无法把 handoff 精确挂到单个能力边界上。
+* 下游 `tech_to_impl` 无法把 handoff 精确挂到单个能力边界上。
 
 ## 2.2 `ARCH`、`TECH`、`API` 是不是平级必出
 
@@ -226,7 +226,7 @@ LL 正式采用：
 
 * design package 与 FEAT 边界一一对应
 * review、evidence、handoff 都挂在单一能力面上
-* 下游 `tech-impl` 不必再拆 package
+* 下游 `tech_to_impl` 不必再拆 package
 
 ---
 
@@ -323,7 +323,7 @@ FEAT 不负责直接给出：
 * 与现有系统的挂接点
 * 最小代码骨架 / 伪代码
 * 非功能要求
-* 下游 `tech-impl` 所必须继承的技术约束
+* 下游 `tech_to_impl` 所必须继承的技术约束
 
 不负责：
 
@@ -603,13 +603,13 @@ freeze-ready 至少要求：
 
 正式解释为：
 
-## **`tech-impl` 不需要再重新判断该 FEAT 是否需要 `ARCH/API`，也不需要再补一版第二层技术设计，而应直接消费 design package 中已经冻结的技术结论。**
+## **`tech_to_impl` 不需要再重新判断该 FEAT 是否需要 `ARCH/API`，也不需要再补一版第二层技术设计，而应直接消费 design package 中已经冻结的技术结论。**
 
 当前下游 runtime 名称即使暂时保留 `tech_to_impl`，其语义也必须被解释为：
 
 ## **`IMPL` 研发实施任务 workflow，而不是继续生产新一层 `TECH` 的 workflow。**
 
-`tech-impl` 的正式责任应是：
+`tech_to_impl` 的正式责任应是：
 
 * 组织研发实施步骤
 * 编排代码改动顺序
@@ -653,15 +653,15 @@ freeze-ready 至少要求：
 * freeze gate
 * downstream handoff
 
-## 4.3 下游 `tech-impl` 接口更清晰
+## 4.3 下游 `tech_to_impl` 接口更清晰
 
-`tech-impl` 只需消费一个 package，不再自己重做：
+`tech_to_impl` 只需消费一个 package，不再自己重做：
 
 * 是否需要 architecture companion
 * 是否需要 API companion
 * 设计对象之间是否一致
 
-同时，`tech-impl` 也必须清楚自己不承担的范围：
+同时，`tech_to_impl` 也必须清楚自己不承担的范围：
 
 * 不再重新拆组件职责
 * 不再重新定义对象模型

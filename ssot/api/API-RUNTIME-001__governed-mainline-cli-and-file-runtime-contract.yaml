@@ -355,23 +355,33 @@ interfaces:
       - close-run
     payload_contract:
       required_fields:
-        - gate_ready_package_ref
+        - gate_ready_package_ref | handoff_ref
         - audit_finding_refs
         - target_matrix
       optional_fields:
         - human_decision_ref
         - guarded_enablement_ref
+        - decision_target
+        - decision_basis_refs
+        - dispatch_target
     response_contract:
       data_fields:
         - canonical_path
+        - brief_record_ref
+        - pending_human_decision_ref
         - gate_decision_ref
+        - decision
+        - decision_target
+        - decision_basis_refs
+        - dispatch_target
         - materialized_handoff_ref
         - materialized_job_ref
         - run_closure_ref
         - enablement_scope
       notes:
-        - evaluate 只能生成唯一 decision_type。
-        - materialize 只能在 decision 允许时创建 formal object。
+        - evaluate 必须先生成 gate-brief-record、gate-pending-human-decision 与唯一 authoritative gate-decision。
+        - approve 在默认主链中表示审批通过并直接进入 formal materialization；materialize 仍保留为 repair/replay 接口。
+        - dispatch 必须按 decision 语义分流，不允许把 human decision action 当成 runtime state。
         - guarded slice 必须明确返回 enablement_scope=guarded-only。
     common_errors:
       - INVALID_REQUEST
@@ -406,11 +416,39 @@ object_events:
       - ll gate close-run
     required_fields:
       - decision_type
+      - decision_target
+      - decision_basis_refs
+      - dispatch_target
       - target_matrix
       - rationale
       - trace
+  - object_type: gate_brief_record
+    producer: ll gate evaluate
+    consumer:
+      - human gate loop
+      - ll gate dispatch
+    required_fields:
+      - handoff_ref
+      - proposal_ref
+      - gate_type
+      - priority
+      - decision_target
+      - human_projection
+      - trace
+  - object_type: gate_pending_human_decision
+    producer: ll gate evaluate
+    consumer:
+      - human gate loop
+      - ll gate dispatch
+    required_fields:
+      - brief_record_ref
+      - claim_owner
+      - claim_status
+      - decision_round
+      - state
+      - trace
   - object_type: materialized_handoff
-    producer: ll gate materialize
+    producer: ll gate evaluate (approve auto-materialize) / ll gate materialize
     consumer:
       - human gate loop
       - downstream consumer
@@ -510,9 +548,10 @@ examples:
         run_ref: RUN-001
         feat_ref: FEAT-SRC-001-002
       payload:
-        gate_ready_package_ref: artifacts/active/run-001/gate-ready-package.json
+        gate_ready_package_ref: artifacts/active/gates/packages/gate-ready-package.json
         audit_finding_refs:
-          - artifacts/active/run-001/audit/finding-bundle.json
+          - artifacts/active/audit/finding-bundle.json
+        decision_target: candidate.impl
         target_matrix:
           allowed_targets:
             - materialized_handoff
@@ -527,13 +566,96 @@ examples:
       exit_code: 0
       message: gate decision produced
       data:
-        canonical_path: artifacts/active/run-001/gates/decisions/gate-decision.json
-        gate_decision_ref: artifacts/active/run-001/gates/decisions/gate-decision.json
+        canonical_path: artifacts/active/gates/decisions/gate-decision.json
+        brief_record_ref: artifacts/active/gates/briefs/gate-brief-record.json
+        pending_human_decision_ref: artifacts/active/gates/pending-human/gate-pending-human-decision.json
+        gate_decision_ref: artifacts/active/gates/decisions/gate-decision.json
+        decision: approve
+        decision_target: candidate.impl
+        decision_basis_refs:
+          - artifacts/active/gates/briefs/gate-brief-record.json
+          - artifacts/active/audit/finding-bundle.json
+        dispatch_target: formal_publication_trigger
+        materialized_handoff_ref: artifacts/active/handoffs/materialized-handoff.json
+        materialized_job_ref: ""
+        run_closure_ref: ""
+        formal_ref: formal.handoff.candidate-impl
         enablement_scope: guarded-only
       diagnostics:
         - guarded slice remains provisional under ADR-006
       evidence_refs:
-        - artifacts/active/run-001/gates/decisions/gate-decision.json
+        - artifacts/active/gates/briefs/gate-brief-record.json
+        - artifacts/active/gates/pending-human/gate-pending-human-decision.json
+        - artifacts/active/gates/decisions/gate-decision.json
+        - artifacts/active/handoffs/materialized-handoff.json
+  gate_dispatch_request:
+    cli: ll gate dispatch --request contracts/input/gate-dispatch.request.json --response-out artifacts/active/run-001/gate/gate-dispatch.response.json
+    request:
+      api_version: v1
+      command: gate.dispatch
+      request_id: req-gate-dispatch-001
+      workspace_root: E:/ai/LEE-Lite-skill-first
+      actor_ref: loop/external-gate
+      trace:
+        run_ref: RUN-001
+        feat_ref: FEAT-SRC-001-002
+      payload:
+        gate_decision_ref: artifacts/active/gates/decisions/gate-decision.json
+    response:
+      api_version: v1
+      command: gate.dispatch
+      request_id: req-gate-dispatch-001
+      result_status: success
+      status_code: OK
+      exit_code: 0
+      message: gate decision dispatched
+      data:
+        canonical_path: artifacts/active/gates/dispatch/gate-dispatch-receipt.json
+        gate_decision_ref: artifacts/active/gates/decisions/gate-decision.json
+        dispatch_receipt_ref: artifacts/active/gates/dispatch/gate-dispatch-receipt.json
+        dispatch_status: dispatched
+        materialized_handoff_ref: artifacts/active/handoffs/materialized-handoff.json
+        materialized_job_ref: ""
+        run_closure_ref: ""
+        enablement_scope: core
+      diagnostics: []
+      evidence_refs:
+        - artifacts/active/gates/dispatch/gate-dispatch-receipt.json
+  gate_materialize_request:
+    cli: ll gate materialize --request contracts/input/gate-materialize.request.json --response-out artifacts/active/run-001/gate/gate-materialize.response.json
+    request:
+      api_version: v1
+      command: gate.materialize
+      request_id: req-gate-materialize-001
+      workspace_root: E:/ai/LEE-Lite-skill-first
+      actor_ref: loop/external-gate
+      trace:
+        run_ref: RUN-001
+        feat_ref: FEAT-SRC-001-002
+      payload:
+        gate_decision_ref: artifacts/active/gates/decisions/gate-decision.json
+        candidate_ref: candidate.impl
+        target_formal_kind: handoff
+    response:
+      api_version: v1
+      command: gate.materialize
+      request_id: req-gate-materialize-001
+      result_status: success
+      status_code: OK
+      exit_code: 0
+      message: formal handoff materialized
+      data:
+        canonical_path: artifacts/active/handoffs/materialized-handoff.json
+        gate_decision_ref: artifacts/active/gates/decisions/gate-decision.json
+        materialized_handoff_ref: artifacts/active/handoffs/materialized-handoff.json
+        materialized_job_ref: ""
+        run_closure_ref: ""
+        enablement_scope: core
+        formal_ref: formal.handoff.candidate-impl
+      diagnostics: []
+      evidence_refs:
+        - artifacts/active/handoffs/materialized-handoff.json
+        - artifacts/active/formalization/formal-handoff-candidate-impl-receipt.json
 compatibility_notes:
   - 该 API 是 v0.x 的 CLI/file-runtime 契约，不等价于 HTTP API 设计稿。
   - 若未来增加服务化 API，必须消费同一组 request/response/object 语义，不得另造第二套正式真相。

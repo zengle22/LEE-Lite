@@ -50,7 +50,7 @@
 
 * `feat_freeze_package`
 * `tech_design_package`
-* product delivery prep 产物
+* 历史 delivery-prep / plan 产物
 * 临时 task list
 * repo context / prompt
 
@@ -127,8 +127,7 @@ LL 正式采用：
    * 一个强制选择的 `feat_ref`
    * 一个强制选择的 `tech_ref`
 2. `FEAT` lineage 必须在输入中可追溯，`ARCH/API` 如存在必须可引用。
-3. 上游 planning context 可以参考：
-   * `workflow.product.task.feat_to_delivery_prep`
+3. 历史 planning 产物只可作为迁移参考，不构成当前 authority。
 4. 输出固定为：
    * 一个 `feature_impl_candidate_package`
 5. `IMPL` 的主对象是研发实施任务文档，不是新的技术设计文档。
@@ -148,19 +147,16 @@ LL 正式采用：
 
 本 skill 的 authority 分为三层：
 
-### Dev authority
+### Upstream design authority
 
-* `E:\ai\LEE\spec\adr\ADR-008__dev-department-ssot-alignment-and-workflow-reframe.md`
-* `E:\ai\LEE\spec-global\departments\dev\workflows\templates\feature-delivery-l2-template.yaml`
+* `ssot/adr/ADR-013-FEAT-to-TECH Lite-Native Skill 设计派生冻结基线.MD`
+* freeze-ready `tech_design_package`
 
-### Product planning context
+它们共同冻结：
 
-* `E:\ai\LEE\spec-global\departments\product\workflows\templates\feat-to-delivery-prep\v1\workflow.yaml`
-
-它不是 `tech2impl` 的主 authority，但它可以提供：
-
-* TASK / delivery plan 的上游交接语义
-* surface applicability 的参考边界
+* `TECH` 作为唯一正式技术设计的边界
+* 可选 `ARCH/API` 的引用方式
+* `IMPL` 不得重写上游技术决策的约束
 
 ### Local implementation authority
 
@@ -192,7 +188,7 @@ LL 正式采用：
 
 planning companion 可选参考：
 
-* `workflow.product.task.feat_to_delivery_prep` 的交接结果
+* historical-only 的 delivery-prep / plan 产物
 * repo context / existing code layout
 * execution environment / migration constraints
 

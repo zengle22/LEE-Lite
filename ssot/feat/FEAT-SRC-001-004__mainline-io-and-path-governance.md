@@ -6,7 +6,7 @@ status: frozen
 version: v2
 schema_version: 0.1.0
 feat_root_id: feat-root-feat-src-001-004
-workflow_key: workflow.product.task.epic_to_feat
+workflow_key: product.epic-to-feat
 workflow_run_id: src001-from-frozen-src-20260324
 source_refs:
   - EPIC-001
