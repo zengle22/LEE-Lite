@@ -1,0 +1,12 @@
+{
+  "artifacts_dir": "E:\\ai\\LEE-Lite-skill-first\\artifacts\\src-to-epic\\adr001-003-006-unified-mainline-20260324-rerun4",
+  "primary_artifact_ref": "E:\\ai\\LEE-Lite-skill-first\\artifacts\\src-to-epic\\adr001-003-006-unified-mainline-20260324-rerun4\\epic-freeze.md",
+  "result_summary_ref": "E:\\ai\\LEE-Lite-skill-first\\artifacts\\src-to-epic\\adr001-003-006-unified-mainline-20260324-rerun4\\epic-freeze-gate.json",
+  "review_report_ref": "E:\\ai\\LEE-Lite-skill-first\\artifacts\\src-to-epic\\adr001-003-006-unified-mainline-20260324-rerun4\\epic-review-report.json",
+  "acceptance_report_ref": "E:\\ai\\LEE-Lite-skill-first\\artifacts\\src-to-epic\\adr001-003-006-unified-mainline-20260324-rerun4\\epic-acceptance-report.json",
+  "defect_list_ref": "E:\\ai\\LEE-Lite-skill-first\\artifacts\\src-to-epic\\adr001-003-006-unified-mainline-20260324-rerun4\\epic-defect-list.json",
+  "handoff_ref": "E:\\ai\\LEE-Lite-skill-first\\artifacts\\src-to-epic\\adr001-003-006-unified-mainline-20260324-rerun4\\handoff-to-epic-to-feat.json",
+  "execution_evidence_ref": "E:\\ai\\LEE-Lite-skill-first\\artifacts\\src-to-epic\\adr001-003-006-unified-mainline-20260324-rerun4\\execution-evidence.json",
+  "supervision_evidence_ref": "E:\\ai\\LEE-Lite-skill-first\\artifacts\\src-to-epic\\adr001-003-006-unified-mainline-20260324-rerun4\\supervision-evidence.json",
+  "status": "accepted"
+}

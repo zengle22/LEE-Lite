@@ -1,0 +1,25 @@
+{
+  "review_id": "review-adr001-003-006-unified-mainline-20260324-rerun4",
+  "review_type": "epic_review",
+  "subject_refs": [
+    "EPIC-ADR001-003-006-UNIFIED-MAINLINE-202-4-RERUN4"
+  ],
+  "summary": "EPIC package preserves the SRC problem space at a multi-FEAT capability layer.",
+  "findings": [
+    "EPIC 已从 SRC 原文上浮到能力包层，Scope 以可拆能力域而非治理对象清单表达。",
+    "Multi-FEAT readiness: in_scope=2, trigger_scenarios=4, governance_objects=5, expected_downstream_objects=3.",
+    "输出追溯链同时保留了 raw-to-src 批次引用、src_root_id 与原始 source_refs。",
+    "Decomposition Rules 已显式给出建议 FEAT 轴，便于 downstream 直接按主轴拆分。",
+    "该 SRC 命中 rollout/adoption 判定，主 EPIC 已显式包含 rollout 段落与 adoption/E2E FEAT 拆分要求。"
+  ],
+  "decision": "pass",
+  "risks": [],
+  "recommendations": [
+    "在 epic-to-feat 阶段按 decomposition rules 继续拆分，不要重新定义问题空间。",
+    "优先围绕 capability axes 冻出 FEAT，而不是沿治理对象逐项列举。",
+    "对路径与目录治理相关 FEAT 持续维持主链边界限定，避免滑向全局文件治理。",
+    "保持 raw-to-src provenance、src_root_id 和 gate 分层在下游继续可见。",
+    "若 rollout_required 为 true，需在 epic-to-feat 中强制拆出 adoption / integration / cross-skill E2E FEAT。"
+  ],
+  "created_at": "2026-03-24T15:22:54Z"
+}
