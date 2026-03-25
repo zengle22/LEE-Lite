@@ -52,9 +52,15 @@
     },
     "design_consistency_check": {
       "type": "object",
-      "required": ["passed", "checks", "issues"],
+      "required": ["passed", "structural_passed", "semantic_passed", "checks", "issues", "minor_open_items"],
       "properties": {
         "passed": {
+          "type": "boolean"
+        },
+        "structural_passed": {
+          "type": "boolean"
+        },
+        "semantic_passed": {
           "type": "boolean"
         },
         "checks": {
@@ -68,18 +74,21 @@
           "items": {
             "type": "string"
           }
+        },
+        "minor_open_items": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
         }
       },
       "additionalProperties": true
     },
     "artifact_refs": {
       "type": "object",
-      "required": ["tech_spec", "tech_impl"],
+      "required": ["tech_spec"],
       "properties": {
         "tech_spec": {
-          "type": "string"
-        },
-        "tech_impl": {
           "type": "string"
         },
         "arch_spec": {

@@ -178,7 +178,8 @@ class FeatToTechWorkflowTests(unittest.TestCase):
             design = json.loads((artifacts_dir / "tech-design-bundle.json").read_text(encoding="utf-8"))
             manifest = json.loads((artifacts_dir / "package-manifest.json").read_text(encoding="utf-8"))
             bundle_md = (artifacts_dir / "tech-design-bundle.md").read_text(encoding="utf-8")
-            tech_impl_md = (artifacts_dir / "tech-impl.md").read_text(encoding="utf-8")
+            tech_md = (artifacts_dir / "tech-spec.md").read_text(encoding="utf-8")
+            arch_md = (artifacts_dir / "arch-design.md").read_text(encoding="utf-8")
             api_md = (artifacts_dir / "api-contract.md").read_text(encoding="utf-8")
             executor_cli = json.loads(
                 (artifacts_dir / "_cli" / "tech-design-bundle-executor-commit.response.json").read_text(encoding="utf-8")
@@ -197,23 +198,40 @@ class FeatToTechWorkflowTests(unittest.TestCase):
             self.assertTrue(design["api_required"])
             self.assertEqual(design["downstream_handoff"]["target_workflow"], "workflow.dev.tech_to_impl")
             self.assertTrue(design["design_consistency_check"]["passed"])
-            self.assertIn("## TECH-IMPL Design", bundle_md)
+            self.assertTrue(design["design_consistency_check"]["structural_passed"])
+            self.assertTrue(design["design_consistency_check"]["semantic_passed"])
+            self.assertTrue(design["design_consistency_check"]["minor_open_items"])
             self.assertIn("### Implementation Unit Mapping", bundle_md)
+            self.assertIn("### Implementation Carrier View", bundle_md)
+            self.assertIn("### State Model", bundle_md)
             self.assertIn("### Main Sequence", bundle_md)
             self.assertGreaterEqual(bundle_md.count("```text"), 2)
             self.assertNotIn("```mermaid", bundle_md)
-            self.assertIn("## ASCII Architecture View", tech_impl_md)
-            self.assertIn("## Interface Contracts", tech_impl_md)
-            self.assertIn("## Minimal Code Skeleton", tech_impl_md)
-            self.assertIn("cli/lib/mainline_runtime.py", tech_impl_md)
-            self.assertIn("## CLI Command Surface", api_md)
+            self.assertIn("- arch_ref:", bundle_md)
+            self.assertIn("- api_ref:", bundle_md)
+            self.assertIn("- minor_open_items:", bundle_md)
+            self.assertNotIn("### Boundary Placement", bundle_md)
+            self.assertNotIn("### Command Contracts", bundle_md)
+            self.assertIn("## Implementation Carrier View", tech_md)
+            self.assertIn("## Interface Contracts", tech_md)
+            self.assertIn("## Minimal Code Skeleton", tech_md)
+            self.assertIn("cli/lib/mainline_runtime.py", tech_md)
+            self.assertIn("DecisionReturnEnvelope", tech_md)
+            self.assertIn("## System Topology", arch_md)
+            self.assertIn("## Dedicated Runtime Placement", arch_md)
+            self.assertIn("decision-driven runtime re-entry routing", arch_md)
+            self.assertIn("## Contract Scope", api_md)
+            self.assertIn("## Response Envelope", api_md)
+            self.assertIn("## Command Contracts", api_md)
             self.assertIn("lee gate submit-handoff", api_md)
             self.assertIn("lee gate show-pending", api_md)
             self.assertNotIn("lee gate decide", api_md)
-            self.assertIn("request fields=", api_md)
-            self.assertIn("idempotent key=", api_md)
+            self.assertIn("pending_state ∈ {gate_pending, human_review_pending, reentry_pending, retry_pending}", api_md)
+            self.assertIn("gate_pending_ref", api_md)
+            self.assertIn("Idempotency key: `producer_ref + proposal_ref + payload_digest`", api_md)
             self.assertIn("arch-design.md", design["downstream_handoff"]["supporting_artifact_refs"])
             self.assertIn("api-contract.md", design["downstream_handoff"]["supporting_artifact_refs"])
+            self.assertNotIn("tech-impl.md", design["downstream_handoff"]["supporting_artifact_refs"])
             self.assertEqual(executor_cli["status_code"], "OK")
             self.assertEqual(supervisor_cli["status_code"], "OK")
             self.assertEqual(
@@ -228,6 +246,8 @@ class FeatToTechWorkflowTests(unittest.TestCase):
             )
             self.assertEqual(manifest["cli_executor_commit_ref"], str(artifacts_dir / "_cli" / "tech-design-bundle-executor-commit.response.json"))
             self.assertEqual(manifest["cli_supervisor_commit_ref"], str(artifacts_dir / "_cli" / "tech-design-bundle-supervisor-commit.response.json"))
+            self.assertEqual(manifest["tech_spec_ref"], str(artifacts_dir / "tech-spec.md"))
+            self.assertNotIn("tech_impl_ref", manifest)
 
             validate = self.run_cmd("validate-output", "--artifacts-dir", str(artifacts_dir))
             self.assertEqual(validate.returncode, 0, validate.stderr)
@@ -277,7 +297,7 @@ class FeatToTechWorkflowTests(unittest.TestCase):
             self.assertFalse(design["api_required"])
             self.assertIsNone(design["artifact_refs"]["arch_spec"])
             self.assertIsNone(design["artifact_refs"]["api_spec"])
-            self.assertEqual(design["artifact_refs"]["tech_impl"], "tech-impl.md")
+            self.assertEqual(design["artifact_refs"]["tech_spec"], "tech-spec.md")
 
     def test_io_path_governance_feat_emits_api_contract(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -319,19 +339,20 @@ class FeatToTechWorkflowTests(unittest.TestCase):
             artifacts_dir = Path(json.loads(result.stdout)["artifacts_dir"])
             design = json.loads((artifacts_dir / "tech-design-bundle.json").read_text(encoding="utf-8"))
             arch_body = (artifacts_dir / "arch-design.md").read_text(encoding="utf-8")
-            tech_impl_body = (artifacts_dir / "tech-impl.md").read_text(encoding="utf-8")
+            tech_body = (artifacts_dir / "tech-spec.md").read_text(encoding="utf-8")
             api_body = (artifacts_dir / "api-contract.md").read_text(encoding="utf-8")
 
             self.assertTrue(design["arch_required"])
             self.assertTrue(design["api_required"])
             self.assertTrue((artifacts_dir / "arch-design.md").exists())
             self.assertTrue((artifacts_dir / "api-contract.md").exists())
-            self.assertIn("不得外扩成全局文件治理", arch_body)
-            self.assertIn("cli/lib/managed_gateway.py", tech_impl_body)
-            self.assertIn("GatewayWriteRequest", tech_impl_body)
+            self.assertIn("Path policy owns allow/deny and mode decisions before any governed read/write executes.", arch_body)
+            self.assertIn("cli/lib/managed_gateway.py", tech_body)
+            self.assertIn("GatewayWriteRequest", tech_body)
             self.assertIn("lee artifact commit-governed", api_body)
             self.assertIn("lee artifact read-governed", api_body)
-            self.assertIn("PolicyVerdict", tech_impl_body)
+            self.assertIn("PolicyVerdict", tech_body)
+            self.assertIn("Canonical refs:", api_body)
 
     def test_allow_update_removes_stale_optional_api_artifact(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -416,11 +437,11 @@ class FeatToTechWorkflowTests(unittest.TestCase):
             result = self.run_cmd("run", "--input", str(input_dir), "--feat-ref", "FEAT-SRC-001-003", "--repo-root", str(repo_root), "--run-id", "tech-layering")
             self.assertEqual(result.returncode, 0, result.stderr)
             artifacts_dir = Path(json.loads(result.stdout)["artifacts_dir"])
-            tech_impl_body = (artifacts_dir / "tech-impl.md").read_text(encoding="utf-8")
+            tech_body = (artifacts_dir / "tech-spec.md").read_text(encoding="utf-8")
             design = json.loads((artifacts_dir / "tech-design-bundle.json").read_text(encoding="utf-8"))
 
-            self.assertIn("cli/lib/lineage.py", tech_impl_body)
-            self.assertIn("AdmissionRequest", tech_impl_body)
+            self.assertIn("cli/lib/lineage.py", tech_body)
+            self.assertIn("AdmissionRequest", tech_body)
 
     def test_product_slice_titles_and_machine_fields_drive_axis_selection(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -476,20 +497,20 @@ class FeatToTechWorkflowTests(unittest.TestCase):
             self.assertEqual(result.returncode, 0, result.stderr)
             artifacts_dir = Path(json.loads(result.stdout)["artifacts_dir"])
             design = json.loads((artifacts_dir / "tech-design-bundle.json").read_text(encoding="utf-8"))
-            tech_impl_body = (artifacts_dir / "tech-impl.md").read_text(encoding="utf-8")
+            tech_body = (artifacts_dir / "tech-spec.md").read_text(encoding="utf-8")
             api_body = (artifacts_dir / "api-contract.md").read_text(encoding="utf-8")
 
             self.assertEqual(design["selected_feat"]["axis_id"], "handoff-formalization")
             self.assertEqual(design["selected_feat"]["resolved_axis"], "formalization")
             self.assertEqual(design["selected_feat"]["authoritative_artifact"], "authoritative decision object")
             self.assertEqual(design["selected_feat"]["downstream_feat"], ["FEAT-SRC-001-011"])
-            self.assertIn("cli/lib/formalization.py", tech_impl_body)
-            self.assertIn("GateDecision", tech_impl_body)
+            self.assertIn("cli/lib/formalization.py", tech_body)
+            self.assertIn("GateDecision", tech_body)
             self.assertIn("lee gate decide", api_body)
             self.assertIn("lee registry publish-formal", api_body)
             self.assertNotIn("validate-admission", api_body)
-            self.assertIn("materialization_pending", tech_impl_body)
-            self.assertNotIn("Onboarding registry", tech_impl_body)
+            self.assertIn("materialization_pending", tech_body)
+            self.assertNotIn("Onboarding registry", tech_body)
             self.assertTrue(design["api_required"])
 
     def test_formalization_api_doc_uses_cli_contracts(self) -> None:
@@ -534,6 +555,7 @@ class FeatToTechWorkflowTests(unittest.TestCase):
             self.assertIn("decision_reason", api_md)
             self.assertIn("formal_ref", api_md)
             self.assertIn("decision_not_approvable", api_md)
+            self.assertIn("Success envelope", api_md)
 
     def test_adoption_e2e_feat_emits_api_contract(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -579,6 +601,51 @@ class FeatToTechWorkflowTests(unittest.TestCase):
             self.assertIn("lee audit submit-pilot-evidence", api_md)
             self.assertIn("compat_mode", api_md)
             self.assertIn("cutover_recommendation", api_md)
+            self.assertIn("Canonical refs:", api_md)
+
+    def test_ambiguous_collaboration_reentry_boundary_fails_semantic_consistency(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            repo_root = Path(temp_dir)
+            feature = {
+                "feat_ref": "FEAT-SRC-001-011",
+                "title": "主链候选提交与交接流",
+                "goal": "冻结 authoritative handoff submission 与 gate pending intake。",
+                "scope": [
+                    "定义 candidate package、proposal、evidence 在什么触发场景下被提交。",
+                    "定义提交后形成什么 authoritative handoff object。",
+                    "定义提交完成后对上游和 gate 分别暴露什么业务结果。",
+                ],
+                "constraints": [
+                    "Loop 协作语义必须显式说明哪类对象触发 gate、哪类 decision 允许回流、哪类状态允许继续推进。",
+                    "The FEAT must make clear which authoritative handoff and pending-intake results become visible, while keeping approval and re-entry semantics outside this FEAT.",
+                ],
+                "dependencies": [
+                    "Boundary to 正式交接与物化能力: 本 FEAT 只负责协作责任、状态流转与回流条件，不负责 formalization 语义、升级判定与物化结果。",
+                ],
+                "outputs": ["authoritative handoff submission", "gate pending visibility result"],
+                "acceptance_checks": [
+                    {"scenario": "submission completion stays visible", "given": "authoritative handoff", "when": "submitted", "then": "上游能看到 pending intake"},
+                    {"scenario": "re-entry semantics stay outside", "given": "returned decision", "when": "reviewed", "then": "re-entry semantics remain outside this FEAT"},
+                    {"scenario": "loop responsibility split is explicit", "given": "execution/gate/human loops", "when": "reviewed", "then": "责任边界清晰"},
+                ],
+                "source_refs": ["FEAT-SRC-001-011", "EPIC-SRC001", "SRC-001"],
+            }
+            bundle = self.make_bundle_json(feature, run_id="feat-ambiguous-reentry")
+            input_dir = self.make_feat_package(repo_root, "feat-ambiguous-reentry", bundle)
+
+            result = self.run_cmd("run", "--input", str(input_dir), "--feat-ref", "FEAT-SRC-001-011", "--repo-root", str(repo_root), "--run-id", "tech-ambiguous-reentry")
+            self.assertNotEqual(result.returncode, 0)
+            payload = json.loads(result.stdout)
+            artifacts_dir = Path(payload["artifacts_dir"])
+            design = json.loads((artifacts_dir / "tech-design-bundle.json").read_text(encoding="utf-8"))
+            gate = json.loads((artifacts_dir / "tech-freeze-gate.json").read_text(encoding="utf-8"))
+
+            self.assertTrue(design["design_consistency_check"]["structural_passed"])
+            self.assertFalse(design["design_consistency_check"]["semantic_passed"])
+            self.assertFalse(design["design_consistency_check"]["passed"])
+            self.assertTrue(any("re-entry ownership" in issue for issue in design["design_consistency_check"]["issues"]))
+            self.assertTrue(any(error == "cross_artifact_consistency_passed" for error in payload["readiness_errors"]))
+            self.assertFalse(gate["freeze_ready"])
 
     def test_validate_input_rejects_missing_feat_ref(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:

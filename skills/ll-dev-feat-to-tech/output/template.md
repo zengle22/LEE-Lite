@@ -28,17 +28,27 @@ api_required: false
 
 ## TECH Design
 
-[Summarize the definition-layer design: scope, frozen rules, and non-functional requirements.]
+[Summarize the formal technical design: scope, frozen rules, and concrete implementation-ready detail.]
 
-## TECH-IMPL Design
+### Implementation Carrier View
 
-### ASCII Architecture View
-
-[Describe the concrete modules, responsibilities, and runtime placement.]
+[Describe the concrete runtime carriers, module boundaries, and technical placement without repeating ARCH boundary rationale.]
 
 ```text
 [Module A] --> [Module B]
 ```
+
+### State Model
+
+[Freeze the key states and allowed transitions.]
+
+### Module Plan
+
+[Name the concrete technical modules/components and their owned responsibilities.]
+
+### Implementation Strategy
+
+[Describe implementation sequencing at the design level, not IMPL task ticket sequencing.]
 
 ### Implementation Unit Mapping
 
@@ -80,17 +90,18 @@ def failure_path() -> None:
 
 ## Optional ARCH
 
-[If not required, say why explicitly.]
+[If emitted, record only `arch_ref`, a few summary topics, and the pointer to `arch-design.md`. Do not duplicate ARCH body content here. If not required, say why explicitly.]
 
 ## Optional API
 
-[If required, document concrete CLI command surfaces, request/response fields, errors, idempotency, and compatibility rules. If not required, say why explicitly.]
+[If emitted, record only `api_ref`, contract surfaces, command refs, response-envelope summary, and the pointer to `api-contract.md`. Keep full contract detail in the standalone API artifact. If not required, say why explicitly.]
 
 ## Cross-Artifact Consistency
 
 - status:
 - checks:
 - issues:
+- minor_open_items:
 
 ## Downstream Handoff
 
