@@ -275,6 +275,12 @@ def assess_workstreams(feature: dict[str, Any], package: Any) -> dict[str, Any]:
         + tech_list(package, "integration_points")
         + tech_list(package, "interface_contracts")
     ).lower()
+    tech_migration_text = " ".join(
+        tech_list(package, "implementation_unit_mapping")
+        + tech_list(package, "integration_points")
+        + tech_list(package, "main_sequence")
+        + tech_list(package, "exception_and_compensation")
+    ).lower()
     explicit_frontend_surface = any(
         marker in tech_surface_text
         for marker in [
@@ -290,6 +296,21 @@ def assess_workstreams(feature: dict[str, Any], package: Any) -> dict[str, Any]:
             "页面",
             "前端",
             "交互",
+        ]
+    )
+    explicit_migration_surface = any(
+        marker in tech_migration_text
+        for marker in [
+            "migration",
+            "cutover",
+            "rollout",
+            "fallback",
+            "rollback",
+            "compat",
+            "迁移",
+            "切换",
+            "回滚",
+            "灰度",
         ]
     )
 
@@ -321,7 +342,8 @@ def assess_workstreams(feature: dict[str, Any], package: Any) -> dict[str, Any]:
 
     if axis_id in {"object-layering", "formalization", "collaboration-loop", "io-governance"} and not frontend_hits:
         frontend_required = False
-    if axis_id in {"object-layering", "formalization"} and not migration_hits:
+    if axis_id in {"object-layering", "formalization"} and not explicit_migration_surface:
+        migration_hits = []
         migration_required = False
 
     return {
