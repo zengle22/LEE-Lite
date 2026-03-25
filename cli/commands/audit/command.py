@@ -3,10 +3,9 @@
 from __future__ import annotations
 
 from argparse import Namespace
-from pathlib import Path
 
 from cli.lib.errors import ensure
-from cli.lib.fs import canonical_to_path, write_json
+from cli.lib.fs import write_json
 from cli.lib.protocol import CommandContext, run_with_protocol
 
 
@@ -51,6 +50,29 @@ def _build_findings(ctx: CommandContext) -> tuple[list[dict[str, object]], list[
 
 def _audit_handler(ctx: CommandContext):
     payload = ctx.payload
+    if ctx.action == "submit-pilot-evidence":
+        for field in ("pilot_chain_ref", "producer_ref", "consumer_ref", "audit_ref", "gate_ref"):
+            ensure(field in payload, "INVALID_REQUEST", f"missing pilot evidence field: {field}")
+        evidence_ref = "artifacts/active/audit/pilot-evidence.json"
+        write_json(
+            ctx.workspace_root / evidence_ref,
+            {
+                "trace": ctx.trace,
+                "pilot_chain_ref": payload["pilot_chain_ref"],
+                "producer_ref": payload["producer_ref"],
+                "consumer_ref": payload["consumer_ref"],
+                "audit_ref": payload["audit_ref"],
+                "gate_ref": payload["gate_ref"],
+                "evidence_status": "sufficient",
+                "cutover_recommendation": "proceed",
+            },
+        )
+        return "OK", "pilot evidence submitted", {
+            "canonical_path": evidence_ref,
+            "evidence_ref": evidence_ref,
+            "evidence_status": "sufficient",
+            "cutover_recommendation": "proceed",
+        }, [], [evidence_ref]
     for field in ("workspace_diff_ref", "gateway_receipt_refs", "registry_refs", "policy_verdict_refs"):
         ensure(field in payload, "INVALID_REQUEST", f"missing audit field: {field}")
     findings, diagnostics = _build_findings(ctx)
