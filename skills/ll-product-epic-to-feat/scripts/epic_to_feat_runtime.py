@@ -56,7 +56,7 @@ REQUIRED_FEAT_SUBHEADINGS = [
     "#### Acceptance and Testability",
     "#### Frozen Downstream Boundary",
 ]
-DOWNSTREAM_WORKFLOWS = ["workflow.product.task.feat_to_delivery_prep", "workflow.product.feat_to_plan_pipeline"]
+DOWNSTREAM_WORKFLOWS = ["workflow.dev.feat_to_tech", "workflow.qa.feat_to_testset"]
 
 
 def utc_now() -> str:
@@ -224,15 +224,15 @@ def build_feat_bundle(package: Any, workflow_run_id: str | None = None) -> Gener
         "prohibited_inference_rules": inference_rules,
         "target_workflows": [
             {
-                "workflow": "workflow.product.task.feat_to_delivery_prep",
-                "purpose": "derive delivery-prep artifacts and seed TECH / TASK generation",
+                "workflow": "workflow.dev.feat_to_tech",
+                "purpose": "derive the governed TECH package, with conditional ARCH / API companions, from the frozen FEAT slice",
             },
             {
-                "workflow": "workflow.product.feat_to_plan_pipeline",
-                "purpose": "derive release, devplan, and testplan after FEAT readiness",
+                "workflow": "workflow.qa.feat_to_testset",
+                "purpose": "derive the governed TESTSET package from the same frozen FEAT acceptance boundary",
             },
         ],
-        "derivable_children": ["TECH", "TASK", "TESTSET"],
+        "derivable_children": ["TECH", "TESTSET"],
         "primary_artifact_ref": "feat-freeze-bundle.md",
         "supporting_artifact_refs": [
             "feat-freeze-bundle.json",
@@ -566,7 +566,6 @@ def build_feat_bundle(package: Any, workflow_run_id: str | None = None) -> Gener
                     ],
                     "- Derived child artifacts:",
                     "  - TECH",
-                    "  - TASK",
                     "  - TESTSET",
                 ]
             ),
@@ -586,15 +585,15 @@ def build_feat_bundle(package: Any, workflow_run_id: str | None = None) -> Gener
         "findings": [
             f"Generated {len(feats)} FEAT slices from {epic_ref}.",
             "Each FEAT includes FEAT-specific acceptance checks and axis-specific constraints, while traceability is enforced as a bundle-wide convention.",
-            "Downstream handoff metadata preserves delivery-prep and plan workflow targets.",
+            "Downstream handoff metadata preserves governed TECH and TESTSET workflow targets.",
             "FEAT track mapping preserves the foundation vs adoption/E2E overlay split for downstream flows.",
             "Boundary matrix records the horizontal split between FEAT responsibilities and adjacent non-responsibilities.",
         ],
         "decision": review_decision,
         "risks": [defect["detail"] for defect in defects],
         "recommendations": [
-            "Keep downstream TECH, TASK, and TESTSET derivation anchored to FEAT acceptance checks.",
-            "Do not re-open the parent EPIC scope in delivery-prep or plan stages.",
+            "Keep downstream TECH and TESTSET derivation anchored to FEAT acceptance checks.",
+            "Do not re-open the parent EPIC scope in downstream design or QA derivation stages.",
             "Use the boundary matrix as the first guard against overlap before expanding downstream plans.",
             "Treat the emitted FEAT bundle as the single governed FEAT truth for downstream flows.",
         ],
@@ -611,7 +610,7 @@ def build_feat_bundle(package: Any, workflow_run_id: str | None = None) -> Gener
                 "note": "Each FEAT remains independently acceptable." if not defects else "One or more FEAT boundaries are weak.",
             },
             "parent_child_traceability": {"status": "pass", "note": "epic_freeze_ref, src_root_id, and source_refs are preserved."},
-            "downstream_readiness": {"status": "pass", "note": "Output remains actionable for delivery-prep and plan flows."},
+            "downstream_readiness": {"status": "pass", "note": "Output remains actionable for downstream TECH and TESTSET derivation."},
             "structured_acceptance_checks": {"status": "pass", "note": "Each FEAT includes structured acceptance checks."},
             "evidence_completeness": {"status": "pass", "note": "Execution and supervision evidence will ship with the package."},
         },

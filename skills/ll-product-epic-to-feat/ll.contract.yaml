@@ -7,11 +7,10 @@ authority:
   canonical_template: E:\ai\LEE\spec-global\departments\product\workflows\templates\epic-to-feat\v1\workflow.yaml
   upstream_skill: ll-product-src-to-epic
   downstream_workflows:
-    - workflow.product.task.feat_to_delivery_prep
-    - workflow.product.feat_to_plan_pipeline
+    - workflow.dev.feat_to_tech
+    - workflow.qa.feat_to_testset
   downstream_artifact_children:
     - TECH
-    - TASK
     - TESTSET
 
 roles:

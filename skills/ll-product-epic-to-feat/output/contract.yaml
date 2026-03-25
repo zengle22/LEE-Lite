@@ -1,8 +1,8 @@
 artifact_type: feat_freeze_package
 schema_version: 1.0.0
 downstream_workflows:
-  - workflow.product.task.feat_to_delivery_prep
-  - workflow.product.feat_to_plan_pipeline
+  - workflow.dev.feat_to_tech
+  - workflow.qa.feat_to_testset
 required_runtime_artifacts:
   - feat-freeze-bundle.md
   - feat-freeze-bundle.json
@@ -42,12 +42,12 @@ forbidden_content:
   - UI wireframe detail
   - unstated new requirements
 notes:
-  - The output must be strong enough for downstream delivery-prep and plan flows without re-deriving the parent EPIC.
+  - The output must be strong enough for downstream TECH and TESTSET derivation without re-deriving the parent EPIC.
   - Each FEAT must carry structured acceptance checks and remain independently acceptable.
   - Each FEAT must also freeze a product slice: actors, scenario, business flow, deliverables, business timeline, and downstream semantic boundary.
   - Each FEAT must also expose dedicated constraints and explicit overlap boundaries relative to adjacent FEATs.
   - Each FEAT must expose explicit machine-friendly mapping fields for upstream/downstream FEAT refs, consumed and produced objects, authoritative artifact, and both prose + feat-ref gate/admission dependencies.
-  - The bundle must expose a canonical glossary and bundle-level prohibited inference rules so downstream TECH / TESTSET / TASK do not invent term semantics.
+  - The bundle must expose a canonical glossary and bundle-level prohibited inference rules so downstream TECH / TESTSET consumers do not invent term semantics.
   - Downstream handoff must carry a compact machine snapshot of glossary, prohibited inference rules, authoritative artifact ownership, and feature dependency map.
   - Shared non-goals should be stated at bundle level; FEAT-level non-responsibility should focus on adjacent capability boundaries.
   - Traceability and independent-acceptance conventions may live at bundle level instead of consuming FEAT-specific acceptance slots.

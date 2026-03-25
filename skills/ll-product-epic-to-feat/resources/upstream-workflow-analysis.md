@@ -8,8 +8,8 @@ This reference maps the checked-in EPIC to FEAT template into the lite-native go
 - Workflow id: `workflow.product.task.epic_to_feat`
 - Upstream: `ll-product-src-to-epic`
 - Primary downstream consumers:
-  - `workflow.product.task.feat_to_delivery_prep`
-  - `workflow.product.feat_to_plan_pipeline`
+  - `workflow.dev.feat_to_tech`
+  - `workflow.qa.feat_to_testset`
 
 ## Stage Mapping
 
@@ -34,12 +34,12 @@ The lite-native runtime compresses the canonical template into executor and supe
 - Supervisor responsibilities:
   - verify each FEAT remains independently acceptable
   - reject FEATs that collapse into TASK, UI, or implementation detail
-  - verify downstream readiness for delivery-prep and plan flows
+  - verify downstream readiness for governed TECH and TESTSET derivation
   - decide whether the FEAT package is freeze-ready
 
 ## Boundary Rules
 
 - Input must already be freeze-ready at the EPIC layer.
 - Output must stay at the FEAT layer.
-- Downstream delivery-prep and plan flows must not need to re-derive the parent EPIC.
+- Downstream governed TECH and TESTSET derivation must not need to re-derive the parent EPIC.
 - `TESTSET` is treated as a downstream derived child, not an object authored directly inside this workflow.

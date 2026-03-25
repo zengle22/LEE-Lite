@@ -1,6 +1,6 @@
 ---
 name: ll-product-epic-to-feat
-description: Governed LL workflow skill for transforming a frozen epic_freeze_package into a lite-native feat_freeze_package between ll-product-src-to-epic and downstream FEAT delivery and planning flows.
+description: Governed LL workflow skill for transforming a frozen epic_freeze_package into a lite-native feat_freeze_package between ll-product-src-to-epic and downstream FEAT design and QA derivation flows.
 ---
 
 # LL Product EPIC to FEAT
@@ -12,9 +12,9 @@ This skill is a lite-native governed workflow between `ll-product-src-to-epic` a
 - Workflow template: `E:\ai\LEE\spec-global\departments\product\workflows\templates\epic-to-feat\v1\workflow.yaml`
 - Upstream handoff: `ll-product-src-to-epic`
 - Downstream workflows:
-  - `workflow.product.task.feat_to_delivery_prep`
-  - `workflow.product.feat_to_plan_pipeline`
-- Derived child artifacts expected downstream: `TECH`, `TASK`, `TESTSET`
+  - `workflow.dev.feat_to_tech`
+  - `workflow.qa.feat_to_testset`
+- Derived child artifacts expected downstream: `TECH`, `TESTSET`
 - Preferred runtime command: `python scripts/epic_to_feat.py run --input <epic-package-dir> --repo-root <repo-root>`
 
 ## Required Read Order
@@ -36,7 +36,7 @@ This skill is a lite-native governed workflow between `ll-product-src-to-epic` a
 5. Collect execution evidence, then hand the governed FEAT bundle to the supervisor.
 6. Run `python scripts/epic_to_feat.py supervisor-review --artifacts-dir <feat-package-dir>` before freeze.
 7. Freeze only after the supervisor records a semantic pass and `python scripts/epic_to_feat.py freeze-guard --artifacts-dir <feat-package-dir>` returns success.
-8. Emit a downstream handoff that preserves `epic_freeze_ref`, `src_root_id`, `feat_refs`, and the downstream workflow list for delivery-prep and plan flows.
+8. Emit a downstream handoff that preserves `epic_freeze_ref`, `src_root_id`, `feat_refs`, and the downstream workflow list for governed TECH and TESTSET derivation.
 
 ## Workflow Boundary
 
@@ -50,5 +50,5 @@ This skill is a lite-native governed workflow between `ll-product-src-to-epic` a
 - Do not bypass `scripts/epic_to_feat.py` by hand-authoring only the final FEAT bundle without execution and supervision evidence.
 - Every emitted FEAT must remain an independently acceptable capability slice, not an implementation task, screen TODO list, or architecture-only note.
 - Preserve `epic_freeze_ref`, `src_root_id`, authoritative `source_refs`, and ADR-025 acceptance semantics.
-- Downstream readiness must stay explicit: FEAT output must be strong enough to seed delivery-prep, plan, TECH, TASK, and TESTSET derivation without re-deriving the parent EPIC.
+- Downstream readiness must stay explicit: FEAT output must be strong enough to seed TECH and TESTSET derivation without re-deriving the parent EPIC.
 - Do not let the executor self-approve the semantic validity of its own FEAT output.

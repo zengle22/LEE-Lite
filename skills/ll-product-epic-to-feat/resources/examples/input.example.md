@@ -40,7 +40,7 @@ Provide enough EPIC structure for downstream FEAT decomposition without reopenin
 ## Constraints and Dependencies
 
 - Preserve `src_root_id`, `epic_freeze_ref`, and authoritative `source_refs`.
-- Keep the output actionable for downstream delivery-prep and plan flows.
+- Keep the output actionable for downstream governed TECH and TESTSET derivation.
 
 ## Downstream Handoff
 

@@ -109,7 +109,7 @@ def write_executor_outputs(output_dir: Path, repo_root: Path, package: Any, gene
             "key_decisions": [
                 f"Preserved epic_freeze_ref as {generated.frontmatter['epic_freeze_ref']}.",
                 f"Preserved src_root_id as {generated.frontmatter['src_root_id']}.",
-                f"Generated {len(generated.frontmatter['feat_refs'])} FEAT refs for downstream delivery-prep and plan workflows.",
+                f"Generated {len(generated.frontmatter['feat_refs'])} FEAT refs for downstream governed TECH and TESTSET workflows.",
             ],
             "uncertainties": [],
         },

@@ -1134,12 +1134,12 @@ def build_feat_record(package: Any, axis: dict[str, str], index: int) -> dict[st
         "processing": [
             "Translate the parent EPIC product behavior slice into one independently acceptable FEAT with a dedicated product interface, completed state, and boundary statement.",
             "Preserve parent-child traceability while separating this FEAT's concern from adjacent FEATs and rollout overlays.",
-            "Emit FEAT-specific business flow, deliverable, constraints, and acceptance checks that can seed downstream delivery-prep and plan flows.",
+            "Emit FEAT-specific business flow, deliverable, constraints, and acceptance checks that can seed downstream TECH and TESTSET derivation.",
         ],
         "outputs": [
             f"Frozen FEAT product slice for {feat_ref}",
-            "FEAT-specific acceptance checks for downstream TECH, TASK, and TESTSET derivation",
-            "Traceable handoff metadata for delivery-prep and plan workflows",
+            "FEAT-specific acceptance checks for downstream TECH and TESTSET derivation",
+            "Traceable handoff metadata for downstream governed TECH and TESTSET workflows",
         ],
         "dependencies": dependencies,
         "non_goals": non_goals,

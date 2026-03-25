@@ -10,8 +10,8 @@ feat_refs:
   - FEAT-SRC-001-001
   - FEAT-SRC-001-002
 downstream_workflows:
-  - workflow.product.task.feat_to_delivery_prep
-  - workflow.product.feat_to_plan_pipeline
+  - workflow.dev.feat_to_tech
+  - workflow.qa.feat_to_testset
 source_refs:
   - product.src-to-epic::SRC2EPIC-001
   - EPIC-001
@@ -22,7 +22,7 @@ source_refs:
 
 ## FEAT Bundle Intent
 
-Decompose the parent EPIC into independently acceptable FEAT slices for downstream delivery-prep and plan flows.
+Decompose the parent EPIC into independently acceptable FEAT slices for downstream governed TECH and TESTSET derivation.
 
 ## EPIC Context
 
@@ -52,9 +52,9 @@ Decompose the parent EPIC into independently acceptable FEAT slices for downstre
 
 ## Downstream Handoff
 
-- workflow.product.task.feat_to_delivery_prep
-- workflow.product.feat_to_plan_pipeline
-- derived children: TECH, TASK, TESTSET
+- workflow.dev.feat_to_tech
+- workflow.qa.feat_to_testset
+- derived children: TECH, TESTSET
 
 ## Traceability
 
