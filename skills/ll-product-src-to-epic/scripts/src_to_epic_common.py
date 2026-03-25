@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Shared helpers for the lite-native epic-to-feat runtime.
+Shared helpers for the lite-native src-to-epic runtime.
 """
 
 from __future__ import annotations
@@ -16,13 +16,13 @@ import yaml
 
 REQUIRED_INPUT_FILES = [
     "package-manifest.json",
-    "epic-freeze.md",
-    "epic-freeze.json",
-    "epic-review-report.json",
-    "epic-acceptance-report.json",
-    "epic-defect-list.json",
-    "epic-freeze-gate.json",
-    "handoff-to-epic-to-feat.json",
+    "src-candidate.md",
+    "src-candidate.json",
+    "structural-report.json",
+    "source-semantic-findings.json",
+    "acceptance-report.json",
+    "result-summary.json",
+    "proposed-next-actions.json",
     "execution-evidence.json",
     "supervision-evidence.json",
 ]
@@ -105,62 +105,45 @@ def guess_repo_root_from_input(input_path: Path) -> Path:
     return input_path.parent
 
 
-def extract_src_ref(values: list[str], fallback: str = "") -> str:
-    for value in values:
-        normalized = str(value).strip().upper()
-        if normalized.startswith("SRC-"):
-            return normalized
-    for value in values:
-        match = re.search(r"(SRC-[A-Z0-9-]+)", value.upper())
-        if match:
-            return match.group(1)
-    if fallback:
-        match = re.search(r"(SRC-[A-Z0-9-]+)", fallback.upper())
-        if match:
-            return match.group(1)
-    return ""
-
-
 @dataclass
-class EpicPackage:
+class SrcPackage:
     artifacts_dir: Path
     manifest: dict[str, Any]
-    epic_json: dict[str, Any]
-    epic_frontmatter: dict[str, Any]
-    epic_markdown_body: str
-    review_report: dict[str, Any]
+    result_summary: dict[str, Any]
+    src_candidate: dict[str, Any]
+    src_frontmatter: dict[str, Any]
+    src_markdown_body: str
+    source_semantic_findings: dict[str, Any]
     acceptance_report: dict[str, Any]
-    defect_list: list[dict[str, Any]]
     execution_evidence: dict[str, Any]
     supervision_evidence: dict[str, Any]
-    gate: dict[str, Any]
-    handoff: dict[str, Any]
+    proposed_next_actions: dict[str, Any]
 
     @property
     def run_id(self) -> str:
         return str(
-            self.epic_json.get("workflow_run_id")
-            or self.manifest.get("run_id")
+            self.manifest.get("run_id")
+            or self.src_candidate.get("workflow_run_id")
+            or self.result_summary.get("run_id")
             or self.artifacts_dir.name
         )
 
 
-def load_epic_package(artifacts_dir: Path) -> EpicPackage:
-    markdown_text = (artifacts_dir / "epic-freeze.md").read_text(encoding="utf-8")
+def load_src_package(artifacts_dir: Path) -> SrcPackage:
+    markdown_text = (artifacts_dir / "src-candidate.md").read_text(encoding="utf-8")
     frontmatter, body = parse_markdown_frontmatter(markdown_text)
-    return EpicPackage(
+    return SrcPackage(
         artifacts_dir=artifacts_dir,
         manifest=load_json(artifacts_dir / "package-manifest.json"),
-        epic_json=load_json(artifacts_dir / "epic-freeze.json"),
-        epic_frontmatter=frontmatter,
-        epic_markdown_body=body,
-        review_report=load_json(artifacts_dir / "epic-review-report.json"),
-        acceptance_report=load_json(artifacts_dir / "epic-acceptance-report.json"),
-        defect_list=load_json(artifacts_dir / "epic-defect-list.json"),
+        result_summary=load_json(artifacts_dir / "result-summary.json"),
+        src_candidate=load_json(artifacts_dir / "src-candidate.json"),
+        src_frontmatter=frontmatter,
+        src_markdown_body=body,
+        source_semantic_findings=load_json(artifacts_dir / "source-semantic-findings.json"),
+        acceptance_report=load_json(artifacts_dir / "acceptance-report.json"),
         execution_evidence=load_json(artifacts_dir / "execution-evidence.json"),
         supervision_evidence=load_json(artifacts_dir / "supervision-evidence.json"),
-        gate=load_json(artifacts_dir / "epic-freeze-gate.json"),
-        handoff=load_json(artifacts_dir / "handoff-to-epic-to-feat.json"),
+        proposed_next_actions=load_json(artifacts_dir / "proposed-next-actions.json"),
     )
 
 
@@ -176,26 +159,23 @@ def validate_input_package(artifacts_dir: Path) -> tuple[list[str], dict[str, An
     if errors:
         return errors, {"valid": False, "missing_files": errors}
 
-    package = load_epic_package(artifacts_dir)
+    package = load_src_package(artifacts_dir)
 
-    artifact_type = str(package.epic_json.get("artifact_type") or "")
-    if artifact_type != "epic_freeze_package":
-        errors.append(f"epic-freeze.json artifact_type must be epic_freeze_package, got: {artifact_type or '<missing>'}")
+    manifest_status = str(package.manifest.get("status", "")).strip()
+    if manifest_status != "freeze_ready":
+        errors.append(f"package-manifest.json status must be freeze_ready, got: {manifest_status or '<missing>'}")
 
-    workflow_key = str(package.epic_json.get("workflow_key") or package.gate.get("workflow_key") or "")
-    if workflow_key != "product.src-to-epic":
-        errors.append(f"Upstream workflow must be product.src-to-epic, got: {workflow_key or '<missing>'}")
+    workflow_key = str(package.result_summary.get("workflow_key") or package.src_candidate.get("workflow_key") or "")
+    if workflow_key != "product.raw-to-src":
+        errors.append(f"Upstream workflow must be product.raw-to-src, got: {workflow_key or '<missing>'}")
 
-    status = str(package.epic_json.get("status") or package.manifest.get("status") or "")
-    if status not in {"accepted", "frozen"}:
-        errors.append(f"epic-freeze status must be accepted or frozen, got: {status or '<missing>'}")
+    recommended_target = str(package.result_summary.get("recommended_target_skill") or "")
+    if recommended_target and recommended_target != "product.src-to-epic":
+        errors.append(f"recommended_target_skill must be product.src-to-epic when present, got: {recommended_target}")
 
-    if package.gate.get("freeze_ready") is not True:
-        errors.append("epic-freeze-gate.json must mark the package as freeze_ready.")
-
-    handoff_target = str(package.handoff.get("to_skill") or "")
-    if handoff_target and handoff_target != "product.epic-to-feat":
-        errors.append(f"handoff target must be product.epic-to-feat when present, got: {handoff_target}")
+    source_refs = ensure_list(package.src_candidate.get("source_refs"))
+    if not source_refs:
+        errors.append("src-candidate.json must include source_refs.")
 
     required_fields = [
         "artifact_type",
@@ -203,37 +183,26 @@ def validate_input_package(artifacts_dir: Path) -> tuple[list[str], dict[str, An
         "workflow_run_id",
         "title",
         "status",
-        "epic_freeze_ref",
-        "src_root_id",
+        "source_kind",
         "source_refs",
-        "scope",
-        "non_goals",
-        "decomposition_rules",
-        "constraints_and_dependencies",
+        "problem_statement",
+        "target_users",
+        "trigger_scenarios",
+        "business_drivers",
+        "key_constraints",
+        "in_scope",
+        "out_of_scope",
     ]
     for field in required_fields:
-        if package.epic_json.get(field) in (None, "", []):
-            errors.append(f"epic-freeze.json is missing required field: {field}")
-
-    source_refs = ensure_list(package.epic_json.get("source_refs"))
-    if not source_refs:
-        errors.append("epic-freeze.json must include source_refs.")
-
-    src_ref = extract_src_ref(source_refs, fallback=str(package.epic_json.get("src_root_id") or ""))
-    if not src_ref:
-        errors.append("Input package must retain an SRC-* ref in source_refs or src_root_id.")
-
-    if not ensure_list(package.epic_json.get("capability_axes")) and len(ensure_list(package.epic_json.get("scope"))) < 1:
-        errors.append("Input package must provide capability_axes or a non-empty scope list.")
+        if package.src_candidate.get(field) in (None, "", []):
+            errors.append(f"src-candidate.json is missing required field: {field}")
 
     result = {
         "valid": not errors,
+        "manifest_status": manifest_status,
         "workflow_key": workflow_key,
         "run_id": package.run_id,
-        "status": status,
-        "epic_freeze_ref": package.epic_json.get("epic_freeze_ref"),
-        "src_root_id": package.epic_json.get("src_root_id"),
         "source_refs": source_refs,
-        "src_ref": src_ref,
+        "recommended_target_skill": recommended_target,
     }
     return errors, result

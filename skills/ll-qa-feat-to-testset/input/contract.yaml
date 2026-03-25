@@ -1,0 +1,58 @@
+artifact_type: feat_freeze_package
+schema_version: 1.0.0
+authoritative_upstream_skill: ll-product-epic-to-feat
+accepted_statuses:
+  - accepted
+  - frozen
+required_runtime_artifacts:
+  - package-manifest.json
+  - feat-freeze-bundle.md
+  - feat-freeze-bundle.json
+  - feat-review-report.json
+  - feat-acceptance-report.json
+  - feat-defect-list.json
+  - feat-freeze-gate.json
+  - handoff-to-feat-downstreams.json
+  - execution-evidence.json
+  - supervision-evidence.json
+required_bundle_fields:
+  - artifact_type
+  - workflow_key
+  - workflow_run_id
+  - status
+  - epic_freeze_ref
+  - src_root_id
+  - feat_refs
+  - features
+  - source_refs
+required_feature_fields:
+  - feat_ref
+  - title
+  - goal
+  - scope
+  - constraints
+  - acceptance_checks
+  - source_refs
+required_selector_fields:
+  - feat_ref
+structural_checks:
+  - required_artifact_presence
+  - upstream_workflow_is_product.epic-to-feat
+  - feat_freeze_gate_is_pass
+  - selected_feat_ref_present
+  - downstream_derivable_children_include_testset
+  - evidence_presence
+semantic_gate:
+  required: true
+forbidden_statuses:
+  - revised
+  - rejected
+forbidden_inputs:
+  - raw_requirement
+  - src_candidate_package
+  - epic_freeze_package
+  - direct_test_plan
+notes:
+  - The selected FEAT must already be independently acceptable at the FEAT layer before TESTSET derivation begins.
+  - `feat_ref` selection is mandatory because a feat_freeze_package may contain multiple FEATs.
+  - Optional TECH, delivery-prep, UI, or legacy requirement refs may refine QA context but must not override FEAT scope.

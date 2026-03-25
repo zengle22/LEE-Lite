@@ -1,0 +1,53 @@
+artifact_type: test_set_candidate_package
+schema_version: 1.0.0
+required_runtime_artifacts:
+  - package-manifest.json
+  - test-set-bundle.md
+  - test-set-bundle.json
+  - test-set.yaml
+  - analysis.md
+  - strategy-draft.yaml
+  - test-set-review-report.json
+  - test-set-acceptance-report.json
+  - test-set-defect-list.json
+  - test-set-freeze-gate.json
+  - gate-subject-index.json
+  - analysis-review-subject.json
+  - strategy-review-subject.json
+  - test-set-approval-subject.json
+  - handoff-to-test-execution.json
+  - execution-evidence.json
+  - supervision-evidence.json
+required_source_refs:
+  - "product.epic-to-feat::<run_id>"
+  - "FEAT-*"
+  - "EPIC-*"
+  - "SRC-*"
+required_output_objects:
+  - TESTSET
+required_bundle_sections:
+  - Selected FEAT
+  - Requirement Analysis
+  - Strategy Draft
+  - TESTSET
+  - Gate Subjects
+  - Downstream Handoff
+  - Traceability
+structural_checks:
+  - schema
+  - trace
+  - main_object_presence
+  - gate_subject_presence
+  - status_model_consistency
+  - downstream_handoff_presence
+semantic_gate:
+  required: true
+forbidden_content:
+  - parallel_testplan_truth
+  - unstated_new_requirements
+  - test_items_without_acceptance_mapping
+  - generic_environment_requests_without_execution_detail
+notes:
+  - Only `test-set.yaml` is the formal main object. All companion files serve that object and must not become competing truths.
+  - `approved` means ready for external freeze materialization, not frozen.
+  - The candidate package must preserve stable gate subject identity for `analysis_review`, `strategy_review`, and `test_set_approval`.

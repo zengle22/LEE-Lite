@@ -1,0 +1,93 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "ll-dev-feat-to-tech output",
+  "type": "object",
+  "required": [
+    "artifact_type",
+    "status",
+    "schema_version",
+    "source_refs",
+    "feat_ref",
+    "tech_ref",
+    "arch_required",
+    "api_required",
+    "design_consistency_check",
+    "artifact_refs"
+  ],
+  "properties": {
+    "artifact_type": {
+      "type": "string",
+      "const": "tech_design_package"
+    },
+    "status": {
+      "type": "string"
+    },
+    "schema_version": {
+      "type": "string"
+    },
+    "source_refs": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "string"
+      }
+    },
+    "feat_ref": {
+      "type": "string"
+    },
+    "tech_ref": {
+      "type": "string"
+    },
+    "arch_required": {
+      "type": "boolean"
+    },
+    "api_required": {
+      "type": "boolean"
+    },
+    "arch_ref": {
+      "type": ["string", "null"]
+    },
+    "api_ref": {
+      "type": ["string", "null"]
+    },
+    "design_consistency_check": {
+      "type": "object",
+      "required": ["passed", "checks", "issues"],
+      "properties": {
+        "passed": {
+          "type": "boolean"
+        },
+        "checks": {
+          "type": "array",
+          "items": {
+            "type": "object"
+          }
+        },
+        "issues": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "additionalProperties": true
+    },
+    "artifact_refs": {
+      "type": "object",
+      "required": ["tech_spec"],
+      "properties": {
+        "tech_spec": {
+          "type": "string"
+        },
+        "arch_spec": {
+          "type": ["string", "null"]
+        },
+        "api_spec": {
+          "type": ["string", "null"]
+        }
+      },
+      "additionalProperties": true
+    }
+  },
+  "additionalProperties": true
+}

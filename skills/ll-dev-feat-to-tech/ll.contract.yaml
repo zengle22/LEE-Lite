@@ -1,0 +1,95 @@
+skill_id: ll-dev-feat-to-tech
+skill_type: workflow
+version: 0.1.0
+workflow_key: dev.feat-to-tech
+
+authority:
+  canonical_template: E:\ai\LEE\spec-global\departments\dev\workflows\templates\tech-design-l3-template.yaml
+  upstream_skill: ll-product-epic-to-feat
+  downstream_workflow: workflow.dev.tech_to_impl
+  downstream_artifact_children:
+    - TECH
+    - ARCH
+    - API
+
+roles:
+  executor:
+    required: true
+    evidence_required: true
+    prompt_file: agents/executor.md
+  supervisor:
+    required: true
+    evidence_required: true
+    prompt_file: agents/supervisor.md
+
+runtime:
+  mode: lite_native
+  command: python scripts/feat_to_tech.py run --input <feat-package-dir> --feat-ref <feat-ref> --repo-root <repo-root>
+  entry_script: scripts/feat_to_tech.py
+  accepted_input_paths:
+    - artifacts/epic-to-feat/<run_id>
+    - direct feat_freeze_package directory path
+  produced_output_dir: artifacts/feat-to-tech/<run_id>--<feat_ref>
+  required_output_artifacts:
+    - tech-design-bundle.md
+    - tech-design-bundle.json
+    - tech-spec.md
+    - tech-review-report.json
+    - tech-acceptance-report.json
+    - tech-defect-list.json
+    - tech-freeze-gate.json
+    - handoff-to-tech-impl.json
+    - execution-evidence.json
+    - supervision-evidence.json
+
+input:
+  artifact_type: feat_freeze_package
+  contract_file: input/contract.yaml
+  schema_file: input/schema.json
+  structural_validation_required: true
+  semantic_validation_required: true
+
+output:
+  artifact_type: tech_design_package
+  contract_file: output/contract.yaml
+  schema_file: output/schema.json
+  template_file: output/template.md
+  structural_validation_required: true
+  semantic_validation_required: true
+
+validation:
+  structural:
+    - "python scripts/feat_to_tech.py validate-input --input $INPUT --feat-ref $FEAT_REF"
+    - "python scripts/feat_to_tech.py run --input $INPUT --feat-ref $FEAT_REF --repo-root $REPO_ROOT --allow-update"
+    - "python scripts/feat_to_tech.py validate-output --artifacts-dir $OUTPUT"
+    - "python scripts/feat_to_tech.py validate-package-readiness --artifacts-dir $OUTPUT"
+    - "python scripts/feat_to_tech.py freeze-guard --artifacts-dir $OUTPUT"
+  semantic:
+    input_checklist: input/semantic-checklist.md
+    output_checklist: output/semantic-checklist.md
+
+evidence:
+  execution_schema: evidence/execution-evidence.schema.json
+  supervision_schema: evidence/supervision-evidence.schema.json
+  report_template: evidence/report.template.md
+
+lifecycle:
+  definition_file: ll.lifecycle.yaml
+  max_revision_rounds: 3
+
+gate:
+  freeze_requires:
+    - input_structural_pass
+    - input_semantic_pass
+    - output_structural_pass
+    - output_semantic_pass
+    - execution_evidence_present
+    - supervision_evidence_present
+  reject_when:
+    - upstream_package_not_freeze_ready
+    - selected_feat_ref_missing
+    - missing_epic_to_feat_provenance
+    - missing_tech_spec
+    - optional_artifact_assessment_mismatch
+    - cross_artifact_consistency_failed
+    - required_evidence_missing

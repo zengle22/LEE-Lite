@@ -1,0 +1,51 @@
+artifact_type: tech_design_package
+schema_version: 1.0.0
+required_runtime_artifacts:
+  - package-manifest.json
+  - tech-design-bundle.md
+  - tech-design-bundle.json
+  - tech-spec.md
+  - tech-review-report.json
+  - tech-acceptance-report.json
+  - tech-defect-list.json
+  - tech-freeze-gate.json
+  - handoff-to-tech-impl.json
+  - execution-evidence.json
+  - supervision-evidence.json
+required_source_refs:
+  - "product.epic-to-feat::<run_id>"
+  - "FEAT-*"
+  - "EPIC-*"
+  - "SRC-*"
+required_output_objects:
+  - TECH
+conditional_output_objects:
+  - ARCH
+  - API
+required_sections:
+  - Selected FEAT
+  - Need Assessment
+  - TECH Design
+  - Optional ARCH
+  - Optional API
+  - Cross-Artifact Consistency
+  - Downstream Handoff
+  - Traceability
+structural_checks:
+  - schema
+  - trace
+  - tech_presence
+  - optional_outputs_match_assessment
+  - downstream_handoff_presence
+  - consistency_check_presence
+semantic_gate:
+  required: true
+forbidden_content:
+  - task-level implementation sequencing
+  - unstated new requirements
+  - duplicated ARCH material inside API sections
+  - duplicated API contract detail inside ARCH sections
+notes:
+  - TECH is mandatory for every run.
+  - ARCH and API must be emitted only when the need assessment says they are required.
+  - The package must carry a final cross-artifact consistency result before freeze.

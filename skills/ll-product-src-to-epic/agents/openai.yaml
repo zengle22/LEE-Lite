@@ -1,0 +1,4 @@
+interface:
+  display_name: "LL Product SRC to EPIC"
+  short_description: "Governed bridge from raw-to-src to epic-to-feat"
+  default_prompt: "Use $ll-product-src-to-epic to consume a freeze-ready raw-to-src package and produce a governed EPIC freeze package."

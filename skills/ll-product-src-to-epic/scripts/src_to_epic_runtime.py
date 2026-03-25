@@ -1,0 +1,500 @@
+#!/usr/bin/env python3
+"""
+Lite-native runtime support for src-to-epic.
+"""
+
+from __future__ import annotations
+
+from dataclasses import dataclass
+from datetime import datetime, timezone
+from pathlib import Path
+from typing import Any
+
+from src_to_epic_derivation import (
+    assess_rollout_requirement,
+    choose_epic_freeze_ref,
+    choose_src_root_id,
+    derive_optional_architecture_refs,
+    derive_business_goal,
+    derive_capability_axes,
+    derive_constraint_groups,
+    derive_decomposition_rules,
+    derive_epic_title,
+    derive_non_goals,
+    derive_rollout_plan,
+    derive_scope,
+    derive_success_metrics,
+    derive_traceability,
+    derive_validation_findings,
+    epic_source_refs,
+    flatten_constraint_groups,
+    multi_feat_score,
+    prerequisite_foundations,
+)
+from src_to_epic_common import (
+    dump_json,
+    ensure_list,
+    guess_repo_root_from_input,
+    load_json,
+    load_src_package,
+    parse_markdown_frontmatter,
+    unique_strings,
+    validate_input_package,
+)
+from src_to_epic_cli_integration import (
+    build_gate_result,
+    build_supervision_evidence,
+    collect_evidence_report,
+    update_supervisor_outputs,
+    write_executor_outputs,
+)
+REQUIRED_OUTPUT_FILES = (
+    "epic-freeze.md", "epic-freeze.json", "epic-review-report.json", "epic-acceptance-report.json",
+    "epic-defect-list.json", "epic-freeze-gate.json", "handoff-to-epic-to-feat.json",
+    "execution-evidence.json", "supervision-evidence.json",
+)
+REQUIRED_MARKDOWN_HEADINGS = (
+    "Epic Intent", "Business Goal", "Scope", "Non-Goals", "Success Metrics", "Decomposition Rules",
+    "Rollout and Adoption", "Constraints and Dependencies", "Acceptance and Review", "Downstream Handoff",
+    "Traceability",
+)
+def utc_now() -> str:
+    return datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
+
+
+def repo_root_from(repo_root: str | None, input_path: Path | None = None) -> Path:
+    if repo_root:
+        return Path(repo_root).resolve()
+    if input_path is not None:
+        return guess_repo_root_from_input(input_path.resolve())
+    return Path.cwd().resolve()
+
+
+def output_dir_for(repo_root: Path, run_id: str) -> Path:
+    return repo_root / "artifacts" / "src-to-epic" / run_id
+
+
+@dataclass
+class GeneratedEpic:
+    frontmatter: dict[str, Any]
+    markdown_body: str
+    json_payload: dict[str, Any]
+    review_report: dict[str, Any]
+    acceptance_report: dict[str, Any]
+    defect_list: list[dict[str, Any]]
+    handoff: dict[str, Any]
+    rollout_plan: dict[str, Any]
+def build_epic_payload(package: Any) -> GeneratedEpic:
+    src_root_id = choose_src_root_id(package)
+    rollout_requirement, epic_freeze_ref, epic_title = assess_rollout_requirement(package), choose_epic_freeze_ref(package), derive_epic_title(package)
+    capability_axes, scope = derive_capability_axes(package, rollout_requirement), derive_scope(package, derive_capability_axes(package, rollout_requirement))
+    non_goals, success_metrics = derive_non_goals(package, rollout_requirement), derive_success_metrics(package, capability_axes)
+    decomposition_rules, constraint_groups = derive_decomposition_rules(package, capability_axes), derive_constraint_groups(package, rollout_requirement)
+    constraints = flatten_constraint_groups(constraint_groups)
+    traceability, business_goal, multi_feat = derive_traceability(package, src_root_id), derive_business_goal(package, capability_axes), multi_feat_score(package)
+    architecture_refs = derive_optional_architecture_refs(package, src_root_id); source_refs = epic_source_refs(package, src_root_id, architecture_refs)
+    rollout_plan = derive_rollout_plan(package, rollout_requirement); validation_findings = derive_validation_findings(package, constraint_groups, decomposition_rules, success_metrics); prereq = prerequisite_foundations(package)
+
+    epic_intent = (
+        f"将《{package.src_candidate.get('title') or package.run_id}》中的治理问题空间进一步收敛为“{epic_title}”这一 EPIC 级能力域，"
+        "让下游可以围绕稳定的能力包拆分 FEAT，而不是继续复述 SRC 原则或沿治理对象逐项平移。"
+    )
+
+    review_findings = [
+        "EPIC 已从 SRC 原文上浮到能力包层，Scope 以可拆能力域而非治理对象清单表达。",
+        f"Multi-FEAT readiness: {', '.join(multi_feat['reasons'])}.",
+        "输出追溯链同时保留了 raw-to-src 批次引用、src_root_id 与原始 source_refs。",
+        "Decomposition Rules 已显式给出建议 FEAT 轴，便于 downstream 直接按主轴拆分。",
+    ]
+    if rollout_requirement["required"]:
+        review_findings.append("该 SRC 命中 rollout/adoption 判定，主 EPIC 已显式包含 rollout 段落与 adoption/E2E FEAT 拆分要求。")
+    review_risks = [] if multi_feat["is_multi_feat_ready"] else ["当前输入显示的独立能力边界不足，可能更适合直接落到 FEAT 层。"]
+
+    acceptance_dimensions = {
+        "multi_feat_boundary": {
+            "status": "pass" if multi_feat["is_multi_feat_ready"] else "fail",
+            "note": "EPIC 保持为多 FEAT 能力边界。" if multi_feat["is_multi_feat_ready"] else "EPIC 可能塌缩为单 FEAT。",
+        },
+        "goal_scope_clarity": {"status": "pass", "note": "业务目标、scope、non-goals 已显式化。"},
+        "decomposition_readiness": {"status": "pass", "note": "已给出下游 FEAT 拆分规则、建议 FEAT 轴与 handoff。"},
+        "constraint_preservation": {"status": "pass", "note": "关键约束和上游 inheritance requirements 已保留。"},
+        "traceability": {"status": "pass", "note": "输出包含 raw-to-src run ref、src_root_id 与 source_refs。"},
+        "evidence_completeness": {"status": "pass", "note": "执行与监督证据将作为 package artifacts 一并落盘。"},
+        "rollout_adoption_readiness": {
+            "status": "pass",
+            "note": "主 EPIC 已显式给出 rollout/adoption/E2E 拆分要求。"
+            if rollout_requirement["required"]
+            else "当前 SRC 不需要单独的 rollout/adoption/E2E FEAT 族。",
+        },
+    }
+
+    defects: list[dict[str, Any]] = list(validation_findings)
+    if not multi_feat["is_multi_feat_ready"]:
+        defects.append(
+            {
+                "severity": "P1",
+                "title": "EPIC boundary may collapse to a single FEAT",
+                "detail": "The input package does not show enough independent capability slices to justify an EPIC.",
+            }
+        )
+    if validation_findings:
+        acceptance_dimensions["constraint_preservation"] = {
+            "status": "fail",
+            "note": "EPIC 约束分层或下游保留规则不完整，需要修订。",
+        }
+        acceptance_dimensions["decomposition_readiness"] = {
+            "status": "fail",
+            "note": "主轴/切面或完成定义不完整，不能稳定下传到 epic-to-feat。",
+        }
+
+    acceptance_decision = "approve" if not defects else "revise"
+    review_decision = "pass" if not defects else "revise"
+
+    handoff = {
+        "handoff_id": f"handoff-{package.run_id}-to-epic-to-feat",
+        "from_skill": "ll-product-src-to-epic",
+        "to_skill": "product.epic-to-feat",
+        "source_run_id": package.run_id,
+        "epic_freeze_ref": epic_freeze_ref,
+        "src_root_id": src_root_id,
+        "primary_artifact_ref": "epic-freeze.md",
+        "supporting_artifact_refs": ["epic-freeze.json", "epic-review-report.json", "epic-acceptance-report.json", "epic-defect-list.json"],
+        "required_context": ["epic intent and business goal", "decomposition rules", "rollout and adoption requirements", "constraints and dependencies", "traceability map"],
+        "expected_output_type": "feat_freeze_package",
+        "rollout_required": rollout_requirement["required"],
+        "required_feat_tracks": rollout_plan["required_feat_tracks"],
+        "prerequisite_foundations": prereq,
+        "created_at": utc_now(),
+    }
+
+    json_payload = {
+        "artifact_type": "epic_freeze_package",
+        "workflow_key": "product.src-to-epic",
+        "workflow_run_id": package.run_id,
+        "title": epic_title,
+        "status": "accepted" if not defects else "revised",
+        "schema_version": "1.0.0",
+        "epic_kind": "primary",
+        "epic_freeze_ref": epic_freeze_ref,
+        "src_root_id": src_root_id,
+        "downstream_workflow": "product.epic-to-feat",
+        "source_refs": source_refs,
+        "epic_intent": epic_intent,
+        "business_goal": business_goal,
+        "scope": scope,
+        "non_goals": non_goals,
+        "success_metrics": success_metrics,
+        "decomposition_rules": decomposition_rules,
+        "capability_axes": capability_axes,
+        "feat_axis_mapping": [{"capability_axis": axis["name"], "suggested_feat_axis": axis["feat_axis"]} for axis in capability_axes],
+        "constraint_groups": constraint_groups,
+        "constraints_and_dependencies": constraints,
+        "acceptance_and_review": {
+            "upstream_acceptance_decision": package.acceptance_report.get("decision"),
+            "upstream_acceptance_summary": package.acceptance_report.get("summary"),
+            "semantic_review_decision": package.source_semantic_findings.get("decision"),
+            "semantic_review_summary": package.source_semantic_findings.get("summary"),
+            "epic_review_decision": review_decision,
+            "epic_acceptance_decision": acceptance_decision,
+        },
+        "downstream_handoff": handoff,
+        "traceability": traceability,
+        "multi_feat_assessment": multi_feat,
+        "rollout_requirement": rollout_requirement,
+        "rollout_plan": rollout_plan,
+        "prerequisite_foundations": prereq,
+    }
+
+    frontmatter = {
+        "artifact_type": "epic_freeze_package",
+        "workflow_key": "product.src-to-epic",
+        "workflow_run_id": package.run_id,
+        "status": "accepted" if not defects else "revised",
+        "schema_version": "1.0.0",
+        "epic_freeze_ref": epic_freeze_ref,
+        "src_root_id": src_root_id,
+        "downstream_workflow": "product.epic-to-feat",
+        "source_refs": source_refs,
+        "rollout_required": rollout_requirement["required"],
+    }
+
+    rollout_lines = [f"- rollout_required: `{str(rollout_requirement['required']).lower()}`", f"- trigger_score: `{rollout_requirement['score']}`"]
+    rollout_lines.extend(f"- {item}" for item in rollout_requirement["rationale"])
+    rollout_lines.append(f"- required_feat_tracks: `{', '.join(rollout_plan['required_feat_tracks'])}`")
+    rollout_lines.extend(f"- {item}" for item in rollout_plan["planning_notes"])
+    rollout_lines.extend(f"- prerequisite foundation: {item}" for item in prereq)
+    if rollout_plan["required_feat_families"]:
+        rollout_lines.append("- required_feat_families:")
+        for item in rollout_plan["required_feat_families"]:
+            rollout_lines.append(f"  - {item['family']}: {item['goal']}")
+
+    markdown_body = "\n\n".join(
+        [
+            f"# {json_payload['title']}",
+            "## Epic Intent\n\n" + epic_intent,
+            "## Business Goal\n\n" + business_goal,
+            "## Scope\n\n" + "\n".join(f"- {item}" for item in scope),
+            "## Non-Goals\n\n" + "\n".join(f"- {item}" for item in non_goals),
+            "## Success Metrics\n\n" + "\n".join(f"- {item}" for item in success_metrics),
+            "## Decomposition Rules\n\n"
+            + "\n".join(f"- {item}" for item in decomposition_rules)
+            + (
+                "\n- 建议 FEAT 轴映射：\n"
+                + "\n".join(f"  - {axis['name']} -> {axis['feat_axis']}" for axis in capability_axes)
+                if capability_axes
+                else ""
+            ),
+            "## Rollout and Adoption\n\n" + "\n".join(rollout_lines),
+            "## Constraints and Dependencies\n\n"
+            + "\n\n".join(
+                f"### {group['name']}\n\n" + "\n".join(f"- {item}" for item in group["items"])
+                for group in constraint_groups
+            ),
+            "## Acceptance and Review\n\n"
+            + "\n".join(
+                [
+                    f"- Upstream acceptance: {package.acceptance_report.get('decision')} ({package.acceptance_report.get('summary')})",
+                    f"- Upstream semantic review: {package.source_semantic_findings.get('decision')} ({package.source_semantic_findings.get('summary')})",
+                    f"- Epic review: {review_decision}",
+                    f"- Epic acceptance: {acceptance_decision}",
+                ]
+            ),
+            "## Downstream Handoff\n\n"
+            + "\n".join(
+                [
+                    "- Next workflow: `product.epic-to-feat`",
+                    f"- epic_freeze_ref: `{epic_freeze_ref}`",
+                    f"- src_root_id: `{src_root_id}`",
+                    *[f"- prerequisite foundation: {item}" for item in prereq],
+                    "- Required carry-over: source refs, decomposition rules, constraints, acceptance evidence",
+                ]
+            ),
+            "## Traceability\n\n"
+            + "\n".join(
+                f"- {item['epic_section']}: {', '.join(item['input_fields'])} <- {', '.join(item['source_refs'])}"
+                for item in traceability
+            ),
+        ]
+    )
+
+    review_report = {
+        "review_id": f"review-{package.run_id}",
+        "review_type": "epic_review",
+        "subject_refs": [epic_freeze_ref],
+        "summary": "EPIC package preserves the SRC problem space at a multi-FEAT capability layer.",
+        "findings": review_findings,
+        "decision": review_decision,
+        "risks": review_risks,
+        "recommendations": [
+            "在 epic-to-feat 阶段按 decomposition rules 继续拆分，不要重新定义问题空间。", "优先围绕 capability axes 冻出 FEAT，而不是沿治理对象逐项列举。",
+            "对路径与目录治理相关 FEAT 持续维持主链边界限定，避免滑向全局文件治理。", "保持 raw-to-src provenance、src_root_id 和 gate 分层在下游继续可见。",
+            "若 rollout_required 为 true，需在 epic-to-feat 中强制拆出 adoption / integration / cross-skill E2E FEAT。",
+        ],
+        "created_at": utc_now(),
+    }
+
+    acceptance_report = {
+        "stage_id": "epic_acceptance_review",
+        "created_by_role": "supervisor",
+        "decision": acceptance_decision,
+        "dimensions": acceptance_dimensions,
+        "summary": "Epic acceptance review passed." if not defects else "Epic acceptance review requires revision.",
+        "acceptance_findings": defects,
+        "created_at": utc_now(),
+    }
+
+    return GeneratedEpic(
+        frontmatter=frontmatter,
+        markdown_body=markdown_body,
+        json_payload=json_payload,
+        review_report=review_report,
+        acceptance_report=acceptance_report,
+        defect_list=defects,
+        handoff=handoff,
+        rollout_plan=rollout_plan,
+    )
+
+
+def validate_output_package(artifacts_dir: Path) -> tuple[list[str], dict[str, Any]]:
+    errors: list[str] = []
+    if not artifacts_dir.exists() or not artifacts_dir.is_dir():
+        return [f"Output package not found: {artifacts_dir}"], {"valid": False}
+
+    for required_file in REQUIRED_OUTPUT_FILES:
+        if not (artifacts_dir / required_file).exists():
+            errors.append(f"Missing required output artifact: {required_file}")
+    if errors:
+        return errors, {"valid": False}
+
+    epic_json = load_json(artifacts_dir / "epic-freeze.json")
+    if epic_json.get("artifact_type") != "epic_freeze_package":
+        errors.append("epic-freeze.json artifact_type must be epic_freeze_package.")
+    if epic_json.get("workflow_key") != "product.src-to-epic":
+        errors.append("epic-freeze.json workflow_key must be product.src-to-epic.")
+    if epic_json.get("downstream_workflow") != "product.epic-to-feat":
+        errors.append("epic-freeze.json downstream_workflow must be product.epic-to-feat.")
+
+    epic_freeze_ref = str(epic_json.get("epic_freeze_ref") or "")
+    src_root_id = str(epic_json.get("src_root_id") or "")
+    if not epic_freeze_ref:
+        errors.append("epic-freeze.json must include epic_freeze_ref.")
+    if not src_root_id:
+        errors.append("epic-freeze.json must include src_root_id.")
+
+    source_refs = ensure_list(epic_json.get("source_refs"))
+    if not any(ref.startswith("product.raw-to-src::") for ref in source_refs):
+        errors.append("epic-freeze.json source_refs must include product.raw-to-src::<run_id>.")
+    if not any(ref.startswith("SRC-") for ref in source_refs):
+        errors.append("epic-freeze.json source_refs must include SRC-*.")
+    rollout_requirement = epic_json.get("rollout_requirement") or {}
+    rollout_plan = epic_json.get("rollout_plan") or {}
+    if rollout_requirement.get("required") and "adoption_e2e" not in ensure_list(rollout_plan.get("required_feat_tracks")):
+        errors.append("epic-freeze.json rollout_plan.required_feat_tracks must include adoption_e2e when rollout_requirement.required is true.")
+    constraint_groups = epic_json.get("constraint_groups") or []
+    group_map = {str(group.get("name") or ""): ensure_list(group.get("items")) for group in constraint_groups if isinstance(group, dict)}
+    required_groups = {"Epic-level constraints", "Authoritative inherited constraints", "Downstream preservation rules"}
+    has_governance_layers = required_groups.issubset(group_map)
+    if required_groups.intersection(group_map) and not has_governance_layers:
+        errors.append("epic-freeze.json governance constraint_groups must separate epic-level, inherited, and downstream-preservation rules.")
+    epic_level_text = " ".join(group_map.get("Epic-level constraints", []))
+    inherited_text = " ".join(group_map.get("Authoritative inherited constraints", []))
+    source_markers = ("TestEnvironmentSpec", "TestCasePack", "ScriptPack", "skill.qa.test_exec_web_e2e", "skill.runner.test_e2e", "invalid_run", "acceptance_status")
+    qa_source_detected = any(marker in " ".join(ensure_list(epic_json.get("constraints_and_dependencies"))) for marker in source_markers)
+    if has_governance_layers and any(marker in epic_level_text for marker in source_markers):
+        errors.append("epic-freeze.json Epic-level constraints must not repeat source object-level QA execution rules.")
+    if has_governance_layers and qa_source_detected and not any(marker in inherited_text for marker in source_markers):
+        errors.append("epic-freeze.json Authoritative inherited constraints must preserve source object-level rules where applicable.")
+    decomposition_rules = ensure_list(epic_json.get("decomposition_rules"))
+    if has_governance_layers and not any("primary decomposition axis" in rule for rule in decomposition_rules):
+        errors.append("epic-freeze.json decomposition_rules must declare capability axes as the primary decomposition axis.")
+    if has_governance_layers and not any("mandatory cross-cutting overlays" in rule for rule in decomposition_rules):
+        errors.append("epic-freeze.json decomposition_rules must declare rollout families as mandatory cross-cutting overlays.")
+    metrics_text = " ".join(ensure_list(epic_json.get("success_metrics")))
+    for token, label in (
+        ("producer -> consumer -> audit -> gate", "pilot chain"),
+        ("candidate -> formal materialization", "materialization"),
+        ("adoption / cutover / fallback", "rollout verification"),
+    ):
+        if has_governance_layers and token not in metrics_text:
+            errors.append(f"epic-freeze.json success_metrics must include the {label} completion signal.")
+
+    markdown_text = (artifacts_dir / "epic-freeze.md").read_text(encoding="utf-8")
+    _, markdown_body = parse_markdown_frontmatter(markdown_text)
+    for heading in REQUIRED_MARKDOWN_HEADINGS:
+        if f"## {heading}" not in markdown_body:
+            errors.append(f"epic-freeze.md is missing section: {heading}")
+
+    handoff = load_json(artifacts_dir / "handoff-to-epic-to-feat.json")
+    if handoff.get("to_skill") != "product.epic-to-feat":
+        errors.append("handoff-to-epic-to-feat.json to_skill must be product.epic-to-feat.")
+
+    gate = load_json(artifacts_dir / "epic-freeze-gate.json")
+    if gate.get("epic_freeze_ref") != epic_freeze_ref:
+        errors.append("epic-freeze-gate.json must point to the same epic_freeze_ref.")
+
+    result = {
+        "valid": not errors,
+        "epic_freeze_ref": epic_freeze_ref,
+        "src_root_id": src_root_id,
+        "source_refs": source_refs,
+        "rollout_required": bool(rollout_requirement.get("required")),
+    }
+    return errors, result
+
+
+def validate_package_readiness(artifacts_dir: Path) -> tuple[bool, list[str]]:
+    errors, _ = validate_output_package(artifacts_dir)
+    if errors:
+        return False, errors
+
+    gate = load_json(artifacts_dir / "epic-freeze-gate.json")
+    checks = gate.get("checks") or {}
+    readiness_errors = [name for name, status in checks.items() if status is not True]
+    return not readiness_errors, readiness_errors
+
+
+def executor_run(input_path: Path, repo_root: Path, run_id: str, allow_update: bool = False) -> dict[str, Any]:
+    errors, validation = validate_input_package(input_path)
+    if errors:
+        raise ValueError("; ".join(errors))
+    package = load_src_package(input_path)
+    generated = build_epic_payload(package)
+    effective_run_id = run_id or package.run_id
+    output_dir = output_dir_for(repo_root, effective_run_id)
+    if output_dir.exists() and not allow_update:
+        raise FileExistsError(f"Output directory already exists: {output_dir}")
+    write_executor_outputs(
+        output_dir=output_dir,
+        repo_root=repo_root,
+        package=package,
+        generated=generated,
+        command_name=f"python scripts/src_to_epic.py executor-run --input {input_path}",
+    )
+    return {
+        "ok": True,
+        "run_id": effective_run_id,
+        "artifacts_dir": str(output_dir),
+        "input_validation": validation,
+        "epic_freeze_ref": generated.frontmatter["epic_freeze_ref"],
+        "src_root_id": generated.frontmatter["src_root_id"],
+    }
+
+
+def supervisor_review(artifacts_dir: Path, repo_root: Path, run_id: str, allow_update: bool = False) -> dict[str, Any]:
+    if not artifacts_dir.exists():
+        raise FileNotFoundError(f"Artifacts directory not found: {artifacts_dir}")
+
+    package_manifest = load_json(artifacts_dir / "package-manifest.json")
+    epic_json = load_json(artifacts_dir / "epic-freeze.json")
+    input_run_id = run_id or str(epic_json.get("workflow_run_id") or package_manifest.get("status") or artifacts_dir.name)
+
+    source_run_ref = next((ref for ref in ensure_list(epic_json.get("source_refs")) if ref.startswith("product.raw-to-src::")), "")
+    package_run_id = source_run_ref.split("::", 1)[1] if "::" in source_run_ref else input_run_id
+    source_package_dir = guess_repo_root_from_input(artifacts_dir) / "artifacts" / "raw-to-src" / package_run_id
+    package = load_src_package(source_package_dir)
+    generated = build_epic_payload(package)
+
+    supervision = build_supervision_evidence(package, artifacts_dir, generated)
+    gate = build_gate_result(generated, supervision)
+
+    update_supervisor_outputs(artifacts_dir, repo_root, package, generated, supervision, gate)
+
+    return {
+        "ok": True,
+        "run_id": input_run_id,
+        "artifacts_dir": str(artifacts_dir),
+        "decision": supervision["decision"],
+        "freeze_ready": gate["freeze_ready"],
+    }
+
+
+def run_workflow(input_path: Path, repo_root: Path, run_id: str, allow_update: bool = False) -> dict[str, Any]:
+    executor_result = executor_run(
+        input_path=input_path,
+        repo_root=repo_root,
+        run_id=run_id,
+        allow_update=allow_update,
+    )
+    artifacts_dir = Path(executor_result["artifacts_dir"])
+    supervisor_result = supervisor_review(
+        artifacts_dir=artifacts_dir,
+        repo_root=repo_root,
+        run_id=run_id or executor_result["run_id"],
+        allow_update=True,
+    )
+    output_errors, output_result = validate_output_package(artifacts_dir)
+    if output_errors:
+        raise ValueError("; ".join(output_errors))
+    readiness_ok, readiness_errors = validate_package_readiness(artifacts_dir)
+    report_path = collect_evidence_report(artifacts_dir)
+    return {
+        "ok": readiness_ok,
+        "run_id": executor_result["run_id"],
+        "artifacts_dir": str(artifacts_dir),
+        "epic_freeze_ref": executor_result["epic_freeze_ref"],
+        "src_root_id": executor_result["src_root_id"],
+        "supervision": supervisor_result,
+        "output_validation": output_result,
+        "readiness_errors": readiness_errors,
+        "evidence_report": str(report_path),
+    }

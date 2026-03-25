@@ -1,0 +1,4 @@
+interface:
+  display_name: "LL Dev FEAT to TECH"
+  short_description: "Governed FEAT to TECH design workflow"
+  default_prompt: "Use $ll-dev-feat-to-tech to turn one frozen FEAT into a TECH-first design package with optional ARCH and API companions."

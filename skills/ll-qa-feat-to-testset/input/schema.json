@@ -1,0 +1,93 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "ll-qa-feat-to-testset input",
+  "type": "object",
+  "required": [
+    "artifact_type",
+    "workflow_key",
+    "workflow_run_id",
+    "status",
+    "epic_freeze_ref",
+    "src_root_id",
+    "feat_refs",
+    "features",
+    "source_refs"
+  ],
+  "properties": {
+    "artifact_type": {
+      "type": "string",
+      "const": "feat_freeze_package"
+    },
+    "workflow_key": {
+      "type": "string",
+      "const": "product.epic-to-feat"
+    },
+    "workflow_run_id": {
+      "type": "string"
+    },
+    "status": {
+      "type": "string",
+      "enum": ["accepted", "frozen"]
+    },
+    "epic_freeze_ref": {
+      "type": "string"
+    },
+    "src_root_id": {
+      "type": "string"
+    },
+    "feat_refs": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "string"
+      }
+    },
+    "features": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": [
+          "feat_ref",
+          "title",
+          "goal",
+          "scope",
+          "constraints",
+          "acceptance_checks",
+          "source_refs"
+        ],
+        "properties": {
+          "feat_ref": {"type": "string"},
+          "title": {"type": "string"},
+          "goal": {"type": "string"},
+          "scope": {"type": "array", "items": {"type": "string"}},
+          "constraints": {"type": "array", "items": {"type": "string"}},
+          "source_refs": {"type": "array", "items": {"type": "string"}},
+          "acceptance_checks": {
+            "type": "array",
+            "minItems": 3,
+            "items": {
+              "type": "object",
+              "required": ["id", "scenario", "given", "when", "then"],
+              "properties": {
+                "id": {"type": "string"},
+                "scenario": {"type": "string"},
+                "given": {"type": "string"},
+                "when": {"type": "string"},
+                "then": {"type": "string"}
+              },
+              "additionalProperties": true
+            }
+          }
+        },
+        "additionalProperties": true
+      }
+    },
+    "source_refs": {
+      "type": "array",
+      "minItems": 1,
+      "items": {"type": "string"}
+    }
+  },
+  "additionalProperties": true
+}

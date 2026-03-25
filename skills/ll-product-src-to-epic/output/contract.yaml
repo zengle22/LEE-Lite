@@ -1,0 +1,44 @@
+artifact_type: epic_freeze_package
+schema_version: 1.0.0
+downstream_workflow: product.epic-to-feat
+required_runtime_artifacts:
+  - epic-freeze.md
+  - epic-freeze.json
+  - epic-review-report.json
+  - epic-acceptance-report.json
+  - epic-defect-list.json
+  - epic-freeze-gate.json
+  - handoff-to-epic-to-feat.json
+  - execution-evidence.json
+  - supervision-evidence.json
+required_source_refs:
+  - "product.raw-to-src::<run_id>"
+  - "SRC-*"
+required_sections:
+  - Epic Intent
+  - Business Goal
+  - Scope
+  - Non-Goals
+  - Success Metrics
+  - Decomposition Rules
+  - Rollout and Adoption
+  - Constraints and Dependencies
+  - Acceptance and Review
+  - Downstream Handoff
+  - Traceability
+structural_checks:
+  - schema
+  - trace
+  - epic_freeze_ref_presence
+  - downstream_handoff_presence
+semantic_gate:
+  required: true
+forbidden_content:
+  - feat-level decomposition
+  - task-level implementation plan
+  - UI wireframe detail
+  - unstated new requirements
+notes:
+  - The output must be strong enough for downstream `product.epic-to-feat` decomposition without re-deriving the source problem space.
+  - Preserve ADR-025 acceptance semantics as explicit output artifacts, not implied review prose.
+  - When the SRC changes shared governance/runtime capability and real effectiveness depends on skill adoption, keep a single EPIC but make rollout/adoption/E2E decomposition explicit inside that EPIC.

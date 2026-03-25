@@ -1,0 +1,68 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "ll-dev-feat-to-tech input",
+  "type": "object",
+  "required": ["artifact_type", "status", "schema_version", "feat_refs", "features", "source_refs"],
+  "properties": {
+    "artifact_type": {
+      "type": "string",
+      "const": "feat_freeze_package"
+    },
+    "status": {
+      "type": "string"
+    },
+    "schema_version": {
+      "type": "string"
+    },
+    "feat_refs": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "string"
+      }
+    },
+    "features": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": ["feat_ref", "title", "scope", "constraints", "acceptance_checks"],
+        "properties": {
+          "feat_ref": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "scope": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "constraints": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "acceptance_checks": {
+            "type": "array",
+            "items": {
+              "type": "object"
+            }
+          }
+        },
+        "additionalProperties": true
+      }
+    },
+    "source_refs": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "string"
+      }
+    }
+  },
+  "additionalProperties": true
+}

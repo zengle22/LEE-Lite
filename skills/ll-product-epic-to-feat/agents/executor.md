@@ -9,8 +9,9 @@ You are the executor for `ll-product-epic-to-feat`.
 3. Resolve the authoritative EPIC context from the package, including `epic-freeze.md`, `epic-freeze.json`, scope, non-goals, decomposition rules, and inherited constraints.
 4. Run `python scripts/epic_to_feat.py executor-run --input <epic-package-dir>` to draft the governed FEAT bundle.
 5. Produce one governed `feat_freeze_package` that preserves provenance, structured FEAT acceptance checks, and downstream handoff metadata.
-6. Record execution evidence for all significant commands, decisions, and unresolved gaps.
-7. Hand the result to the supervisor only after structural validation passes.
+6. When the upstream EPIC carries rollout or adoption requirements, preserve them as explicit FEAT coverage rather than treating them as release-only notes.
+7. Record execution evidence for all significant commands, decisions, and unresolved gaps.
+8. Hand the result to the supervisor only after structural validation passes.
 
 ## Forbidden Actions
 

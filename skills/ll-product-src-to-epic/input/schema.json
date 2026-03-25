@@ -1,0 +1,35 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "ll-product-src-to-epic input",
+  "type": "object",
+  "required": [
+    "artifact_type",
+    "status",
+    "workflow_key",
+    "workflow_run_id",
+    "primary_artifact_ref"
+  ],
+  "properties": {
+    "artifact_type": {
+      "type": "string",
+      "const": "src_candidate_package"
+    },
+    "status": {
+      "type": "string",
+      "const": "freeze_ready"
+    },
+    "workflow_key": {
+      "type": "string",
+      "const": "product.raw-to-src"
+    },
+    "workflow_run_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "primary_artifact_ref": {
+      "type": "string",
+      "minLength": 1
+    }
+  },
+  "additionalProperties": true
+}

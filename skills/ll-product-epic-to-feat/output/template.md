@@ -21,7 +21,7 @@ source_refs:
 
 ## FEAT Bundle Intent
 
-[Summarize the FEAT bundle purpose, why the parent EPIC decomposes into exactly this many FEATs, and the bundle-level shared non-goals.]
+[Summarize the FEAT bundle purpose, why the parent EPIC decomposes into exactly this many FEATs, whether rollout/adoption/E2E requires a dedicated FEAT track, and the bundle-level shared non-goals.]
 
 ## EPIC Context
 

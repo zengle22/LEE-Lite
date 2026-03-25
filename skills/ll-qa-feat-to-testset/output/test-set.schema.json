@@ -1,0 +1,81 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "ll-qa-feat-to-testset test-set main object",
+  "type": "object",
+  "required": [
+    "id",
+    "ssot_type",
+    "workflow_key",
+    "template_id",
+    "feat_ref",
+    "epic_ref",
+    "src_ref",
+    "title",
+    "coverage_scope",
+    "risk_focus",
+    "preconditions",
+    "environment_assumptions",
+    "test_layers",
+    "test_units",
+    "coverage_exclusions",
+    "pass_criteria",
+    "evidence_required",
+    "acceptance_traceability",
+    "source_refs",
+    "governing_adrs",
+    "status"
+  ],
+  "properties": {
+    "id": {"type": "string"},
+    "ssot_type": {"type": "string", "const": "TESTSET"},
+    "workflow_key": {"type": "string"},
+    "template_id": {"type": "string"},
+    "feat_ref": {"type": "string"},
+    "epic_ref": {"type": "string"},
+    "src_ref": {"type": "string"},
+    "title": {"type": "string"},
+    "coverage_scope": {"type": "array", "items": {"type": "string"}},
+    "risk_focus": {"type": "array", "items": {"type": "string"}},
+    "preconditions": {"type": "array", "items": {"type": "string"}},
+    "environment_assumptions": {"type": "array", "items": {"type": "string"}},
+    "test_layers": {"type": "array", "minItems": 1, "items": {"type": "string"}},
+    "test_units": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": ["unit_ref", "acceptance_ref", "title", "priority"],
+        "properties": {
+          "unit_ref": {"type": "string"},
+          "acceptance_ref": {"type": "string"},
+          "title": {"type": "string"},
+          "priority": {"type": "string"}
+        },
+        "additionalProperties": true
+      }
+    },
+    "coverage_exclusions": {"type": "array", "items": {"type": "string"}},
+    "pass_criteria": {"type": "array", "items": {"type": "string"}},
+    "evidence_required": {"type": "array", "items": {"type": "string"}},
+    "acceptance_traceability": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": ["acceptance_ref", "unit_refs"],
+        "properties": {
+          "acceptance_ref": {"type": "string"},
+          "unit_refs": {"type": "array", "minItems": 1, "items": {"type": "string"}}
+        },
+        "additionalProperties": true
+      }
+    },
+    "source_refs": {"type": "array", "minItems": 1, "items": {"type": "string"}},
+    "governing_adrs": {"type": "array", "items": {"type": "string"}},
+    "status": {
+      "type": "string",
+      "enum": ["draft", "review_ready", "approved", "frozen"]
+    }
+  },
+  "additionalProperties": true
+}

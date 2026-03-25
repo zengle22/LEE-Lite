@@ -1,0 +1,55 @@
+artifact_type: src_candidate_package
+schema_version: 1.0.0
+authoritative_upstream_skill: ll-product-raw-to-src
+accepted_statuses:
+  - freeze_ready
+required_runtime_artifacts:
+  - package-manifest.json
+  - src-candidate.md
+  - src-candidate.json
+  - structural-report.json
+  - source-semantic-findings.json
+  - acceptance-report.json
+  - result-summary.json
+  - proposed-next-actions.json
+  - execution-evidence.json
+  - supervision-evidence.json
+required_candidate_frontmatter_fields:
+  - artifact_type
+  - workflow_key
+  - workflow_run_id
+  - title
+  - status
+  - source_kind
+  - source_refs
+required_candidate_sections:
+  - Problem Statement
+  - Target Users
+  - Triggering Scenarios
+  - Business Motivation
+  - Key Constraints
+  - Scope Boundaries
+  - Source Traceability
+required_refs:
+  - workflow_run_id
+  - source_refs
+structural_checks:
+  - required_artifact_presence
+  - package_status_is_freeze_ready
+  - upstream_workflow_is_product.raw-to-src
+  - traceability_fields_present
+  - evidence_presence
+semantic_gate:
+  required: true
+forbidden_statuses:
+  - blocked
+  - human_handoff_proposed
+  - rejected
+forbidden_inputs:
+  - raw_requirement
+  - adr
+  - business_opportunity
+  - direct_epic_freeze
+notes:
+  - Prefer a package that already proposes src-to-epic as the next governed action.
+  - If the package includes a materialized source_freeze ref, use it as the CLI input anchor.

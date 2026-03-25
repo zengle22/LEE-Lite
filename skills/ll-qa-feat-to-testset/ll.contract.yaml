@@ -1,0 +1,101 @@
+skill_id: ll-qa-feat-to-testset
+skill_type: workflow
+version: 0.1.0
+workflow_key: qa.feat-to-testset
+
+authority:
+  canonical_template: E:\ai\LEE\spec-global\departments\qa\workflows\templates\test-set-production-l3-template.md
+  upstream_skill: ll-product-epic-to-feat
+  downstream_skill: skill.qa.test_exec_web_e2e
+  template_workflow_key: workflow.qa.test_set_production_l3
+  template_id: template.qa.test_set_production
+
+roles:
+  executor:
+    required: true
+    evidence_required: true
+    prompt_file: agents/executor.md
+  supervisor:
+    required: true
+    evidence_required: true
+    prompt_file: agents/supervisor.md
+
+runtime:
+  mode: lite_native
+  command: python scripts/feat_to_testset.py run --input <feat-package-dir> --feat-ref <feat-ref> --repo-root <repo-root>
+  entry_script: scripts/feat_to_testset.py
+  accepted_input_paths:
+    - artifacts/epic-to-feat/<run_id>
+    - direct feat_freeze_package directory path
+  produced_output_dir: artifacts/feat-to-testset/<run_id>--<feat_ref>
+  required_output_artifacts:
+    - package-manifest.json
+    - test-set-bundle.md
+    - test-set-bundle.json
+    - test-set.yaml
+    - analysis.md
+    - strategy-draft.yaml
+    - test-set-review-report.json
+    - test-set-acceptance-report.json
+    - test-set-defect-list.json
+    - test-set-freeze-gate.json
+    - gate-subject-index.json
+    - analysis-review-subject.json
+    - strategy-review-subject.json
+    - test-set-approval-subject.json
+    - handoff-to-test-execution.json
+    - execution-evidence.json
+    - supervision-evidence.json
+
+input:
+  artifact_type: feat_freeze_package
+  contract_file: input/contract.yaml
+  schema_file: input/schema.json
+  structural_validation_required: true
+  semantic_validation_required: true
+
+output:
+  artifact_type: test_set_candidate_package
+  contract_file: output/contract.yaml
+  schema_file: output/schema.json
+  template_file: output/template.md
+  structural_validation_required: true
+  semantic_validation_required: true
+
+validation:
+  structural:
+    - "python scripts/feat_to_testset.py validate-input --input $INPUT --feat-ref $FEAT_REF"
+    - "python scripts/feat_to_testset.py run --input $INPUT --feat-ref $FEAT_REF --repo-root $REPO_ROOT --allow-update"
+    - "python scripts/feat_to_testset.py validate-output --artifacts-dir $OUTPUT"
+    - "python scripts/feat_to_testset.py validate-package-readiness --artifacts-dir $OUTPUT"
+    - "python scripts/feat_to_testset.py freeze-guard --artifacts-dir $OUTPUT"
+  semantic:
+    input_checklist: input/semantic-checklist.md
+    output_checklist: output/semantic-checklist.md
+
+evidence:
+  execution_schema: evidence/execution-evidence.schema.json
+  supervision_schema: evidence/supervision-evidence.schema.json
+  report_template: evidence/report.template.md
+
+lifecycle:
+  definition_file: ll.lifecycle.yaml
+  max_revision_rounds: 3
+
+gate:
+  freeze_requires:
+    - input_structural_pass
+    - input_semantic_pass
+    - output_structural_pass
+    - output_semantic_pass
+    - execution_evidence_present
+    - supervision_evidence_present
+    - gate_subjects_present
+  reject_when:
+    - upstream_package_not_freeze_ready
+    - selected_feat_ref_missing
+    - missing_test_set_object
+    - missing_gate_subjects
+    - candidate_status_model_inconsistent
+    - missing_test_execution_handoff
+    - required_evidence_missing
