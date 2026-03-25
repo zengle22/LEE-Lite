@@ -1,12 +1,12 @@
 {
   "release_ref": "REL-001",
-  "validated_at": "2026-03-24T10:30:00+08:00",
+  "validated_at": "2026-03-24T13:30:00+08:00",
   "minimum_validation_scope": [
     "feat_refs and derived_from_ids consistency",
-    "included_tasks.json contains only tasks derived from listed feat refs",
-    "feat_dependency_matrix.json is solvable and has no illegal delivery-cycle",
-    "release_scope.md matches release metadata",
-    "source_refs, epic_ref, and src_root_id closure consistency"
+    "included_tasks.json contains only listed feat tasks",
+    "feat_dependency_matrix.json is solvable and acyclic",
+    "release_scope.md matches metadata",
+    "source_refs/epic_ref/src_root_id closure consistency"
   ],
   "checks": {
     "feat_bundle_not_empty": true,
@@ -32,7 +32,7 @@
   "dependency_ref": "ssot/release/REL-001/feat_dependency_matrix.json",
   "errors": [],
   "warnings": [
-    "FEAT-SRC-001-001 and FEAT-SRC-001-003 contain runtime collaboration wording in FEAT text; release planning normalizes this into an acyclic delivery dependency matrix."
+    "FEAT-SRC-001-005 may include a guarded gate branch in pilot validation; this affects enablement semantics, not feat membership."
   ],
-  "summary": "Release draft validation passed: source refs resolved, feat versions locked, included task manifest matches feat scope, no cross-scope mix detected, and delivery dependency graph is acyclic."
+  "summary": "Release validation passed against the aligned v2 FEAT/TASK baseline."
 }

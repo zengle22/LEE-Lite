@@ -1,4 +1,4 @@
-{
+﻿{
   "release_ref": "REL-001",
   "selection_kind": "explicit_manifest",
   "task_bundle_root": "ssot/tasks/SRC-001",
@@ -6,81 +6,81 @@
   "tasks": [
     {
       "task_id": "TASK-FEAT-SRC-001-001-001",
-      "version": "v1",
+      "version": "v2",
       "feat_id": "FEAT-SRC-001-001",
-      "path": "ssot/tasks/SRC-001/FEAT-SRC-001-001/TASK-FEAT-SRC-001-001-001__gateway-contract-and-receipt-definition.md"
+      "path": "ssot/tasks/SRC-001/FEAT-SRC-001-001/TASK-FEAT-SRC-001-001-001__collaboration-object-and-transition-contract-definition.md"
     },
     {
       "task_id": "TASK-FEAT-SRC-001-001-002",
-      "version": "v1",
+      "version": "v2",
       "feat_id": "FEAT-SRC-001-001",
-      "path": "ssot/tasks/SRC-001/FEAT-SRC-001-001/TASK-FEAT-SRC-001-001-002__gateway-runtime-and-operation-enforcement.md"
+      "path": "ssot/tasks/SRC-001/FEAT-SRC-001-001/TASK-FEAT-SRC-001-001-002__loop-handoff-and-reentry-orchestration-integration.md"
     },
     {
       "task_id": "TASK-FEAT-SRC-001-002-001",
-      "version": "v1",
+      "version": "v2",
       "feat_id": "FEAT-SRC-001-002",
-      "path": "ssot/tasks/SRC-001/FEAT-SRC-001-002/TASK-FEAT-SRC-001-002-001__path-policy-rule-model-definition.md"
+      "path": "ssot/tasks/SRC-001/FEAT-SRC-001-002/TASK-FEAT-SRC-001-002-001__handoff-and-gate-decision-chain-contract-definition.md"
     },
     {
       "task_id": "TASK-FEAT-SRC-001-002-002",
-      "version": "v1",
+      "version": "v2",
       "feat_id": "FEAT-SRC-001-002",
-      "path": "ssot/tasks/SRC-001/FEAT-SRC-001-002/TASK-FEAT-SRC-001-002-002__path-and-mode-evaluator-implementation.md"
+      "path": "ssot/tasks/SRC-001/FEAT-SRC-001-002/TASK-FEAT-SRC-001-002-002__formal-materialization-single-path-integration.md"
     },
     {
       "task_id": "TASK-FEAT-SRC-001-003-001",
-      "version": "v1",
+      "version": "v2",
       "feat_id": "FEAT-SRC-001-003",
-      "path": "ssot/tasks/SRC-001/FEAT-SRC-001-003/TASK-FEAT-SRC-001-003-001__artifact-minimal-identity-contract-and-registry-schema-definition.md"
+      "path": "ssot/tasks/SRC-001/FEAT-SRC-001-003/TASK-FEAT-SRC-001-003-001__object-layering-and-formal-reference-model-definition.md"
     },
     {
       "task_id": "TASK-FEAT-SRC-001-003-002",
-      "version": "v1",
+      "version": "v2",
       "feat_id": "FEAT-SRC-001-003",
-      "path": "ssot/tasks/SRC-001/FEAT-SRC-001-003/TASK-FEAT-SRC-001-003-002__registry-binding-and-managed-read-eligibility-enforcement.md"
+      "path": "ssot/tasks/SRC-001/FEAT-SRC-001-003/TASK-FEAT-SRC-001-003-002__lineage-based-consumer-admission-enforcement.md"
     },
     {
       "task_id": "TASK-FEAT-SRC-001-004-001",
-      "version": "v1",
+      "version": "v2",
       "feat_id": "FEAT-SRC-001-004",
-      "path": "ssot/tasks/SRC-001/FEAT-SRC-001-004/TASK-FEAT-SRC-001-004-001__io-contract-and-audit-severity-definition.md"
+      "path": "ssot/tasks/SRC-001/FEAT-SRC-001-004/TASK-FEAT-SRC-001-004-001__mainline-io-and-path-policy-boundary-definition.md"
     },
     {
       "task_id": "TASK-FEAT-SRC-001-004-002",
-      "version": "v1",
+      "version": "v2",
       "feat_id": "FEAT-SRC-001-004",
-      "path": "ssot/tasks/SRC-001/FEAT-SRC-001-004/TASK-FEAT-SRC-001-004-002__workspace-auditor-and-finding-generation.md"
+      "path": "ssot/tasks/SRC-001/FEAT-SRC-001-004/TASK-FEAT-SRC-001-004-002__governed-io-verdict-and-path-mode-enforcement.md"
     },
     {
       "task_id": "TASK-FEAT-SRC-001-004-003",
-      "version": "v1",
+      "version": "v2",
       "feat_id": "FEAT-SRC-001-004",
-      "path": "ssot/tasks/SRC-001/FEAT-SRC-001-004/TASK-FEAT-SRC-001-004-003__audit-consumer-integration-for-gate-repair-and-supervision.md"
+      "path": "ssot/tasks/SRC-001/FEAT-SRC-001-004/TASK-FEAT-SRC-001-004-003__bypass-detection-and-io-contract-audit-integration.md"
     },
     {
       "task_id": "TASK-FEAT-SRC-001-005-001",
-      "version": "v1",
+      "version": "v2",
       "feat_id": "FEAT-SRC-001-005",
-      "path": "ssot/tasks/SRC-001/FEAT-SRC-001-005/TASK-FEAT-SRC-001-005-001__external-gate-decision-model-and-input-contract-definition.md"
+      "path": "ssot/tasks/SRC-001/FEAT-SRC-001-005/TASK-FEAT-SRC-001-005-001__governed-skill-integration-matrix-and-onboarding-scope-definition.md"
     },
     {
       "task_id": "TASK-FEAT-SRC-001-005-002",
-      "version": "v1",
+      "version": "v2",
       "feat_id": "FEAT-SRC-001-005",
-      "path": "ssot/tasks/SRC-001/FEAT-SRC-001-005/TASK-FEAT-SRC-001-005-002__materialization-object-schemas-and-state-transition-definition.md"
+      "path": "ssot/tasks/SRC-001/FEAT-SRC-001-005/TASK-FEAT-SRC-001-005-002__migration-wave-cutover-and-fallback-rule-definition.md"
     },
     {
       "task_id": "TASK-FEAT-SRC-001-005-003",
-      "version": "v1",
+      "version": "v2",
       "feat_id": "FEAT-SRC-001-005",
-      "path": "ssot/tasks/SRC-001/FEAT-SRC-001-005/TASK-FEAT-SRC-001-005-003__gate-ready-consumer-and-decision-evaluation-integration.md"
+      "path": "ssot/tasks/SRC-001/FEAT-SRC-001-005/TASK-FEAT-SRC-001-005-003__pilot-chain-selection-and-cross-skill-e2e-evidence-contract.md"
     },
     {
       "task_id": "TASK-FEAT-SRC-001-005-004",
-      "version": "v1",
+      "version": "v2",
       "feat_id": "FEAT-SRC-001-005",
-      "path": "ssot/tasks/SRC-001/FEAT-SRC-001-005/TASK-FEAT-SRC-001-005-004__formal-materialization-and-follow-up-dispatch-integration.md"
+      "path": "ssot/tasks/SRC-001/FEAT-SRC-001-005/TASK-FEAT-SRC-001-005-004__pilot-rollout-validation-and-readiness-integration.md"
     }
   ]
 }

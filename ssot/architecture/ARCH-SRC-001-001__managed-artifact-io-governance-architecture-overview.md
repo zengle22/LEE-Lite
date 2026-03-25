@@ -3,7 +3,7 @@ id: ARCH-SRC-001-001
 ssot_type: ARCHITECTURE
 title: Managed Artifact IO Governance Architecture Overview
 status: active
-version: v1
+version: v2
 schema_version: 0.1.0
 architecture_root_id: arch-root-src-001-001
 parent_id: SRC-001
@@ -23,6 +23,7 @@ source_refs:
   - ADR-001
   - ADR-005
   - ADR-006
+  - ADR-009
 owner: system-architecture-owner
 tags: [architecture, system-overview, managed-artifact, gateway, registry, audit, gate]
 workflow_key: manual.architecture.overview
@@ -31,6 +32,7 @@ properties:
   src_root_id: src-root-src-001
   release_ref: REL-001
   provisional_slice_note: external gate decision and materialization remains provisional while ADR-006 is draft
+  runtime_carrier: cli-first file-runtime with loop and watcher consumers
   tech_refs:
     - TECH-FEAT-SRC-001-001
     - TECH-FEAT-SRC-001-002
@@ -71,6 +73,21 @@ properties:
 - 完整数据库驱动状态机平台
 - 长生命周期统一服务化 orchestration 中枢
 - 由 skill 自己决定最终正式路径的自由文件系统
+
+## 当前实现承载形态
+
+`SRC-001` 当前冻结的实现承载形态是 `CLI-first + file-based runtime`。
+
+- `Governed Skill`、`Gateway`、`Policy`、`Registry`、`Auditor`、`External Gate` 优先实现为可组合的 CLI 命令、runtime helper 与文件对象消费者，而不是先建设独立 HTTP service 或前后端平台。
+- 主链状态推进依赖 `job / handoff / gate decision / evidence / materialization object` 等结构化文件对象，以及 execution loop / human gate loop / watcher 对这些对象的消费。
+- `Human Gate` 在当前阶段优先通过文件对象、CLI 和 loop 提示链承载，不要求先冻结独立前端页面。
+- 如后续需要补充 UI、服务化 API 或后台常驻进程，它们只能作为当前 CLI/file runtime 的派生承载层，不得改写既有对象边界、状态语义与 gate 分权。
+
+这意味着当前实现优先级是：
+
+1. 冻结文件对象、CLI 边界与 loop/watcher 消费规则。
+2. 让主链在 `CLI + file runtime` 上跑通。
+3. 再视需要补充更强的服务化或可视化承载层。
 
 ## 核心组件图
 
@@ -197,13 +214,14 @@ sequenceDiagram
 - 正式 consumer 不得以自由目录扫描替代 managed read、formal reference resolution 或 handoff binding；任何旁路读取只能作为受限辅助能力，并纳入审计。
 - `proposal` 与 `materialized object` 强制分层；formal object 只能在 gate 后物化。
 - `External Gate` 当前是唯一 formal materialization + dispatch + run closure 层，但这一 slice 仍受 `ADR-006` draft 状态影响。
+- `Gate runtime`、`Gateway runtime` 与相关治理组件在 v0.x 阶段默认采用 `CLI-first + file runtime` 承载，除非后续 ADR 明确冻结新的默认承载方案。
 
 ## 文档体系映射
 
 | 文档类型 | 作用 |
 | --- | --- |
 | `ADR` | 冻结关键架构决策与不可随意改写的原则 |
-| `ARCHITECTURE` | 描述系统整体蓝图、组件关系、对象模型与时序 |
+| `ARCHITECTURE` | 描述系统整体蓝图、组件关系、对象模型、时序与当前默认实现承载形态 |
 | `SRC / EPIC / FEAT / TASK / RELEASE` | 定义业务与治理需求范围、拆分与交付边界 |
 | `TECH` | 收口单组件或单能力的技术设计 |
 | `Contract / Schema` | 定义机器可执行输入输出和结构约束 |
