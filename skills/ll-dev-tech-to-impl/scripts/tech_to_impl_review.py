@@ -6,6 +6,7 @@ from typing import Any
 
 from tech_to_impl_builder import DOWNSTREAM_TEMPLATE_ID, DOWNSTREAM_TEMPLATE_PATH
 from tech_to_impl_common import dump_json, ensure_list, load_json, parse_markdown_frontmatter, render_markdown
+from tech_to_impl_derivation import workstream_required_inputs
 
 REQUIRED_OUTPUT_FILES = [
     "package-manifest.json",
@@ -142,6 +143,8 @@ def build_supervision_evidence(artifacts_dir: Path) -> dict[str, Any]:
     bundle_json = load_json(artifacts_dir / "impl-bundle.json")
     handoff = load_json(artifacts_dir / "handoff-to-feature-delivery.json")
     upstream_refs = load_json(artifacts_dir / "upstream-design-refs.json")
+    evidence_plan = load_json(artifacts_dir / "dev-evidence-plan.json")
+    smoke_gate = load_json(artifacts_dir / "smoke-gate-subject.json")
     findings: list[dict[str, Any]] = []
 
     assessment = bundle_json.get("workstream_assessment") or {}
@@ -165,6 +168,25 @@ def build_supervision_evidence(artifacts_dir: Path) -> dict[str, Any]:
         findings.append({"severity": "P1", "title": "Upstream FEAT mismatch", "detail": "upstream-design-refs.json must retain the selected feat_ref."})
     if str(upstream_refs.get("tech_ref") or "") != str(bundle_json.get("tech_ref") or ""):
         findings.append({"severity": "P1", "title": "Upstream TECH mismatch", "detail": "upstream-design-refs.json must retain the selected tech_ref."})
+    if not ensure_list(handoff.get("deliverables")):
+        findings.append({"severity": "P1", "title": "Missing handoff deliverables", "detail": "handoff-to-feature-delivery.json must freeze downstream deliverables."})
+    if not ensure_list(handoff.get("acceptance_refs")):
+        findings.append({"severity": "P1", "title": "Missing handoff acceptance refs", "detail": "handoff-to-feature-delivery.json must carry acceptance_refs for downstream execution."})
+    evidence_rows = evidence_plan.get("rows")
+    if not isinstance(evidence_rows, list) or not evidence_rows:
+        findings.append({"severity": "P1", "title": "Evidence plan is empty", "detail": "dev-evidence-plan.json must define at least one evidence row before the package can become execution-ready."})
+
+    expected_inputs = workstream_required_inputs(assessment)
+    actual_inputs = ensure_list(smoke_gate.get("required_inputs"))
+    missing_inputs = [item for item in expected_inputs if item not in actual_inputs]
+    if missing_inputs:
+        findings.append(
+            {
+                "severity": "P1",
+                "title": "Smoke gate missing workstream inputs",
+                "detail": f"smoke-gate-subject.json required_inputs is missing: {', '.join(missing_inputs)}.",
+            }
+        )
 
     blocking = [item for item in findings if str(item.get("severity") or "") in {"P0", "P1"}]
     passed = not blocking
@@ -256,6 +278,7 @@ def validate_output_package(artifacts_dir: Path) -> tuple[list[str], dict[str, A
     smoke_gate = load_json(artifacts_dir / "smoke-gate-subject.json")
     handoff = load_json(artifacts_dir / "handoff-to-feature-delivery.json")
     upstream_refs = load_json(artifacts_dir / "upstream-design-refs.json")
+    evidence_plan = load_json(artifacts_dir / "dev-evidence-plan.json")
 
     if bundle_json.get("artifact_type") != "feature_impl_candidate_package":
         errors.append("impl-bundle.json artifact_type must be feature_impl_candidate_package.")
@@ -309,6 +332,31 @@ def validate_output_package(artifacts_dir: Path) -> tuple[list[str], dict[str, A
     for field in ["feat_ref", "impl_ref", "tech_ref"]:
         if str(handoff.get(field) or "") != str(bundle_json.get(field) or ""):
             errors.append(f"handoff-to-feature-delivery.json {field} must match impl-bundle.json.")
+    if not ensure_list(handoff.get("deliverables")):
+        errors.append("handoff-to-feature-delivery.json must include deliverables.")
+    if not ensure_list(handoff.get("acceptance_refs")):
+        errors.append("handoff-to-feature-delivery.json must include acceptance_refs.")
+    evidence_rows = evidence_plan.get("rows")
+    if not isinstance(evidence_rows, list) or not evidence_rows:
+        errors.append("dev-evidence-plan.json must include at least one evidence row.")
+    else:
+        evidence_acceptance_refs = {
+            str(item.get("acceptance_ref") or "").strip()
+            for item in evidence_rows
+            if isinstance(item, dict) and str(item.get("acceptance_ref") or "").strip()
+        }
+        handoff_acceptance_refs = set(ensure_list(handoff.get("acceptance_refs")))
+        missing_evidence_refs = [item for item in sorted(handoff_acceptance_refs) if item not in evidence_acceptance_refs]
+        if missing_evidence_refs:
+            errors.append(
+                "dev-evidence-plan.json must cover all acceptance_refs: " + ", ".join(missing_evidence_refs) + "."
+            )
+
+    expected_inputs = workstream_required_inputs(assessment)
+    actual_inputs = ensure_list(smoke_gate.get("required_inputs"))
+    missing_inputs = [item for item in expected_inputs if item not in actual_inputs]
+    if missing_inputs:
+        errors.append(f"smoke-gate-subject.json required_inputs is missing: {', '.join(missing_inputs)}.")
 
     manifest_status = str(manifest.get("status") or "")
     bundle_status = str(bundle_json.get("status") or "")
@@ -348,6 +396,7 @@ def validate_package_readiness(artifacts_dir: Path) -> tuple[bool, list[str]]:
     review_report = load_json(artifacts_dir / "impl-review-report.json")
     acceptance_report = load_json(artifacts_dir / "impl-acceptance-report.json")
     smoke_gate = load_json(artifacts_dir / "smoke-gate-subject.json")
+    evidence_plan = load_json(artifacts_dir / "dev-evidence-plan.json")
 
     readiness_errors: list[str] = []
     if bundle_json.get("status") != "execution_ready":
@@ -360,6 +409,8 @@ def validate_package_readiness(artifacts_dir: Path) -> tuple[bool, list[str]]:
         readiness_errors.append("impl-acceptance-report.json decision must be approve.")
     if smoke_gate.get("ready_for_execution") is not True:
         readiness_errors.append("smoke-gate-subject.json must mark ready_for_execution true.")
+    if not isinstance(evidence_plan.get("rows"), list) or not evidence_plan.get("rows"):
+        readiness_errors.append("dev-evidence-plan.json rows must be non-empty.")
     return not readiness_errors, readiness_errors
 
 

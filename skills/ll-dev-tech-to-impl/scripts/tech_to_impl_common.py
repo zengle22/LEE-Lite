@@ -19,7 +19,6 @@ REQUIRED_INPUT_FILES = [
     "tech-design-bundle.md",
     "tech-design-bundle.json",
     "tech-spec.md",
-    "tech-impl.md",
     "tech-review-report.json",
     "tech-acceptance-report.json",
     "tech-defect-list.json",
@@ -221,6 +220,31 @@ def validate_input_package(artifacts_dir: Path, feat_ref: str, tech_ref: str) ->
 
     if str(package.handoff.get("target_workflow") or "") != "workflow.dev.tech_to_impl":
         errors.append("handoff-to-tech-impl.json must preserve workflow.dev.tech_to_impl lineage.")
+
+    axis_markers = [
+        str(selected_feat.get("resolved_axis") or "").strip().lower(),
+        str(selected_feat.get("axis_id") or "").strip().lower(),
+        str(selected_feat.get("track") or "").strip().lower(),
+    ]
+    is_adr007_adoption = "ADR-007" in source_refs and any(
+        marker in {"adoption_e2e", "skill-adoption-e2e"} for marker in axis_markers if marker
+    )
+    if is_adr007_adoption:
+        tech_design = bundle.get("tech_design") or {}
+        implementation_rules = ensure_list(tech_design.get("implementation_rules")) if isinstance(tech_design, dict) else []
+        inherited_text = "\n".join(implementation_rules + ensure_list(selected_feat.get("constraints")))
+        required_family_markers = [
+            "skill.qa.test_exec_web_e2e",
+            "skill.qa.test_exec_cli",
+            "skill.runner.test_e2e",
+            "skill.runner.test_cli",
+        ]
+        missing_family_markers = [marker for marker in required_family_markers if marker not in inherited_text]
+        if missing_family_markers:
+            errors.append(
+                "ADR-007 adoption_e2e TECH must preserve the full test execution family markers: "
+                + ", ".join(missing_family_markers)
+            )
 
     result = {
         "valid": not errors,

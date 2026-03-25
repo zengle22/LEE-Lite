@@ -13,12 +13,16 @@ from tech_to_impl_derivation import (
     consistency_check,
     deliverable_files,
     evidence_rows,
+    filtered_implementation_rules,
     frontend_workstream_items,
+    implementation_units,
     implementation_scope,
     implementation_steps,
     integration_plan_items,
     migration_plan_items,
     risk_items,
+    tech_list,
+    workstream_required_inputs,
 )
 
 
@@ -47,21 +51,30 @@ def _md_frontmatter(artifact_type: str, refs: dict[str, str | None], source_refs
     return payload
 
 
+def _non_empty_phase_input_names(handoff: dict[str, Any]) -> list[str]:
+    phase_inputs = handoff.get("phase_inputs") or {}
+    if not isinstance(phase_inputs, dict):
+        return []
+    return [name for name, items in phase_inputs.items() if ensure_list(items)]
+
+
 def build_candidate_package(package: Any, run_id: str) -> dict[str, Any]:
     feature = package.selected_feat
     refs = build_refs(package)
     assessment = assess_workstreams(feature, package)
     consistency = consistency_check(assessment)
     checkpoints = acceptance_checkpoints(feature)
-    scope = implementation_scope(feature)
-    steps = implementation_steps(feature, assessment)
-    risks = risk_items(feature, assessment)
+    scope = implementation_scope(feature, package)
+    steps = implementation_steps(feature, assessment, package)
+    risks = risk_items(feature, assessment, package)
     deliverables = deliverable_files(assessment)
-    integration_items = integration_plan_items(feature, assessment)
+    smoke_required_inputs = workstream_required_inputs(assessment)
+    integration_items = integration_plan_items(feature, assessment, package)
     evidence_plan_rows = evidence_rows(feature, assessment)
     frontend_items = frontend_workstream_items(feature)
-    backend_items = backend_workstream_items(feature)
-    migration_items = migration_plan_items(feature)
+    backend_items = backend_workstream_items(feature, package)
+    migration_items = migration_plan_items(feature, package)
+    implementation_units_payload = implementation_units(package)
 
     source_refs = unique_strings(
         [f"dev.feat-to-tech::{package.run_id}", refs["feat_ref"], refs["tech_ref"]]
@@ -88,7 +101,14 @@ def build_candidate_package(package: Any, run_id: str) -> dict[str, Any]:
         "frozen_source_refs": source_refs,
         "frozen_decisions": {
             "design_focus": ensure_list((package.tech_json.get("tech_design") or {}).get("design_focus")),
-            "implementation_rules": ensure_list((package.tech_json.get("tech_design") or {}).get("implementation_rules")),
+            "implementation_rules": filtered_implementation_rules(package),
+            "state_model": tech_list(package, "state_model"),
+            "main_sequence": tech_list(package, "main_sequence"),
+            "integration_points": tech_list(package, "integration_points"),
+            "implementation_unit_mapping": [
+                f"{unit['path']} ({unit['mode']}): {unit['detail']}" for unit in implementation_units_payload
+            ],
+            "interface_contracts": tech_list(package, "interface_contracts"),
             "consistency_passed": bool((package.tech_json.get("design_consistency_check") or {}).get("passed")),
         },
     }
@@ -114,6 +134,8 @@ def build_candidate_package(package: Any, run_id: str) -> dict[str, Any]:
             "evidence": ["dev-evidence-plan.json", "smoke-gate-subject.json"],
             "upstream_design": ["upstream-design-refs.json"],
         },
+        "deliverables": deliverables,
+        "acceptance_refs": [item["ref"] for item in checkpoints],
         "supporting_artifact_refs": deliverables,
         "created_at": utc_now(),
     }
@@ -217,13 +239,13 @@ def build_candidate_package(package: Any, run_id: str) -> dict[str, Any]:
             + "\n".join([f"- {index}. {step['title']}: {step['done_when']}" for index, step in enumerate(steps, start=1)]),
             "## Integration Plan\n\n" + "\n".join(f"- {item}" for item in integration_items),
             "## Evidence Plan\n\n" + "\n".join(f"- {row['acceptance_ref']}: {', '.join(row['evidence_types'])}" for row in evidence_plan_rows),
-            "## Smoke Gate Subject\n\n- ready_for_execution remains false until supervisor review passes.",
+            "## Smoke Gate Subject\n\n- See `smoke-gate-subject.json` for the current `status`, `decision`, and `ready_for_execution` state.",
             "## Delivery Handoff\n\n"
             + "\n".join(
                 [
                     f"- target_template_id: `{DOWNSTREAM_TEMPLATE_ID}`",
                     f"- primary_artifact_ref: `{handoff['primary_artifact_ref']}`",
-                    f"- phase_inputs: {', '.join(sorted(handoff['phase_inputs'].keys()))}",
+                    f"- phase_inputs: {', '.join(_non_empty_phase_input_names(handoff))}",
                 ]
             ),
             "## Traceability\n\n" + "\n".join(f"- {item}" for item in source_refs),
@@ -322,6 +344,8 @@ def build_candidate_package(package: Any, run_id: str) -> dict[str, Any]:
         "decision": "pending",
         "ready_for_execution": False,
         "required_inputs": ["impl-task.md", "integration-plan.md", "dev-evidence-plan.json"],
+        "required_workstreams": smoke_required_inputs,
+        "required_inputs": smoke_required_inputs,
         "acceptance_refs": [item["ref"] for item in checkpoints],
         "created_at": utc_now(),
     }

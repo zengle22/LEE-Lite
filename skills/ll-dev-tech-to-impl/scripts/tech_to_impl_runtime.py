@@ -5,6 +5,7 @@ Lite-native runtime support for tech-to-impl.
 
 from __future__ import annotations
 
+import hashlib
 from pathlib import Path
 from typing import Any
 
@@ -32,13 +33,24 @@ def output_dir_for(repo_root: Path, run_id: str) -> Path:
     return repo_root / "artifacts" / "tech-to-impl" / run_id
 
 
+def default_run_id(package: Any, tech_ref: str) -> str:
+    candidate = f"{package.run_id}--{slugify(tech_ref).lower()}"
+    # Keep artifact paths comfortably below Windows path-length trouble spots.
+    if len(candidate) <= 80:
+        return candidate
+    tail = slugify(tech_ref).lower().split("-")[-1]
+    digest = hashlib.sha1(candidate.encode("utf-8")).hexdigest()[:8]
+    base = slugify(package.run_id).lower()[:48].rstrip("-")
+    return f"{base}--{tail}-{digest}"
+
+
 def executor_run(input_path: Path, feat_ref: str, tech_ref: str, repo_root: Path, run_id: str, allow_update: bool = False) -> dict[str, Any]:
     errors, validation = validate_input_package(input_path, feat_ref, tech_ref)
     if errors:
         raise ValueError("; ".join(errors))
 
     package = load_tech_package(input_path)
-    effective_run_id = run_id or f"{package.run_id}--{slugify(tech_ref).lower()}"
+    effective_run_id = run_id or default_run_id(package, tech_ref)
     output_dir = output_dir_for(repo_root, effective_run_id)
     if output_dir.exists() and not allow_update:
         raise FileExistsError(f"Output directory already exists: {output_dir}")
