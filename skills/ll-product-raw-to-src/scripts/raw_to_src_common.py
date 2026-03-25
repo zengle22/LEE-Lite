@@ -331,7 +331,15 @@ def enrich_governance_bridge_candidate(candidate: dict[str, Any]) -> dict[str, A
             " ".join(bridge.get("governance_objects", [])),
         ]
     ).lower()
-    is_qa_execution = any(token in source_text for token in ("qa test execution", "testenvironmentspec", "testcasepack", "scriptpack", "tse", "evidencebundle"))
+    qa_patterns = (
+        r"\bqa test execution\b",
+        r"\btestenvironmentspec\b",
+        r"\btestcasepack\b",
+        r"\bscriptpack\b",
+        r"\btse\b",
+        r"\bevidencebundle\b",
+    )
+    is_qa_execution = any(re.search(pattern, source_text) for pattern in qa_patterns)
     if not candidate.get("bridge_summary"):
         candidate["bridge_summary"] = dedupe(
             [
