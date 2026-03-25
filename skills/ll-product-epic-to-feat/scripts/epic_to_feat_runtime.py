@@ -29,21 +29,32 @@ from epic_to_feat_cli_integration import (
     write_executor_outputs,
 )
 from epic_to_feat_derivation import (
+    apply_feature_relationships,
     build_boundary_matrix,
     build_feat_record,
     bundle_source_refs,
     bundle_shared_non_goals,
+    canonical_glossary,
     choose_epic_ref,
     choose_src_ref,
     derive_bundle_intent,
     derive_feat_axes,
     feat_count_assessment,
     prerequisite_foundations,
+    prohibited_inference_rules,
 )
 
 
 REQUIRED_OUTPUT_FILES = ["feat-freeze-bundle.md", "feat-freeze-bundle.json", "feat-review-report.json", "feat-acceptance-report.json", "feat-defect-list.json", "feat-freeze-gate.json", "handoff-to-feat-downstreams.json", "execution-evidence.json", "supervision-evidence.json"]
-REQUIRED_MARKDOWN_HEADINGS = ["FEAT Bundle Intent", "EPIC Context", "Boundary Matrix", "FEAT Inventory", "Acceptance and Review", "Downstream Handoff", "Traceability"]
+REQUIRED_MARKDOWN_HEADINGS = ["FEAT Bundle Intent", "EPIC Context", "Canonical Glossary", "Boundary Matrix", "FEAT Inventory", "Prohibited Inference Rules", "Acceptance and Review", "Downstream Handoff", "Traceability"]
+REQUIRED_FEAT_SUBHEADINGS = [
+    "#### Identity and Scenario",
+    "#### Business Flow",
+    "#### Product Objects and Deliverables",
+    "#### Collaboration and Timeline",
+    "#### Acceptance and Testability",
+    "#### Frozen Downstream Boundary",
+]
 DOWNSTREAM_WORKFLOWS = ["workflow.product.task.feat_to_delivery_prep", "workflow.product.feat_to_plan_pipeline"]
 
 
@@ -74,14 +85,17 @@ class GeneratedFeatBundle:
     handoff: dict[str, Any]
 
 
-def build_feat_bundle(package: Any) -> GeneratedFeatBundle:
+def build_feat_bundle(package: Any, workflow_run_id: str | None = None) -> GeneratedFeatBundle:
+    active_run_id = workflow_run_id or package.run_id
     axes = derive_feat_axes(package)
-    feats = [build_feat_record(package, axis, index) for index, axis in enumerate(axes, start=1)]
+    feats = apply_feature_relationships([build_feat_record(package, axis, index) for index, axis in enumerate(axes, start=1)])
     assessment = feat_count_assessment(feats)
     epic_ref = choose_epic_ref(package)
     src_ref = choose_src_ref(package)
     boundary_matrix = build_boundary_matrix(feats)
     shared_non_goals = bundle_shared_non_goals(package)
+    glossary = canonical_glossary(feats)
+    inference_rules = prohibited_inference_rules()
     inherited_source_refs = bundle_source_refs(package, axes)
     source_refs = unique_strings([f"product.src-to-epic::{package.run_id}", epic_ref, src_ref] + inherited_source_refs)
     feat_track_map = [{"feat_ref": feat["feat_ref"], "title": feat["title"], "track": feat["track"]} for feat in feats]
@@ -122,13 +136,33 @@ def build_feat_bundle(package: Any) -> GeneratedFeatBundle:
     acceptance_decision = "approve" if not defects else "revise"
 
     handoff = {
-        "handoff_id": f"handoff-{package.run_id}-to-feat-downstreams",
+        "handoff_id": f"handoff-{active_run_id}-to-feat-downstreams",
         "from_skill": "ll-product-epic-to-feat",
-        "source_run_id": package.run_id,
+        "source_run_id": active_run_id,
         "epic_freeze_ref": epic_ref,
         "src_root_id": package.epic_json.get("src_root_id"),
         "feat_refs": [feat["feat_ref"] for feat in feats],
         "feat_track_map": feat_track_map,
+        "authoritative_artifact_map": [
+            {
+                "feat_ref": feat["feat_ref"],
+                "title": feat["title"],
+                "authoritative_artifact": feat["authoritative_artifact"],
+            }
+            for feat in feats
+        ],
+        "feature_dependency_map": [
+            {
+                "feat_ref": feat["feat_ref"],
+                "upstream_feat": feat["upstream_feat"],
+                "downstream_feat": feat["downstream_feat"],
+                "gate_decision_dependency_feat_refs": feat["gate_decision_dependency_feat_refs"],
+                "admission_dependency_feat_refs": feat["admission_dependency_feat_refs"],
+            }
+            for feat in feats
+        ],
+        "glossary": glossary,
+        "prohibited_inference_rules": inference_rules,
         "target_workflows": [
             {
                 "workflow": "workflow.product.task.feat_to_delivery_prep",
@@ -154,7 +188,7 @@ def build_feat_bundle(package: Any) -> GeneratedFeatBundle:
     json_payload = {
         "artifact_type": "feat_freeze_package",
         "workflow_key": "product.epic-to-feat",
-        "workflow_run_id": package.run_id,
+        "workflow_run_id": active_run_id,
         "title": f"{package.epic_json.get('title') or epic_ref} FEAT Bundle",
         "status": "accepted" if not defects else "revised",
         "schema_version": "1.0.0",
@@ -167,17 +201,25 @@ def build_feat_bundle(package: Any) -> GeneratedFeatBundle:
         "bundle_shared_non_goals": shared_non_goals,
         "epic_context": {
             "business_goal": package.epic_json.get("business_goal"),
+            "business_value_problem": ensure_list(package.epic_json.get("business_value_problem")),
+            "product_positioning": package.epic_json.get("product_positioning"),
+            "actors_and_roles": package.epic_json.get("actors_and_roles"),
             "scope": ensure_list(package.epic_json.get("scope")),
+            "upstream_and_downstream": ensure_list(package.epic_json.get("upstream_and_downstream")),
+            "epic_success_criteria": ensure_list(package.epic_json.get("epic_success_criteria") or package.epic_json.get("success_metrics")),
             "non_goals": ensure_list(package.epic_json.get("non_goals")),
             "decomposition_rules": ensure_list(package.epic_json.get("decomposition_rules")),
+            "product_behavior_slices": package.epic_json.get("product_behavior_slices") or [],
             "constraints_and_dependencies": ensure_list(package.epic_json.get("constraints_and_dependencies")),
             "rollout_requirement": package.epic_json.get("rollout_requirement"),
             "rollout_plan": package.epic_json.get("rollout_plan"),
             "prerequisite_foundations": prerequisites,
         },
+        "glossary": glossary,
         "boundary_matrix": boundary_matrix,
         "features": feats,
         "feat_track_map": feat_track_map,
+        "prohibited_inference_rules": inference_rules,
         "bundle_acceptance_conventions": [
             {
                 "topic": "Traceability",
@@ -204,7 +246,7 @@ def build_feat_bundle(package: Any) -> GeneratedFeatBundle:
             },
             {
                 "bundle_section": "FEAT Inventory",
-                "epic_fields": ["scope", "capability_axes", "decomposition_rules"],
+                "epic_fields": ["scope", "product_behavior_slices", "decomposition_rules"],
                 "source_refs": [epic_ref, f"product.src-to-epic::{package.run_id}"],
             },
         ],
@@ -214,7 +256,7 @@ def build_feat_bundle(package: Any) -> GeneratedFeatBundle:
     frontmatter = {
         "artifact_type": "feat_freeze_package",
         "workflow_key": "product.epic-to-feat",
-        "workflow_run_id": package.run_id,
+        "workflow_run_id": active_run_id,
         "status": "accepted" if not defects else "revised",
         "schema_version": "1.0.0",
         "epic_freeze_ref": epic_ref,
@@ -228,14 +270,37 @@ def build_feat_bundle(package: Any) -> GeneratedFeatBundle:
         f"- epic_freeze_ref: `{epic_ref}`",
         f"- src_root_id: `{package.epic_json.get('src_root_id')}`",
         f"- business_goal: {package.epic_json.get('business_goal')}",
+        f"- product_positioning: {package.epic_json.get('product_positioning')}",
     ]
+    business_value_problem = ensure_list(package.epic_json.get("business_value_problem"))
+    if business_value_problem:
+        epic_context_lines.append("- business_value_problem:")
+        epic_context_lines.extend([f"  - {item}" for item in business_value_problem[:4]])
+    actors = package.epic_json.get("actors_and_roles") or []
+    if isinstance(actors, list) and actors:
+        epic_context_lines.append("- actors_and_roles:")
+        for actor in actors[:5]:
+            if isinstance(actor, dict):
+                epic_context_lines.append(f"  - {actor.get('role')}: {actor.get('responsibility')}")
     epic_scope = ensure_list(package.epic_json.get("scope"))
     if epic_scope:
         epic_context_lines.append("- inherited_scope:")
         epic_context_lines.extend([f"  - {item}" for item in epic_scope[:5]])
+    upstream_downstream = ensure_list(package.epic_json.get("upstream_and_downstream"))
+    if upstream_downstream:
+        epic_context_lines.append("- upstream_and_downstream:")
+        epic_context_lines.extend([f"  - {item}" for item in upstream_downstream[:4]])
     if prerequisites:
         epic_context_lines.append("- prerequisite_foundations:")
         epic_context_lines.extend([f"  - {item}" for item in prerequisites])
+    product_behavior_slices = package.epic_json.get("product_behavior_slices") or []
+    if isinstance(product_behavior_slices, list) and product_behavior_slices:
+        epic_context_lines.append("- product_behavior_slices:")
+        for item in product_behavior_slices[:6]:
+            if isinstance(item, dict):
+                epic_context_lines.append(
+                    f"  - {item.get('name')}: {item.get('product_surface')} | completed_state={item.get('completed_state')}"
+                )
 
     boundary_matrix_sections = []
     for row in boundary_matrix:
@@ -254,6 +319,19 @@ def build_feat_bundle(package: Any) -> GeneratedFeatBundle:
             )
         )
 
+    glossary_lines = []
+    for item in glossary:
+        glossary_lines.extend(
+            [
+                f"### {item['term']}",
+                "",
+                f"- Canonical meaning: {item['canonical_meaning']}",
+                f"- Owned by FEAT: {item['owned_by_feat'] or 'bundle'}",
+                f"- Must not be confused with: {item['must_not_be_confused_with']}",
+                "",
+            ]
+        )
+
     bundle_shared_non_goal_lines = ["- Shared non-goals:"] + [f"  - {item}" for item in shared_non_goals]
     bundle_acceptance_lines = ["- Bundle acceptance conventions:"] + [
         f"  - {item['topic']}: {item['rule']}" for item in json_payload["bundle_acceptance_conventions"]
@@ -268,19 +346,122 @@ def build_feat_bundle(package: Any) -> GeneratedFeatBundle:
                     "",
                     f"- Track: {feat['track']}",
                     f"- Goal: {feat['goal']}",
+                    f"- Business value: {feat['business_value']}",
+                    "- Upstream FEATs:",
+                    *([f"  - {item}" for item in feat["upstream_feat"]] or ["  - None"]),
+                    "- Downstream FEATs:",
+                    *([f"  - {item}" for item in feat["downstream_feat"]] or ["  - None"]),
+                    "- Consumes:",
+                    *([f"  - {item}" for item in feat["consumes"]] or ["  - None"]),
+                    "- Produces:",
+                    *([f"  - {item}" for item in feat["produces"]] or ["  - None"]),
+                    f"- Authoritative artifact: {feat['authoritative_artifact']}",
+                    "- Gate decision dependency FEAT refs:",
+                    *([f"  - {item}" for item in feat["gate_decision_dependency_feat_refs"]] or ["  - None"]),
+                    f"- Gate decision dependency: {feat['gate_decision_dependency']}",
+                    "- Admission dependency FEAT refs:",
+                    *([f"  - {item}" for item in feat["admission_dependency_feat_refs"]] or ["  - None"]),
+                    f"- Admission dependency: {feat['admission_dependency']}",
+                    "",
+                    "#### Identity and Scenario",
+                    f"- Product interface: {feat['identity_and_scenario']['product_interface']}",
+                    f"- Completed state: {feat['identity_and_scenario']['completed_state']}",
+                    f"- Primary actor: {feat['identity_and_scenario']['primary_actor']}",
+                    "- Secondary actors:",
+                    *[f"  - {item}" for item in feat["identity_and_scenario"]["secondary_actors"]],
+                    f"- User story: {feat['identity_and_scenario']['user_story']}",
+                    f"- Trigger: {feat['identity_and_scenario']['trigger']}",
+                    "- Preconditions:",
+                    *[f"  - {item}" for item in feat["identity_and_scenario"]["preconditions"]],
+                    "- Postconditions:",
+                    *[f"  - {item}" for item in feat["identity_and_scenario"]["postconditions"]],
+                    "",
+                    "#### Business Flow",
+                    "- Main flow:",
+                    *[f"  - {item}" for item in feat["business_flow"]["main_flow"]],
+                    "- Alternate flows:",
+                    *([f"  - {item}" for item in feat["business_flow"]["alternate_flows"]] or ["  - None"]),
+                    "- Exception / reject / retry flows:",
+                    *([f"  - {item}" for item in feat["business_flow"]["exception_flows"]] or ["  - None"]),
+                    "- Business rules:",
+                    *[f"  - {item}" for item in feat["business_flow"]["business_rules"]],
+                    "- Business state transitions:",
+                    *[f"  - {item}" for item in feat["business_flow"]["business_state_transitions"]],
+                    "",
+                    "#### Product Objects and Deliverables",
+                    "- Input objects:",
+                    *[f"  - {item}" for item in feat["product_objects_and_deliverables"]["input_objects"]],
+                    "- Output objects:",
+                    *[f"  - {item}" for item in feat["product_objects_and_deliverables"]["output_objects"]],
+                    "- Required deliverables:",
+                    *[f"  - {item}" for item in feat["product_objects_and_deliverables"]["required_deliverables"]],
+                    f"- Authoritative output: {feat['product_objects_and_deliverables']['authoritative_output']}",
+                    f"- Business deliverable: {feat['product_objects_and_deliverables']['business_deliverable']}",
+                    "- Governance intermediates:",
+                    *([f"  - {item}" for item in feat["product_objects_and_deliverables"]["governance_intermediates"]] or ["  - None"]),
+                    "- Evidence / audit trail:",
+                    *[f"  - {item}" for item in feat["product_objects_and_deliverables"]["evidence_audit_trail"]],
+                    "",
+                    "#### Collaboration and Timeline",
+                    "- Role responsibility split:",
+                    *[f"  - {item}" for item in feat["collaboration_and_timeline"]["role_responsibility_split"]],
+                    "- Handoff points:",
+                    *[f"  - {item}" for item in feat["collaboration_and_timeline"]["handoff_points"]],
+                    "- Interaction timeline:",
+                    *[f"  - {item}" for item in feat["collaboration_and_timeline"]["interaction_timeline"]],
+                    "- Business sequence:",
+                    feat["collaboration_and_timeline"]["business_sequence"],
+                    "- Loop / gate / human involvement points:",
+                    *([f"  - {item}" for item in feat["collaboration_and_timeline"]["loop_gate_human_involvement"]] or ["  - None"]),
+                    "- Cross-cutting capability axes:",
+                    *([f"  - {item}" for item in feat["cross_cutting_capability_axes"]] or ["  - None"]),
+                    "",
+                    "#### Acceptance and Testability",
+                    "- Acceptance criteria:",
+                    *[f"  - {item}" for item in feat["acceptance_and_testability"]["acceptance_criteria"]],
+                    "- Observable outcomes:",
+                    *[f"  - {item}" for item in feat["acceptance_and_testability"]["observable_outcomes"]],
+                    "- Test dimensions:",
+                    *[f"  - {item}" for item in feat["acceptance_and_testability"]["test_dimensions"]],
+                    "- Out of scope:",
+                    *[f"  - {item}" for item in feat["acceptance_and_testability"]["out_of_scope"]],
+                    "- Structured acceptance checks:",
+                    *[
+                        f"  - {check['id']}: {check['scenario']} | given {check['given']} | when {check['when']} | then {check['then']}"
+                        for check in feat["acceptance_checks"]
+                    ],
+                    "",
+                    "#### Frozen Downstream Boundary",
+                    "- Frozen product shape:",
+                    *[f"  - {item}" for item in feat["frozen_downstream_boundary"]["frozen_product_shape"]],
+                    "- Frozen business semantics:",
+                    *[f"  - {item}" for item in feat["frozen_downstream_boundary"]["frozen_business_semantics"]],
+                    "- Open technical decisions:",
+                    *[f"  - {item}" for item in feat["frozen_downstream_boundary"]["open_technical_decisions"]],
+                    "- Explicit non-decisions:",
+                    *[f"  - {item}" for item in feat["frozen_downstream_boundary"]["explicit_non_decisions"]],
+                    "",
                     "- Scope:",
                     *[f"  - {item}" for item in feat["scope"]],
                     "- Dependencies:",
                     *([f"  - {item}" for item in feat["dependencies"]] or ["  - None"]),
                     "- Constraints:",
                     *[f"  - {item}" for item in feat["constraints"]],
-                    "- Acceptance Checks:",
-                    *[
-                        f"  - {check['id']}: {check['scenario']} | given {check['given']} | when {check['when']} | then {check['then']}"
-                        for check in feat["acceptance_checks"]
-                    ],
                 ]
             )
+        )
+
+    prohibited_rule_lines = []
+    for item in inference_rules:
+        prohibited_rule_lines.extend(
+            [
+                f"### {item['id']}",
+                "",
+                f"- Applies to: {', '.join(item['applies_to'])}",
+                f"- Rule: {item['rule']}",
+                f"- Protected fields: {', '.join(item['protected_fields'])}",
+                "",
+            ]
         )
 
     markdown_body = "\n\n".join(
@@ -288,8 +469,10 @@ def build_feat_bundle(package: Any) -> GeneratedFeatBundle:
             f"# {json_payload['title']}",
             "## FEAT Bundle Intent\n\n" + json_payload["bundle_intent"] + "\n\n" + "\n".join(bundle_shared_non_goal_lines),
             "## EPIC Context\n\n" + "\n".join(epic_context_lines),
+            "## Canonical Glossary\n\n" + "\n".join(glossary_lines).strip(),
             "## Boundary Matrix\n\n" + "\n\n".join(boundary_matrix_sections),
             "## FEAT Inventory\n\n" + "\n\n".join(feat_inventory_sections),
+            "## Prohibited Inference Rules\n\n" + "\n".join(prohibited_rule_lines).strip(),
             "## Acceptance and Review\n\n"
             + "\n".join(
                 [
@@ -309,6 +492,16 @@ def build_feat_bundle(package: Any) -> GeneratedFeatBundle:
                     *[f"  - {workflow}" for workflow in DOWNSTREAM_WORKFLOWS],
                     "- FEAT tracks:",
                     *[f"  - {item['feat_ref']}: {item['track']} ({item['title']})" for item in feat_track_map],
+                    "- Authoritative artifact map:",
+                    *[
+                        f"  - {item['feat_ref']}: {item['authoritative_artifact']}"
+                        for item in handoff["authoritative_artifact_map"]
+                    ],
+                    "- Feature dependency map:",
+                    *[
+                        f"  - {item['feat_ref']}: upstream={item['upstream_feat'] or ['None']}, downstream={item['downstream_feat'] or ['None']}, gate={item['gate_decision_dependency_feat_refs'] or ['None']}, admission={item['admission_dependency_feat_refs'] or ['None']}"
+                        for item in handoff["feature_dependency_map"]
+                    ],
                     "- Derived child artifacts:",
                     "  - TECH",
                     "  - TASK",
@@ -426,12 +619,63 @@ def validate_output_package(artifacts_dir: Path) -> tuple[list[str], dict[str, A
                 errors.append("Each feature entry must include feat_ref.")
             if not feature.get("title"):
                 errors.append("Each feature entry must include title.")
+            if not feature.get("slice_id"):
+                errors.append(f"Feature {feature.get('feat_ref') or '<unknown>'} must include slice_id.")
             if len(feature.get("acceptance_checks") or []) < 3:
                 errors.append(f"Feature {feature.get('feat_ref') or '<unknown>'} must include at least three acceptance checks.")
             if len(feature.get("constraints") or []) < 4:
                 errors.append(f"Feature {feature.get('feat_ref') or '<unknown>'} must include at least four constraints.")
             if len(feature.get("scope") or []) < 3:
                 errors.append(f"Feature {feature.get('feat_ref') or '<unknown>'} must include at least three scope bullets.")
+            for field in [
+                "upstream_feat",
+                "downstream_feat",
+                "consumes",
+                "produces",
+                "authoritative_artifact",
+                "gate_decision_dependency_feat_refs",
+                "gate_decision_dependency",
+                "admission_dependency_feat_refs",
+                "admission_dependency",
+                "dependency_kinds",
+            ]:
+                if field not in feature:
+                    errors.append(f"Feature {feature.get('feat_ref') or '<unknown>'} must include {field}.")
+            for field in [
+                "business_value",
+                "identity_and_scenario",
+                "business_flow",
+                "product_objects_and_deliverables",
+                "collaboration_and_timeline",
+                "acceptance_and_testability",
+                "frozen_downstream_boundary",
+            ]:
+                if not isinstance(feature.get(field), dict if field != "business_value" else str):
+                    errors.append(f"Feature {feature.get('feat_ref') or '<unknown>'} must include {field}.")
+            identity = feature.get("identity_and_scenario") or {}
+            if not identity.get("user_story") or not identity.get("trigger"):
+                errors.append(f"Feature {feature.get('feat_ref') or '<unknown>'} identity_and_scenario must include user_story and trigger.")
+            if not identity.get("product_interface") or not identity.get("completed_state"):
+                errors.append(f"Feature {feature.get('feat_ref') or '<unknown>'} identity_and_scenario must include product_interface and completed_state.")
+            business_flow = feature.get("business_flow") or {}
+            if len(business_flow.get("main_flow") or []) < 3:
+                errors.append(f"Feature {feature.get('feat_ref') or '<unknown>'} business_flow.main_flow must include at least three steps.")
+            product_objects = feature.get("product_objects_and_deliverables") or {}
+            if not product_objects.get("authoritative_output"):
+                errors.append(f"Feature {feature.get('feat_ref') or '<unknown>'} must include an authoritative_output.")
+            if not product_objects.get("business_deliverable"):
+                errors.append(f"Feature {feature.get('feat_ref') or '<unknown>'} must include a business_deliverable.")
+            collaboration = feature.get("collaboration_and_timeline") or {}
+            if not collaboration.get("business_sequence"):
+                errors.append(f"Feature {feature.get('feat_ref') or '<unknown>'} must include a business_sequence.")
+            if len(collaboration.get("loop_gate_human_involvement") or []) < 1:
+                errors.append(f"Feature {feature.get('feat_ref') or '<unknown>'} must include loop_gate_human_involvement.")
+            acceptance = feature.get("acceptance_and_testability") or {}
+            if len(acceptance.get("test_dimensions") or []) < 4:
+                errors.append(f"Feature {feature.get('feat_ref') or '<unknown>'} must include explicit test_dimensions.")
+            frozen = feature.get("frozen_downstream_boundary") or {}
+            if len(frozen.get("frozen_product_shape") or []) < 1 or len(frozen.get("open_technical_decisions") or []) < 1:
+                errors.append(f"Feature {feature.get('feat_ref') or '<unknown>'} frozen_downstream_boundary is incomplete.")
 
     boundary_matrix = feat_json.get("boundary_matrix")
     if not isinstance(boundary_matrix, list) or len(boundary_matrix) != len(feat_refs):
@@ -442,14 +686,31 @@ def validate_output_package(artifacts_dir: Path) -> tuple[list[str], dict[str, A
     acceptance_conventions = feat_json.get("bundle_acceptance_conventions")
     if not isinstance(acceptance_conventions, list) or not acceptance_conventions:
         errors.append("feat-freeze-bundle.json must include bundle_acceptance_conventions.")
+    glossary = feat_json.get("glossary")
+    if not isinstance(glossary, list) or not glossary:
+        errors.append("feat-freeze-bundle.json must include a non-empty glossary.")
+    prohibited_rules = feat_json.get("prohibited_inference_rules")
+    if not isinstance(prohibited_rules, list) or not prohibited_rules:
+        errors.append("feat-freeze-bundle.json must include prohibited_inference_rules.")
 
     markdown_text = (artifacts_dir / "feat-freeze-bundle.md").read_text(encoding="utf-8")
     _, markdown_body = parse_markdown_frontmatter(markdown_text)
     for heading in REQUIRED_MARKDOWN_HEADINGS:
         if f"## {heading}" not in markdown_body:
             errors.append(f"feat-freeze-bundle.md is missing section: {heading}")
+    for heading in REQUIRED_FEAT_SUBHEADINGS:
+        if heading not in markdown_body:
+            errors.append(f"feat-freeze-bundle.md is missing feature subsection: {heading}")
 
     handoff = load_json(artifacts_dir / "handoff-to-feat-downstreams.json")
+    if not isinstance(handoff.get("glossary"), list) or not handoff.get("glossary"):
+        errors.append("handoff-to-feat-downstreams.json must include glossary.")
+    if not isinstance(handoff.get("prohibited_inference_rules"), list) or not handoff.get("prohibited_inference_rules"):
+        errors.append("handoff-to-feat-downstreams.json must include prohibited_inference_rules.")
+    if not isinstance(handoff.get("authoritative_artifact_map"), list) or not handoff.get("authoritative_artifact_map"):
+        errors.append("handoff-to-feat-downstreams.json must include authoritative_artifact_map.")
+    if not isinstance(handoff.get("feature_dependency_map"), list) or not handoff.get("feature_dependency_map"):
+        errors.append("handoff-to-feat-downstreams.json must include feature_dependency_map.")
     workflows = [item.get("workflow") for item in handoff.get("target_workflows", []) if isinstance(item, dict)]
     for workflow in DOWNSTREAM_WORKFLOWS:
         if workflow not in workflows:
@@ -485,8 +746,8 @@ def executor_run(input_path: Path, repo_root: Path, run_id: str, allow_update: b
         raise ValueError("; ".join(errors))
 
     package = load_epic_package(input_path)
-    generated = build_feat_bundle(package)
     effective_run_id = run_id or package.run_id
+    generated = build_feat_bundle(package, workflow_run_id=effective_run_id)
     output_dir = output_dir_for(repo_root, effective_run_id)
     if output_dir.exists() and not allow_update:
         raise FileExistsError(f"Output directory already exists: {output_dir}")
@@ -519,7 +780,7 @@ def supervisor_review(artifacts_dir: Path, repo_root: Path, run_id: str, allow_u
         raise FileNotFoundError(f"Input package directory not found: {input_package_dir}")
 
     package = load_epic_package(input_package_dir)
-    generated = build_feat_bundle(package)
+    generated = build_feat_bundle(package, workflow_run_id=run_id or artifacts_dir.name)
     supervision = build_supervision_evidence(artifacts_dir, generated)
     gate = build_gate_result(generated, supervision)
 

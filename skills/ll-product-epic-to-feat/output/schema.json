@@ -12,7 +12,9 @@
     "src_root_id",
     "feat_refs",
     "downstream_workflows",
-    "source_refs"
+    "source_refs",
+    "glossary",
+    "prohibited_inference_rules"
   ],
   "properties": {
     "artifact_type": {
@@ -68,6 +70,49 @@
       "items": {
         "type": "string",
         "minLength": 1
+      }
+    },
+    "glossary": {
+      "type": "array",
+      "minItems": 1
+    },
+    "prohibited_inference_rules": {
+      "type": "array",
+      "minItems": 1
+    },
+    "feat_track_map": {
+      "type": "array"
+    },
+    "epic_context": {
+      "type": "object"
+    },
+    "features": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": [
+          "feat_ref",
+          "title",
+          "goal",
+          "business_value",
+          "upstream_feat",
+          "downstream_feat",
+          "consumes",
+          "produces",
+          "authoritative_artifact",
+          "gate_decision_dependency_feat_refs",
+          "gate_decision_dependency",
+          "admission_dependency_feat_refs",
+          "admission_dependency",
+          "dependency_kinds",
+          "identity_and_scenario",
+          "business_flow",
+          "product_objects_and_deliverables",
+          "collaboration_and_timeline",
+          "acceptance_and_testability",
+          "frozen_downstream_boundary"
+        ]
       }
     }
   },

@@ -27,13 +27,32 @@ source_refs:
 
 [State the business goal, scope, and inherited constraints from the authoritative EPIC.]
 
+## Canonical Glossary
+
+[Freeze one canonical glossary for candidate, handoff submission, decision object, formal object, formal ref, lineage, managed ref, receipt, admission, and any additional bundle-specific terms. Each term should state its canonical meaning, owning FEAT, and near-miss term that must not be confused with it.]
+
 ## Boundary Matrix
 
 [Describe what each FEAT owns, what adjacent capability boundaries it explicitly does not own, and where overlap boundaries sit.]
 
 ## FEAT Inventory
 
-[List each FEAT with goal, scope, dependencies, constraints, and structured acceptance checks.]
+[For each FEAT, freeze the product shape, not just the capability boundary. Each FEAT should include:]
+
+- Identity and Scenario
+- Business Flow
+- Product Objects and Deliverables
+- Collaboration and Timeline
+- Acceptance and Testability
+- Frozen Downstream Boundary
+
+[Each FEAT must also make the product interface, completed state, business deliverable, and cross-cutting capability constraints explicit so downstream TECH does not need to infer product shape.]
+[Each FEAT must also expose explicit machine-readable relationship fields: upstream_feat, downstream_feat, consumes, produces, authoritative_artifact, gate_decision_dependency_feat_refs, gate_decision_dependency, admission_dependency_feat_refs, admission_dependency, and dependency_kinds.]
+
+## Prohibited Inference Rules
+
+[State bundle-level rules that downstream TECH / TESTSET / TASK / consumer flows must not infer on their own, especially around product completion state, authoritative outputs, candidate vs formal objects, and admission vs path guessing.]
+[Downstream Handoff must also carry forward glossary, prohibited inference rules, authoritative_artifact_map, and feature_dependency_map so downstream flows do not need to reopen the full bundle just to recover machine constraints.]
 
 ## Acceptance and Review
 

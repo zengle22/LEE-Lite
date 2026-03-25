@@ -206,9 +206,15 @@ def validate_input_package(artifacts_dir: Path) -> tuple[list[str], dict[str, An
         "epic_freeze_ref",
         "src_root_id",
         "source_refs",
+        "business_value_problem",
+        "product_positioning",
+        "actors_and_roles",
         "scope",
+        "upstream_and_downstream",
+        "epic_success_criteria",
         "non_goals",
         "decomposition_rules",
+        "product_behavior_slices",
         "constraints_and_dependencies",
     ]
     for field in required_fields:
