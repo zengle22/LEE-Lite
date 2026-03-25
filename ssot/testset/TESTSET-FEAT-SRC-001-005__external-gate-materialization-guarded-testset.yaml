@@ -1,0 +1,70 @@
+id: TESTSET-FEAT-SRC-001-005
+ssot_type: TESTSET
+title: 技能接入与跨 skill 闭环验证 Test Set
+parent_id: FEAT-SRC-001-005
+release_ref: REL-001
+devplan_ref: DEVPLAN-REL-001
+template_id: template.qa.test_set_production
+workflow_key: workflow.qa.test_set_production_l3
+test_set_id: TS-FEAT-SRC-001-005
+module: 技能接入与跨 skill 闭环验证能力
+description: 技能接入与跨 skill 闭环验证 Test Set
+owner: qa-team
+slice_mode: adoption-e2e
+enablement_scope: pilot-with-guarded-gate-branch
+strategy:
+  focus:
+  - 技能接入与跨 skill 闭环验证能力
+  risk_areas:
+  - 技能接入与跨 skill 闭环验证能力
+  test_types:
+  - integration
+  - e2e
+  priority: P1
+test_focus:
+  positive:
+  - 技能接入与跨 skill 闭环验证能力
+  negative:
+  - 不得越界重写相邻 FEAT 语义
+  - 若含 gate branch，不得输出 default-active ready
+  boundary:
+  - 必须保持 source refs 与 evidence closure
+  exception:
+  - 证据不完整时 fail-closed 或 blocked
+execution:
+  depends_on:
+  - TS-FEAT-SRC-001-001
+  - TS-FEAT-SRC-001-002
+  - TS-FEAT-SRC-001-003
+  - TS-FEAT-SRC-001-004
+  estimated_duration: 90min
+  requires_env:
+  - local-workspace
+  - integration-sandbox
+  requires_data:
+  - fixtures
+  - evidence bundle
+  automation_ready: true
+traceability:
+  requirement_ids:
+  - SRC-001
+  - REL-001
+  - DEVPLAN-REL-001
+  feature_ids:
+  - FEAT-SRC-001-005
+  acceptance_criteria_refs:
+  - FEAT-SRC-001-005/AC-01
+  - FEAT-SRC-001-005/AC-02
+  - FEAT-SRC-001-005/AC-03
+  governing_adrs:
+  - ADR-001
+  - ADR-005
+  - ADR-006
+analysis_ref: tests/qa/analysis/ts-feat-src-001-005/analysis.md
+strategy_ref: tests/qa/strategy/ts-feat-src-001-005/strategy-draft.yaml
+review_ref: tests/qa/review/ts-feat-src-001-005/review-report.md
+validation_result_ref: tests/qa/validation/ts-feat-src-001-005/validation-report.json
+created_at: '2026-03-24T13:30:00+08:00'
+updated_at: '2026-03-24T13:30:00+08:00'
+version: '2.0'
+status: active

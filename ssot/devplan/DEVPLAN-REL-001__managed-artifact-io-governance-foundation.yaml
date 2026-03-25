@@ -1,0 +1,228 @@
+id: DEVPLAN-REL-001
+ssot_type: DEVPLAN
+title: 主链正式交接与治理闭环统一能力 Development Plan
+status: draft
+version: 2.0.0
+ssot_revision: v2
+schema_version: development-plan-contract/v1
+contract_ref: E:/ai/LEE/spec-global/departments/dev/contracts/development-plan-contract/v1/schema.json
+parent_id: REL-001
+release_ref: REL-001
+source_refs:
+- REL-001
+- SRC-001
+- EPIC-001
+- ARCH-SRC-001-001
+- FEAT-SRC-001-001
+- FEAT-SRC-001-002
+- FEAT-SRC-001-003
+- FEAT-SRC-001-004
+- FEAT-SRC-001-005
+derived_from_ids:
+- id: REL-001
+  version: v2
+  required: true
+- id: FEAT-SRC-001-001
+  version: v2
+  required: true
+- id: FEAT-SRC-001-002
+  version: v2
+  required: true
+- id: FEAT-SRC-001-003
+  version: v2
+  required: true
+- id: FEAT-SRC-001-004
+  version: v2
+  required: true
+- id: FEAT-SRC-001-005
+  version: v2
+  required: true
+properties:
+  workflow_key: workflow.dev.devplan_management_l2
+  source_freeze_ref: SRC-001
+  epic_ref: EPIC-001
+  src_root_id: src-root-src-001
+  architecture_ref: ARCH-SRC-001-001
+  release_scope_ref: ssot/release/REL-001__managed-artifact-io-governance-foundation-release.md
+  feat_dependency_ref: ssot/release/REL-001/feat_dependency_matrix.json
+  task_selection_ref: ssot/release/REL-001/included_tasks.json
+  tech_bundle_root: ssot/tech/SRC-001
+  guarded_pilot_rule: 若 pilot 含 external gate branch，则其 default-active enablement
+    仍受 ADR-006 约束。
+summary:
+  total_phases: 5
+  total_duration_days: 17
+  critical_path:
+  - phase-foundation-boundaries
+  - phase-loop-formalization-runtime
+  - phase-mainline-io-governance
+  - phase-skill-adoption-pilot
+  - phase-hardening-readiness
+  parallel_tracks: 2
+  buffer_percentage: 15
+executable_tasks:
+- task_id: TASK-FEAT-SRC-001-001-001
+  feat_id: FEAT-SRC-001-001
+  lane: governance
+  owner_role: runtime-engineer
+  depends_on: []
+  acceptance_criteria_refs:
+  - FEAT-SRC-001-001/AC-01
+  definition_of_done: aligned v2 task baseline
+- task_id: TASK-FEAT-SRC-001-001-002
+  feat_id: FEAT-SRC-001-001
+  lane: integration
+  owner_role: runtime-engineer
+  depends_on: []
+  acceptance_criteria_refs:
+  - FEAT-SRC-001-001/AC-01
+  definition_of_done: aligned v2 task baseline
+- task_id: TASK-FEAT-SRC-001-002-001
+  feat_id: FEAT-SRC-001-002
+  lane: governance
+  owner_role: runtime-engineer
+  depends_on: []
+  acceptance_criteria_refs:
+  - FEAT-SRC-001-002/AC-01
+  definition_of_done: aligned v2 task baseline
+- task_id: TASK-FEAT-SRC-001-002-002
+  feat_id: FEAT-SRC-001-002
+  lane: integration
+  owner_role: runtime-engineer
+  depends_on: []
+  acceptance_criteria_refs:
+  - FEAT-SRC-001-002/AC-01
+  definition_of_done: aligned v2 task baseline
+- task_id: TASK-FEAT-SRC-001-003-001
+  feat_id: FEAT-SRC-001-003
+  lane: governance
+  owner_role: runtime-engineer
+  depends_on: []
+  acceptance_criteria_refs:
+  - FEAT-SRC-001-003/AC-01
+  definition_of_done: aligned v2 task baseline
+- task_id: TASK-FEAT-SRC-001-003-002
+  feat_id: FEAT-SRC-001-003
+  lane: integration
+  owner_role: runtime-engineer
+  depends_on: []
+  acceptance_criteria_refs:
+  - FEAT-SRC-001-003/AC-01
+  definition_of_done: aligned v2 task baseline
+- task_id: TASK-FEAT-SRC-001-004-001
+  feat_id: FEAT-SRC-001-004
+  lane: governance
+  owner_role: runtime-engineer
+  depends_on: []
+  acceptance_criteria_refs:
+  - FEAT-SRC-001-004/AC-01
+  definition_of_done: aligned v2 task baseline
+- task_id: TASK-FEAT-SRC-001-004-002
+  feat_id: FEAT-SRC-001-004
+  lane: integration
+  owner_role: runtime-engineer
+  depends_on: []
+  acceptance_criteria_refs:
+  - FEAT-SRC-001-004/AC-01
+  definition_of_done: aligned v2 task baseline
+- task_id: TASK-FEAT-SRC-001-004-003
+  feat_id: FEAT-SRC-001-004
+  lane: integration
+  owner_role: runtime-engineer
+  depends_on: []
+  acceptance_criteria_refs:
+  - FEAT-SRC-001-004/AC-01
+  definition_of_done: aligned v2 task baseline
+- task_id: TASK-FEAT-SRC-001-005-001
+  feat_id: FEAT-SRC-001-005
+  lane: adoption
+  owner_role: workflow-integrator
+  depends_on: []
+  acceptance_criteria_refs:
+  - FEAT-SRC-001-005/AC-01
+  definition_of_done: aligned v2 task baseline
+- task_id: TASK-FEAT-SRC-001-005-002
+  feat_id: FEAT-SRC-001-005
+  lane: adoption
+  owner_role: workflow-integrator
+  depends_on: []
+  acceptance_criteria_refs:
+  - FEAT-SRC-001-005/AC-01
+  definition_of_done: aligned v2 task baseline
+- task_id: TASK-FEAT-SRC-001-005-003
+  feat_id: FEAT-SRC-001-005
+  lane: adoption
+  owner_role: qa-engineer
+  depends_on: []
+  acceptance_criteria_refs:
+  - FEAT-SRC-001-005/AC-01
+  definition_of_done: aligned v2 task baseline
+- task_id: TASK-FEAT-SRC-001-005-004
+  feat_id: FEAT-SRC-001-005
+  lane: adoption
+  owner_role: qa-engineer
+  depends_on: []
+  acceptance_criteria_refs:
+  - FEAT-SRC-001-005/AC-01
+  definition_of_done: aligned v2 task baseline
+phases:
+- phase_id: phase-foundation-boundaries
+  name: Foundation Boundaries
+  size: M
+  estimated_days: 3
+  task_ids:
+  - TASK-FEAT-SRC-001-001-001
+  - TASK-FEAT-SRC-001-002-001
+  - TASK-FEAT-SRC-001-003-001
+  - TASK-FEAT-SRC-001-004-001
+  delivery_criteria:
+  - foundation contracts frozen
+  depends_on: []
+- phase_id: phase-loop-formalization-runtime
+  name: Loop and Formalization Runtime
+  size: L
+  estimated_days: 4
+  task_ids:
+  - TASK-FEAT-SRC-001-001-002
+  - TASK-FEAT-SRC-001-002-002
+  - TASK-FEAT-SRC-001-003-002
+  delivery_criteria:
+  - loop/formalization/admission integrated
+  depends_on:
+  - phase-foundation-boundaries
+- phase_id: phase-mainline-io-governance
+  name: Mainline IO Governance
+  size: M
+  estimated_days: 3
+  task_ids:
+  - TASK-FEAT-SRC-001-004-002
+  - TASK-FEAT-SRC-001-004-003
+  delivery_criteria:
+  - path/mode enforcement and bypass detection active
+  depends_on:
+  - phase-foundation-boundaries
+  - phase-loop-formalization-runtime
+- phase_id: phase-skill-adoption-pilot
+  name: Skill Adoption Pilot
+  size: L
+  estimated_days: 5
+  task_ids:
+  - TASK-FEAT-SRC-001-005-001
+  - TASK-FEAT-SRC-001-005-002
+  - TASK-FEAT-SRC-001-005-003
+  - TASK-FEAT-SRC-001-005-004
+  delivery_criteria:
+  - integration matrix and migration rules frozen
+  - pilot chain evidence generated
+  depends_on:
+  - phase-loop-formalization-runtime
+  - phase-mainline-io-governance
+- phase_id: phase-hardening-readiness
+  name: Hardening Readiness
+  size: S
+  estimated_days: 2
+  task_ids: []
+  delivery_criteria:
+  - release and test planning consume aligned v2 baseline
+  depends_on:
+  - phase-skill-adoption-pilot

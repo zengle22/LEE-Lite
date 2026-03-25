@@ -1,0 +1,63 @@
+id: TESTSET-FEAT-SRC-001-002
+ssot_type: TESTSET
+title: 正式交接与物化 Test Set
+parent_id: FEAT-SRC-001-002
+release_ref: REL-001
+devplan_ref: DEVPLAN-REL-001
+template_id: template.qa.test_set_production
+workflow_key: workflow.qa.test_set_production_l3
+test_set_id: TS-FEAT-SRC-001-002
+module: 正式交接与物化能力
+description: 正式交接与物化 Test Set
+owner: qa-team
+slice_mode: core
+enablement_scope: default
+strategy:
+  focus:
+  - 正式交接与物化能力
+  risk_areas:
+  - 正式交接与物化能力
+  test_types:
+  - integration
+  priority: P0
+test_focus:
+  positive:
+  - 正式交接与物化能力
+  negative:
+  - 不得越界重写相邻 FEAT 语义
+  boundary:
+  - 必须保持 source refs 与 evidence closure
+  exception:
+  - 证据不完整时 fail-closed 或 blocked
+execution:
+  depends_on: []
+  estimated_duration: 60min
+  requires_env:
+  - local-workspace
+  - integration-sandbox
+  requires_data:
+  - fixtures
+  - evidence bundle
+  automation_ready: true
+traceability:
+  requirement_ids:
+  - SRC-001
+  - REL-001
+  - DEVPLAN-REL-001
+  feature_ids:
+  - FEAT-SRC-001-002
+  acceptance_criteria_refs:
+  - FEAT-SRC-001-002/AC-01
+  - FEAT-SRC-001-002/AC-02
+  - FEAT-SRC-001-002/AC-03
+  governing_adrs:
+  - ADR-001
+  - ADR-005
+analysis_ref: tests/qa/analysis/ts-feat-src-001-002/analysis.md
+strategy_ref: tests/qa/strategy/ts-feat-src-001-002/strategy-draft.yaml
+review_ref: tests/qa/review/ts-feat-src-001-002/review-report.md
+validation_result_ref: tests/qa/validation/ts-feat-src-001-002/validation-report.json
+created_at: '2026-03-24T13:30:00+08:00'
+updated_at: '2026-03-24T13:30:00+08:00'
+version: '2.0'
+status: active

@@ -1,20 +1,5 @@
-tech_ref: TECH-FEAT-SRC-001-001
-decisions:
-  - id: AD-001
-    title: Unified managed operation surface
-    status: accepted
-    source_refs:
-      - FEAT-SRC-001-001
-      - ADR-005
-  - id: AD-002
-    title: Policy and registry as runtime prerequisites
-    status: accepted
-    source_refs:
-      - FEAT-SRC-001-002
-      - FEAT-SRC-001-003
-  - id: AD-003
-    title: Fail-closed gateway execution
-    status: accepted
-    source_refs:
-      - FEAT-SRC-001-001
-      - TASK-FEAT-SRC-001-001-002
+tech_id: TECH-FEAT-SRC-001-001
+feat_id: FEAT-SRC-001-001
+decision_refs:
+- ADR-005
+- ARCH-SRC-001-001

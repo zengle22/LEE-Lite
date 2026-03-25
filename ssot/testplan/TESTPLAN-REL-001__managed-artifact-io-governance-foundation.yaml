@@ -1,0 +1,137 @@
+id: TESTPLAN-REL-001
+ssot_type: TESTPLAN
+title: 主链正式交接与治理闭环统一能力 Test Plan
+status: draft
+version: v2
+schema_version: test-plan-v2/v1
+contract_ref: E:/ai/LEE/spec-global/departments/qa/contracts/test-plan-v2/v1/schema.yaml
+parent_id: REL-001
+release_ref: REL-001
+devplan_ref: DEVPLAN-REL-001
+source_refs:
+- REL-001
+- DEVPLAN-REL-001
+- SRC-001
+- EPIC-001
+- ARCH-SRC-001-001
+- FEAT-SRC-001-001
+- FEAT-SRC-001-002
+- FEAT-SRC-001-003
+- FEAT-SRC-001-004
+- FEAT-SRC-001-005
+- TESTSET-FEAT-SRC-001-001
+- TESTSET-FEAT-SRC-001-002
+- TESTSET-FEAT-SRC-001-003
+- TESTSET-FEAT-SRC-001-004
+- TESTSET-FEAT-SRC-001-005
+derived_from_ids:
+- id: REL-001
+  version: v2
+  required: true
+- id: DEVPLAN-REL-001
+  version: 2.0.0
+  required: true
+- id: TESTSET-FEAT-SRC-001-001
+  version: '2.0'
+  required: true
+- id: TESTSET-FEAT-SRC-001-002
+  version: '2.0'
+  required: true
+- id: TESTSET-FEAT-SRC-001-003
+  version: '2.0'
+  required: true
+- id: TESTSET-FEAT-SRC-001-004
+  version: '2.0'
+  required: true
+- id: TESTSET-FEAT-SRC-001-005
+  version: '2.0'
+  required: true
+properties:
+  workflow_key: workflow.qa.testplan_management_l2
+  source_freeze_ref: SRC-001
+  epic_ref: EPIC-001
+  src_root_id: src-root-src-001
+  target_release_ref: ssot/release/REL-001__managed-artifact-io-governance-foundation-release.md
+  architecture_ref: ssot/architecture/ARCH-SRC-001-001__managed-artifact-io-governance-architecture-overview.md
+  test_strategy_ref: ssot/testplan/REL-001/test_strategy.yaml
+  coverage_mode: feat-centered risk-based governance testing
+  core_scope_feats:
+  - FEAT-SRC-001-001
+  - FEAT-SRC-001-002
+  - FEAT-SRC-001-003
+  - FEAT-SRC-001-004
+  - FEAT-SRC-001-005
+  guarded_scope_rule: 若 TS-FEAT-SRC-001-005 的 pilot 链包含 external gate branch，该分支只允许输出
+    guarded pass / failure。
+  report_minimum_shape:
+  - five-feat pass/fail summary
+  - open bug severity summary
+  - pilot chain evidence summary
+  - guarded gate branch conclusion label when applicable
+  - release closure input state ready / ready-with-guard / not-ready
+test_plan_id: TP-2026-03-REL-001-MAINLINE-GOVERNANCE-V2
+name: 主链正式交接与治理闭环统一能力 测试计划
+description: 按新版五轴 FEAT 体系组织测试，FEAT-SRC-001-005 作为正式 adoption/E2E 能力面进入主计划。
+target_release: 0.2.0
+scope:
+- 主链协作闭环能力
+- 正式交接与物化能力
+- 对象分层与准入能力
+- 主链文件 IO 与路径治理能力
+- 技能接入与跨 skill 闭环验证能力
+out_of_scope:
+- 未在 integration matrix 中声明的全仓治理改造
+- 不含 evidence 的口头 pilot 成立判断
+- default-active external gate without ADR-006 freeze or equivalent approval
+test_sets:
+- test_set_id: TS-FEAT-SRC-001-001
+  critical: true
+  order: 1
+- test_set_id: TS-FEAT-SRC-001-003
+  critical: true
+  order: 2
+- test_set_id: TS-FEAT-SRC-001-002
+  critical: true
+  order: 3
+- test_set_id: TS-FEAT-SRC-001-004
+  critical: true
+  order: 4
+- test_set_id: TS-FEAT-SRC-001-005
+  critical: true
+  order: 5
+risk_policy:
+  critical_test_sets_must_pass: true
+  non_critical_test_sets_allowed_failures: 0
+  p1_bug_threshold: 2
+  p2_bug_threshold: 8
+execution_policy:
+  all_feat_tracks_default_execution: true
+  guarded_gate_branch_rule: TS-FEAT-SRC-001-005 的 gate branch 只验证 guarded semantics。
+schedule_windows:
+  foundation_scope_window:
+    start: '2026-04-04T09:00:00+08:00'
+    end: '2026-04-08T18:00:00+08:00'
+  adoption_pilot_window:
+    start: '2026-04-09T09:00:00+08:00'
+    end: '2026-04-10T18:00:00+08:00'
+entry_criteria:
+- REL-001 v2 已 accepted 且 manifest / dependency matrix 未漂移。
+- 五份 TESTSET 已完成 analysis、strategy、review、validation。
+- 最小集成路径（loop object -> handoff decision -> formal admission -> mainline IO/path ->
+  pilot chain evidence）已可执行。
+- 若 pilot 含 gate branch，必须显式声明其只验证 guarded semantics。
+exit_criteria:
+- 五个 critical test sets 在 exit 时必须处于最新有效通过状态。
+- 无 P0 bug 未关闭，跨五轴 FEAT 的 P1 bug <= 2。
+- 至少一条真实 producer -> consumer -> audit -> gate pilot 主链已形成 evidence；若 gate branch
+  存在则只允许 guarded 结论。
+- 测试报告必须包含五轴 summary、bug 分级统计、pilot chain evidence 摘要，以及 release closure 输入状态。
+current_round: 0
+max_rounds: 4
+test_runs: []
+owner: qa-lead
+created_by: human-requested-shado-via-codex
+created_at: '2026-03-24T13:30:00+08:00'
+updated_at: '2026-03-24T13:30:00+08:00'
+scheduled_start: '2026-04-04T09:00:00+08:00'
+scheduled_end: '2026-04-10T18:00:00+08:00'

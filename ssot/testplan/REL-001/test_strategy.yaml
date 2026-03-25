@@ -1,0 +1,54 @@
+release_ref: REL-001
+testplan_ref: TESTPLAN-REL-001
+strategy_mode: risk-based
+scope_layers:
+  foundation_scope:
+    feats:
+    - FEAT-SRC-001-001
+    - FEAT-SRC-001-002
+    - FEAT-SRC-001-003
+    - FEAT-SRC-001-004
+    objectives:
+    - 验证四个 foundation FEAT 已闭合。
+  adoption_pilot_scope:
+    feats:
+    - FEAT-SRC-001-005
+    objectives:
+    - 验证 integration matrix、migration waves 与真实 pilot chain evidence。
+    - 若 pilot 含 gate branch，则验证其 guarded enablement semantics。
+test_layers:
+  smoke:
+  - TS-FEAT-SRC-001-001
+  - TS-FEAT-SRC-001-003
+  regression:
+  - TS-FEAT-SRC-001-002
+  - TS-FEAT-SRC-001-004
+  pilot:
+  - TS-FEAT-SRC-001-005
+execution_policy:
+  all_feat_tracks_default_execution: true
+  guarded_gate_branch_rule: TS-FEAT-SRC-001-005 的 gate branch 只输出 guarded semantics。
+schedule_windows:
+  foundation_scope_window:
+    start: '2026-04-04T09:00:00+08:00'
+    end: '2026-04-08T18:00:00+08:00'
+  adoption_pilot_window:
+    start: '2026-04-09T09:00:00+08:00'
+    end: '2026-04-10T18:00:00+08:00'
+risk_areas:
+- area: loop boundary drift
+  level: high
+  focus: no parallel queue / handoff model
+- area: formal admission ambiguity
+  level: high
+  focus: candidate/formal authority and no path guessing
+- area: mainline IO bypass
+  level: high
+  focus: path/mode verdict and bypass detection
+- area: pilot chain evidence weakness
+  level: high
+  focus: real producer -> consumer -> audit -> gate evidence
+stop_rules:
+- 任何 critical Test Set 发现 P0 bug 时暂停测试轮次并进入修复判断。
+- TS-FEAT-SRC-001-005 若输出 default-active gate enablement signal，立即阻断 pilot 继续推进。
+- 当五个 critical Test Set 全部处于最新有效通过状态且 exit_criteria 满足时结束本轮测试。

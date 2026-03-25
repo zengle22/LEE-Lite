@@ -1,19 +1,5 @@
-tech_ref: TECH-FEAT-SRC-001-002
-decisions:
-  - id: AD-001
-    title: Layered path policy bundle
-    status: accepted
-    source_refs:
-      - FEAT-SRC-001-002
-      - ADR-005
-  - id: AD-002
-    title: Machine-readable policy verdict
-    status: accepted
-    source_refs:
-      - TASK-FEAT-SRC-001-002-001
-      - TASK-FEAT-SRC-001-002-002
-  - id: AD-003
-    title: Centralized mode governance
-    status: accepted
-    source_refs:
-      - FEAT-SRC-001-002
+tech_id: TECH-FEAT-SRC-001-002
+feat_id: FEAT-SRC-001-002
+decision_refs:
+- ADR-005
+- ARCH-SRC-001-001

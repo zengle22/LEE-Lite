@@ -1,16 +1,9 @@
-tech_ref: TECH-FEAT-SRC-001-005
-parent_feat_ref: FEAT-SRC-001-005
-release_ref: REL-001
-status: followup_required
-artifacts:
-  tech_spec_ref: ssot/tech/SRC-001/TECH-FEAT-SRC-001-005__external-gate-materialization-technical-design.md
-  design_analysis_ref: ssot/tech/SRC-001/T005/design-analysis.md
-  implementation_scope_ref: ssot/tech/SRC-001/T005/implementation-scope.md
-  decision_refs_ref: ssot/tech/SRC-001/T005/decision-refs.yaml
-  review_result_ref: ssot/tech/SRC-001/T005/review-result.md
-  risk_register_ref: ssot/tech/SRC-001/T005/risk-register.md
-  handoff_notes_ref: ssot/tech/SRC-001/T005/handoff-notes.md
-publish_readiness:
-  no_critical_issues: true
-  ready_for_contract_design: false
-  blocking_followup: ADR-006 freeze or equivalent rule freeze required
+tech_id: TECH-FEAT-SRC-001-005
+feat_id: FEAT-SRC-001-005
+version: v2
+support_refs:
+- ssot/tech/SRC-001/T005/design-analysis.md
+- ssot/tech/SRC-001/T005/implementation-scope.md
+- ssot/tech/SRC-001/T005/decision-refs.yaml
+- ssot/tech/SRC-001/T005/review-result.md
+- ssot/tech/SRC-001/T005/risk-register.md
