@@ -1,96 +1,14 @@
 import json
-import subprocess
-import sys
 import tempfile
 import unittest
 from pathlib import Path
 
 import yaml
 
-
-ROOT = Path(__file__).resolve().parents[2]
-SCRIPT = ROOT / "skills" / "ll-qa-feat-to-testset" / "scripts" / "feat_to_testset.py"
+from tests.unit.support_feat_to_testset import FeatToTestSetWorkflowHarness
 
 
-class FeatToTestSetWorkflowTests(unittest.TestCase):
-    def run_cmd(self, *args: str) -> subprocess.CompletedProcess[str]:
-        return subprocess.run(
-            [sys.executable, str(SCRIPT), *args],
-            cwd=str(ROOT),
-            capture_output=True,
-            text=True,
-            check=False,
-        )
-
-    def make_bundle_json(self, feature: dict[str, object], run_id: str) -> dict[str, object]:
-        feat_ref = str(feature["feat_ref"])
-        return {
-            "artifact_type": "feat_freeze_package",
-            "workflow_key": "product.epic-to-feat",
-            "workflow_run_id": run_id,
-            "title": f"{feature['title']} FEAT Freeze Bundle",
-            "status": "accepted",
-            "schema_version": "1.0.0",
-            "epic_freeze_ref": "EPIC-SRC-001",
-            "src_root_id": "SRC-001",
-            "feat_refs": [feat_ref],
-            "source_refs": [
-                f"product.epic-to-feat::{run_id}",
-                feat_ref,
-                "EPIC-SRC-001",
-                "SRC-001",
-                "ADR-012",
-            ],
-            "features": [feature],
-        }
-
-    def make_feat_package(self, root: Path, run_id: str, bundle_json: dict[str, object]) -> Path:
-        package_dir = root / "artifacts" / "epic-to-feat" / run_id
-        package_dir.mkdir(parents=True, exist_ok=True)
-        frontmatter = {
-            "artifact_type": "feat_freeze_package",
-            "workflow_key": "product.epic-to-feat",
-            "workflow_run_id": run_id,
-            "status": bundle_json["status"],
-            "schema_version": bundle_json["schema_version"],
-            "epic_freeze_ref": bundle_json["epic_freeze_ref"],
-            "src_root_id": bundle_json["src_root_id"],
-        }
-        markdown = [
-            "---",
-            *[f"{key}: {value}" for key, value in frontmatter.items()],
-            "source_refs:",
-            *[f"  - {item}" for item in bundle_json["source_refs"]],
-            "---",
-            "",
-            f"# {bundle_json['title']}",
-            "",
-            "## FEAT Inventory",
-            "",
-            *[f"### {feature['feat_ref']} {feature['title']}" for feature in bundle_json["features"]],
-        ]
-        (package_dir / "feat-freeze-bundle.md").write_text("\n".join(markdown) + "\n", encoding="utf-8")
-        (package_dir / "feat-freeze-bundle.json").write_text(
-            json.dumps(bundle_json, ensure_ascii=False, indent=2) + "\n",
-            encoding="utf-8",
-        )
-        payloads = {
-            "package-manifest.json": {"status": bundle_json["status"], "run_id": run_id},
-            "feat-review-report.json": {"decision": "pass", "summary": "review ok"},
-            "feat-acceptance-report.json": {"decision": "approve", "summary": "acceptance ok"},
-            "feat-defect-list.json": [],
-            "feat-freeze-gate.json": {"workflow_key": "product.epic-to-feat", "freeze_ready": True, "decision": "pass"},
-            "handoff-to-feat-downstreams.json": {
-                "target_workflows": [{"workflow": "workflow.qa.test_set_production_l3"}],
-                "derivable_children": ["TECH", "TASK", "TESTSET"],
-            },
-            "execution-evidence.json": {"run_id": run_id, "decision": "pass"},
-            "supervision-evidence.json": {"run_id": run_id, "decision": "pass"},
-        }
-        for name, payload in payloads.items():
-            (package_dir / name).write_text(json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
-        return package_dir
-
+class FeatToTestSetWorkflowTests(FeatToTestSetWorkflowHarness):
     def test_run_emits_candidate_package_ready_for_external_approval(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             repo_root = Path(temp_dir)
@@ -144,21 +62,7 @@ class FeatToTestSetWorkflowTests(unittest.TestCase):
             }
             bundle = self.make_bundle_json(feature, run_id="feat-to-testset-input")
             input_dir = self.make_feat_package(repo_root, "feat-to-testset-input", bundle)
-
-            result = self.run_cmd(
-                "run",
-                "--input",
-                str(input_dir),
-                "--feat-ref",
-                "FEAT-SRC-001-TESTSET",
-                "--repo-root",
-                str(repo_root),
-                "--run-id",
-                "feat-to-testset-output",
-            )
-            self.assertEqual(result.returncode, 0, result.stderr)
-            payload = json.loads(result.stdout)
-            artifacts_dir = Path(payload["artifacts_dir"])
+            artifacts_dir = self.run_testset_flow(repo_root, input_dir, "FEAT-SRC-001-TESTSET", "feat-to-testset-output")
 
             bundle_json = json.loads((artifacts_dir / "test-set-bundle.json").read_text(encoding="utf-8"))
             manifest = json.loads((artifacts_dir / "package-manifest.json").read_text(encoding="utf-8"))
@@ -487,38 +391,14 @@ class FeatToTestSetWorkflowTests(unittest.TestCase):
 
             io_bundle = self.make_bundle_json(io_feature, run_id="feat-to-testset-io")
             io_input_dir = self.make_feat_package(repo_root, "feat-to-testset-io", io_bundle)
-            io_result = self.run_cmd(
-                "run",
-                "--input",
-                str(io_input_dir),
-                "--feat-ref",
-                "FEAT-SRC-001-IO",
-                "--repo-root",
-                str(repo_root),
-                "--run-id",
-                "feat-to-testset-io-out",
-            )
-            self.assertEqual(io_result.returncode, 0, io_result.stderr)
-            io_artifacts_dir = Path(json.loads(io_result.stdout)["artifacts_dir"])
+            io_artifacts_dir = self.run_testset_flow(repo_root, io_input_dir, "FEAT-SRC-001-IO", "feat-to-testset-io-out")
             io_handoff = json.loads((io_artifacts_dir / "handoff-to-test-execution.json").read_text(encoding="utf-8"))
             io_access = io_handoff["required_environment_inputs"]["access"]
             self.assertTrue(any("credential" in item.lower() or "token" in item.lower() or "账号" in item for item in io_access))
 
             pilot_bundle = self.make_bundle_json(pilot_feature, run_id="feat-to-testset-pilot")
             pilot_input_dir = self.make_feat_package(repo_root, "feat-to-testset-pilot", pilot_bundle)
-            pilot_result = self.run_cmd(
-                "run",
-                "--input",
-                str(pilot_input_dir),
-                "--feat-ref",
-                "FEAT-SRC-001-PILOT",
-                "--repo-root",
-                str(repo_root),
-                "--run-id",
-                "feat-to-testset-pilot-out",
-            )
-            self.assertEqual(pilot_result.returncode, 0, pilot_result.stderr)
-            pilot_artifacts_dir = Path(json.loads(pilot_result.stdout)["artifacts_dir"])
+            pilot_artifacts_dir = self.run_testset_flow(repo_root, pilot_input_dir, "FEAT-SRC-001-PILOT", "feat-to-testset-pilot-out")
             pilot_handoff = json.loads((pilot_artifacts_dir / "handoff-to-test-execution.json").read_text(encoding="utf-8"))
             pilot_test_set = yaml.safe_load((pilot_artifacts_dir / "test-set.yaml").read_text(encoding="utf-8"))
             pilot_access = pilot_handoff["required_environment_inputs"]["access"]
