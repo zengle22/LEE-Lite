@@ -388,8 +388,7 @@ def synthesize_adr_bridge_candidate(candidate: dict[str, Any], document: dict[st
     unification_principle = _derive_unified_principle(governance_objects)
     acceptance_impact = _derive_acceptance_impact(failure_modes, consequences)
     change_scope = f"将《{working['title']}》涉及的{'、'.join(governance_objects[:3])}收敛为统一主链继承边界，明确 loop、handoff、gate 与 formal materialization 的协作责任。"
-    if not change_scope:
-        change_scope = f"{working['title']} 需要被重写为可继承的治理约束，而不是仅停留在 ADR 标题。"
+    if not change_scope: change_scope = f"{working['title']} 需要被重写为可继承的治理约束，而不是仅停留在 ADR 标题。"
 
     working["problem_statement"] = explicit_problem or _compose_problem_statement(focus_statement, failure_modes, consequences, unification_principle) or working["problem_statement"]
     working["target_users"] = _replace_generic_list(working["target_users"], _derive_target_users(document))
@@ -416,20 +415,12 @@ def synthesize_adr_bridge_candidate(candidate: dict[str, Any], document: dict[st
         "non_goals": deepcopy(working["out_of_scope"]),
     }
     if _is_mainline_bridge(governance_objects) and _has_source_ref(working["source_refs"], "ADR-006"):
-        working["key_constraints"] = _append_missing(
-            working["key_constraints"],
-            [
-                "external gate 必须以 approve、revise、retry、handoff、reject 形成唯一决策，不得并列批准语义。",
-                "candidate package 仅作为 gate 消费对象；经 gate 批准并物化后的 formal object 才能作为下游正式输入。",
-            ],
-        )
-        working["governance_change_summary"] = _append_missing(
-            working["governance_change_summary"],
-            [
-                "决策语义：external gate 必须输出 approve、revise、retry、handoff、reject 之一作为唯一最终决策。",
-                "输入/物化边界：candidate package 是 gate 消费对象；formal object 是 gate 批准后供下游消费的正式输入。",
-            ],
-        )
+        working["source_refs"] = _append_missing(working["source_refs"], ["ADR-005"])
+        working["in_scope"] = [working["in_scope"][0].replace("定义主链中 skill 文件读写、artifact 输入输出边界、路径策略与 handoff、gate、formal materialization 的统一治理边界。", "定义主链中 skill 文件读写、artifact 输入输出边界、路径策略如何接入 ADR-005 已提供的治理基础，以及 handoff、gate、formal materialization 的统一治理边界。")] + working["in_scope"][1:]
+        working["out_of_scope"] = _append_missing(working["out_of_scope"], ["不在本 SRC 中重新实现 ADR-005 的 Gateway / Path Policy / Registry 模块，只冻结主链对其的消费边界。"])
+        working["key_constraints"] = _append_missing(working["key_constraints"], ["external gate 必须以 approve、revise、retry、handoff、reject 形成唯一决策，不得并列批准语义。", "candidate package 仅作为 gate 消费对象；经 gate 批准并物化后的 formal object 才能作为下游正式输入。", "ADR-005 作为主链文件 IO / 路径治理前置基础；本 SRC 只冻结主链对其的消费边界，不重写其模块。"])
+        working["governance_change_summary"] = _append_missing(working["governance_change_summary"], ["决策语义：external gate 必须输出 approve、revise、retry、handoff、reject 之一作为唯一最终决策。", "输入/物化边界：candidate package 是 gate 消费对象；formal object 是 gate 批准后供下游消费的正式输入。", "前置基础：ADR-005 为主链文件 IO / 路径治理提供已交付治理基础，本 SRC 只冻结主链对其的消费边界。"])
+        working["bridge_context"]["governed_by_adrs"] = deepcopy(working["source_refs"]); working["bridge_context"]["non_goals"] = deepcopy(working["out_of_scope"])
     return working
 
 
