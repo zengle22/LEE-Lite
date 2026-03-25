@@ -20,6 +20,7 @@ from feat_to_testset_common import (
     guess_repo_root_from_input,
     load_feat_package,
     load_json,
+    normalize_semantic_lock,
     parse_markdown_frontmatter,
     render_markdown,
     slugify,
@@ -51,6 +52,7 @@ REQUIRED_OUTPUT_FILES = [
     "strategy-review-subject.json",
     "test-set-approval-subject.json",
     "handoff-to-test-execution.json",
+    "semantic-drift-check.json",
     "execution-evidence.json",
     "supervision-evidence.json",
 ]
@@ -116,6 +118,7 @@ class GeneratedCandidatePackage:
     gate_subject_index: dict[str, Any]
     gate_subjects: dict[str, dict[str, Any]]
     handoff: dict[str, Any]
+    semantic_drift_check: dict[str, Any]
     execution_decisions: list[str]
     execution_uncertainties: list[str]
 
@@ -161,8 +164,59 @@ def _format_acceptance_traceability(rows: list[dict[str, Any]]) -> list[str]:
     return lines
 
 
+def build_semantic_drift_check(feature: dict[str, Any], bundle_json: dict[str, Any], test_set_yaml: dict[str, Any]) -> dict[str, Any]:
+    lock = normalize_semantic_lock(feature.get("semantic_lock"))
+    if not lock:
+        return {
+            "verdict": "not_applicable",
+            "semantic_lock_present": False,
+            "semantic_lock_preserved": True,
+            "forbidden_axis_detected": [],
+            "anchor_matches": [],
+            "summary": "No semantic_lock present.",
+        }
+
+    generated_text = " ".join(
+        [
+            str(bundle_json.get("title") or ""),
+            str(feature.get("title") or ""),
+            " ".join(ensure_list(test_set_yaml.get("coverage_scope"))),
+            " ".join(ensure_list(test_set_yaml.get("risk_focus"))),
+            " ".join(ensure_list(test_set_yaml.get("pass_criteria"))),
+            " ".join(str(unit.get("title") or "") for unit in ensure_list(test_set_yaml.get("test_units")) if isinstance(unit, dict)),
+        ]
+    ).lower()
+    forbidden_hits = [item for item in lock.get("forbidden_capabilities", []) if str(item).strip().lower() in generated_text]
+    anchor_matches: list[str] = []
+    token_groups = {
+        "domain_type": [str(lock.get("domain_type") or "").replace("_", " ").lower()],
+        "primary_object": [token for token in str(lock.get("primary_object") or "").replace("_", " ").lower().split() if token],
+        "lifecycle_stage": [token for token in str(lock.get("lifecycle_stage") or "").replace("_", " ").lower().split() if token],
+    }
+    for label, tokens in token_groups.items():
+        if tokens and all(token in generated_text for token in tokens):
+            anchor_matches.append(label)
+    if str(lock.get("domain_type") or "").strip().lower() == "review_projection_rule":
+        review_projection_tokens = ["projection", "gate", "ssot"]
+        if all(token in generated_text for token in review_projection_tokens):
+            anchor_matches.append("review_projection_signature")
+    preserved = not forbidden_hits and len(anchor_matches) >= 1
+    return {
+        "verdict": "pass" if preserved else "reject",
+        "semantic_lock_present": True,
+        "semantic_lock_preserved": preserved,
+        "domain_type": lock.get("domain_type"),
+        "one_sentence_truth": lock.get("one_sentence_truth"),
+        "forbidden_axis_detected": forbidden_hits,
+        "anchor_matches": anchor_matches,
+        "summary": "semantic_lock preserved." if preserved else "semantic_lock drift detected.",
+    }
+
+
 def build_candidate_package(package: Any, feature: dict[str, Any], feat_ref: str, run_id: str) -> GeneratedCandidatePackage:
     del feat_ref
+    feature = dict(feature)
+    feature["semantic_lock"] = normalize_semantic_lock(feature.get("semantic_lock") or package.semantic_lock)
     derived_slug = slugify(str(feature.get("title") or feature.get("feat_ref") or run_id))
     test_set_yaml = build_test_set_yaml(feature, package.feat_json)
     strategy_yaml = derive_strategy_yaml(feature, package.feat_json)
@@ -279,6 +333,7 @@ def build_candidate_package(package: Any, feature: dict[str, Any], feat_ref: str
         "epic_ref": test_set_yaml.get("epic_ref"),
         "src_ref": test_set_yaml.get("src_ref"),
         "source_refs": source_refs,
+        "semantic_lock": feature["semantic_lock"],
         "artifact_refs": artifact_refs,
         "gate_subject_refs": gate_subject_refs,
         "downstream_target": DOWNSTREAM_SKILL,
@@ -294,6 +349,7 @@ def build_candidate_package(package: Any, feature: dict[str, Any], feat_ref: str
         "test_set_ref": bundle_json["test_set_ref"],
         "derived_slug": bundle_json["derived_slug"],
         "source_refs": bundle_json["source_refs"],
+        "semantic_lock": bundle_json["semantic_lock"],
     }
     test_units = [
         unit for unit in (test_set_yaml.get("test_units") or []) if isinstance(unit, dict)
@@ -398,6 +454,15 @@ def build_candidate_package(package: Any, feature: dict[str, Any], feat_ref: str
             for gate_type in gate_subject_refs
         },
     }
+    semantic_drift_check = build_semantic_drift_check(feature, bundle_json, test_set_yaml)
+    if semantic_drift_check["verdict"] == "reject":
+        defect_list.append(
+            {
+                "severity": "P1",
+                "title": "semantic_lock drift detected",
+                "detail": semantic_drift_check["summary"],
+            }
+        )
 
     execution_decisions = [
         f"Selected FEAT {feature.get('feat_ref')} from upstream run {package.run_id}.",
@@ -424,6 +489,7 @@ def build_candidate_package(package: Any, feature: dict[str, Any], feat_ref: str
         gate_subject_index=gate_subject_index,
         gate_subjects=gate_subjects,
         handoff=handoff,
+        semantic_drift_check=semantic_drift_check,
         execution_decisions=execution_decisions,
         execution_uncertainties=execution_uncertainties,
     )
@@ -444,6 +510,7 @@ def write_executor_outputs(output_dir: Path, package: Any, generated: GeneratedC
     dump_json(output_dir / "test-set-defect-list.json", generated.defect_list)
     dump_json(output_dir / "test-set-freeze-gate.json", generated.freeze_gate)
     dump_json(output_dir / "gate-subject-index.json", generated.gate_subject_index)
+    dump_json(output_dir / "semantic-drift-check.json", generated.semantic_drift_check)
     for gate_type, payload in generated.gate_subjects.items():
         dump_json(output_dir / SUBJECT_FILE_NAMES[gate_type], payload)
     dump_json(output_dir / "handoff-to-test-execution.json", generated.handoff)
@@ -464,6 +531,7 @@ def write_executor_outputs(output_dir: Path, package: Any, generated: GeneratedC
             "defect_list_ref": str(output_dir / "test-set-defect-list.json"),
             "freeze_gate_ref": str(output_dir / "test-set-freeze-gate.json"),
             "handoff_ref": str(output_dir / "handoff-to-test-execution.json"),
+            "semantic_drift_check_ref": str(output_dir / "semantic-drift-check.json"),
             "execution_evidence_ref": str(output_dir / "execution-evidence.json"),
             "supervision_evidence_ref": str(output_dir / "supervision-evidence.json"),
         },
@@ -483,6 +551,8 @@ def write_executor_outputs(output_dir: Path, package: Any, generated: GeneratedC
                 "test_set_present": True,
                 "gate_subjects_present": True,
                 "required_environment_inputs_present": True,
+                "semantic_lock_present": bool(generated.bundle_json.get("semantic_lock")),
+                "semantic_lock_preserved": generated.semantic_drift_check.get("semantic_lock_preserved", True),
             },
             "key_decisions": generated.execution_decisions,
             "uncertainties": generated.execution_uncertainties,
@@ -530,7 +600,16 @@ def build_supervision_evidence(artifacts_dir: Path) -> dict[str, Any]:
     bundle_json = load_json(artifacts_dir / "test-set-bundle.json")
     test_set_yaml = yaml_load(artifacts_dir / "test-set.yaml")
     handoff = load_json(artifacts_dir / "handoff-to-test-execution.json")
+    semantic_drift_check = load_json(artifacts_dir / "semantic-drift-check.json")
     findings = _build_findings(test_set_yaml, handoff)
+    if semantic_drift_check.get("semantic_lock_present") and semantic_drift_check.get("semantic_lock_preserved") is not True:
+        findings.append(
+            {
+                "severity": "P1",
+                "title": "semantic_lock drift detected",
+                "detail": str(semantic_drift_check.get("summary") or "semantic_lock drift detected."),
+            }
+        )
     blocking = [item for item in findings if str(item.get("severity") or "") in {"P0", "P1"}]
     decision = "pass" if not blocking else "revise"
     return {
@@ -560,6 +639,7 @@ def update_supervisor_outputs(artifacts_dir: Path, supervision: dict[str, Any]) 
     review_report = load_json(artifacts_dir / "test-set-review-report.json")
     acceptance_report = load_json(artifacts_dir / "test-set-acceptance-report.json")
     freeze_gate = load_json(artifacts_dir / "test-set-freeze-gate.json")
+    semantic_drift_check = load_json(artifacts_dir / "semantic-drift-check.json")
     blocking = [item for item in supervision.get("semantic_findings") or [] if str(item.get("severity") or "") in {"P0", "P1"}]
     passed = supervision.get("decision") == "pass"
 
@@ -611,6 +691,7 @@ def update_supervisor_outputs(artifacts_dir: Path, supervision: dict[str, Any]) 
                 "gate_subjects_present": True,
                 "handoff_present": True,
                 "required_environment_inputs_present": not blocking,
+                "semantic_lock_preserved": semantic_drift_check.get("semantic_lock_preserved", True),
             },
             "updated_at": utc_now(),
         }
@@ -647,6 +728,7 @@ def validate_output_package(artifacts_dir: Path) -> tuple[list[str], dict[str, A
     test_set_yaml = yaml_load(artifacts_dir / "test-set.yaml")
     freeze_gate = load_json(artifacts_dir / "test-set-freeze-gate.json")
     handoff = load_json(artifacts_dir / "handoff-to-test-execution.json")
+    semantic_drift_check = load_json(artifacts_dir / "semantic-drift-check.json")
 
     if bundle_json.get("artifact_type") != "test_set_candidate_package":
         errors.append("test-set-bundle.json artifact_type must be test_set_candidate_package.")
@@ -765,6 +847,8 @@ def validate_output_package(artifacts_dir: Path) -> tuple[list[str], dict[str, A
         errors.append(f"test-set-freeze-gate.json.status must be one of {sorted(allowed_gate)}.")
 
     ready_for_external_approval = freeze_gate.get("ready_for_external_approval") is True
+    if bundle_json.get("semantic_lock") and semantic_drift_check.get("semantic_lock_preserved") is not True:
+        errors.append("semantic-drift-check.json must preserve semantic_lock when semantic_lock is present.")
     if manifest_status != bundle_status:
         errors.append("package-manifest.json.status must match test-set-bundle.json.status.")
     if manifest_status == "in_progress":
@@ -790,6 +874,7 @@ def validate_output_package(artifacts_dir: Path) -> tuple[list[str], dict[str, A
         "manifest_status": manifest_status,
         "test_set_status": test_set_status,
         "freeze_gate_status": gate_status,
+        "semantic_lock_preserved": semantic_drift_check.get("semantic_lock_preserved", True),
     }
 
 
@@ -871,6 +956,8 @@ def executor_run(input_path: Path, feat_ref: str, repo_root: Path, run_id: str, 
     feature = find_feature(package, feat_ref)
     if feature is None:
         raise ValueError(f"Selected feat_ref not found: {feat_ref}")
+    feature = dict(feature)
+    feature["semantic_lock"] = normalize_semantic_lock(feature.get("semantic_lock") or package.semantic_lock)
 
     effective_run_id = run_id or f"{package.run_id}--{feat_ref.lower()}"
     output_dir = output_dir_for(repo_root, effective_run_id)

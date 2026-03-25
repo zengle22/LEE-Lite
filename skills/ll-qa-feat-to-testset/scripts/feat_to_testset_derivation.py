@@ -11,6 +11,7 @@ from feat_to_testset_common import (
     derive_test_set_id,
     derive_test_set_ref,
     ensure_list,
+    normalize_semantic_lock,
     slugify,
     unique_strings,
 )
@@ -22,6 +23,25 @@ def governing_adrs(feature: dict[str, Any], package_json: dict[str, Any]) -> lis
 
 
 def feature_profile(feature: dict[str, Any]) -> str:
+    lock = normalize_semantic_lock(feature.get("semantic_lock"))
+    axis_id = str(feature.get("axis_id") or "").strip().lower()
+    if axis_id == "projection-generation":
+        return "projection_generation"
+    if axis_id == "authoritative-snapshot":
+        return "authoritative_snapshot"
+    if axis_id == "review-focus-risk":
+        return "review_focus_risk"
+    if axis_id == "feedback-writeback":
+        return "feedback_writeback"
+    if str(lock.get("domain_type") or "").strip().lower() == "review_projection_rule":
+        title = str(feature.get("title") or "").lower()
+        if "snapshot" in title:
+            return "authoritative_snapshot"
+        if "review focus" in title or "风险" in title or "ambigu" in title:
+            return "review_focus_risk"
+        if "writeback" in title or "回写" in title or "批注" in title:
+            return "feedback_writeback"
+        return "projection_generation"
     title_text = " ".join(
         [
             str(feature.get("title") or ""),
@@ -46,7 +66,7 @@ def feature_profile(feature: dict[str, Any]) -> str:
         return "io"
     if any(marker in title_text for marker in ["formal publication", "formal ref", "lineage", "admission", "formal object", "formal 发布", "准入流"]):
         return "formal"
-    if any(marker in title_text for marker in ["gate", "decision object", "handoff-formalization", "审核与裁决流"]):
+    if any(marker in title_text for marker in ["gate", "decision object", "gate-decision", "handoff-formalization", "审核与裁决流"]):
         return "gate"
     if any(marker in title_text for marker in ["candidate", "handoff submission", "collaboration-loop", "候选提交与交接流"]):
         return "collaboration"
@@ -103,7 +123,39 @@ def derive_test_layers(feature: dict[str, Any]) -> list[str]:
 def supporting_contract_refs(feature: dict[str, Any]) -> list[str]:
     profile = feature_profile(feature)
     refs = ensure_list(feature.get("source_refs"))
-    if profile == "formal":
+    if profile == "projection_generation":
+        refs += [
+            "Machine SSOT",
+            "Human Review Projection",
+            "derived_only_marker",
+            "projection trace refs",
+            "gate review projection",
+        ]
+    elif profile == "authoritative_snapshot":
+        refs += [
+            "Authoritative Snapshot",
+            "completed state",
+            "authoritative output",
+            "frozen downstream boundary",
+            "open technical decisions",
+        ]
+    elif profile == "review_focus_risk":
+        refs += [
+            "Review Focus",
+            "Risks / Ambiguities",
+            "risk signal",
+            "ambiguity trace",
+            "review prompt block",
+        ]
+    elif profile == "feedback_writeback":
+        refs += [
+            "ProjectionComment",
+            "revision request",
+            "SSOT writeback",
+            "regenerated projection",
+            "comment provenance",
+        ]
+    elif profile == "formal":
         refs += ["resolve-formal-ref", "verify-eligibility", "formal_ref", "lineage", "admission verdict"]
     elif profile == "io":
         refs += [
@@ -166,7 +218,35 @@ def derive_environment_assumptions(feature: dict[str, Any], layers: list[str]) -
         assumptions.append("若启用 e2e 层，必须具备可重复执行的 UI 或跨服务集成上下文。")
     if ensure_list(feature.get("dependencies")):
         assumptions.append("依赖服务或上游能力应以可观测、可判定的方式处于可用状态。")
-    if profile == "formal":
+    if profile == "projection_generation":
+        assumptions.extend(
+            [
+                "Machine SSOT 冻结字段必须可解析，Projection template version 必须稳定可用。",
+                "Projection 输出必须保留 derived-only / non-authoritative marker 与 trace refs。",
+            ]
+        )
+    elif profile == "authoritative_snapshot":
+        assumptions.extend(
+            [
+                "completed state、authoritative output、frozen boundary、open technical decisions 必须能从 SSOT 中解析。",
+                "Snapshot traceability 必须可回链到对应 SSOT 字段。",
+            ]
+        )
+    elif profile == "review_focus_risk":
+        assumptions.extend(
+            [
+                "review focus / risk extraction 依赖的 SSOT 与 projection context 必须可解析。",
+                "risk signal 必须 traceable，否则应被丢弃而不是写入 projection。",
+            ]
+        )
+    elif profile == "feedback_writeback":
+        assumptions.extend(
+            [
+                "Projection comment、SSOT field mapping 与 revision request 流必须可追踪。",
+                "Projection regeneration 必须发生在 SSOT authoritative update 之后。",
+            ]
+        )
+    elif profile == "formal":
         assumptions.extend(
             [
                 "formal publication、formal ref 与 lineage 解析链必须可被重复验证。",
@@ -229,7 +309,43 @@ def derive_required_environment_inputs(feature: dict[str, Any], layers: list[str
             "驱动 FEAT acceptance checks 的 UI 路径或 integration context",
         ],
     }
-    if profile == "formal":
+    if profile == "projection_generation":
+        payload["data"] += ["freeze-ready Machine SSOT fixture", "projection template / derived-only marker fixture"]
+        payload["services"] += ["projection template resolver", "projection renderer"]
+        payload["access"] += [
+            "读取 Machine SSOT authoritative fields 与写出 projection artifact 的权限",
+            "projection renderer service identity 或等价账号材料",
+        ]
+        payload["feature_flags"] += ["projection template version / projection publish guard 开关"]
+        payload["ui_or_integration_context"] += ["gate review surface projection 渲染上下文"]
+    elif profile == "authoritative_snapshot":
+        payload["data"] += ["authoritative field fixture", "Snapshot 缺字段失败样本"]
+        payload["services"] += ["authoritative snapshot extractor"]
+        payload["access"] += [
+            "读取 completed state / authoritative output / frozen boundary / open technical decisions 的权限",
+            "snapshot extractor identity 或等价 credential material",
+        ]
+        payload["feature_flags"] += ["snapshot render guard / trace bind strict mode"]
+        payload["ui_or_integration_context"] += ["projection 内 authoritative snapshot 区块上下文"]
+    elif profile == "review_focus_risk":
+        payload["data"] += ["review focus fixture", "risk / ambiguity signal 样本", "insufficient_context / untraceable_signal 失败样本"]
+        payload["services"] += ["review focus extractor", "risk / ambiguity analyzer"]
+        payload["access"] += [
+            "读取 projection context 与写入 review focus / risk block 的权限",
+            "risk analyzer identity 或等价 credential material",
+        ]
+        payload["feature_flags"] += ["risk block enablement / traceability strict mode"]
+        payload["ui_or_integration_context"] += ["projection review focus / risks 区块上下文"]
+    elif profile == "feedback_writeback":
+        payload["data"] += ["projection comment fixture", "comment-to-SSOT mapping 样本", "mapping_failed / regeneration_pending 失败样本"]
+        payload["services"] += ["comment mapper", "revision request builder", "projection regeneration trigger"]
+        payload["access"] += [
+            "提交 projection comment、创建 revision request、触发 projection regeneration 的权限",
+            "writeback mapper / SSOT updater credential 或等价账号材料",
+        ]
+        payload["feature_flags"] += ["projection writeback enablement / direct-patch forbid guard"]
+        payload["ui_or_integration_context"] += ["review comment -> SSOT writeback -> projection regeneration 上下文"]
+    elif profile == "formal":
         payload["data"] += ["approved decision object、formal_ref、lineage fixture", "lineage_missing 与 layer_violation 失败样本"]
         payload["services"] += ["formal publication publisher", "registry formal-ref resolution / admission checker"]
         payload["access"] += [
@@ -396,8 +512,8 @@ def collaboration_units(feature: dict[str, Any], layers: list[str]) -> list[dict
                 "return path / re-entry target",
                 "decision-driven runtime routing boundary",
             ],
-            ["每个 loop 只拥有一类明确 transition。", "handoff 不挟带 formalization 或 approval authority。", "revise/retry routing 由 runtime 持有而不是由业务 skill 私下拼接。"],
-            ["loop ownership 重叠。", "candidate submit-mainline 暗含 formalization 职责。"],
+            ["每个 loop 只拥有一类明确 transition。", "handoff 不挟带 gate decision issuance 或 approval authority。", "revise/retry routing 由 runtime 持有而不是由业务 skill 私下拼接。"],
+            ["loop ownership 重叠。", "candidate submit-mainline 暗含 gate decision / publication 职责。"],
             ["handoff submission evidence", "loop transition trace", "ownership snapshot"],
             refs + ensure_list(checks[0].get("trace_hints")),
         ),
@@ -634,7 +750,7 @@ def io_units(feature: dict[str, Any], layers: list[str]) -> list[dict[str, Any]]
             "主链 IO 边界拒绝扩展为仓库级全局文件治理",
             derive_priority(feature),
             layers,
-            [str(checks[1]["given"]), "测试请求包含超出 handoff / formalization / governed skill IO 的目录动作。"],
+            [str(checks[1]["given"]), "测试请求包含超出 handoff / gate decision / governed skill IO 的目录动作。"],
             str(checks[1]["when"]),
             ["policy verdict scope", "被拒绝操作的边界说明。"],
             ["仅 mainline governed IO 被纳入受测边界。", "全局文件治理扩展请求被拒绝。"],
@@ -793,7 +909,7 @@ def derive_acceptance_traceability(feature: dict[str, Any], units: list[dict[str
         elif profile == "collaboration" and "approval and re-entry semantics outside this FEAT" in then:
             then = (
                 "提交完成后只暴露 authoritative handoff 与 pending visibility；"
-                "decision-driven revise/retry runtime routing 可以回流，但 formalization / approval 语义仍在本 FEAT 外。"
+                "decision-driven revise/retry runtime routing 可以回流，但 gate decision issuance / approval 语义仍在本 FEAT 外。"
             )
         mapping.append(
             {
@@ -819,7 +935,15 @@ def derive_risk_focus(feature: dict[str, Any]) -> list[str]:
     if not focus:
         focus = ["保持 FEAT acceptance、traceability 与 evidence closure 一致。"]
     profile = feature_profile(feature)
-    if profile == "formal":
+    if profile == "projection_generation":
+        focus += ["Projection 必须明确 derived-only / non-authoritative 标记。", "Projection 不能扩张成新的执行真相源。"]
+    elif profile == "authoritative_snapshot":
+        focus += ["Snapshot 不得新增 authority。", "Snapshot trace bind 断裂时必须显式报错而不是静默省略。"]
+    elif profile == "review_focus_risk":
+        focus += ["risk / ambiguity 提示必须可回链。", "analysis 不可退化成 runtime governance 语义。"]
+    elif profile == "feedback_writeback":
+        focus += ["comment 不能直接 patch projection。", "SSOT 更新后 projection 必须重新生成。"]
+    elif profile == "formal":
         focus += ["formal_ref / lineage 缺失时必须 fail closed。", "candidate 与 formal object 不得混层。"]
     elif profile == "io":
         focus += ["policy_deny 不得 fallback 到自由写入。", "registry / receipt 顺序错误会形成脏 managed ref。"]
@@ -833,7 +957,15 @@ def derive_preconditions(feature: dict[str, Any]) -> list[str]:
     if not preconditions:
         preconditions = ["selected FEAT 及其上游 source refs 可被稳定解析。"]
     profile = feature_profile(feature)
-    if profile == "formal":
+    if profile == "projection_generation":
+        preconditions += ["Machine SSOT 已 freeze-ready。", "Projection template 已发布且可解析。"]
+    elif profile == "authoritative_snapshot":
+        preconditions += ["SSOT authoritative fields 已冻结。", "Snapshot extractor 可读取对应 source refs。"]
+    elif profile == "review_focus_risk":
+        preconditions += ["Projection 已渲染。", "review focus / risk analyzer 可读取 SSOT 与 projection context。"]
+    elif profile == "feedback_writeback":
+        preconditions += ["reviewer comment 已被捕获。", "SSOT writeback channel 可创建 revision request。"]
+    elif profile == "formal":
         preconditions += ["approve decision object 已存在。", "formal publication / admission contract 可被解析。"]
     elif profile == "io":
         preconditions += ["Gateway / Path Policy / Registry 已接入主链。", "managed write/read preflight 可独立输出 verdict。"]
@@ -851,7 +983,27 @@ def derive_pass_criteria(feature: dict[str, Any]) -> list[str]:
     profile = feature_profile(feature)
     if derive_priority(feature) == "P1":
         criteria.append("高风险或 adoption/E2E 路径需要明确的环境、数据与 pilot execution 前提。")
-    if profile == "formal":
+    if profile == "projection_generation":
+        criteria += [
+            "Projection blocks 必须从 Machine SSOT 派生，且保留 derived-only / traceability 标记。",
+            "Projection 不得被下游继承为 authoritative source。",
+        ]
+    elif profile == "authoritative_snapshot":
+        criteria += [
+            "Snapshot 只包含 completed state / authoritative output / frozen boundary / open technical decisions。",
+            "缺少 authoritative field 时必须显式 fail closed。",
+        ]
+    elif profile == "review_focus_risk":
+        criteria += [
+            "Review Focus / Risks / Ambiguities 只服务 reviewer 决策，不引入新的 authority object。",
+            "不可回链的 risk signal 不得出现在最终 projection 中。",
+        ]
+    elif profile == "feedback_writeback":
+        criteria += [
+            "review comment 必须映射为 SSOT revision request，而不是直接修改 projection。",
+            "Projection regeneration 必须由 updated SSOT 触发并保留 provenance。",
+        ]
+    elif profile == "formal":
         criteria += [
             "formal_ref / lineage / admission verdict 必须形成单一 authoritative consumption path。",
             "lineage_missing 或 layer_violation 必须 fail closed。",
@@ -883,7 +1035,15 @@ def derive_evidence_required(feature: dict[str, Any], layers: list[str]) -> list
     profile = feature_profile(feature)
     if "e2e" in layers:
         evidence.append("若进入 e2e 层，需补充 pilot 链路或 UI/integration context 的执行前提证据")
-    if profile == "formal":
+    if profile == "projection_generation":
+        evidence += ["projection render evidence", "derived-only marker evidence", "projection trace refs"]
+    elif profile == "authoritative_snapshot":
+        evidence += ["authoritative snapshot evidence", "authoritative field trace evidence"]
+    elif profile == "review_focus_risk":
+        evidence += ["review focus extraction evidence", "risk / ambiguity trace evidence"]
+    elif profile == "feedback_writeback":
+        evidence += ["projection comment evidence", "revision request evidence", "projection regeneration evidence"]
+    elif profile == "formal":
         evidence += ["formal_ref resolution evidence", "lineage build / lineage_missing evidence", "admission verdict evidence"]
     elif profile == "io":
         evidence += ["receipt_ref", "registry_record_ref", "managed_artifact_ref", "policy_deny / registry_prerequisite_failed / receipt_pending evidence"]
@@ -940,6 +1100,7 @@ def derive_strategy_yaml(feature: dict[str, Any], package_json: dict[str, Any]) 
         "test_units": units,
         "acceptance_traceability": derive_acceptance_traceability(feature, units),
         "governing_adrs": governing_adrs(feature, package_json),
+        "semantic_lock": normalize_semantic_lock(feature.get("semantic_lock")),
     }
 
 
@@ -1015,5 +1176,6 @@ def build_test_set_yaml(feature: dict[str, Any], package_json: dict[str, Any]) -
             + ensure_list(package_json.get("source_refs"))
         ),
         "governing_adrs": governing_adrs(feature, package_json),
+        "semantic_lock": normalize_semantic_lock(feature.get("semantic_lock")),
         "status": "draft",
     }
