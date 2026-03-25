@@ -1,5 +1,5 @@
 interface:
   display_name: "LL Dev Tech To Impl"
-  short_description: "Workspace adapter for dev.tech-to-impl"
-  default_prompt: "Use $ll-dev-tech-to-impl to route into the canonical workspace dev.tech-to-impl governed workflow."
+  short_description: "Governed skill for LL Dev Tech To Impl"
+  default_prompt: "Use $ll-dev-tech-to-impl to run the governed ll-dev-tech-to-impl workflow."
 

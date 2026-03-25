@@ -30,7 +30,7 @@
 
 因此，需要一份独立 ADR，把：
 
-* `feat2impl` 的 authority
+* `tech2impl` 的 authority
 * 输入边界
 * 研发实施单结构
 * workstream 适用性判断
@@ -44,7 +44,7 @@
 
 当前真正需要回答的不是“怎么再补一版技术方案”，而是下面几个更前置的问题：
 
-## 2.1 `feat2impl` 的主输入到底是谁
+## 2.1 `tech2impl` 的主输入到底是谁
 
 如果不冻结输入边界，就会在以下对象之间漂移：
 
@@ -60,7 +60,7 @@
 * `TECH` 是正式技术设计真相源
 * repo、env、path 只属于执行上下文，不替代业务真相源
 
-## 2.2 `feat2impl` 的主输出到底是什么
+## 2.2 `tech2impl` 的主输出到底是什么
 
 如果直接宣称输出是：
 
@@ -95,7 +95,7 @@
 
 那么 `TECH` 就会在实施阶段被影子化。
 
-因此 `feat2impl` 必须冻结为：
+因此 `tech2impl` 必须冻结为：
 
 ## **研发实施任务文档，而不是第二层技术设计文档。**
 
@@ -107,7 +107,7 @@
 
 LL 正式采用：
 
-## **一个单 FEAT、lite-native、task-first 的 `ll-dev-tech-to-impl` governed skill**
+## **一个以冻结 `TECH` 为主输入、lite-native、task-first 的 `ll-dev-tech-to-impl` governed skill**
 
 作为已冻结设计进入 Dev 实施主链之前的正式研发实施单派生路径。
 
@@ -157,7 +157,7 @@ LL 正式采用：
 
 * `E:\ai\LEE\spec-global\departments\product\workflows\templates\feat-to-delivery-prep\v1\workflow.yaml`
 
-它不是 `feat2impl` 的主 authority，但它可以提供：
+它不是 `tech2impl` 的主 authority，但它可以提供：
 
 * TASK / delivery plan 的上游交接语义
 * surface applicability 的参考边界
@@ -168,7 +168,7 @@ LL 正式采用：
 
 也就是说：
 
-## **`feat2impl` 的第一真相，是本地 lite-native runtime + contract + impl candidate package 结构；但其设计 authority 仍来自上游已冻结的 `TECH/ARCH/API`。**
+## **`tech2impl` 的第一真相，是本地 lite-native runtime + contract + impl candidate package 结构；但其设计 authority 仍来自上游已冻结的 `TECH/ARCH/API`。**
 
 ---
 
@@ -198,7 +198,7 @@ planning companion 可选参考：
 
 这意味着：
 
-## **`feat2impl` 不是从任意 FEAT markdown 起草实现计划，而是从已冻结 `TECH` 派生一个可执行的 Dev 实施入口。**
+## **`tech2impl` 不是从任意 FEAT markdown 起草实现计划，而是从已冻结 `TECH` 派生一个可执行的 Dev 实施入口。**
 
 ---
 
@@ -359,7 +359,7 @@ planning companion 可选参考：
 2. 在 `IMPL` 中重新定义模块职责、对象模型、边界所有权或失败策略
 3. 直接宣称输出是已完成 FE/BE 工件，而没有 candidate package
 4. 无条件机械输出 FE/BE 两个 workstream plan
-5. 让 `feat2impl` 退化成 release plan、QA strategy 或新的 shadow design doc
+5. 让 `tech2impl` 退化成 release plan、QA strategy 或新的 shadow design doc
 6. 不保留 `TECH/API/ADR` 引用，导致 Dev 再次猜测设计语义
 
 ---
@@ -383,5 +383,5 @@ tech_design_package + feat_ref + tech_ref
 
 本 ADR 冻结其核心语义：
 
-## **`feat2impl` 的正确收敛方式，不是把 `IMPL` 继续做成第二层技术设计，而是让它成为基于已冻结 `ADR / TECH / API` 的研发实施任务文档，用于组织实现、接线、迁移与验收，但不得改写上游技术决策。**
+## **`tech2impl` 的正确收敛方式，不是把 `IMPL` 继续做成第二层技术设计，而是让它成为基于已冻结 `ADR / TECH / API` 的研发实施任务文档，用于组织实现、接线、迁移与验收，但不得改写上游技术决策。**
 

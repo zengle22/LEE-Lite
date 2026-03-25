@@ -10,7 +10,7 @@ ROOT = Path(__file__).resolve().parents[2]
 SCRIPT = ROOT / "skills" / "ll-dev-tech-to-impl" / "scripts" / "tech_to_impl.py"
 
 
-class FeatToImplWorkflowTests(unittest.TestCase):
+class TechToImplWorkflowTests(unittest.TestCase):
     def run_cmd(self, *args: str) -> subprocess.CompletedProcess[str]:
         return subprocess.run(
             [sys.executable, str(SCRIPT), *args],
