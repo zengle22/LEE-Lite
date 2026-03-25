@@ -28,21 +28,40 @@ from feat_to_tech_common import (
     validate_input_package,
 )
 from feat_to_tech_derivation import (
+    api_cli_commands,
+    api_compatibility_rules,
+    api_error_and_idempotency,
+    api_request_response_contracts,
     api_surfaces,
     architecture_topics,
+    architecture_diagram,
     assess_optional_artifacts,
     build_refs,
     consistency_check,
     design_focus,
+    explicit_axis,
+    exception_compensation,
+    flow_diagram,
+    implementation_unit_mapping,
+    integration_points,
+    interface_contracts,
+    implementation_architecture,
+    implementation_modules,
+    implementation_strategy,
     implementation_rules,
+    main_sequence,
+    minimal_code_skeleton,
     non_functional_requirements,
     responsibility_splits,
+    selected_feat_snapshot,
+    state_model,
     traceability_rows,
 )
 REQUIRED_OUTPUT_FILES = [
     "tech-design-bundle.md",
     "tech-design-bundle.json",
     "tech-spec.md",
+    "tech-impl.md",
     "tech-review-report.json",
     "tech-acceptance-report.json",
     "tech-defect-list.json",
@@ -55,11 +74,35 @@ REQUIRED_MARKDOWN_HEADINGS = [
     "Selected FEAT",
     "Need Assessment",
     "TECH Design",
+    "TECH-IMPL Design",
     "Optional ARCH",
     "Optional API",
     "Cross-Artifact Consistency",
     "Downstream Handoff",
     "Traceability",
+]
+REQUIRED_TECH_SUBHEADINGS = [
+    "### Implementation Unit Mapping",
+    "### Interface Contracts",
+    "### Main Sequence",
+    "### Exception and Compensation",
+    "### Integration Points",
+    "### Minimal Code Skeleton",
+]
+REQUIRED_TECH_IMPL_HEADINGS = [
+    "## ASCII Architecture View",
+    "## Implementation Unit Mapping",
+    "## Interface Contracts",
+    "## Main Sequence",
+    "## Exception and Compensation",
+    "## Integration Points",
+    "## Minimal Code Skeleton",
+]
+REQUIRED_API_HEADINGS = [
+    "## CLI Command Surface",
+    "## Request and Response Contracts",
+    "## Error Codes and Idempotency",
+    "## Compatibility and Versioning",
 ]
 DOWNSTREAM_WORKFLOW = "workflow.dev.tech_to_impl"
 
@@ -75,6 +118,13 @@ def repo_root_from(repo_root: str | None, input_path: Path | None = None) -> Pat
 
 def output_dir_for(repo_root: Path, run_id: str) -> Path:
     return repo_root / "artifacts" / "feat-to-tech" / run_id
+
+
+def display_list(values: list[str]) -> str:
+    items = [str(item).strip() for item in values if str(item).strip()]
+    return ", ".join(items) if items else "None"
+
+
 @dataclass
 class GeneratedTechPackage:
     run_id: str
@@ -83,6 +133,8 @@ class GeneratedTechPackage:
     json_payload: dict[str, Any]
     tech_frontmatter: dict[str, Any]
     tech_body: str
+    tech_impl_frontmatter: dict[str, Any]
+    tech_impl_body: str
     arch_frontmatter: dict[str, Any] | None
     arch_body: str | None
     api_frontmatter: dict[str, Any] | None
@@ -100,6 +152,18 @@ def build_tech_package(package: Any, feature: dict[str, Any], feat_ref: str, run
     focus = design_focus(feature)
     rules = implementation_rules(feature)
     nfrs = non_functional_requirements(feature, package)
+    implementation_arch = implementation_architecture(feature)
+    modules = implementation_modules(feature)
+    states = state_model(feature)
+    strategy = implementation_strategy(feature)
+    arch_diagram = architecture_diagram(feature)
+    main_flow_diagram = flow_diagram(feature)
+    unit_mapping = implementation_unit_mapping(feature)
+    contracts = interface_contracts(feature)
+    sequence_steps = main_sequence(feature)
+    exception_rules = exception_compensation(feature)
+    integrations = integration_points(feature)
+    skeleton = minimal_code_skeleton(feature)
     traceability = traceability_rows(feature, package, refs)
     consistency = consistency_check(feature, assessment)
     source_refs = unique_strings(
@@ -110,6 +174,7 @@ def build_tech_package(package: Any, feature: dict[str, Any], feat_ref: str, run
 
     artifact_refs = {
         "tech_spec": "tech-spec.md",
+        "tech_impl": "tech-impl.md",
         "arch_spec": "arch-design.md" if assessment["arch_required"] else None,
         "api_spec": "api-contract.md" if assessment["api_required"] else None,
     }
@@ -148,6 +213,7 @@ def build_tech_package(package: Any, feature: dict[str, Any], feat_ref: str, run
         "supporting_artifact_refs": [
             "tech-design-bundle.json",
             "tech-spec.md",
+            "tech-impl.md",
             *(['arch-design.md'] if assessment["arch_required"] else []),
             *(['api-contract.md'] if assessment["api_required"] else []),
             "tech-review-report.json",
@@ -175,17 +241,27 @@ def build_tech_package(package: Any, feature: dict[str, Any], feat_ref: str, run
         "api_required": assessment["api_required"],
         "need_assessment": assessment,
         "selected_feat": {
-            "feat_ref": refs["feat_ref"],
-            "title": feature.get("title"),
-            "goal": feature.get("goal"),
-            "scope": ensure_list(feature.get("scope")),
-            "constraints": ensure_list(feature.get("constraints")),
-            "dependencies": ensure_list(feature.get("dependencies")),
+            **selected_feat_snapshot(feature),
+            "resolved_axis": explicit_axis(feature) or "derived",
         },
         "tech_design": {
             "design_focus": focus,
             "implementation_rules": rules,
             "non_functional_requirements": nfrs,
+        },
+        "tech_impl_design": {
+            "implementation_architecture": implementation_arch,
+            "architecture_diagram": arch_diagram,
+            "state_model": states,
+            "module_plan": modules,
+            "implementation_strategy": strategy,
+            "implementation_unit_mapping": unit_mapping,
+            "interface_contracts": contracts,
+            "main_sequence": sequence_steps,
+            "flow_diagram": main_flow_diagram,
+            "exception_and_compensation": exception_rules,
+            "integration_points": integrations,
+            "minimal_code_skeleton": skeleton,
         },
         "optional_arch": {
             "topics": architecture_topics(feature),
@@ -195,6 +271,10 @@ def build_tech_package(package: Any, feature: dict[str, Any], feat_ref: str, run
         else None,
         "optional_api": {
             "surfaces": api_surfaces(feature),
+            "cli_commands": api_cli_commands(feature),
+            "request_response_contracts": api_request_response_contracts(feature),
+            "error_and_idempotency": api_error_and_idempotency(feature),
+            "compatibility_rules": api_compatibility_rules(feature),
             "rationale": assessment["api_rationale"],
         }
         if assessment["api_required"]
@@ -226,9 +306,16 @@ def build_tech_package(package: Any, feature: dict[str, Any], feat_ref: str, run
                 [
                     f"- feat_ref: `{refs['feat_ref']}`",
                     f"- title: {feature.get('title')}",
+                    f"- axis_id: {feature.get('axis_id')}",
+                    f"- resolved_axis: {explicit_axis(feature) or 'derived'}",
                     f"- epic_freeze_ref: `{refs['epic_ref']}`",
                     f"- src_root_id: `{refs['src_ref']}`",
                     f"- goal: {feature.get('goal')}",
+                    f"- authoritative_artifact: {feature.get('authoritative_artifact')}",
+                    f"- upstream_feat: {display_list(ensure_list(feature.get('upstream_feat')))}",
+                    f"- downstream_feat: {display_list(ensure_list(feature.get('downstream_feat')))}",
+                    f"- gate_decision_dependency_feat_refs: {display_list(ensure_list(feature.get('gate_decision_dependency_feat_refs')))}",
+                    f"- admission_dependency_feat_refs: {display_list(ensure_list(feature.get('admission_dependency_feat_refs')))}",
                 ]
             ),
             "## Need Assessment\n\n"
@@ -249,6 +336,39 @@ def build_tech_package(package: Any, feature: dict[str, Any], feat_ref: str, run
                     *[f"  - {item}" for item in rules],
                     "- Non-functional requirements:",
                     *[f"  - {item}" for item in nfrs],
+                ]
+            ),
+            "## TECH-IMPL Design\n\n"
+            + "\n".join(
+                [
+                    "### ASCII Architecture View",
+                    *[f"- {item}" for item in implementation_arch],
+                    "",
+                    arch_diagram,
+                    "",
+                    "### Implementation Unit Mapping",
+                    *[f"- {item}" for item in unit_mapping],
+                    "",
+                    "### Interface Contracts",
+                    *[f"- {item}" for item in contracts],
+                    "",
+                    "### Main Sequence",
+                    *[f"- {item}" for item in sequence_steps],
+                    "",
+                    main_flow_diagram,
+                    "",
+                    "### Exception and Compensation",
+                    *[f"- {item}" for item in exception_rules],
+                    "",
+                    "### Integration Points",
+                    *[f"- {item}" for item in integrations],
+                    "",
+                    "### Minimal Code Skeleton",
+                    "- Happy path:",
+                    skeleton["happy_path"],
+                    "",
+                    "- Failure path:",
+                    skeleton["failure_path"],
                 ]
             ),
             "## Optional ARCH\n\n"
@@ -309,6 +429,31 @@ def build_tech_package(package: Any, feature: dict[str, Any], feat_ref: str, run
         ]
     )
 
+    tech_impl_frontmatter = {
+        "artifact_type": "TECH_IMPL",
+        "status": json_payload["status"],
+        "schema_version": "1.0.0",
+        "tech_ref": refs["tech_ref"],
+        "feat_ref": refs["feat_ref"],
+        "source_refs": source_refs,
+    }
+    tech_impl_body = "\n\n".join(
+        [
+            f"# TECH-IMPL-{refs['feat_ref']}",
+            "## ASCII Architecture View\n\n" + "\n".join(f"- {item}" for item in implementation_arch) + "\n\n" + arch_diagram,
+            "## State Model\n\n" + "\n".join(f"- {item}" for item in states),
+            "## Module Plan\n\n" + "\n".join(f"- {item}" for item in modules),
+            "## Implementation Strategy\n\n" + "\n".join(f"- {item}" for item in strategy),
+            "## Implementation Unit Mapping\n\n" + "\n".join(f"- {item}" for item in unit_mapping),
+            "## Interface Contracts\n\n" + "\n".join(f"- {item}" for item in contracts),
+            "## Main Sequence\n\n" + "\n".join(f"- {item}" for item in sequence_steps) + "\n\n" + main_flow_diagram,
+            "## Exception and Compensation\n\n" + "\n".join(f"- {item}" for item in exception_rules),
+            "## Integration Points\n\n" + "\n".join(f"- {item}" for item in integrations),
+            "## Minimal Code Skeleton\n\n- Happy path:\n\n" + skeleton["happy_path"] + "\n\n- Failure path:\n\n" + skeleton["failure_path"],
+            "## Traceability\n\n" + "\n".join(f"- {item['design_section']}: {', '.join(item['source_refs'])}" for item in traceability),
+        ]
+    )
+
     arch_frontmatter = None
     arch_body = None
     if assessment["arch_required"]:
@@ -324,6 +469,7 @@ def build_tech_package(package: Any, feature: dict[str, Any], feat_ref: str, run
             [
                 f"# {refs['arch_ref']}",
                 "## Boundary Placement\n\n" + "\n".join(f"- {item}" for item in architecture_topics(feature)),
+                "## Boundary Diagram\n\n" + arch_diagram,
                 "## Responsibility Split\n\n" + "\n".join(f"- {item}" for item in responsibility_splits(feature)),
                 "## Architecture Decisions\n\n" + "\n".join(f"- {item}" for item in assessment["arch_rationale"]),
             ]
@@ -343,21 +489,12 @@ def build_tech_package(package: Any, feature: dict[str, Any], feat_ref: str, run
         api_body = "\n\n".join(
             [
                 f"# {refs['api_ref']}",
-                "## Contract Surfaces\n\n" + "\n".join(f"- {item}" for item in api_surfaces(feature)),
-                "## Contract Expectations\n\n"
+                "## CLI Command Surface\n\n" + "\n".join(f"- {item}" for item in api_cli_commands(feature)),
+                "## Request and Response Contracts\n\n" + "\n".join(f"- {item}" for item in api_request_response_contracts(feature)),
+                "## Error Codes and Idempotency\n\n" + "\n".join(f"- {item}" for item in api_error_and_idempotency(feature)),
+                "## Compatibility and Versioning\n\n"
                 + "\n".join(
-                    [
-                        "- Preserve FEAT-defined acceptance semantics at the interface boundary.",
-                        "- Keep request/response, event, or handoff semantics stable for downstream tech-impl consumers.",
-                        "- Record compatibility and versioning decisions before expanding implementation detail.",
-                    ]
-                ),
-                "## Error and Compatibility Notes\n\n"
-                + "\n".join(
-                    [
-                        "- Contract-breaking changes require a new design revision round.",
-                        "- Optional fields or event variants must not hide new product scope.",
-                    ]
+                    [f"- {item}" for item in api_compatibility_rules(feature)]
                 ),
             ]
         )
@@ -416,6 +553,8 @@ def build_tech_package(package: Any, feature: dict[str, Any], feat_ref: str, run
         json_payload=json_payload,
         tech_frontmatter=tech_frontmatter,
         tech_body=tech_body,
+        tech_impl_frontmatter=tech_impl_frontmatter,
+        tech_impl_body=tech_impl_body,
         arch_frontmatter=arch_frontmatter,
         arch_body=arch_body,
         api_frontmatter=api_frontmatter,
@@ -475,6 +614,11 @@ def validate_output_package(artifacts_dir: Path) -> tuple[list[str], dict[str, A
         errors.append("api-contract.md must exist when api_required is true.")
     if not api_required and (artifacts_dir / "api-contract.md").exists():
         errors.append("api-contract.md must not exist when api_required is false.")
+    if api_required:
+        api_body = (artifacts_dir / "api-contract.md").read_text(encoding="utf-8")
+        for heading in REQUIRED_API_HEADINGS:
+            if heading not in api_body:
+                errors.append(f"api-contract.md must contain heading: {heading}")
 
     consistency = bundle_json.get("design_consistency_check")
     if not isinstance(consistency, dict):
@@ -488,6 +632,19 @@ def validate_output_package(artifacts_dir: Path) -> tuple[list[str], dict[str, A
     for heading in REQUIRED_MARKDOWN_HEADINGS:
         if f"## {heading}" not in markdown_body:
             errors.append(f"tech-design-bundle.md is missing section: {heading}")
+    for subheading in REQUIRED_TECH_SUBHEADINGS:
+        if subheading not in markdown_body:
+            errors.append(f"tech-design-bundle.md is missing TECH subsection: {subheading.replace('### ', '')}")
+    if markdown_body.count("```text") < 2:
+        errors.append("tech-design-bundle.md must include at least two ASCII diagrams for architecture and flow.")
+
+    tech_impl_text = (artifacts_dir / "tech-impl.md").read_text(encoding="utf-8")
+    _, tech_impl_body = parse_markdown_frontmatter(tech_impl_text)
+    for heading in REQUIRED_TECH_IMPL_HEADINGS:
+        if heading not in tech_impl_body:
+            errors.append(f"tech-impl.md is missing section: {heading.replace('## ', '')}")
+    if tech_impl_body.count("```text") < 2:
+        errors.append("tech-impl.md must include at least two ASCII diagrams for architecture and flow.")
 
     handoff = load_json(artifacts_dir / "handoff-to-tech-impl.json")
     if handoff.get("target_workflow") != DOWNSTREAM_WORKFLOW:

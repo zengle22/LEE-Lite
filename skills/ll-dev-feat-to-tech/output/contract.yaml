@@ -5,6 +5,7 @@ required_runtime_artifacts:
   - tech-design-bundle.md
   - tech-design-bundle.json
   - tech-spec.md
+  - tech-impl.md
   - tech-review-report.json
   - tech-acceptance-report.json
   - tech-defect-list.json
@@ -26,6 +27,7 @@ required_sections:
   - Selected FEAT
   - Need Assessment
   - TECH Design
+  - TECH-IMPL Design
   - Optional ARCH
   - Optional API
   - Cross-Artifact Consistency
@@ -47,5 +49,6 @@ forbidden_content:
   - duplicated API contract detail inside ARCH sections
 notes:
   - TECH is mandatory for every run.
+  - TECH-IMPL is mandatory for every run and must be implementation-ready.
   - ARCH and API must be emitted only when the need assessment says they are required.
   - The package must carry a final cross-artifact consistency result before freeze.

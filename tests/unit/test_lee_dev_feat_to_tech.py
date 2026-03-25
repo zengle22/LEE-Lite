@@ -177,6 +177,9 @@ class FeatToTechWorkflowTests(unittest.TestCase):
             artifacts_dir = Path(payload["artifacts_dir"])
             design = json.loads((artifacts_dir / "tech-design-bundle.json").read_text(encoding="utf-8"))
             manifest = json.loads((artifacts_dir / "package-manifest.json").read_text(encoding="utf-8"))
+            bundle_md = (artifacts_dir / "tech-design-bundle.md").read_text(encoding="utf-8")
+            tech_impl_md = (artifacts_dir / "tech-impl.md").read_text(encoding="utf-8")
+            api_md = (artifacts_dir / "api-contract.md").read_text(encoding="utf-8")
             executor_cli = json.loads(
                 (artifacts_dir / "_cli" / "tech-design-bundle-executor-commit.response.json").read_text(encoding="utf-8")
             )
@@ -186,6 +189,7 @@ class FeatToTechWorkflowTests(unittest.TestCase):
             execution = json.loads((artifacts_dir / "execution-evidence.json").read_text(encoding="utf-8"))
 
             self.assertTrue((artifacts_dir / "tech-spec.md").exists())
+            self.assertTrue((artifacts_dir / "tech-impl.md").exists())
             self.assertTrue((artifacts_dir / "arch-design.md").exists())
             self.assertTrue((artifacts_dir / "api-contract.md").exists())
             self.assertEqual(design["workflow_key"], "dev.feat-to-tech")
@@ -193,6 +197,21 @@ class FeatToTechWorkflowTests(unittest.TestCase):
             self.assertTrue(design["api_required"])
             self.assertEqual(design["downstream_handoff"]["target_workflow"], "workflow.dev.tech_to_impl")
             self.assertTrue(design["design_consistency_check"]["passed"])
+            self.assertIn("## TECH-IMPL Design", bundle_md)
+            self.assertIn("### Implementation Unit Mapping", bundle_md)
+            self.assertIn("### Main Sequence", bundle_md)
+            self.assertGreaterEqual(bundle_md.count("```text"), 2)
+            self.assertNotIn("```mermaid", bundle_md)
+            self.assertIn("## ASCII Architecture View", tech_impl_md)
+            self.assertIn("## Interface Contracts", tech_impl_md)
+            self.assertIn("## Minimal Code Skeleton", tech_impl_md)
+            self.assertIn("cli/lib/mainline_runtime.py", tech_impl_md)
+            self.assertIn("## CLI Command Surface", api_md)
+            self.assertIn("lee gate submit-handoff", api_md)
+            self.assertIn("lee gate show-pending", api_md)
+            self.assertNotIn("lee gate decide", api_md)
+            self.assertIn("request fields=", api_md)
+            self.assertIn("idempotent key=", api_md)
             self.assertIn("arch-design.md", design["downstream_handoff"]["supporting_artifact_refs"])
             self.assertIn("api-contract.md", design["downstream_handoff"]["supporting_artifact_refs"])
             self.assertEqual(executor_cli["status_code"], "OK")
@@ -251,14 +270,16 @@ class FeatToTechWorkflowTests(unittest.TestCase):
             design = json.loads((artifacts_dir / "tech-design-bundle.json").read_text(encoding="utf-8"))
 
             self.assertTrue((artifacts_dir / "tech-spec.md").exists())
+            self.assertTrue((artifacts_dir / "tech-impl.md").exists())
             self.assertFalse((artifacts_dir / "arch-design.md").exists())
             self.assertFalse((artifacts_dir / "api-contract.md").exists())
             self.assertFalse(design["arch_required"])
             self.assertFalse(design["api_required"])
             self.assertIsNone(design["artifact_refs"]["arch_spec"])
             self.assertIsNone(design["artifact_refs"]["api_spec"])
+            self.assertEqual(design["artifact_refs"]["tech_impl"], "tech-impl.md")
 
-    def test_io_path_governance_feat_does_not_force_api_contract(self) -> None:
+    def test_io_path_governance_feat_emits_api_contract(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             repo_root = Path(temp_dir)
             feature = {
@@ -298,41 +319,46 @@ class FeatToTechWorkflowTests(unittest.TestCase):
             artifacts_dir = Path(json.loads(result.stdout)["artifacts_dir"])
             design = json.loads((artifacts_dir / "tech-design-bundle.json").read_text(encoding="utf-8"))
             arch_body = (artifacts_dir / "arch-design.md").read_text(encoding="utf-8")
+            tech_impl_body = (artifacts_dir / "tech-impl.md").read_text(encoding="utf-8")
+            api_body = (artifacts_dir / "api-contract.md").read_text(encoding="utf-8")
 
             self.assertTrue(design["arch_required"])
-            self.assertFalse(design["api_required"])
+            self.assertTrue(design["api_required"])
             self.assertTrue((artifacts_dir / "arch-design.md").exists())
-            self.assertFalse((artifacts_dir / "api-contract.md").exists())
+            self.assertTrue((artifacts_dir / "api-contract.md").exists())
             self.assertIn("不得外扩成全局文件治理", arch_body)
+            self.assertIn("cli/lib/managed_gateway.py", tech_impl_body)
+            self.assertIn("GatewayWriteRequest", tech_impl_body)
+            self.assertIn("lee artifact commit-governed", api_body)
+            self.assertIn("lee artifact read-governed", api_body)
+            self.assertIn("PolicyVerdict", tech_impl_body)
 
     def test_allow_update_removes_stale_optional_api_artifact(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             repo_root = Path(temp_dir)
             feature = {
                 "feat_ref": "FEAT-SRC-001-005",
-                "title": "主链文件 IO 与路径治理能力",
-                "goal": "让主链接入受治理 IO/path 基础，不扩展为额外边界契约设计。",
+                "title": "配置页文案统一能力",
+                "goal": "统一配置页文案，不改变系统边界或接口契约。",
                 "scope": [
-                    "定义主链 handoff 与 formal materialization 如何接入受治理 path / mode 能力。",
-                    "明确哪些 IO 属于主链 handoff / materialization，哪些不属于。",
-                    "要求主链写入遵循受治理路径边界。",
+                    "统一页面标题文案。",
+                    "统一帮助提示文案。",
+                    "统一成功与失败状态提示文案。",
                 ],
                 "constraints": [
-                    "本 FEAT 只定义主链如何消费受治理 IO/path 能力。",
-                    "不得外扩成全局文件治理或额外边界契约设计。",
+                    "不改变接口结构。",
+                    "不新增跨模块 contract。",
+                    "不改变模块边界。",
                     "允许 update 重跑时清理与当前 need assessment 不一致的旧产物。",
                 ],
-                "dependencies": [
-                    "Boundary to 正式交接与物化能力: formalization 决策语义不在本 FEAT 内。",
-                    "Boundary to 对象分层与准入能力: 对象资格与引用方向不在本 FEAT 内。",
-                ],
-                "outputs": ["Traceable handoff metadata"],
+                "dependencies": [],
+                "outputs": ["page copy update"],
                 "acceptance_checks": [
-                    {"scenario": "Mainline IO boundary is explicit", "given": "mainline path boundary", "when": "reviewed", "then": "主链 IO 与其他治理边界清晰"},
-                    {"scenario": "Governed path rules are inherited", "given": "formal write path", "when": "validated", "then": "必须使用受治理 path / mode 边界"},
+                    {"scenario": "Title copy is consistent", "given": "配置页", "when": "查看标题", "then": "标题文案统一"},
+                    {"scenario": "Help text is consistent", "given": "帮助提示", "when": "查看提示", "then": "帮助文案统一"},
                     {"scenario": "Stale optional artifacts are removed on rerun", "given": "allow-update rerun", "when": "optional contract output is no longer required", "then": "旧契约产物会被删除"},
                 ],
-                "source_refs": ["FEAT-SRC-001-005", "EPIC-SRC001", "SRC-001", "ADR-005"],
+                "source_refs": ["FEAT-SRC-001-005", "EPIC-SRC001", "SRC-001"],
             }
             bundle = self.make_bundle_json(feature, run_id="feat-update-clean")
             input_dir = self.make_feat_package(repo_root, "feat-update-clean", bundle)
@@ -354,6 +380,205 @@ class FeatToTechWorkflowTests(unittest.TestCase):
             )
             self.assertEqual(result.returncode, 0, result.stderr)
             self.assertFalse((stale_dir / "api-contract.md").exists())
+
+    def test_feature_axis_specific_impl_content_stays_aligned(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            repo_root = Path(temp_dir)
+            feature = {
+                "feat_ref": "FEAT-SRC-001-003",
+                "title": "对象分层与准入能力",
+                "goal": "让 candidate package、formal object 与 downstream consumption 形成稳定分层。",
+                "scope": [
+                    "定义 candidate package、formal object、downstream consumption object 的分层职责和允许的引用方向。",
+                    "定义什么对象有资格成为正式输入，以及哪些 consumer 只能读取 formal layer。",
+                    "要求任何下游消费都必须沿 formal refs 与 lineage 进入。",
+                ],
+                "constraints": [
+                    "candidate package 与 formal object 强制分层。",
+                    "Consumer 准入必须沿 formal refs 与 lineage 判断。",
+                    "不得通过路径猜测获得读取资格。",
+                ],
+                "dependencies": [
+                    "Boundary to 正式交接与物化能力: 本 FEAT 定义哪些对象可以成为正式输入，而不是定义正式升级动作本身。",
+                    "Boundary to 主链文件 IO 与路径治理能力: path / mode 规则留给 IO 治理 FEAT。",
+                ],
+                "outputs": ["Frozen FEAT definition", "Traceable handoff metadata"],
+                "acceptance_checks": [
+                    {"scenario": "Candidate and formal layers cannot be confused", "given": "candidate object", "when": "reviewed", "then": "必须区分 authoritative layer"},
+                    {"scenario": "Consumer admission is formal-ref based", "given": "consumer", "when": "validated", "then": "必须沿 formal refs 与 lineage 放行"},
+                    {"scenario": "Path guessing is blocked", "given": "旁路读取", "when": "attempted", "then": "被拒绝"},
+                ],
+                "source_refs": ["FEAT-SRC-001-003", "EPIC-SRC001", "SRC-001"],
+            }
+            bundle = self.make_bundle_json(feature, run_id="feat-layering")
+            input_dir = self.make_feat_package(repo_root, "feat-layering", bundle)
+
+            result = self.run_cmd("run", "--input", str(input_dir), "--feat-ref", "FEAT-SRC-001-003", "--repo-root", str(repo_root), "--run-id", "tech-layering")
+            self.assertEqual(result.returncode, 0, result.stderr)
+            artifacts_dir = Path(json.loads(result.stdout)["artifacts_dir"])
+            tech_impl_body = (artifacts_dir / "tech-impl.md").read_text(encoding="utf-8")
+            design = json.loads((artifacts_dir / "tech-design-bundle.json").read_text(encoding="utf-8"))
+
+            self.assertIn("cli/lib/lineage.py", tech_impl_body)
+            self.assertIn("AdmissionRequest", tech_impl_body)
+
+    def test_product_slice_titles_and_machine_fields_drive_axis_selection(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            repo_root = Path(temp_dir)
+            feature = {
+                "feat_ref": "FEAT-SRC-001-010",
+                "title": "主链 gate 审核与裁决流",
+                "axis_id": "handoff-formalization",
+                "track": "foundation",
+                "goal": "冻结 gate 如何审核 candidate、形成单一 decision object，并把结果明确返回 execution 或 formal 发布链。",
+                "scope": [
+                    "定义 gate 如何消费 authoritative handoff 并组织审核上下文。",
+                    "定义 approve / revise / retry / handoff / reject 的业务语义与输出物。",
+                    "定义 decision object 如何成为 formal 发布 trigger。",
+                ],
+                "constraints": [
+                    "approve / revise / retry / handoff / reject 词表只能在本 FEAT 定义。",
+                    "decision object 是唯一 authoritative gate result。",
+                    "formal publication 只能由 approve decision 触发。",
+                    "本 FEAT 不定义 downstream admission。",
+                ],
+                "dependencies": [
+                    "上游依赖 FEAT-SRC-001-009 提供 authoritative handoff submission。",
+                    "下游依赖 FEAT-SRC-001-011 负责 formal publication 与 admission。",
+                ],
+                "outputs": ["authoritative decision object", "formal publication trigger"],
+                "upstream_feat": ["FEAT-SRC-001-009"],
+                "downstream_feat": ["FEAT-SRC-001-011"],
+                "consumes": ["authoritative handoff submission", "proposal", "evidence"],
+                "produces": ["authoritative decision object", "delegation directive", "formal publication trigger"],
+                "authoritative_artifact": "authoritative decision object",
+                "gate_decision_dependency_feat_refs": [],
+                "gate_decision_dependency": "owned by this FEAT",
+                "admission_dependency_feat_refs": ["FEAT-SRC-001-011"],
+                "admission_dependency": "approve decisions emitted here are the only prerequisite for downstream formal publication and admission",
+                "identity_and_scenario": {"product_interface": "审批裁决流", "completed_state": "authoritative decision object 已形成"},
+                "business_flow": {"main_flow": ["gate consume handoff", "review and decide", "emit decision object"]},
+                "product_objects_and_deliverables": {"authoritative_output": "authoritative decision object"},
+                "collaboration_and_timeline": {"business_sequence": "handoff -> gate decision -> formal trigger"},
+                "acceptance_and_testability": {"test_dimensions": ["decision vocabulary", "decision return path", "formal trigger path", "reject path"]},
+                "frozen_downstream_boundary": {"open_technical_decisions": ["runtime persistence carrier"]},
+                "acceptance_checks": [
+                    {"scenario": "Gate decision path is single and explicit", "given": "handoff", "when": "reviewed", "then": "输出单一 decision object"},
+                    {"scenario": "Decision vocabulary is canonical", "given": "reviewer", "when": "deciding", "then": "只允许 approve/revise/retry/handoff/reject"},
+                    {"scenario": "Formal trigger is decision-owned", "given": "approve", "when": "publishing", "then": "formal trigger 只能来自 decision object"},
+                ],
+                "source_refs": ["FEAT-SRC-001-010", "EPIC-SRC001", "SRC-001"],
+            }
+            bundle = self.make_bundle_json(feature, run_id="feat-product-slice")
+            input_dir = self.make_feat_package(repo_root, "feat-product-slice", bundle)
+
+            result = self.run_cmd("run", "--input", str(input_dir), "--feat-ref", "FEAT-SRC-001-010", "--repo-root", str(repo_root), "--run-id", "tech-product-slice")
+            self.assertEqual(result.returncode, 0, result.stderr)
+            artifacts_dir = Path(json.loads(result.stdout)["artifacts_dir"])
+            design = json.loads((artifacts_dir / "tech-design-bundle.json").read_text(encoding="utf-8"))
+            tech_impl_body = (artifacts_dir / "tech-impl.md").read_text(encoding="utf-8")
+            api_body = (artifacts_dir / "api-contract.md").read_text(encoding="utf-8")
+
+            self.assertEqual(design["selected_feat"]["axis_id"], "handoff-formalization")
+            self.assertEqual(design["selected_feat"]["resolved_axis"], "formalization")
+            self.assertEqual(design["selected_feat"]["authoritative_artifact"], "authoritative decision object")
+            self.assertEqual(design["selected_feat"]["downstream_feat"], ["FEAT-SRC-001-011"])
+            self.assertIn("cli/lib/formalization.py", tech_impl_body)
+            self.assertIn("GateDecision", tech_impl_body)
+            self.assertIn("lee gate decide", api_body)
+            self.assertIn("lee registry publish-formal", api_body)
+            self.assertNotIn("validate-admission", api_body)
+            self.assertIn("materialization_pending", tech_impl_body)
+            self.assertNotIn("Onboarding registry", tech_impl_body)
+            self.assertTrue(design["api_required"])
+
+    def test_formalization_api_doc_uses_cli_contracts(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            repo_root = Path(temp_dir)
+            feature = {
+                "feat_ref": "FEAT-SRC-001-002",
+                "title": "正式交接与物化能力",
+                "goal": "让 candidate package 经由 external gate 形成 formal object 并成为下游正式输入。",
+                "scope": [
+                    "定义 handoff 到 gate decision 的正式升级链。",
+                    "定义 approve / revise / retry / handoff / reject 的决策词表。",
+                    "定义 formal object 发布与下游正式消费边界。",
+                ],
+                "constraints": [
+                    "business skill 不直接写 formal object。",
+                    "formalization 只发生在 gate 决策之后。",
+                    "candidate package 不得直接成为下游正式输入。",
+                ],
+                "dependencies": [
+                    "Boundary to 主链协作闭环能力: handoff runtime 仍负责主链提交与回流。",
+                    "Boundary to 对象分层与准入能力: formal refs 与 lineage 需要后续准入消费。",
+                ],
+                "outputs": ["decision object", "formal publish contract"],
+                "acceptance_checks": [
+                    {"scenario": "Gate decision vocabulary is explicit", "given": "handoff", "when": "reviewed", "then": "决策词表固定"},
+                    {"scenario": "Formal object publish is explicit", "given": "approve", "when": "materialized", "then": "形成 formal refs"},
+                    {"scenario": "Candidate does not bypass gate", "given": "candidate package", "when": "consumer reads", "then": "不允许直接消费"},
+                ],
+                "source_refs": ["FEAT-SRC-001-002", "EPIC-SRC001", "SRC-001", "ADR-006"],
+            }
+            bundle = self.make_bundle_json(feature, run_id="feat-formalization-api")
+            input_dir = self.make_feat_package(repo_root, "feat-formalization-api", bundle)
+
+            result = self.run_cmd("run", "--input", str(input_dir), "--feat-ref", "FEAT-SRC-001-002", "--repo-root", str(repo_root), "--run-id", "tech-formalization-api")
+            self.assertEqual(result.returncode, 0, result.stderr)
+            artifacts_dir = Path(json.loads(result.stdout)["artifacts_dir"])
+            api_md = (artifacts_dir / "api-contract.md").read_text(encoding="utf-8")
+
+            self.assertIn("lee gate decide", api_md)
+            self.assertIn("lee registry publish-formal", api_md)
+            self.assertIn("decision_reason", api_md)
+            self.assertIn("formal_ref", api_md)
+            self.assertIn("decision_not_approvable", api_md)
+
+    def test_adoption_e2e_feat_emits_api_contract(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            repo_root = Path(temp_dir)
+            feature = {
+                "feat_ref": "FEAT-SRC-001-006",
+                "title": "governed skill 接入与 pilot 闭环流",
+                "axis_id": "skill-adoption-e2e",
+                "goal": "让新 skill 能按 onboarding、pilot、cutover/fallback 的主链接入流程稳定落地。",
+                "scope": [
+                    "定义 onboarding directive、pilot evidence 与 cutover guard 的业务交付物。",
+                    "定义 producer -> gate -> formal -> consumer -> audit 的最小 pilot 闭环。",
+                    "定义 compat mode、fallback 与 cutover 的业务边界。",
+                ],
+                "constraints": [
+                    "本 FEAT 不重写 foundation FEAT 的内部实现。",
+                    "pilot evidence 必须成为 authoritative rollout input。",
+                    "fallback 结果必须显式记录到 receipt。",
+                ],
+                "dependencies": [
+                    "Boundary to formal 发布与下游准入流: pilot 只能消费已发布 formal refs。",
+                    "Boundary to 主链候选提交与交接流: producer 提交仍沿 authoritative handoff 进入 gate pending。",
+                ],
+                "outputs": ["onboarding directive", "pilot evidence submission", "cutover recommendation"],
+                "acceptance_checks": [
+                    {"scenario": "Pilot chain is complete", "given": "producer to audit", "when": "validated", "then": "闭环证据齐全"},
+                    {"scenario": "Fallback is explicit", "given": "pilot failure", "when": "cutover reviewed", "then": "fallback outcome 被记录"},
+                    {"scenario": "Compat mode is frozen", "given": "legacy skill", "when": "onboarded", "then": "compat mode 明确可追踪"},
+                ],
+                "source_refs": ["FEAT-SRC-001-006", "EPIC-SRC001", "SRC-001"],
+            }
+            bundle = self.make_bundle_json(feature, run_id="feat-adoption-api")
+            input_dir = self.make_feat_package(repo_root, "feat-adoption-api", bundle)
+
+            result = self.run_cmd("run", "--input", str(input_dir), "--feat-ref", "FEAT-SRC-001-006", "--repo-root", str(repo_root), "--run-id", "tech-adoption-api")
+            self.assertEqual(result.returncode, 0, result.stderr)
+            artifacts_dir = Path(json.loads(result.stdout)["artifacts_dir"])
+            design = json.loads((artifacts_dir / "tech-design-bundle.json").read_text(encoding="utf-8"))
+            api_md = (artifacts_dir / "api-contract.md").read_text(encoding="utf-8")
+
+            self.assertTrue(design["api_required"])
+            self.assertIn("lee rollout onboard-skill", api_md)
+            self.assertIn("lee audit submit-pilot-evidence", api_md)
+            self.assertIn("compat_mode", api_md)
+            self.assertIn("cutover_recommendation", api_md)
 
     def test_validate_input_rejects_missing_feat_ref(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:

@@ -28,7 +28,55 @@ api_required: false
 
 ## TECH Design
 
-[Summarize the mandatory implementation-facing design.]
+[Summarize the definition-layer design: scope, frozen rules, and non-functional requirements.]
+
+## TECH-IMPL Design
+
+### ASCII Architecture View
+
+[Describe the concrete modules, responsibilities, and runtime placement.]
+
+```text
+[Module A] --> [Module B]
+```
+
+### Implementation Unit Mapping
+
+[Map each implementation unit to package/module/file and say whether it is new or extended.]
+
+### Interface Contracts
+
+[For each core component, specify input, output, errors, key fields, idempotency, and preconditions.]
+
+### Main Sequence
+
+[Describe the primary success path and at least one revision/fallback path.]
+
+```text
+Producer -> Runtime : Example flow
+```
+
+### Exception and Compensation
+
+[Describe compensation, partial-success rules, and recovery paths.]
+
+### Integration Points
+
+[Describe who calls these modules, where they attach to existing CLI/loop/skill paths, and compatibility mode behavior.]
+
+### Minimal Code Skeleton
+
+[Provide one happy-path pseudocode block and one failure-path pseudocode block.]
+
+```python
+def happy_path() -> None:
+    ...
+```
+
+```python
+def failure_path() -> None:
+    ...
+```
 
 ## Optional ARCH
 
@@ -36,7 +84,7 @@ api_required: false
 
 ## Optional API
 
-[If not required, say why explicitly.]
+[If required, document concrete CLI command surfaces, request/response fields, errors, idempotency, and compatibility rules. If not required, say why explicitly.]
 
 ## Cross-Artifact Consistency
 

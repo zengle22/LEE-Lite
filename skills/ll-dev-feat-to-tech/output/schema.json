@@ -74,9 +74,12 @@
     },
     "artifact_refs": {
       "type": "object",
-      "required": ["tech_spec"],
+      "required": ["tech_spec", "tech_impl"],
       "properties": {
         "tech_spec": {
+          "type": "string"
+        },
+        "tech_impl": {
           "type": "string"
         },
         "arch_spec": {

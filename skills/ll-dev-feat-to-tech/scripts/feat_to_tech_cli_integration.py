@@ -65,6 +65,7 @@ def write_executor_outputs(output_dir: Path, repo_root: Path, package: Any, gene
     markdown_text = render_markdown(generated.frontmatter, generated.markdown_body)
     cli_commit = _commit_markdown(repo_root, output_dir, run_id, markdown_text, "tech-design-bundle-executor-commit")
     write_markdown(output_dir / "tech-spec.md", generated.tech_frontmatter, generated.tech_body)
+    write_markdown(output_dir / "tech-impl.md", generated.tech_impl_frontmatter, generated.tech_impl_body)
     if generated.arch_frontmatter:
         write_markdown(arch_path, generated.arch_frontmatter, generated.arch_body)
     elif arch_path.exists():
@@ -87,6 +88,7 @@ def write_executor_outputs(output_dir: Path, repo_root: Path, package: Any, gene
             "input_artifacts_dir": str(package.artifacts_dir),
             "feat_ref": generated.json_payload["feat_ref"],
             "primary_artifact_ref": str(output_dir / "tech-design-bundle.md"),
+            "tech_impl_ref": str(output_dir / "tech-impl.md"),
             "result_summary_ref": str(output_dir / "tech-freeze-gate.json"),
             "review_report_ref": str(output_dir / "tech-review-report.json"),
             "acceptance_report_ref": str(output_dir / "tech-acceptance-report.json"),
@@ -102,6 +104,7 @@ def write_executor_outputs(output_dir: Path, repo_root: Path, package: Any, gene
         str(output_dir / "tech-design-bundle.md"),
         str(output_dir / "tech-design-bundle.json"),
         str(output_dir / "tech-spec.md"),
+        str(output_dir / "tech-impl.md"),
     ]
     if generated.arch_frontmatter:
         outputs.append(str(output_dir / "arch-design.md"))

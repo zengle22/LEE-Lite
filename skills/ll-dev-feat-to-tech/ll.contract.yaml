@@ -34,6 +34,7 @@ runtime:
     - tech-design-bundle.md
     - tech-design-bundle.json
     - tech-spec.md
+    - tech-impl.md
     - tech-review-report.json
     - tech-acceptance-report.json
     - tech-defect-list.json
