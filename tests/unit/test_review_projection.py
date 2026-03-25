@@ -57,6 +57,7 @@ class ReviewProjectionRuntimeTest(unittest.TestCase):
         self.assertIn("review_focus", block_ids)
         self.assertIn("risks_ambiguities", block_ids)
         self.assertTrue(projection["derived_markers"]["derived_only"])
+        self.assertTrue(all("##" not in trace_ref for trace_ref in projection["trace_refs"]))
 
     def test_render_projection_flags_missing_authoritative_fields(self) -> None:
         ssot_ref = self._bind_ssot(
@@ -136,6 +137,12 @@ class ReviewProjectionRuntimeTest(unittest.TestCase):
         self.assertIn("authoritative handoff submission", deliverables_block["content"][0])
         self.assertEqual(snapshot_block["status"], "complete")
         self.assertIn("EPIC-ADR001-003-006-UNIFIED-MAINLINE-202-4-RERUN5", " ".join(snapshot_block["content"]))
+        self.assertTrue(
+            all(
+                not trace_ref.startswith(f"{ssot_ref}#{ssot_ref}#")
+                for trace_ref in projection["trace_refs"]
+            )
+        )
 
     def test_writeback_and_regeneration_follow_ssot_roundtrip(self) -> None:
         ssot_path = self.workspace / "artifacts" / "active" / "run-001" / "machine-ssot.json"

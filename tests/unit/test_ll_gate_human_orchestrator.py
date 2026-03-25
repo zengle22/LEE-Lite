@@ -110,6 +110,60 @@ class GateHumanOrchestratorWorkflowTests(unittest.TestCase):
             },
         )
 
+    def make_legacy_runtime_pending_item(self, root: Path, *, key: str = "legacy-gate-job-001") -> Path:
+        candidate_md = root / "artifacts" / "raw-to-src" / "run-legacy" / "src-candidate.md"
+        candidate_md.parent.mkdir(parents=True, exist_ok=True)
+        candidate_md.write_text("# Legacy candidate\n", encoding="utf-8")
+        self.write_json(
+            root / "artifacts" / "registry" / "formal-src-run-legacy.json",
+            {
+                "artifact_ref": "formal.src.run-legacy",
+                "managed_artifact_ref": "artifacts/raw-to-src/run-legacy/src-candidate.md",
+                "status": "materialized",
+                "trace": {"run_ref": "RUN-LEGACY"},
+                "metadata": {},
+                "lineage": [],
+            },
+        )
+        proposal_path = root / "artifacts" / "raw-to-src" / "run-legacy" / "handoff-proposal.json"
+        self.write_json(
+            proposal_path,
+            {
+                "supporting_artifact_refs": [
+                    "artifacts/raw-to-src/run-legacy/acceptance-report.json"
+                ],
+                "evidence_bundle_refs": [
+                    "artifacts/raw-to-src/run-legacy/execution-evidence.json"
+                ],
+            },
+        )
+        self.write_json(root / "artifacts" / "raw-to-src" / "run-legacy" / "acceptance-report.json", {"decision": "approve"})
+        self.write_json(root / "artifacts" / "raw-to-src" / "run-legacy" / "execution-evidence.json", {"ok": True})
+        handoff_path = root / "artifacts" / "active" / "handoffs" / f"{key}.json"
+        pending_path = root / "artifacts" / "active" / "gates" / "pending" / f"{key}.json"
+        self.write_json(
+            handoff_path,
+            {
+                "trace": {"run_ref": "RUN-LEGACY"},
+                "producer_ref": "skill.test",
+                "proposal_ref": str(proposal_path),
+                "payload_ref": str(candidate_md),
+                "trace_context_ref": str(root / "artifacts" / "raw-to-src" / "run-legacy" / "execution-evidence.json"),
+                "state": "gate_pending",
+                "gate_pending_ref": f"artifacts/active/gates/pending/{key}.json",
+            },
+        )
+        self.write_json(
+            pending_path,
+            {
+                "handoff_ref": f"artifacts/active/handoffs/{key}.json",
+                "pending_state": "gate_pending",
+                "assigned_gate_queue": "gate-queue-001",
+            },
+        )
+        self.write_json(root / "artifacts" / "active" / "gates" / "pending" / "_queue-index.json", {"next_index": 2})
+        return pending_path
+
     def test_run_approve_auto_materializes(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             repo_root = Path(temp_dir)
@@ -120,6 +174,7 @@ class GateHumanOrchestratorWorkflowTests(unittest.TestCase):
             payload = json.loads(result.stdout)
             artifacts_dir = Path(payload["artifacts_dir"])
             bundle = json.loads((artifacts_dir / "gate-decision-bundle.json").read_text(encoding="utf-8"))
+            bundle_markdown = (artifacts_dir / "gate-decision-bundle.md").read_text(encoding="utf-8")
             runtime_refs = json.loads((artifacts_dir / "runtime-artifact-refs.json").read_text(encoding="utf-8"))
             freeze_gate = json.loads((artifacts_dir / "gate-freeze-gate.json").read_text(encoding="utf-8"))
 
@@ -128,10 +183,20 @@ class GateHumanOrchestratorWorkflowTests(unittest.TestCase):
             self.assertEqual(bundle["machine_ssot_ref"], "candidate.impl")
             self.assertEqual(bundle["projection_status"], "review_visible")
             self.assertTrue(bundle["human_projection_ref"].endswith(".json"))
+            self.assertEqual(bundle["decision_display"], "批准")
+            self.assertEqual(bundle["dispatch_target_display"], "进入 formal publication")
+            self.assertEqual(bundle["projection_status_display"], "可供评审")
             self.assertEqual(bundle["materialized_job_ref"], "")
             self.assertTrue(bundle["materialized_handoff_ref"].endswith("materialized-handoff.json"))
             self.assertTrue(runtime_refs["dispatch_receipt_ref"].endswith("gate-dispatch-receipt.json"))
             self.assertTrue(freeze_gate["freeze_ready"])
+            self.assertIn("# Gate 裁决包 gate-approve", bundle_markdown)
+            self.assertIn("## 人工评审简报", bundle_markdown)
+            self.assertIn("### 产品摘要", bundle_markdown)
+            self.assertIn("## Projection 标记", bundle_markdown)
+            self.assertIn("- 状态: 完整", bundle_markdown)
+            self.assertIn("- decision: 批准", bundle_markdown)
+            self.assertIn("- dispatch_target: 进入 formal publication", bundle_markdown)
 
             validate = self.run_cmd("validate-output", "--artifacts-dir", str(artifacts_dir), cwd=ROOT)
             self.assertEqual(validate.returncode, 0, validate.stderr)
@@ -157,6 +222,9 @@ class GateHumanOrchestratorWorkflowTests(unittest.TestCase):
             self.assertEqual(bundle["decision"], "revise")
             self.assertEqual(bundle["dispatch_target"], "execution_return")
             self.assertEqual(bundle["projection_status"], "review_visible")
+            self.assertEqual(bundle["decision_display"], "修订后重审")
+            self.assertEqual(bundle["dispatch_target_display"], "回流 execution")
+            self.assertEqual(bundle["projection_status_display"], "可供评审")
             self.assertEqual(bundle["materialized_handoff_ref"], "")
             self.assertTrue(bundle["materialized_job_ref"].endswith("gate-decision-return.json"))
             self.assertTrue(freeze_gate["freeze_ready"])
@@ -185,12 +253,20 @@ class GateHumanOrchestratorWorkflowTests(unittest.TestCase):
             self.assertTrue((artifacts_dir / "human-decision-request.json").exists())
             self.assertTrue((artifacts_dir / "human-decision-request.md").exists())
             self.assertTrue((artifacts_dir / "round-state.json").exists())
+            self.assertEqual(prepare_payload["review_summary"]["status"], "pending_human_reply")
+            self.assertEqual(prepare_payload["review_summary"]["decision_target"], "candidate.impl")
+            self.assertIn("approve", prepare_payload["review_summary"]["allowed_actions"])
+            self.assertIn("## 需要你做的决定", prepare_payload["human_brief"]["markdown"])
+            self.assertIn("approve", prepare_payload["human_brief"]["summary"]["allowed_actions"])
 
             pending = self.run_cmd("show-pending", "--repo-root", str(repo_root), cwd=ROOT)
             self.assertEqual(pending.returncode, 0, pending.stderr)
             pending_payload = json.loads(pending.stdout)
             self.assertEqual(pending_payload["pending_count"], 1)
             self.assertEqual(pending_payload["items"][0]["run_id"], "gate-round")
+            self.assertEqual(pending_payload["items"][0]["review_summary"]["status"], "pending_human_reply")
+            self.assertEqual(pending_payload["items"][0]["review_summary"]["decision_target"], "candidate.impl")
+            self.assertIn("## 可直接回复的格式", pending_payload["items"][0]["human_brief"]["markdown"])
 
             capture = self.run_cmd(
                 "capture-decision",
@@ -242,6 +318,61 @@ class GateHumanOrchestratorWorkflowTests(unittest.TestCase):
             self.assertEqual(state["handoff_ref"], "artifacts/active/gates/handoffs/queue-item-001.json")
             self.assertTrue((artifacts_dir / "queue-claim.json").exists())
             self.assertTrue((artifacts_dir / "human-decision-request.json").exists())
+            self.assertEqual(claim_payload["review_summary"]["status"], "pending_human_reply")
+            self.assertEqual(claim_payload["review_summary"]["decision_target"], "candidate.impl")
+            self.assertIn("revise: <原因>", claim_payload["review_summary"]["reply_examples"])
+            self.assertIn("## 可直接回复的格式", claim_payload["human_brief"]["markdown"])
+
+    def test_claim_next_reuses_existing_active_claim_for_same_actor(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            repo_root = Path(temp_dir)
+            self.make_gate_ready_package(repo_root)
+            self.make_runtime_pending_item(repo_root, key="queue-item-002")
+
+            first = self.run_cmd(
+                "claim-next",
+                "--repo-root",
+                str(repo_root),
+                "--run-id",
+                "queue-round-reuse",
+                cwd=ROOT,
+            )
+            self.assertEqual(first.returncode, 0, first.stderr)
+            second = self.run_cmd(
+                "claim-next",
+                "--repo-root",
+                str(repo_root),
+                "--run-id",
+                "queue-round-new",
+                cwd=ROOT,
+            )
+            self.assertEqual(second.returncode, 0, second.stderr)
+            second_payload = json.loads(second.stdout)
+
+            self.assertTrue(second_payload["reused_active_claim"])
+            self.assertEqual(second_payload["run_id"], "queue-round-reuse")
+            self.assertEqual(second_payload["status"], "pending_human_reply")
+            self.assertIn("## 待审批对象", second_payload["human_brief"]["markdown"])
+
+    def test_claim_next_legacy_queue_maps_payload_to_registry_candidate_ref(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            repo_root = Path(temp_dir)
+            self.make_legacy_runtime_pending_item(repo_root, key="legacy-queue-item")
+
+            claim = self.run_cmd(
+                "claim-next",
+                "--repo-root",
+                str(repo_root),
+                "--run-id",
+                "legacy-round",
+                cwd=ROOT,
+            )
+            self.assertEqual(claim.returncode, 0, claim.stderr)
+            synthetic = json.loads(
+                (repo_root / "artifacts" / "gate-human-orchestrator" / "legacy-round" / "synthetic-gate-ready-package.json").read_text(encoding="utf-8")
+            )
+
+            self.assertEqual(synthetic["payload"]["candidate_ref"], "formal.src.run-legacy")
 
     def test_capture_comment_and_regenerate_projection(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:

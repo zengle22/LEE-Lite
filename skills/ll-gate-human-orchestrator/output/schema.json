@@ -24,10 +24,12 @@
     "status": {"type": "string"},
     "decision_ref": {"type": "string"},
     "decision": {"type": "string"},
+    "decision_display": {"type": "string"},
     "decision_target": {"type": "string"},
     "machine_ssot_ref": {"type": "string"},
     "human_projection_ref": {"type": "string"},
     "projection_status": {"type": "string"},
+    "projection_status_display": {"type": "string"},
     "projection_markers": {"type": "object"},
     "projection_trace_refs": {
       "type": "array",
@@ -41,6 +43,7 @@
       "items": {"type": "string"}
     },
     "dispatch_target": {"type": "string"},
+    "dispatch_target_display": {"type": "string"},
     "materialized_handoff_ref": {"type": "string"},
     "materialized_job_ref": {"type": "string"},
     "source_refs": {

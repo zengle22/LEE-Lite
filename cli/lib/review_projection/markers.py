@@ -30,7 +30,7 @@ def attach_projection_markers(
     if not all(markers[name] for name in ("derived_only", "non_authoritative", "non_inheritable")):
         raise ProjectionMarkerError("marker_missing")
     block_traceability = bind_block_trace_refs(ssot_ref, block_sources)
-    snapshot_traceability = bind_snapshot_field_refs(ssot_ref, snapshot_field_paths)
+    snapshot_traceability = _normalize_snapshot_traceability(ssot_ref, snapshot_field_paths)
     trace_refs = flatten_trace_refs(
         block_traceability["trace_refs"],
         snapshot_traceability["field_refs"],
@@ -50,3 +50,15 @@ def attach_projection_markers(
             "missing_snapshot_fields": snapshot_traceability["missing_fields"],
         },
     }
+
+
+def _normalize_snapshot_traceability(ssot_ref: str, snapshot_field_paths: dict[str, str]) -> dict[str, Any]:
+    if any("#" in value for value in snapshot_field_paths.values() if value):
+        field_refs = {field_name: value for field_name, value in snapshot_field_paths.items() if value}
+        missing_fields = [field_name for field_name, value in snapshot_field_paths.items() if not value]
+        return {
+            "field_refs": field_refs,
+            "status": "traceable_to_ssot" if not missing_fields else "snapshot_trace_pending",
+            "missing_fields": missing_fields,
+        }
+    return bind_snapshot_field_refs(ssot_ref, snapshot_field_paths)

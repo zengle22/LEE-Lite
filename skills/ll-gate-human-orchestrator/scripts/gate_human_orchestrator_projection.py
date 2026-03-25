@@ -10,6 +10,56 @@ from typing import Any
 from gate_human_orchestrator_common import dump_json, load_json, render_markdown, repo_relative, slugify
 
 
+_BLOCK_TITLES = {
+    "product_summary": "产品摘要",
+    "roles": "关键角色",
+    "main_flow": "主流程",
+    "deliverables": "交付物",
+    "authoritative_snapshot": "权威快照",
+    "review_focus": "评审重点",
+    "risks_ambiguities": "风险与歧义",
+}
+
+_STATUS_LABELS = {
+    "complete": "完整",
+    "missing_source": "缺少来源字段",
+    "constraints_missing": "权威约束缺失",
+    "insufficient_context": "上下文不足",
+    "empty": "无附加项",
+    "review_visible": "可供评审",
+    "traceability_pending": "追溯待补齐",
+}
+
+_DECISION_LABELS = {
+    "approve": "批准",
+    "revise": "修订后重审",
+    "retry": "重试",
+    "handoff": "转交",
+    "reject": "拒绝",
+}
+
+_DISPATCH_LABELS = {
+    "formal_publication_trigger": "进入 formal publication",
+    "execution_return": "回流 execution",
+}
+
+_CONTENT_TRANSLATIONS = {
+    "Product summary is not yet frozen in Machine SSOT.": "产品摘要尚未在 Machine SSOT 中冻结。",
+    "Roles are not yet frozen in Machine SSOT.": "关键角色尚未在 Machine SSOT 中冻结。",
+    "Main flow is not yet frozen in Machine SSOT.": "主流程尚未在 Machine SSOT 中冻结。",
+    "Deliverables are not yet frozen in Machine SSOT.": "交付物尚未在 Machine SSOT 中冻结。",
+    "Authoritative constraints are incomplete; inspect Machine SSOT directly before approving.": "权威约束尚不完整；在批准前请直接检查 Machine SSOT。",
+    "Review focus unavailable; inspect Machine SSOT directly.": "当前无法生成评审重点；请直接检查 Machine SSOT。",
+    "No additional risks or ambiguities were derived from the current SSOT.": "当前 SSOT 未导出额外风险或歧义。",
+    "Confirm the product shape in the summary matches the intended review scope.": "确认摘要中的产品形态与本轮评审范围一致。",
+    "Check the frozen downstream boundary and make sure no out-of-scope work leaked into this round.": "检查冻结后的下游边界，确认没有超出范围的内容混入本轮。",
+    "Verify there is one authoritative deliverable and downstream inheritance still points back to Machine SSOT.": "确认只有一个权威交付物，且 downstream inheritance 仍然回指 Machine SSOT。",
+    "Check role ownership and responsibility placement before approving the projection.": "在批准 projection 前，确认角色归属和职责摆放清楚。",
+    "Authoritative deliverable is not unique; confirm which output downstream should treat as canonical.": "权威交付物并不唯一；需要确认 downstream 应把哪个输出视为 canonical。",
+    "Open technical decisions remain; check whether they block this review round or only downstream implementation.": "仍存在开放技术决策；需要确认它们阻塞当前评审轮次，还是只影响下游实现。",
+}
+
+
 def dispatch_handoff(result: dict[str, Any]) -> dict[str, Any]:
     return {
         "target_runtime_action": result["dispatch_target"],
@@ -17,6 +67,18 @@ def dispatch_handoff(result: dict[str, Any]) -> dict[str, Any]:
         "materialized_handoff_ref": result.get("materialized_handoff_ref", ""),
         "materialized_job_ref": result.get("materialized_job_ref", ""),
     }
+
+
+def decision_display(decision: object) -> str:
+    return _label_decision(decision)
+
+
+def dispatch_target_display(dispatch_target: object) -> str:
+    return _label_dispatch(dispatch_target)
+
+
+def projection_status_display(status: object) -> str:
+    return _label_status(status)
 
 
 def projection_bundle_fields(repo_root: Path, brief_record_ref: str, machine_ssot_ref: str) -> dict[str, Any]:
@@ -39,21 +101,21 @@ def projection_bundle_fields(repo_root: Path, brief_record_ref: str, machine_sso
 def bundle_markdown(bundle: dict[str, Any]) -> str:
     refs = bundle["runtime_refs"]
     lines = [
-        f"# {bundle['title']}",
+        f"# Gate 裁决包 {bundle['workflow_run_id']}",
         "",
-        "## Input Package",
+        "## 输入包",
         "",
         f"- input_ref: {bundle['input_ref']}",
         f"- machine_ssot_ref: {bundle.get('machine_ssot_ref', '')}",
         "",
-        "## Brief Record",
+        "## Brief 记录",
         "",
         f"- brief_record_ref: {refs['brief_record_ref']}",
         "",
-        "## Human Review Projection",
+        "## 人工评审简报",
         "",
         f"- human_projection_ref: {bundle.get('human_projection_ref', '')}",
-        f"- projection_status: {bundle.get('projection_status', '')}",
+        f"- projection_status: {_label_status(bundle.get('projection_status', ''))}",
         f"- snapshot_ref: {bundle.get('snapshot_ref', '')}",
         f"- focus_ref: {bundle.get('focus_ref', '')}",
     ]
@@ -61,36 +123,47 @@ def bundle_markdown(bundle: dict[str, Any]) -> str:
         lines.extend(
             [
                 "",
-                f"### {block.get('title', block.get('id', 'Projection Block'))}",
+                f"### {_label_block_title(block)}",
                 "",
-                f"- status: {block.get('status', '')}",
-                *[f"- {item}" for item in block.get("content", [])],
+                f"- 状态: {_label_status(block.get('status', ''))}",
+                *_format_block_content(block),
+            ]
+        )
+    if bundle.get("projection_markers"):
+        lines.extend(
+            [
+                "",
+                "## Projection 标记",
+                "",
+                f"- derived_only: {bundle['projection_markers'].get('derived_only', '')}",
+                f"- non_authoritative: {bundle['projection_markers'].get('non_authoritative', '')}",
+                f"- non_inheritable: {bundle['projection_markers'].get('non_inheritable', '')}",
             ]
         )
     lines.extend(
         [
             "",
-            "## Pending Human Decision",
+            "## 待处理人工裁决",
             "",
             f"- pending_human_decision_ref: {refs['pending_human_decision_ref']}",
             "",
-            "## Decision Result",
+            "## 裁决结果",
             "",
             f"- decision_ref: {bundle['decision_ref']}",
-            f"- decision: {bundle['decision']}",
+            f"- decision: {_label_decision(bundle['decision'])}",
             f"- decision_target: {bundle['decision_target']}",
             "",
-            "## Dispatch Result",
+            "## 分发结果",
             "",
             f"- dispatch_receipt_ref: {refs['dispatch_receipt_ref']}",
-            f"- dispatch_target: {bundle['dispatch_target']}",
+            f"- dispatch_target: {_label_dispatch(bundle['dispatch_target'])}",
             "",
-            "## Materialization",
+            "## 物化结果",
             "",
             f"- materialized_handoff_ref: {bundle['materialized_handoff_ref']}",
             f"- materialized_job_ref: {bundle['materialized_job_ref']}",
             "",
-            "## Traceability",
+            "## 追溯链",
             "",
             *[f"- {item}" for item in bundle["source_refs"]],
         ]
@@ -256,6 +329,86 @@ def write_evidence_report(artifacts_dir: Path) -> Path:
         encoding="utf-8",
     )
     return report_path
+
+
+def _label_block_title(block: dict[str, Any]) -> str:
+    block_id = str(block.get("id", "")).strip()
+    if block_id in _BLOCK_TITLES:
+        return _BLOCK_TITLES[block_id]
+    return str(block.get("title", block_id or "Projection Block"))
+
+
+def _label_status(status: object) -> str:
+    raw = str(status or "").strip()
+    return _STATUS_LABELS.get(raw, raw)
+
+
+def _translate_content(content: object) -> str:
+    text = str(content)
+    translated = _CONTENT_TRANSLATIONS.get(text)
+    if translated:
+        return translated
+    if text.startswith("Completed state: "):
+        return "完成态：" + text.removeprefix("Completed state: ")
+    if text.startswith("Authoritative output: "):
+        return "权威输出：" + text.removeprefix("Authoritative output: ")
+    if text.startswith("Frozen downstream boundary: "):
+        return "冻结下游边界：" + text.removeprefix("Frozen downstream boundary: ")
+    if text.startswith("Open technical decisions: "):
+        return "开放技术决策：" + text.removeprefix("Open technical decisions: ")
+    if text.startswith("Missing fields: "):
+        return "缺失字段：" + text.removeprefix("Missing fields: ")
+    return text
+
+
+def _format_block_content(block: dict[str, Any]) -> list[str]:
+    block_id = str(block.get("id", "")).strip()
+    content = [str(item) for item in block.get("content", [])]
+    if block_id == "authoritative_snapshot":
+        return _format_snapshot_content(content)
+    if block_id == "risks_ambiguities":
+        return _format_prefixed_lines("提示", [_translate_content(item) for item in content])
+    if block_id == "review_focus":
+        return _format_prefixed_lines("重点", [_translate_content(item) for item in content])
+    return [f"- {_translate_content(item)}" for item in content]
+
+
+def _format_snapshot_content(content: list[str]) -> list[str]:
+    lines: list[str] = []
+    for item in content:
+        translated = _translate_content(item)
+        if "：" not in translated:
+            lines.append(f"- {translated}")
+            continue
+        label, value = translated.split("：", 1)
+        parts = [part.strip() for part in value.split(";") if part.strip()]
+        if not parts:
+            lines.append(f"- {translated}")
+            continue
+        if len(parts) == 1:
+            lines.append(f"- {label}：{parts[0]}")
+            continue
+        lines.append(f"- {label}：")
+        lines.extend(f"  - {part}" for part in parts)
+    return lines
+
+
+def _format_prefixed_lines(prefix: str, items: list[str]) -> list[str]:
+    if not items:
+        return []
+    if len(items) == 1:
+        return [f"- {prefix}：{items[0]}"]
+    return [f"- {prefix}{index}: {item}" for index, item in enumerate(items, start=1)]
+
+
+def _label_decision(decision: object) -> str:
+    raw = str(decision or "").strip()
+    return _DECISION_LABELS.get(raw, raw)
+
+
+def _label_dispatch(dispatch_target: object) -> str:
+    raw = str(dispatch_target or "").strip()
+    return _DISPATCH_LABELS.get(raw, raw)
 
 
 def _path_from_ref(repo_root: Path, ref_value: str) -> Path:
