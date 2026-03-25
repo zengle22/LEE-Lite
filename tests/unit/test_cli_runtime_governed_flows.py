@@ -258,6 +258,29 @@ class GovernedCliRuntimeFlowTest(unittest.TestCase):
         fallback_payload = read_json(fallback_response)
         self.assertTrue(fallback_payload["data"]["receipt_ref"].endswith("wave-01-fallback.json"))
 
+    def test_submit_pilot_evidence_accepts_path_like_ref(self) -> None:
+        pilot_request = self.build_request(
+            "audit.submit-pilot-evidence",
+            {
+                "pilot_chain_ref": "E:/ai/LEE-Lite-skill-first/artifacts/feat-to-testset/demo/test-set.yaml",
+                "producer_ref": "producer",
+                "consumer_ref": "consumer",
+                "audit_ref": "audit-01",
+                "gate_ref": "gate-01",
+            },
+        )
+        pilot_req = self.request_path("audit-pilot-path-like.json")
+        write_json(pilot_req, pilot_request)
+        pilot_response = self.response_path("audit-pilot-path-like.response.json")
+        self.assertEqual(
+            self.run_cli("audit", "submit-pilot-evidence", "--request", str(pilot_req), "--response-out", str(pilot_response)),
+            0,
+        )
+        pilot_payload = read_json(pilot_response)
+        self.assertIn("pilot-evidence-test-set-", pilot_payload["data"]["pilot_evidence_ref"])
+        evidence_path = self.workspace / pilot_payload["data"]["pilot_evidence_ref"]
+        self.assertTrue(evidence_path.exists())
+
 
 if __name__ == "__main__":
     unittest.main()

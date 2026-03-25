@@ -235,6 +235,83 @@ class FeatToTestSetWorkflowTests(unittest.TestCase):
             self.assertFalse(payload["ok"])
             self.assertTrue(any("Selected feat_ref not found" in error for error in payload["errors"]))
 
+    def test_review_projection_feat_generates_projection_focused_testset(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            repo_root = Path(temp_dir)
+            semantic_lock = {
+                "domain_type": "review_projection_rule",
+                "one_sentence_truth": "仅在 gate 审核阶段，从机器优先 SSOT 派生一份人类友好 Projection，帮助人类决策；冻结与继承仍回到 SSOT。",
+                "primary_object": "human_review_projection",
+                "lifecycle_stage": "gate_review_only",
+                "allowed_capabilities": [
+                    "projection_generation",
+                    "authoritative_snapshot_rendering",
+                    "review_focus_extraction",
+                    "risk_ambiguity_extraction",
+                    "review_feedback_writeback",
+                ],
+                "forbidden_capabilities": [
+                    "mainline_runtime_governance",
+                    "handoff_orchestration",
+                    "gate_decision_engine",
+                    "formal_publication",
+                    "governed_io_platform",
+                    "global_skill_onboarding",
+                ],
+                "inheritance_rule": "Projection is derived-only, non-authoritative, non-inheritable.",
+            }
+            feature = {
+                "feat_ref": "FEAT-SRC-ADR015-002",
+                "title": "Review Focus 与风险提示流",
+                "goal": "从 SSOT 和 Projection 中提取 reviewer 应关注的风险与歧义。",
+                "axis_id": "review-focus-risk",
+                "scope": [
+                    "提取 reviewer 应优先检查的问题。",
+                    "识别术语歧义、边界遗漏、异常流缺失。",
+                    "把 risk / ambiguity 结果写入 Projection 的 reviewer block。",
+                ],
+                "constraints": [
+                    "risk signal 必须可回链到 SSOT。",
+                    "Projection 只服务 reviewer 决策，不引入新的 authority。",
+                    "不得退化成 formal publication / gate decision engine 语义。",
+                ],
+                "dependencies": ["Projection 已渲染。", "SSOT source refs 可解析。"],
+                "acceptance_checks": [
+                    {"id": "AC-01", "scenario": "review focus is extracted", "given": "projection context", "when": "run focus extraction", "then": "reviewer 应优先关注的判断点被稳定提取"},
+                    {"id": "AC-02", "scenario": "risk signals remain traceable", "given": "risk / ambiguity signal", "when": "attach to projection", "then": "每个 signal 都能回链到 SSOT"},
+                    {"id": "AC-03", "scenario": "analysis does not drift into runtime governance", "given": "derived review block", "when": "inspect final TESTSET", "then": "不得出现 formal publication、gate decision engine、governed IO 平台断言"},
+                ],
+                "semantic_lock": semantic_lock,
+                "source_refs": ["FEAT-SRC-ADR015-002", "EPIC-SRC-ADR015", "SRC-ADR015", "ADR-015"],
+            }
+            bundle = self.make_bundle_json(feature, run_id="feat-to-testset-review-projection")
+            bundle["semantic_lock"] = semantic_lock
+            input_dir = self.make_feat_package(repo_root, "feat-to-testset-review-projection", bundle)
+
+            result = self.run_cmd(
+                "run",
+                "--input",
+                str(input_dir),
+                "--feat-ref",
+                "FEAT-SRC-ADR015-002",
+                "--repo-root",
+                str(repo_root),
+                "--run-id",
+                "feat-to-testset-review-projection-out",
+            )
+            self.assertEqual(result.returncode, 0, result.stderr)
+            artifacts_dir = Path(json.loads(result.stdout)["artifacts_dir"])
+            test_set = yaml.safe_load((artifacts_dir / "test-set.yaml").read_text(encoding="utf-8"))
+            handoff = json.loads((artifacts_dir / "handoff-to-test-execution.json").read_text(encoding="utf-8"))
+            drift = json.loads((artifacts_dir / "semantic-drift-check.json").read_text(encoding="utf-8"))
+
+            self.assertEqual(test_set["semantic_lock"]["domain_type"], "review_projection_rule")
+            self.assertTrue(drift["semantic_lock_preserved"])
+            self.assertTrue(any("Projection" in item or "projection" in item for item in test_set["pass_criteria"]))
+            self.assertTrue(any("SSOT" in item for item in handoff["required_environment_inputs"]["data"]))
+            self.assertFalse(any("formal publication" in item.lower() for item in test_set["pass_criteria"]))
+            self.assertFalse(any("decision object" in item.lower() for item in test_set["evidence_required"]))
+
     def test_collaboration_profile_hardens_pending_visibility_contracts(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             repo_root = Path(temp_dir)

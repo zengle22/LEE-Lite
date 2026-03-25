@@ -181,10 +181,39 @@ class CliRuntimeTest(unittest.TestCase):
         self.assertEqual(payload["data"]["canonical_path"], "artifacts/active/audit/finding-bundle.json")
 
     def test_gate_package_and_evaluate(self) -> None:
+        candidate_path = self.workspace / "artifacts" / "active" / "run-001" / "candidate.json"
+        write_json(
+            candidate_path,
+            {
+                "freeze_ready": True,
+                "status": "freeze_ready",
+                "product_summary": "Gate review projection candidate.",
+                "roles": ["reviewer", "ssot owner"],
+                "main_flow": ["render projection", "review constraints", "record decision"],
+                "deliverables": ["human review projection"],
+                "completed_state": "Projection is ready for reviewer consumption.",
+                "authoritative_output": "Machine SSOT remains the only authoritative source.",
+                "frozen_downstream_boundary": "Projection does not flow into downstream inheritance.",
+                "open_technical_decisions": ["Regeneration trigger timing remains explicit."],
+            },
+        )
+        bind_request = self.build_request(
+            "registry.bind-record",
+            {
+                "artifact_ref": "candidate.impl",
+                "managed_artifact_ref": "artifacts/active/run-001/candidate.json",
+                "status": "candidate",
+            },
+        )
+        bind_req = self.request_path("gate-evaluate-bind-candidate.json")
+        write_json(bind_req, bind_request)
+        bind_response = self.response_path("gate-evaluate-bind-candidate.response.json")
+        self.assertEqual(self.run_cli("registry", "bind-record", "--request", str(bind_req), "--response-out", str(bind_response)), 0)
+
         package_request = self.build_request(
             "gate.create",
             {
-                "candidate_ref": "artifacts/active/run-001/candidate.json",
+                "candidate_ref": "candidate.impl",
                 "acceptance_ref": "artifacts/active/run-001/acceptance.json",
                 "evidence_bundle_ref": "artifacts/active/run-001/evidence.json",
             },
@@ -212,6 +241,26 @@ class CliRuntimeTest(unittest.TestCase):
         )
         payload = read_json(evaluate_response)
         self.assertEqual(payload["data"]["gate_decision_ref"], "artifacts/active/gates/decisions/gate-decision.json")
+        self.assertEqual(payload["data"]["decision"], "approve")
+        self.assertEqual(payload["data"]["decision_target"], "candidate.impl")
+        self.assertEqual(payload["data"]["dispatch_target"], "formal_publication_trigger")
+        self.assertEqual(payload["data"]["brief_record_ref"], "artifacts/active/gates/briefs/gate-brief-record.json")
+        self.assertEqual(
+            payload["data"]["pending_human_decision_ref"],
+            "artifacts/active/gates/pending-human/gate-pending-human-decision.json",
+        )
+        self.assertEqual(payload["data"]["materialized_handoff_ref"], "artifacts/active/handoffs/materialized-handoff.json")
+        decision = read_json(self.workspace / payload["data"]["gate_decision_ref"])
+        self.assertEqual(decision["materialization_state"], "materialized")
+        self.assertEqual(decision["decision_basis_refs"][0], payload["data"]["brief_record_ref"])
+        self.assertTrue((self.workspace / payload["data"]["materialized_handoff_ref"]).exists())
+        brief = read_json(self.workspace / payload["data"]["brief_record_ref"])
+        self.assertEqual(brief["human_projection"]["status"], "review_visible")
+        self.assertTrue(brief["human_projection"]["projection_ref"].endswith(".json"))
+        block_ids = [block["id"] for block in brief["human_projection"]["review_blocks"]]
+        self.assertIn("authoritative_snapshot", block_ids)
+        self.assertIn("review_focus", block_ids)
+
 
     def test_gate_evaluate_respects_guarded_disable(self) -> None:
         request = self.build_request(
@@ -230,6 +279,56 @@ class CliRuntimeTest(unittest.TestCase):
         self.assertEqual(exit_code, 4)
         payload = read_json(response)
         self.assertEqual(payload["status_code"], "PROVISIONAL_SLICE_DISABLED")
+
+    def test_gate_evaluate_revise_stays_in_decision_stage_and_dispatch_returns_execution_job(self) -> None:
+        package_request = self.build_request(
+            "gate.create",
+            {
+                "candidate_ref": "candidate.impl",
+                "acceptance_ref": "artifacts/active/run-001/acceptance.json",
+                "evidence_bundle_ref": "artifacts/active/run-001/evidence.json",
+            },
+        )
+        package_req = self.request_path("gate-create-revise.json")
+        write_json(package_req, package_request)
+        package_response = self.response_path("gate-create-revise.response.json")
+        self.assertEqual(self.run_cli("gate", "create", "--request", str(package_req), "--response-out", str(package_response)), 0)
+
+        audit_bundle = self.workspace / "artifacts" / "active" / "audit" / "finding-bundle-revise.json"
+        write_json(audit_bundle, {"findings": [{"severity": "blocker", "title": "missing evidence"}]})
+        evaluate_request = self.build_request(
+            "gate.evaluate",
+            {
+                "gate_ready_package_ref": "artifacts/active/gates/packages/gate-ready-package.json",
+                "audit_finding_refs": ["artifacts/active/audit/finding-bundle-revise.json"],
+                "target_matrix": {"allowed_targets": ["materialized_job", "run_closure"]},
+            },
+        )
+        evaluate_req = self.request_path("gate-evaluate-revise.json")
+        write_json(evaluate_req, evaluate_request)
+        evaluate_response = self.response_path("gate-evaluate-revise.response.json")
+        self.assertEqual(
+            self.run_cli("gate", "evaluate", "--request", str(evaluate_req), "--response-out", str(evaluate_response)), 0
+        )
+        evaluate_payload = read_json(evaluate_response)
+        self.assertEqual(evaluate_payload["data"]["decision"], "revise")
+        self.assertEqual(evaluate_payload["data"]["materialized_handoff_ref"], "")
+
+        dispatch_request = self.build_request(
+            "gate.dispatch",
+            {"gate_decision_ref": evaluate_payload["data"]["gate_decision_ref"]},
+        )
+        dispatch_req = self.request_path("gate-dispatch-revise.json")
+        write_json(dispatch_req, dispatch_request)
+        dispatch_response = self.response_path("gate-dispatch-revise.response.json")
+        self.assertEqual(
+            self.run_cli("gate", "dispatch", "--request", str(dispatch_req), "--response-out", str(dispatch_response)),
+            0,
+        )
+        dispatch_payload = read_json(dispatch_response)
+        self.assertEqual(dispatch_payload["data"]["dispatch_status"], "dispatched")
+        self.assertTrue(dispatch_payload["data"]["materialized_job_ref"].endswith("gate-decision-return.json"))
+        self.assertEqual(dispatch_payload["data"]["materialized_handoff_ref"], "")
 
     def test_gate_materialize_dispatch_and_close(self) -> None:
         candidate_path = self.workspace / "artifacts" / "active" / "run-001" / "candidate.json"
@@ -273,6 +372,10 @@ class CliRuntimeTest(unittest.TestCase):
         write_json(dispatch_req, dispatch_request)
         dispatch_response = self.response_path("gate-dispatch.response.json")
         self.assertEqual(self.run_cli("gate", "dispatch", "--request", str(dispatch_req), "--response-out", str(dispatch_response)), 0)
+        dispatch_payload = read_json(dispatch_response)
+        self.assertEqual(dispatch_payload["data"]["dispatch_status"], "dispatched")
+        self.assertEqual(dispatch_payload["data"]["materialized_handoff_ref"], "artifacts/active/handoffs/materialized-handoff.json")
+        self.assertEqual(dispatch_payload["data"]["materialized_job_ref"], "")
 
         close_request = self.build_request("gate.close-run", {"run_ref": "RUN-001"})
         close_req = self.request_path("gate-close.json")

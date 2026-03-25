@@ -613,6 +613,103 @@ class TechToImplWorkflowTests(unittest.TestCase):
             self.assertTrue((artifacts_dir / "impl-bundle.json").exists())
             self.assertTrue((artifacts_dir / "handoff-to-feature-delivery.json").exists())
 
+    def test_review_projection_impl_keeps_backend_only_and_updates_subdoc_status(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            repo_root = Path(temp_dir)
+            semantic_lock = {
+                "domain_type": "review_projection_rule",
+                "one_sentence_truth": "仅在 gate 审核阶段，从机器优先 SSOT 派生一份人类友好 Projection，帮助人类决策；冻结与继承仍回到 SSOT。",
+                "primary_object": "human_review_projection",
+                "lifecycle_stage": "gate_review_only",
+                "allowed_capabilities": [
+                    "projection_generation",
+                    "authoritative_snapshot_rendering",
+                    "review_focus_extraction",
+                    "risk_ambiguity_extraction",
+                    "review_feedback_writeback",
+                ],
+                "forbidden_capabilities": [
+                    "mainline_runtime_governance",
+                    "handoff_orchestration",
+                    "gate_decision_engine",
+                    "formal_publication",
+                    "governed_io_platform",
+                    "global_skill_onboarding",
+                ],
+                "inheritance_rule": "Projection is derived-only, non-authoritative, non-inheritable.",
+            }
+            feature = {
+                "feat_ref": "FEAT-SRC-ADR015-003",
+                "title": "Projection 批注回写流",
+                "goal": "把 reviewer comment 回写到 SSOT revision request，并在 SSOT 更新后重新生成 Projection。",
+                "axis_id": "feedback-writeback",
+                "scope": ["映射 comment 到 SSOT field", "生成 revision request", "触发 projection regeneration"],
+                "constraints": ["不得直接 patch projection", "Projection 不是 authoritative source", "writeback 后必须重新生成 projection"],
+                "dependencies": ["Projection comment 已捕获", "SSOT revision channel 可用"],
+                "acceptance_checks": [
+                    {"scenario": "comment maps to SSOT revision request", "then": "revision request 带有完整 provenance"},
+                    {"scenario": "projection is regenerated after SSOT update", "then": "旧 projection 不再作为当前审核视图"},
+                    {"scenario": "impl package remains backend-only", "then": "不生成 frontend workstream"},
+                ],
+                "semantic_lock": semantic_lock,
+            }
+            bundle = self.make_bundle_json(feature, run_id="tech-impl-review-projection", arch_required=False, api_required=False)
+            bundle["semantic_lock"] = semantic_lock
+            bundle["selected_feat"]["semantic_lock"] = semantic_lock
+            bundle["tech_design"] = {
+                "design_focus": list(feature["scope"]),
+                "implementation_rules": list(feature["constraints"]),
+                "state_model": [
+                    "review_comment_captured -> writeback_mapped -> ssot_revision_requested -> ssot_updated -> projection_regenerated",
+                ],
+                "implementation_unit_mapping": [
+                    "`cli/lib/review_projection/writeback.py` (`new`): map reviewer comments to SSOT field refs and create revision requests。",
+                    "`cli/lib/review_projection/regeneration.py` (`new`): regenerate projection after SSOT authoritative update。",
+                ],
+                "interface_contracts": [
+                    "`ProjectionComment`: input=`projection_ref`, `comment_ref`, `comment_text`; output=`revision_request_ref`; errors=`mapping_failed`; idempotent=`yes by comment_ref`。",
+                ],
+                "main_sequence": [
+                    "1. capture reviewer comment",
+                    "2. map comment to SSOT-owned field",
+                    "3. update Machine SSOT and regenerate Projection",
+                ],
+                "integration_points": [
+                    "Reviewer comment enters writeback mapper after projection review.",
+                    "Projection regeneration occurs only after SSOT authoritative update.",
+                ],
+                "exception_and_compensation": [
+                    "mapping_failed -> comment_mapping_pending",
+                    "regeneration_failed -> projection_regeneration_pending",
+                ],
+            }
+            input_dir = self.make_tech_package(repo_root, "tech-impl-review-projection", bundle)
+
+            result = self.run_cmd(
+                "run",
+                "--input",
+                str(input_dir),
+                "--feat-ref",
+                feature["feat_ref"],
+                "--tech-ref",
+                bundle["tech_ref"],
+                "--repo-root",
+                str(repo_root),
+            )
+            self.assertEqual(result.returncode, 0, result.stderr)
+            artifacts_dir = Path(json.loads(result.stdout)["artifacts_dir"])
+            impl_bundle = json.loads((artifacts_dir / "impl-bundle.json").read_text(encoding="utf-8"))
+            drift = json.loads((artifacts_dir / "semantic-drift-check.json").read_text(encoding="utf-8"))
+            impl_task = (artifacts_dir / "impl-task.md").read_text(encoding="utf-8")
+            integration_plan = (artifacts_dir / "integration-plan.md").read_text(encoding="utf-8")
+
+            self.assertFalse(impl_bundle["workstream_assessment"]["frontend_required"])
+            self.assertTrue(impl_bundle["workstream_assessment"]["backend_required"])
+            self.assertFalse((artifacts_dir / "frontend-workstream.md").exists())
+            self.assertTrue(drift["semantic_lock_preserved"])
+            self.assertIn("status: execution_ready", impl_task)
+            self.assertIn("status: execution_ready", integration_plan)
+
 
 if __name__ == "__main__":
     unittest.main()

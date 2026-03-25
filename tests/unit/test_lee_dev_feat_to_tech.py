@@ -732,6 +732,86 @@ class FeatToTechWorkflowTests(unittest.TestCase):
             self.assertFalse(payload["ok"])
             self.assertTrue(any("Selected feat_ref not found" in error for error in payload["errors"]))
 
+    def test_review_projection_feat_preserves_semantic_lock_without_runtime_drift(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            repo_root = Path(temp_dir)
+            semantic_lock = {
+                "domain_type": "review_projection_rule",
+                "one_sentence_truth": "仅在 gate 审核阶段，从机器优先 SSOT 派生一份人类友好 Projection，帮助人类决策；冻结与继承仍回到 SSOT。",
+                "primary_object": "human_review_projection",
+                "lifecycle_stage": "gate_review_only",
+                "allowed_capabilities": [
+                    "projection_generation",
+                    "authoritative_snapshot_rendering",
+                    "review_focus_extraction",
+                    "risk_ambiguity_extraction",
+                    "review_feedback_writeback",
+                ],
+                "forbidden_capabilities": [
+                    "mainline_runtime_governance",
+                    "handoff_orchestration",
+                    "gate_decision_engine",
+                    "formal_publication",
+                    "governed_io_platform",
+                    "global_skill_onboarding",
+                ],
+                "inheritance_rule": "Projection is derived-only, non-authoritative, non-inheritable.",
+            }
+            feature = {
+                "feat_ref": "FEAT-SRC-ADR015-001",
+                "title": "Human Review Projection 生成流",
+                "goal": "从 Machine SSOT 生成 gate 审核用的人类友好 Projection。",
+                "axis_id": "projection-generation",
+                "scope": [
+                    "渲染 Product Summary、Roles、Main Flow、Key Deliverables。",
+                    "注入 derived-only / non-authoritative marker。",
+                    "保留 projection 到 SSOT 的 trace refs。",
+                ],
+                "constraints": [
+                    "Projection 不是新的真相源。",
+                    "不得引入 handoff orchestration、formal publication、governed IO。",
+                    "Projection 只服务 gate review。",
+                ],
+                "dependencies": ["Machine SSOT 已 freeze-ready。", "Projection template 已发布。"],
+                "acceptance_checks": [
+                    {"scenario": "Projection blocks derive from Machine SSOT", "given": "freeze-ready SSOT", "when": "render projection", "then": "Product Summary / Roles / Main Flow / Deliverables 全部可 trace 到 SSOT"},
+                    {"scenario": "Projection keeps derived-only marker", "given": "rendered projection", "when": "review marker block", "then": "Projection 明确 derived-only / non-authoritative / non-inheritable"},
+                    {"scenario": "Projection does not drift into governance runtime", "given": "TECH derivation", "when": "review generated design", "then": "不得出现 handoff runtime、formal publication、governed IO 平台语义"},
+                ],
+                "semantic_lock": semantic_lock,
+                "source_refs": ["FEAT-SRC-ADR015-001", "EPIC-SRC001", "SRC-001", "ADR-015"],
+            }
+            bundle = self.make_bundle_json(feature, run_id="feat-review-projection")
+            bundle["semantic_lock"] = semantic_lock
+            input_dir = self.make_feat_package(repo_root, "feat-review-projection", bundle)
+
+            result = self.run_cmd(
+                "run",
+                "--input",
+                str(input_dir),
+                "--feat-ref",
+                "FEAT-SRC-ADR015-001",
+                "--repo-root",
+                str(repo_root),
+                "--run-id",
+                "tech-review-projection",
+            )
+            self.assertEqual(result.returncode, 0, result.stderr)
+            artifacts_dir = Path(json.loads(result.stdout)["artifacts_dir"])
+            design = json.loads((artifacts_dir / "tech-design-bundle.json").read_text(encoding="utf-8"))
+            drift = json.loads((artifacts_dir / "semantic-drift-check.json").read_text(encoding="utf-8"))
+            tech_md = (artifacts_dir / "tech-spec.md").read_text(encoding="utf-8")
+
+            self.assertFalse(design["arch_required"])
+            self.assertFalse(design["api_required"])
+            self.assertTrue(drift["semantic_lock_preserved"])
+            self.assertEqual(design["semantic_lock"]["domain_type"], "review_projection_rule")
+            self.assertIn("Projection renderer", tech_md)
+            self.assertIn("Machine SSOT remains the only authority", tech_md)
+            self.assertNotIn("cli/lib/mainline_runtime.py", tech_md)
+            self.assertNotIn("cli/lib/managed_gateway.py", tech_md)
+            self.assertNotIn("ll gate ", tech_md)
+
 
 if __name__ == "__main__":
     unittest.main()
