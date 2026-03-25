@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from typing import Any
 
+from cli.lib.review_projection.field_selector import lookup_path
+
 
 DEFAULT_TEMPLATE_VERSION = "v1"
 
@@ -11,25 +13,58 @@ _BLOCK_SPECS = (
     {
         "id": "product_summary",
         "title": "Product Summary",
-        "bindings": ("product_summary", "summary", "overview", "product_shape", "problem_statement"),
+        "bindings": (
+            "product_summary",
+            "summary",
+            "overview",
+            "product_shape",
+            "problem_statement",
+            "epic_intent",
+            "business_goal",
+            "product_positioning",
+        ),
         "fallback": "Product summary is not yet frozen in Machine SSOT.",
     },
     {
         "id": "roles",
         "title": "Roles",
-        "bindings": ("roles", "actors", "personas", "stakeholders", "participants"),
+        "bindings": (
+            "roles",
+            "actors",
+            "personas",
+            "stakeholders",
+            "participants",
+            "actors_and_roles.role",
+            "actors_and_roles",
+        ),
         "fallback": "Roles are not yet frozen in Machine SSOT.",
     },
     {
         "id": "main_flow",
         "title": "Main Flow",
-        "bindings": ("main_flow", "user_flow", "flow", "journey", "review_flow"),
+        "bindings": (
+            "main_flow",
+            "user_flow",
+            "flow",
+            "journey",
+            "review_flow",
+            "product_behavior_slices.product_surface",
+            "product_behavior_slices.goal",
+            "feat_axis_mapping.product_behavior_slice",
+        ),
         "fallback": "Main flow is not yet frozen in Machine SSOT.",
     },
     {
         "id": "deliverables",
         "title": "Deliverables",
-        "bindings": ("deliverables", "key_deliverables", "outputs", "authoritative_output"),
+        "bindings": (
+            "deliverables",
+            "key_deliverables",
+            "outputs",
+            "authoritative_output",
+            "product_behavior_slices.business_deliverable",
+            "product_behavior_slices.name",
+        ),
         "fallback": "Deliverables are not yet frozen in Machine SSOT.",
     },
 )
@@ -60,20 +95,11 @@ def _build_block(ssot_payload: dict[str, Any], spec: dict[str, Any]) -> dict[str
 
 def _resolve_block_content(ssot_payload: dict[str, Any], bindings: tuple[str, ...]) -> tuple[list[str], str]:
     for binding in bindings:
-        value = _lookup_path(ssot_payload, binding)
+        value = lookup_path(ssot_payload, binding)
         content = _normalize_content(value)
         if content:
             return content, binding
     return [], ""
-
-
-def _lookup_path(payload: dict[str, Any], dotted_path: str) -> Any:
-    current: Any = payload
-    for part in dotted_path.split("."):
-        if not isinstance(current, dict) or part not in current:
-            return None
-        current = current[part]
-    return current
 
 
 def _normalize_content(value: Any) -> list[str]:
@@ -90,6 +116,11 @@ def _normalize_content(value: Any) -> list[str]:
             items.extend(_normalize_content(item))
         return items
     if isinstance(value, dict):
+        if "role" in value and "responsibility" in value:
+            role = str(value["role"]).strip()
+            responsibility = str(value["responsibility"]).strip()
+            if role and responsibility:
+                return [f"{role}: {responsibility}"]
         items: list[str] = []
         for key, item in value.items():
             normalized = _normalize_content(item)

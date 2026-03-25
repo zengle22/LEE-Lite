@@ -8,6 +8,7 @@ from typing import Any
 
 from cli.lib.fs import write_json
 from cli.lib.registry_store import slugify
+from cli.lib.review_projection.field_selector import authoritative_field_candidates, resolve_field_value
 from cli.lib.review_projection.risk_analyzer import analyze_risk_signals
 
 
@@ -76,14 +77,16 @@ def _load_review_context(
     field_trace_refs: dict[str, str],
 ) -> dict[str, Any]:
     block_map = {block["id"]: block for block in base_blocks}
+    boundary_value, _ = resolve_field_value(ssot_payload, authoritative_field_candidates("frozen_downstream_boundary"))
+    open_decision_value, _ = resolve_field_value(ssot_payload, authoritative_field_candidates("open_technical_decisions"))
     return {
         "anchors": [block["id"] for block in base_blocks if block["status"] == "complete"],
         "product_summary": block_map.get("product_summary", {}).get("content", []),
         "roles": block_map.get("roles", {}).get("content", []),
         "main_flow": block_map.get("main_flow", {}).get("content", []),
         "deliverables": block_map.get("deliverables", {}).get("content", []),
-        "boundary": ssot_payload.get("frozen_downstream_boundary") or ssot_payload.get("downstream_boundary"),
-        "open_technical_decisions": ssot_payload.get("open_technical_decisions") or ssot_payload.get("open_questions"),
+        "boundary": boundary_value,
+        "open_technical_decisions": open_decision_value,
         "field_trace_refs": field_trace_refs,
     }
 

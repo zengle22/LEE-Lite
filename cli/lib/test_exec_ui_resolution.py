@@ -71,7 +71,7 @@ def _infer_action_skeleton(case: dict[str, Any], semantic_page: str, semantic_ta
     return skeleton
 
 
-def derive_ui_intent(case_pack: dict[str, Any]) -> dict[str, Any]:
+def derive_ui_intent(case_pack: dict[str, Any], ui_source_spec: dict[str, Any]) -> dict[str, Any]:
     cases = []
     for case in case_pack.get("cases", []):
         semantic_page = _semantic_page(case)
@@ -98,7 +98,12 @@ def derive_ui_intent(case_pack: dict[str, Any]) -> dict[str, Any]:
                 ],
             }
         )
-    return {"artifact_type": "ui_intent", "source_test_set_id": case_pack.get("source_test_set_id", ""), "cases": cases}
+    return {
+        "artifact_type": "ui_intent",
+        "source_test_set_id": case_pack.get("source_test_set_id", ""),
+        "ui_source_spec": ui_source_spec,
+        "cases": cases,
+    }
 
 
 def _selector_binding(selectors: dict[str, Any], target: str) -> dict[str, Any]:
@@ -137,7 +142,7 @@ def _step_is_bound(step: dict[str, Any]) -> bool:
     return any(step.get(key) for key in locator_keys)
 
 
-def resolve_ui_binding(case_pack: dict[str, Any], ui_intent: dict[str, Any]) -> dict[str, Any]:
+def resolve_ui_binding(case_pack: dict[str, Any], ui_intent: dict[str, Any], ui_source_spec: dict[str, Any]) -> dict[str, Any]:
     intent_map = {item["case_id"]: item for item in ui_intent.get("cases", [])}
     cases = []
     for case in case_pack.get("cases", []):
@@ -169,7 +174,12 @@ def resolve_ui_binding(case_pack: dict[str, Any], ui_intent: dict[str, Any]) -> 
                 },
             }
         )
-    return {"artifact_type": "ui_binding_map", "source_test_set_id": case_pack.get("source_test_set_id", ""), "cases": cases}
+    return {
+        "artifact_type": "ui_binding_map",
+        "source_test_set_id": case_pack.get("source_test_set_id", ""),
+        "ui_source_spec": ui_source_spec,
+        "cases": cases,
+    }
 
 
 def apply_ui_binding(case_pack: dict[str, Any], ui_binding_map: dict[str, Any]) -> dict[str, Any]:

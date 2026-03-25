@@ -76,6 +76,67 @@ class ReviewProjectionRuntimeTest(unittest.TestCase):
         self.assertEqual(snapshot_block["status"], "constraints_missing")
         self.assertEqual(projection["status"], "traceability_pending")
 
+    def test_render_projection_aligns_epic_freeze_payload(self) -> None:
+        ssot_ref = self._bind_ssot(
+            "epic.freeze-review-projection",
+            {
+                "freeze_ready": True,
+                "status": "accepted",
+                "artifact_type": "epic_freeze_package",
+                "title": "主链正式交接与治理闭环统一能力",
+                "epic_freeze_ref": "EPIC-ADR001-003-006-UNIFIED-MAINLINE-202-4-RERUN5",
+                "epic_intent": "把主链治理问题空间冻结为稳定的产品行为切片。",
+                "business_goal": "下游 FEAT 按产品行为切片而不是能力轴拆分。",
+                "actors_and_roles": [
+                    {
+                        "role": "workflow / orchestration 设计者",
+                        "responsibility": "定义主链边界和交接关系。",
+                    },
+                    {
+                        "role": "governed skill 作者",
+                        "responsibility": "提交 candidate 并消费 decision。",
+                    },
+                ],
+                "product_behavior_slices": [
+                    {
+                        "name": "主链候选提交与交接流",
+                        "product_surface": "候选提交流：governed skill 提交 candidate package 并形成 authoritative handoff submission",
+                        "completed_state": "上游 workflow 已看到正式提交完成。",
+                        "business_deliverable": "给 gate 使用的 authoritative handoff submission。",
+                    },
+                    {
+                        "name": "主链 gate 审核与裁决流",
+                        "product_surface": "审批裁决流：gate 审核 handoff 并输出 authoritative decision result",
+                        "completed_state": "gate 已给出单一 authoritative decision result。",
+                        "business_deliverable": "给 execution 或 formal 发布链消费的 authoritative decision result。",
+                    },
+                ],
+                "upstream_and_downstream": [
+                    "Downstream：产出一个可继续拆分为多个 FEAT 的单一主 EPIC，并交接给 `product.epic-to-feat`。",
+                    "下游消费形态：主链候选提交、gate 裁决、formal 物化、准入等产品级 FEAT 切片。",
+                ],
+                "constraints_and_dependencies": [
+                    "ADR-005 是主链文件 IO / 路径治理前置基础。",
+                    "foundation 与 adoption_e2e 必须同时落成。",
+                ],
+            },
+        )
+
+        projection = render_projection(self.workspace, {"ssot_ref": ssot_ref, "template_version": "v1"})
+
+        self.assertEqual(projection["status"], "review_visible")
+        summary_block = next(block for block in projection["review_blocks"] if block["id"] == "product_summary")
+        roles_block = next(block for block in projection["review_blocks"] if block["id"] == "roles")
+        flow_block = next(block for block in projection["review_blocks"] if block["id"] == "main_flow")
+        deliverables_block = next(block for block in projection["review_blocks"] if block["id"] == "deliverables")
+        snapshot_block = next(block for block in projection["review_blocks"] if block["id"] == "authoritative_snapshot")
+        self.assertIn("把主链治理问题空间冻结为稳定的产品行为切片。", summary_block["content"][0])
+        self.assertIn("workflow / orchestration 设计者", roles_block["content"][0])
+        self.assertIn("候选提交流", flow_block["content"][0])
+        self.assertIn("authoritative handoff submission", deliverables_block["content"][0])
+        self.assertEqual(snapshot_block["status"], "complete")
+        self.assertIn("EPIC-ADR001-003-006-UNIFIED-MAINLINE-202-4-RERUN5", " ".join(snapshot_block["content"]))
+
     def test_writeback_and_regeneration_follow_ssot_roundtrip(self) -> None:
         ssot_path = self.workspace / "artifacts" / "active" / "run-001" / "machine-ssot.json"
         write_json(

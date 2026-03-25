@@ -12,7 +12,19 @@ def _checksum(payload: Any) -> str:
     return hashlib.sha1(text.encode("utf-8")).hexdigest()
 
 
-def resolve_ssot_context(test_set: dict[str, Any], environment: dict[str, Any]) -> dict[str, Any]:
+def normalize_ui_source_spec(payload: dict[str, Any]) -> dict[str, Any]:
+    explicit = payload.get("ui_source_spec", {})
+    if not isinstance(explicit, dict):
+        explicit = {}
+    spec = {
+        "codebase_ref": explicit.get("codebase_ref", payload.get("frontend_code_ref", "")),
+        "runtime_ref": explicit.get("runtime_ref", payload.get("ui_runtime_ref", "")),
+        "prototype_ref": explicit.get("prototype_ref", payload.get("ui_prototype_ref", "")),
+    }
+    return spec
+
+
+def resolve_ssot_context(test_set: dict[str, Any], environment: dict[str, Any], ui_source_spec: dict[str, Any]) -> dict[str, Any]:
     return {
         "artifact_type": "resolved_ssot_context",
         "test_set_id": test_set.get("test_set_id", test_set.get("id", "")),
@@ -23,6 +35,7 @@ def resolve_ssot_context(test_set: dict[str, Any], environment: dict[str, Any]) 
         "environment_assumptions": test_set.get("environment_assumptions", []),
         "coverage_scope": test_set.get("coverage_scope", []),
         "risk_focus": test_set.get("risk_focus", []),
+        "ui_source_spec": ui_source_spec,
         "environment_contract": {
             "execution_modality": environment.get("execution_modality", ""),
             "workdir": environment.get("workdir", "."),
@@ -84,7 +97,7 @@ def build_test_case_pack(test_set: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-def build_script_pack(action: str, environment: dict[str, Any], case_pack: dict[str, Any]) -> dict[str, Any]:
+def build_script_pack(action: str, environment: dict[str, Any], case_pack: dict[str, Any], ui_source_spec: dict[str, Any]) -> dict[str, Any]:
     command_entry = str(environment.get("command_entry", environment.get("runner_command", "")))
     is_web = action == "test-exec-web-e2e"
     bindings = []
@@ -111,6 +124,7 @@ def build_script_pack(action: str, environment: dict[str, Any], case_pack: dict[
             "timeout_seconds": int(environment.get("timeout_seconds", 30)),
             "base_url": environment.get("base_url"),
             "browser": environment.get("browser"),
+            "ui_source_spec": ui_source_spec,
         },
         "bindings": bindings,
     }

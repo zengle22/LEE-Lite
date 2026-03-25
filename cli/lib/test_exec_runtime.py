@@ -12,6 +12,7 @@ from cli.lib.fs import canonical_to_path, to_canonical_path, write_json
 from cli.lib.mainline_runtime import submit_handoff
 from cli.lib.managed_gateway import governed_write
 from cli.lib.registry_store import slugify
+from cli.lib.test_exec_artifacts import normalize_ui_source_spec
 from cli.lib.test_exec_execution import run_narrow_execution
 
 
@@ -51,6 +52,7 @@ def build_candidate_package(
     config = SKILL_CONFIG[action]
     slug = slugify(f"{config['skill_ref']}-{request_id}")
     artifact_ref = f"candidate.{slug}"
+    ui_source_spec = normalize_ui_source_spec(payload)
     candidate = {
         "artifact_type": "governed_test_exec_candidate",
         "request_id": request_id,
@@ -60,6 +62,7 @@ def build_candidate_package(
         "test_set_ref": test_set["_source_ref"],
         "test_set_id": test_set.get("test_set_id", test_set.get("id", "")),
         "test_environment_ref": environment["_source_ref"],
+        "ui_source_spec": ui_source_spec,
         "proposal_ref": str(payload.get("proposal_ref", request_id)),
         "status": "candidate_executed",
         "run_status": execution_result["run_status"],
@@ -100,7 +103,7 @@ def execute_test_exec_skill(
     environment = load_yaml_document(str(payload.get("test_environment_ref", "")), workspace_root)
     ensure(test_set.get("ssot_type") == "TESTSET", "PRECONDITION_FAILED", "test_set_ref must resolve to a TESTSET")
     _validate_environment(action, environment)
-    execution_result = run_narrow_execution(workspace_root, trace, request_id, action, test_set, environment)
+    execution_result = run_narrow_execution(workspace_root, trace, request_id, action, test_set, environment, payload)
 
     artifact_ref, candidate = build_candidate_package(action, request_id, test_set, environment, payload, execution_result)
     staging_ref = f".workflow/runs/{trace.get('run_ref', request_id)}/generated/{slugify(artifact_ref)}.json"

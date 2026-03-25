@@ -16,6 +16,7 @@ from cli.lib.test_exec_artifacts import (
     build_freeze_meta,
     build_script_pack,
     build_test_case_pack,
+    normalize_ui_source_spec,
     render_report,
     resolve_ssot_context,
 )
@@ -334,19 +335,22 @@ def run_narrow_execution(
     action: str,
     test_set: dict[str, Any],
     environment: dict[str, Any],
+    payload: dict[str, Any] | None = None,
 ) -> dict[str, str]:
+    payload = payload or {}
     command_entry = str(environment.get("command_entry", environment.get("runner_command", "")))
     if action != "test-exec-web-e2e":
         ensure(command_entry, "PRECONDITION_FAILED", "execution command is required")
     run_slug = slugify(f"{action}-{request_id}")
     output_root = workspace_root / "artifacts" / "active" / "qa" / "executions" / run_slug
     evidence_root = output_root / "evidence"
-    context = resolve_ssot_context(test_set, environment)
+    ui_source_spec = normalize_ui_source_spec(payload)
+    context = resolve_ssot_context(test_set, environment, ui_source_spec)
     raw_case_pack = build_test_case_pack(test_set)
-    ui_intent = derive_ui_intent(raw_case_pack)
-    ui_binding_map = resolve_ui_binding(raw_case_pack, ui_intent)
+    ui_intent = derive_ui_intent(raw_case_pack, ui_source_spec)
+    ui_binding_map = resolve_ui_binding(raw_case_pack, ui_intent, ui_source_spec)
     case_pack = apply_ui_binding(raw_case_pack, ui_binding_map)
-    script_pack = build_script_pack(action, environment, case_pack)
+    script_pack = build_script_pack(action, environment, case_pack, ui_source_spec)
     case_meta = build_freeze_meta("test_case_pack", case_pack)
 
     refs = {
