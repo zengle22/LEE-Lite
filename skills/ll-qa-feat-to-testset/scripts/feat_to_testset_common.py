@@ -70,7 +70,15 @@ def ensure_list(value: Any) -> list[str]:
 
 
 def slugify(value: str) -> str:
-    normalized = re.sub(r"[^A-Za-z0-9]+", "-", value).strip("-")
+    parts: list[str] = []
+    for char in value.strip():
+        if char.isascii() and char.isalnum():
+            parts.append(char.lower())
+        elif char.isalnum():
+            parts.append(f"-u{ord(char):x}-")
+        else:
+            parts.append("-")
+    normalized = "".join(parts).strip("-")
     normalized = re.sub(r"-{2,}", "-", normalized)
     return normalized.lower() or "unspecified"
 

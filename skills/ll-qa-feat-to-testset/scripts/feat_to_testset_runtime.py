@@ -120,6 +120,47 @@ class GeneratedCandidatePackage:
     execution_uncertainties: list[str]
 
 
+def _format_field_list(label: str, values: list[str]) -> list[str]:
+    return [f"- {label}:"] + [f"  - {item}" for item in values]
+
+
+def _format_test_units(units: list[dict[str, Any]]) -> list[str]:
+    lines = ["- test_units:"]
+    for unit in units:
+        acceptance_label = unit.get("acceptance_ref") or "(supplemental)"
+        lines.extend(
+            [
+                f"  - `{unit.get('unit_ref')}` {unit.get('title')}",
+                f"    acceptance_ref: `{acceptance_label}`",
+                f"    priority: `{unit.get('priority')}`",
+                f"    input_preconditions: {'; '.join(ensure_list(unit.get('input_preconditions')))}",
+                f"    trigger_action: {unit.get('trigger_action')}",
+                f"    observation_points: {'; '.join(ensure_list(unit.get('observation_points')))}",
+                f"    pass_conditions: {'; '.join(ensure_list(unit.get('pass_conditions')))}",
+                f"    required_evidence: {'; '.join(ensure_list(unit.get('required_evidence')))}",
+            ]
+        )
+        if ensure_list(unit.get("derivation_basis")):
+            lines.append(f"    derivation_basis: {'; '.join(ensure_list(unit.get('derivation_basis')))}")
+    return lines
+
+
+def _format_acceptance_traceability(rows: list[dict[str, Any]]) -> list[str]:
+    lines = ["- acceptance_traceability:"]
+    for row in rows:
+        lines.extend(
+            [
+                f"  - `{row.get('acceptance_ref')}` {row.get('acceptance_scenario')}",
+                f"    unit_refs: {', '.join(ensure_list(row.get('unit_refs')))}",
+                f"    given: {row.get('given')}",
+                f"    when: {row.get('when')}",
+                f"    then: {row.get('then')}",
+                f"    coverage_status: {row.get('coverage_status')}",
+            ]
+        )
+    return lines
+
+
 def build_candidate_package(package: Any, feature: dict[str, Any], feat_ref: str, run_id: str) -> GeneratedCandidatePackage:
     del feat_ref
     derived_slug = slugify(str(feature.get("title") or feature.get("feat_ref") or run_id))
@@ -254,10 +295,15 @@ def build_candidate_package(package: Any, feature: dict[str, Any], feat_ref: str
         "derived_slug": bundle_json["derived_slug"],
         "source_refs": bundle_json["source_refs"],
     }
+    test_units = [
+        unit for unit in (test_set_yaml.get("test_units") or []) if isinstance(unit, dict)
+    ]
+    traceability_rows = [
+        row for row in (test_set_yaml.get("acceptance_traceability") or []) if isinstance(row, dict)
+    ]
     traceability_lines = [
-        f"- acceptance `{row['acceptance_ref']}` -> {', '.join(ensure_list(row.get('unit_refs')))}"
-        for row in (test_set_yaml.get("acceptance_traceability") or [])
-        if isinstance(row, dict)
+        f"- acceptance `{row.get('acceptance_ref')}` `{row.get('acceptance_scenario')}` -> {', '.join(ensure_list(row.get('unit_refs')))}"
+        for row in traceability_rows
     ]
     gate_subject_lines = [
         f"- `{subject['gate_type']}`: `{subject['subject_id']}` -> `{SUBJECT_FILE_NAMES[subject['gate_type']]}`"
@@ -278,27 +324,16 @@ def build_candidate_package(package: Any, feature: dict[str, Any], feat_ref: str
             ),
             "## Requirement Analysis\n\n"
             + "\n".join(
-                [
-                    "- coverage_scope:",
-                    *[f"  - {item}" for item in ensure_list(test_set_yaml.get("coverage_scope"))],
-                    "- risk_focus:",
-                    *[f"  - {item}" for item in ensure_list(test_set_yaml.get("risk_focus"))],
-                    "- coverage_exclusions:",
-                    *[f"  - {item}" for item in ensure_list(test_set_yaml.get("coverage_exclusions"))],
-                ]
+                _format_field_list("coverage_scope", ensure_list(test_set_yaml.get("coverage_scope")))
+                + _format_field_list("risk_focus", ensure_list(test_set_yaml.get("risk_focus")))
+                + _format_field_list("preconditions", ensure_list(test_set_yaml.get("preconditions")))
+                + _format_field_list("coverage_exclusions", ensure_list(test_set_yaml.get("coverage_exclusions")))
             ),
             "## Strategy Draft\n\n"
             + "\n".join(
-                [
-                    f"- priority: {strategy_yaml.get('priority')}",
-                    "- test_layers:",
-                    *[f"  - {item}" for item in ensure_list(strategy_yaml.get("test_layers"))],
-                    "- test_units:",
-                    *[
-                        f"  - {unit.get('unit_ref')}: {unit.get('title')}"
-                        for unit in strategy_yaml.get("test_units") or []
-                    ],
-                ]
+                [f"- priority: {strategy_yaml.get('priority')}"]
+                + _format_field_list("test_layers", ensure_list(strategy_yaml.get("test_layers")))
+                + _format_test_units(test_units)
             ),
             "## TESTSET\n\n"
             + "\n".join(
@@ -306,7 +341,30 @@ def build_candidate_package(package: Any, feature: dict[str, Any], feat_ref: str
                     f"- main_object: `{test_set_ref}`",
                     f"- file: `{artifact_refs['test_set']}`",
                     f"- status: `{test_set_yaml.get('status')}`",
+                    f"- environment_assumptions_count: {len(ensure_list(test_set_yaml.get('environment_assumptions')))}",
+                    f"- pass_criteria_count: {len(ensure_list(test_set_yaml.get('pass_criteria')))}",
+                    f"- evidence_required_count: {len(ensure_list(test_set_yaml.get('evidence_required')))}",
                     "- only `test-set.yaml` is the formal main object; companion artifacts remain subordinate evidence.",
+                    "- main_object_fields:",
+                    "  - coverage_scope",
+                    "  - risk_focus",
+                    "  - preconditions",
+                    "  - environment_assumptions",
+                    "  - test_layers",
+                    "  - test_units",
+                    "  - coverage_exclusions",
+                    "  - pass_criteria",
+                    "  - evidence_required",
+                    "  - acceptance_traceability",
+                    "  - source_refs",
+                    "  - governing_adrs",
+                    "  - status",
+                    "- environment_assumptions:",
+                    *[f"  - {item}" for item in ensure_list(test_set_yaml.get("environment_assumptions"))],
+                    "- pass_criteria:",
+                    *[f"  - {item}" for item in ensure_list(test_set_yaml.get("pass_criteria"))],
+                    "- evidence_required:",
+                    *[f"  - {item}" for item in ensure_list(test_set_yaml.get("evidence_required"))],
                 ]
             ),
             "## Gate Subjects\n\n" + "\n".join(gate_subject_lines),
@@ -322,7 +380,8 @@ def build_candidate_package(package: Any, feature: dict[str, Any], feat_ref: str
                     ],
                 ]
             ),
-            "## Traceability\n\n" + "\n".join(traceability_lines),
+            "## Traceability\n\n"
+            + "\n".join(traceability_lines + _format_acceptance_traceability(traceability_rows)),
         ]
     )
     gate_subject_index = {
@@ -610,6 +669,60 @@ def validate_output_package(artifacts_dir: Path) -> tuple[list[str], dict[str, A
         errors.append("test-set.yaml ssot_type must be TESTSET.")
     if test_set_yaml.get("workflow_key") != "qa.feat-to-testset":
         errors.append("test-set.yaml workflow_key must be qa.feat-to-testset.")
+    test_units = test_set_yaml.get("test_units") or []
+    acceptance_traceability = test_set_yaml.get("acceptance_traceability") or []
+    if not isinstance(test_units, list) or not test_units:
+        errors.append("test-set.yaml must contain non-empty test_units.")
+    else:
+        required_unit_fields = {
+            "unit_ref",
+            "title",
+            "priority",
+            "input_preconditions",
+            "trigger_action",
+            "observation_points",
+            "pass_conditions",
+            "fail_conditions",
+            "required_evidence",
+        }
+        for index, unit in enumerate(test_units, start=1):
+            if not isinstance(unit, dict):
+                errors.append(f"test_units[{index}] must be an object.")
+                continue
+            missing = sorted(field for field in required_unit_fields if unit.get(field) in (None, "", []))
+            if missing:
+                errors.append(f"test_units[{index}] is missing required fields: {', '.join(missing)}.")
+            if unit.get("acceptance_ref") in (None, "", []):
+                if not ensure_list(unit.get("derivation_basis")):
+                    errors.append(
+                        f"test_units[{index}] must include acceptance_ref or a non-empty derivation_basis."
+                    )
+    if not isinstance(acceptance_traceability, list) or not acceptance_traceability:
+        errors.append("test-set.yaml must contain non-empty acceptance_traceability.")
+    else:
+        for index, row in enumerate(acceptance_traceability, start=1):
+            if not isinstance(row, dict):
+                errors.append(f"acceptance_traceability[{index}] must be an object.")
+                continue
+            missing = sorted(
+                field
+                for field in ["acceptance_ref", "acceptance_scenario", "given", "when", "then", "unit_refs", "coverage_status"]
+                if row.get(field) in (None, "", [])
+            )
+            if missing:
+                errors.append(
+                    f"acceptance_traceability[{index}] is missing required fields: {', '.join(missing)}."
+                )
+        traceability_acceptance_refs = {
+            str(row.get("acceptance_ref")) for row in acceptance_traceability if isinstance(row, dict)
+        }
+        unit_acceptance_refs = {
+            str(unit.get("acceptance_ref"))
+            for unit in test_units
+            if isinstance(unit, dict) and unit.get("acceptance_ref") not in (None, "", [])
+        }
+        if traceability_acceptance_refs != unit_acceptance_refs:
+            errors.append("acceptance_traceability must explicitly cover every acceptance_ref present in test_units.")
 
     bundle_markdown = (artifacts_dir / "test-set-bundle.md").read_text(encoding="utf-8")
     _, bundle_body = parse_markdown_frontmatter(bundle_markdown)

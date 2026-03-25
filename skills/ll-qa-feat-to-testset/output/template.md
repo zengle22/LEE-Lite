@@ -26,11 +26,11 @@ source_refs:
 
 ## Strategy Draft
 
-[Summarize risk focus, layers, and test unit strategy.]
+[Summarize risk focus, layers, and minimum test units with preconditions / trigger / observation / pass-evidence structure.]
 
 ## TESTSET
 
-[Link or summarize the formal main object only.]
+[Expose the formal main object fields directly: coverage_scope, risk_focus, preconditions, environment_assumptions, test_layers, test_units, coverage_exclusions, pass_criteria, evidence_required, acceptance_traceability, source_refs, governing_adrs, status.]
 
 ## Gate Subjects
 
@@ -42,4 +42,4 @@ source_refs:
 
 ## Traceability
 
-[Map the candidate package back to FEAT acceptance and inherited source refs.]
+[Explicitly map each FEAT acceptance scenario to one or more minimum test units, then list inherited source refs.]
