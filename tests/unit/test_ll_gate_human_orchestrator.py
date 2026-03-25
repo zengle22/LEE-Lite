@@ -374,6 +374,39 @@ class GateHumanOrchestratorWorkflowTests(unittest.TestCase):
 
             self.assertEqual(synthetic["payload"]["candidate_ref"], "formal.src.run-legacy")
 
+    def test_capture_decision_refreshes_legacy_synthetic_round_target(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            repo_root = Path(temp_dir)
+            self.make_legacy_runtime_pending_item(repo_root, key="legacy-capture-item")
+
+            claim = self.run_cmd(
+                "claim-next",
+                "--repo-root",
+                str(repo_root),
+                "--run-id",
+                "legacy-capture-round",
+                cwd=ROOT,
+            )
+            self.assertEqual(claim.returncode, 0, claim.stderr)
+            artifacts_dir = repo_root / "artifacts" / "gate-human-orchestrator" / "legacy-capture-round"
+
+            capture = self.run_cmd(
+                "capture-decision",
+                "--artifacts-dir",
+                str(artifacts_dir),
+                "--repo-root",
+                str(repo_root),
+                "--reply",
+                "approve",
+                "--approver",
+                "human/reviewer-001",
+                cwd=ROOT,
+            )
+            self.assertNotEqual(capture.returncode, 0)
+            self.assertIn("human projection must be review_visible", capture.stderr)
+            submission = json.loads((artifacts_dir / "human-decision-submission.json").read_text(encoding="utf-8"))
+            self.assertEqual(submission["decision_target"], "formal.src.run-legacy")
+
     def test_capture_comment_and_regenerate_projection(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             repo_root = Path(temp_dir)

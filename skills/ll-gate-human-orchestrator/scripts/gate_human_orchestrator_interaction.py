@@ -16,6 +16,24 @@ from gate_human_orchestrator_runtime import default_run_id, output_dir_for, repo
 ALLOWED_ACTIONS = ["approve", "revise", "retry", "handoff", "reject"]
 
 
+def _path_variants(value: str, repo_root: Path) -> set[str]:
+    raw = str(value or "").strip()
+    if not raw:
+        return set()
+    variants = {raw, raw.replace("\\", "/")}
+    try:
+        path = Path(raw)
+        if not path.is_absolute():
+            path = (repo_root / path)
+        resolved = path.resolve()
+        variants.add(str(resolved))
+        variants.add(resolved.as_posix())
+        variants.add(str(resolved).replace("\\", "/"))
+    except Exception:
+        pass
+    return {item for item in variants if item}
+
+
 def _load_ssot_excerpt(repo_root: Path, machine_ssot_ref: str) -> list[str]:
     if not machine_ssot_ref:
         return []
@@ -228,8 +246,8 @@ def _registry_candidate_ref_for_payload(repo_root: Path, payload_path: Path) -> 
     registry_dir = repo_root / "artifacts" / "registry"
     if not registry_dir.exists():
         return repo_relative(repo_root, payload_path)
-    managed_rel = repo_relative(repo_root, payload_path)
-    managed_abs = payload_path.resolve().as_posix()
+    managed_variants = _path_variants(repo_relative(repo_root, payload_path), repo_root) | _path_variants(str(payload_path), repo_root)
+    source_dir_variants = _path_variants(repo_relative(repo_root, payload_path.parent), repo_root) | _path_variants(str(payload_path.parent), repo_root)
     for registry_path in sorted(registry_dir.glob("*.json")):
         try:
             record = load_json(registry_path)
@@ -239,7 +257,13 @@ def _registry_candidate_ref_for_payload(repo_root: Path, payload_path: Path) -> 
         artifact_ref = str(record.get("artifact_ref", "")).strip()
         if not managed_artifact_ref or not artifact_ref:
             continue
-        if managed_artifact_ref in {managed_rel, managed_abs}:
+        metadata = record.get("metadata", {})
+        source_package_ref = ""
+        if isinstance(metadata, dict):
+            source_package_ref = str(metadata.get("source_package_ref", "")).strip()
+        if _path_variants(managed_artifact_ref, repo_root) & managed_variants:
+            return artifact_ref
+        if source_package_ref and (_path_variants(source_package_ref, repo_root) & source_dir_variants):
             return artifact_ref
     return repo_relative(repo_root, payload_path)
 
@@ -284,6 +308,33 @@ def _synthetic_gate_ready_package(
         },
     )
     return package_path
+
+
+def _refresh_round_input_if_needed(repo_root: Path, artifacts_dir: Path, state: dict[str, Any]) -> Path:
+    input_ref = str(state.get("input_ref", "")).strip()
+    input_path = repo_root / Path(input_ref)
+    if not input_ref or not input_path.exists():
+        return input_path
+    try:
+        payload = load_json(input_path)
+    except Exception:
+        return input_path
+    if not payload.get("synthetic_from_handoff"):
+        return input_path
+    handoff_ref = str(state.get("handoff_ref", "")).strip()
+    if not handoff_ref:
+        return input_path
+    handoff_path = repo_root / handoff_ref
+    if not handoff_path.exists():
+        return input_path
+    handoff = load_json(handoff_path)
+    payload_ref = str(handoff.get("payload_ref", "")).strip()
+    if not payload_ref:
+        return input_path
+    payload_path = Path(payload_ref) if Path(payload_ref).is_absolute() else (repo_root / payload_ref)
+    if not payload_path.exists():
+        return input_path
+    return _synthetic_gate_ready_package(repo_root, artifacts_dir, handoff, payload_path)
 
 
 def prepare_round(input_path: Path, repo_root: Path, run_id: str, allow_update: bool = False) -> dict[str, Any]:
@@ -484,7 +535,10 @@ def capture_decision(artifacts_dir: Path, repo_root: Path, reply: str, approver:
     state = load_json(_round_state_path(artifacts_dir))
     if state.get("status") != "pending_human_reply":
         raise ValueError(f"round is not awaiting human reply: {state.get('status', 'unknown')}")
-    parsed = parse_human_reply(reply, str(state.get("decision_target", "")))
+    input_path = _refresh_round_input_if_needed(repo_root, artifacts_dir, state)
+    package = load_gate_ready_package(input_path)
+    runtime_target = str(package.payload.get("candidate_ref", "")) or str(state.get("decision_target", ""))
+    parsed = parse_human_reply(reply, runtime_target)
     submission = {
         "pending_human_decision_ref": state.get("request_ref", ""),
         "decision": parsed["decision"],
@@ -495,7 +549,7 @@ def capture_decision(artifacts_dir: Path, repo_root: Path, reply: str, approver:
     }
     dump_json(_submission_path(artifacts_dir), submission)
     result = run_workflow(
-        input_path=repo_root / Path(state["input_ref"]),
+        input_path=input_path,
         repo_root=repo_root,
         run_id=str(state["run_id"]),
         decision=submission["decision"],
