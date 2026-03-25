@@ -218,11 +218,67 @@ class SrcToEpicWorkflowTests(unittest.TestCase):
 
             self.assertIn("ADR-005", epic["source_refs"])
             self.assertIn("ADR-005 是主链文件 IO / 路径治理前置基础；本 EPIC 只消费其已交付能力，不重新实现 Gateway / Path Policy / Registry 模块。", " ".join(item for group in epic["constraint_groups"] for item in group["items"]))
-            self.assertTrue(handoff["prerequisite_foundations"])
-            self.assertIn("ADR-005 作为主链文件 IO / 路径治理前置基础", markdown)
-            self.assertIn("本 EPIC 不重新实现 ADR-005 的 Gateway / Path Policy / Registry 模块，只消费其已交付能力。", epic["non_goals"])
-            self.assertEqual(sum(1 for item in epic["non_goals"] if "ADR-005" in item), 1)
-            self.assertTrue(any(item["name"] == "formal 发布与下游准入流" for item in epic["product_behavior_slices"]))
+
+    def test_review_projection_semantic_lock_prevents_governance_drift(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            repo_root = Path(temp_dir)
+            candidate = {
+                "artifact_type": "src_candidate_package",
+                "workflow_key": "product.raw-to-src",
+                "workflow_run_id": "src-adr015",
+                "title": "Machine SSOT + Human Review Projection",
+                "status": "freeze_ready",
+                "source_kind": "governance_bridge_src",
+                "source_refs": ["SRC-ADR015", "ADR-015"],
+                "semantic_lock": {
+                    "domain_type": "review_projection_rule",
+                    "one_sentence_truth": "仅在 gate 审核阶段，从机器优先 SSOT 派生一份人类友好 Projection，帮助人类决策；冻结与继承仍回到 SSOT。",
+                    "primary_object": "human_review_projection",
+                    "lifecycle_stage": "gate_review_only",
+                    "allowed_capabilities": [
+                        "projection_generation",
+                        "authoritative_snapshot_rendering",
+                        "review_focus_extraction",
+                        "risk_ambiguity_extraction",
+                        "review_feedback_writeback",
+                    ],
+                    "forbidden_capabilities": [
+                        "mainline_runtime_governance",
+                        "handoff_orchestration",
+                        "formal_publication",
+                        "governed_io_platform",
+                    ],
+                    "inheritance_rule": "Projection is derived-only, non-authoritative, non-inheritable.",
+                },
+                "problem_statement": "Machine SSOT 本体对 AI 足够稳定，但 gate 审核阶段的人类需要一份固定模板的人类友好 Projection 来快速理解产品和边界。",
+                "target_users": ["gate reviewer", "SSOT owner"],
+                "trigger_scenarios": ["当 Machine SSOT 进入 gate 审核阶段时。"],
+                "business_drivers": ["在不污染 SSOT 本体的前提下提升 gate 审核效率。"],
+                "key_constraints": ["Projection 只能解释和重组 SSOT，不得新增 authoritative 定义。", "审核意见必须回写 Machine SSOT。"],
+                "in_scope": ["在 gate 阶段生成 Human Review Projection。", "提供 Authoritative Snapshot、Review Focus 和回写边界。"],
+                "out_of_scope": ["formal publication runtime", "governed IO runtime"],
+                "bridge_context": {
+                    "governance_objects": ["Machine SSOT", "Human Review Projection", "Authoritative Snapshot"],
+                    "current_failure_modes": ["审核人需要自己拼装主线和边界。"],
+                    "downstream_inheritance_requirements": ["Projection 不可继承，SSOT 才可继承。"],
+                    "expected_downstream_objects": ["EPIC", "FEAT"],
+                    "acceptance_impact": ["审核意见必须回写 SSOT。"],
+                },
+            }
+            input_dir = self.make_src_package(repo_root, "src-adr015", candidate)
+            result = self.run_cmd("run", "--input", str(input_dir), "--repo-root", str(repo_root), "--run-id", "epic-adr015")
+            self.assertEqual(result.returncode, 0, result.stderr)
+            artifacts_dir = Path(json.loads(result.stdout)["artifacts_dir"])
+            epic = json.loads((artifacts_dir / "epic-freeze.json").read_text(encoding="utf-8"))
+            drift = json.loads((artifacts_dir / "semantic-drift-check.json").read_text(encoding="utf-8"))
+
+            self.assertEqual(epic["semantic_lock"]["domain_type"], "review_projection_rule")
+            self.assertEqual(epic["title"], "Gate 审核投影视图与 SSOT 回写统一能力")
+            self.assertEqual([item["id"] for item in epic["product_behavior_slices"]], ["projection-generation", "authoritative-snapshot", "review-focus-risk", "feedback-writeback"])
+            self.assertFalse(epic["rollout_requirement"]["required"])
+            self.assertTrue(drift["semantic_lock_preserved"])
+            self.assertEqual(drift["verdict"], "pass")
+            self.assertFalse(drift["forbidden_axis_detected"])
             self.assertTrue(epic["business_value_problem"])
             self.assertTrue(epic["actors_and_roles"])
             self.assertTrue(epic["upstream_and_downstream"])

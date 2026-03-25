@@ -109,6 +109,53 @@ class RawToSrcWorkflowTests(unittest.TestCase):
             self.assertNotIn("受该问题影响的业务角色", content)
             self.assertNotIn("当原始问题被触发并需要正式需求源时。", content)
 
+    def test_semantic_lock_is_preserved_in_src_candidate(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            repo_root = Path(temp_dir)
+            self.make_repo(repo_root)
+            source = repo_root / "adr015.md"
+            source.write_text(
+                "\n".join(
+                    [
+                        "---",
+                        "title: ADR-015 Projection Rule",
+                        "semantic_lock:",
+                        "  domain_type: review_projection_rule",
+                        "  one_sentence_truth: 仅在 gate 审核阶段，从机器优先 SSOT 派生一份人类友好 Projection，帮助人类决策；冻结与继承仍回到 SSOT。",
+                        "  primary_object: human_review_projection",
+                        "  lifecycle_stage: gate_review_only",
+                        "  allowed_capabilities:",
+                        "    - projection_generation",
+                        "    - authoritative_snapshot_rendering",
+                        "    - review_focus_extraction",
+                        "    - risk_ambiguity_extraction",
+                        "    - review_feedback_writeback",
+                        "  forbidden_capabilities:",
+                        "    - mainline_runtime_governance",
+                        "    - handoff_orchestration",
+                        "    - formal_publication",
+                        "    - governed_io_platform",
+                        "  inheritance_rule: Projection is derived-only, non-authoritative, non-inheritable.",
+                        "---",
+                        "",
+                        "# ADR-015 Projection Rule",
+                        "",
+                        "## 问题陈述",
+                        "",
+                        "SSOT 正文继续服务 AI 执行，但 gate 审核阶段需要一份人类友好 Projection，且 Projection 不能成为新的真相源。",
+                        "",
+                    ]
+                ),
+                encoding="utf-8",
+            )
+            result = self.run_cmd("run", "--input", str(source), "--repo-root", str(repo_root), "--run-id", "test-run-semantic-lock")
+            self.assertEqual(result.returncode, 0, result.stderr)
+            payload = json.loads(result.stdout)
+            candidate = json.loads((Path(payload["artifacts_dir"]) / "src-candidate.json").read_text(encoding="utf-8"))
+            self.assertEqual(candidate["semantic_lock"]["domain_type"], "review_projection_rule")
+            self.assertIn("projection_generation", candidate["semantic_lock"]["allowed_capabilities"])
+            self.assertIn("mainline_runtime_governance", candidate["semantic_lock"]["forbidden_capabilities"])
+
     def test_markdown_adr_bridge_does_not_inline_full_body(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             repo_root = Path(temp_dir)

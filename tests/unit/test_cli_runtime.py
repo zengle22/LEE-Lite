@@ -232,11 +232,31 @@ class CliRuntimeTest(unittest.TestCase):
         self.assertEqual(payload["status_code"], "PROVISIONAL_SLICE_DISABLED")
 
     def test_gate_materialize_dispatch_and_close(self) -> None:
+        candidate_path = self.workspace / "artifacts" / "active" / "run-001" / "candidate.json"
+        write_json(candidate_path, {"candidate": True})
+        bind_request = self.build_request(
+            "registry.bind-record",
+            {
+                "artifact_ref": "candidate.impl",
+                "managed_artifact_ref": "artifacts/active/run-001/candidate.json",
+                "status": "candidate",
+            },
+        )
+        bind_req = self.request_path("registry-bind-candidate.json")
+        write_json(bind_req, bind_request)
+        bind_response = self.response_path("registry-bind-candidate.response.json")
+        self.assertEqual(self.run_cli("registry", "bind-record", "--request", str(bind_req), "--response-out", str(bind_response)), 0)
+
         decision_path = self.workspace / "artifacts" / "active" / "gates" / "decisions" / "gate-decision.json"
-        write_json(decision_path, {"decision_type": "approve"})
+        write_json(decision_path, {"decision_type": "approve", "candidate_ref": "candidate.impl"})
 
         materialize_request = self.build_request(
-            "gate.materialize", {"gate_decision_ref": "artifacts/active/gates/decisions/gate-decision.json"}
+            "gate.materialize",
+            {
+                "gate_decision_ref": "artifacts/active/gates/decisions/gate-decision.json",
+                "candidate_ref": "candidate.impl",
+                "target_formal_kind": "handoff",
+            },
         )
         materialize_req = self.request_path("gate-materialize.json")
         write_json(materialize_req, materialize_request)
@@ -310,4 +330,3 @@ class CliRuntimeTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
-

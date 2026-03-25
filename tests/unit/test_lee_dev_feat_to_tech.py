@@ -603,6 +603,62 @@ class FeatToTechWorkflowTests(unittest.TestCase):
             self.assertIn("cutover_recommendation", api_md)
             self.assertIn("Canonical refs:", api_md)
 
+    def test_adr007_adoption_e2e_feat_preserves_web_and_cli_skill_family(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            repo_root = Path(temp_dir)
+            feature = {
+                "feat_ref": "FEAT-SRC-ADR007-005",
+                "title": "governed skill 接入与 pilot 验证流",
+                "axis_id": "skill-adoption-e2e",
+                "track": "adoption_e2e",
+                "goal": "让 test execution family 按 onboarding、pilot、cutover/fallback 的主链接入流程稳定落地。",
+                "scope": [
+                    "定义 onboarding directive、pilot evidence 与 cutover guard 的业务交付物。",
+                    "定义 producer -> gate -> formal -> consumer -> audit 的最小 pilot 闭环。",
+                    "定义 compat mode、fallback 与 cutover 的业务边界。",
+                ],
+                "constraints": [
+                    "本 FEAT 不重写 foundation FEAT 的内部实现。",
+                    "pilot evidence 必须成为 authoritative rollout input。",
+                    "fallback 结果必须显式记录到 receipt。",
+                ],
+                "dependencies": [
+                    "Boundary to formal 发布与下游准入流: pilot 只能消费已发布 formal refs。",
+                    "Boundary to 主链候选提交与交接流: producer 提交仍沿 authoritative handoff 进入 gate pending。",
+                ],
+                "outputs": ["onboarding directive", "pilot evidence submission", "cutover recommendation"],
+                "acceptance_checks": [
+                    {"scenario": "Pilot chain is complete", "given": "producer to audit", "when": "validated", "then": "闭环证据齐全"},
+                    {"scenario": "CLI sibling is preserved", "given": "ADR-007 family", "when": "derived", "then": "skill.qa.test_exec_cli 被保留"},
+                    {"scenario": "CLI runner sibling is preserved", "given": "ADR-007 family", "when": "derived", "then": "skill.runner.test_cli 被保留"},
+                ],
+                "source_refs": ["FEAT-SRC-ADR007-005", "EPIC-ADR007", "SRC-ADR007", "ADR-007"],
+            }
+            bundle = self.make_bundle_json(feature, run_id="feat-adr007-adoption")
+            input_dir = self.make_feat_package(repo_root, "feat-adr007-adoption", bundle)
+
+            result = self.run_cmd(
+                "run",
+                "--input",
+                str(input_dir),
+                "--feat-ref",
+                feature["feat_ref"],
+                "--repo-root",
+                str(repo_root),
+                "--run-id",
+                "tech-adr007-adoption",
+            )
+            self.assertEqual(result.returncode, 0, result.stderr)
+            artifacts_dir = Path(json.loads(result.stdout)["artifacts_dir"])
+            design = json.loads((artifacts_dir / "tech-design-bundle.json").read_text(encoding="utf-8"))
+            implementation_rules = design["tech_design"]["implementation_rules"]
+            joined_rules = "\n".join(implementation_rules)
+
+            self.assertIn("skill.qa.test_exec_web_e2e", joined_rules)
+            self.assertIn("skill.qa.test_exec_cli", joined_rules)
+            self.assertIn("skill.runner.test_e2e", joined_rules)
+            self.assertIn("skill.runner.test_cli", joined_rules)
+
     def test_ambiguous_collaboration_reentry_boundary_fails_semantic_consistency(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             repo_root = Path(temp_dir)

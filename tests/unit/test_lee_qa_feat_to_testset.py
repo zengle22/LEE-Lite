@@ -200,6 +200,7 @@ class FeatToTestSetWorkflowTests(unittest.TestCase):
             self.assertTrue(any("assigned_gate_queue" in ref for unit in test_set["test_units"] for ref in unit["supporting_refs"]))
             self.assertTrue(any("canonical_payload_path" in item for unit in test_set["test_units"] for item in unit["pass_conditions"]))
             self.assertTrue(any("response envelope" in item for unit in test_set["test_units"] for item in unit["required_evidence"]))
+            self.assertFalse(any("error code -> retryable -> idempotent_replay mapping" in item for unit in test_set["test_units"] for item in unit["observation_points"]))
             self.assertIn("acceptance_traceability", bundle_markdown)
             self.assertIn("input_preconditions:", bundle_markdown)
             self.assertIn("required_evidence:", bundle_markdown)
@@ -300,7 +301,8 @@ class FeatToTestSetWorkflowTests(unittest.TestCase):
             self.assertTrue(any("pending_state" in ref for unit in test_set["test_units"] for ref in unit["supporting_refs"]))
             self.assertTrue(any("gate_pending_ref" in ref for unit in test_set["test_units"] for ref in unit["supporting_refs"]))
             self.assertTrue(any("assigned_gate_queue" in ref for unit in test_set["test_units"] for ref in unit["supporting_refs"]))
-            self.assertTrue(any("error code -> retryable -> idempotent_replay mapping" in item for unit in test_set["test_units"] for item in unit["observation_points"]))
+            self.assertTrue(any("retryable / idempotent_replay field semantics" in item for unit in test_set["test_units"] for item in unit["observation_points"]))
+            self.assertTrue(any("尚未冻结完整 error mapping table" in item for unit in test_set["test_units"] for item in unit["pass_conditions"]))
             collaboration_trace = {
                 row["acceptance_ref"]: row for row in test_set["acceptance_traceability"]
             }
