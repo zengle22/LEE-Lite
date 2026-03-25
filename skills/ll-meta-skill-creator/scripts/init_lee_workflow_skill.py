@@ -75,7 +75,30 @@ def skill_description(input_artifact: str, output_artifact: str, workflow_key: s
     )
 
 
-def render_skill_md(skill_name: str, title: str, description: str) -> str:
+def render_skill_md(skill_name: str, title: str, description: str, runtime_mode: str, runtime_command: str, runtime_entry_script: str | None) -> str:
+    if runtime_mode == "lite_native":
+        default_steps = f"""## Run Protocol
+
+1. Read `ll.contract.yaml`, then load the input and output contracts.
+2. Validate the input structurally before drafting or modifying output.
+3. Run `{runtime_command}` instead of delegating to a legacy workflow engine.
+4. Record execution evidence before handing the result to the supervisor.
+5. Let the supervisor review the output semantically using the semantic checklists and supervision evidence.
+6. Freeze only after all gate conditions in `ll.contract.yaml` pass.
+"""
+        runtime_note = f"Implement the workflow-specific logic in `{runtime_entry_script}` before calling the skill complete."
+    else:
+        default_steps = """## Run Protocol
+
+1. Read `ll.contract.yaml`, then load the input and output contracts.
+2. Validate the input structurally before drafting or modifying output.
+3. Produce or revise the output using `output/template.md` and the output contract.
+4. Record execution evidence before handing the result to the supervisor.
+5. Let the supervisor review the output semantically using the semantic checklists and supervision evidence.
+6. Freeze only after all gate conditions in `ll.contract.yaml` pass.
+"""
+        runtime_note = "Replace the placeholder commands in those scripts with project-specific legacy workflow invocations when integrating the workflow into a real repository."
+
     return f"""---
 name: {skill_name}
 description: {description}
@@ -85,14 +108,7 @@ description: {description}
 
 This skill wraps a LEE Lite workflow in a standard skill shell plus a governance pack. Do not bypass contracts, evidence, or freeze rules.
 
-## Run Protocol
-
-1. Read `ll.contract.yaml`, then load the input and output contracts.
-2. Validate the input structurally before drafting or modifying output.
-3. Produce or revise the output using `output/template.md` and the output contract.
-4. Record execution evidence before handing the result to the supervisor.
-5. Let the supervisor review the output semantically using the semantic checklists and supervision evidence.
-6. Freeze only after all gate conditions in `ll.contract.yaml` pass.
+{default_steps}
 
 ## Role Split
 
@@ -115,7 +131,7 @@ This skill wraps a LEE Lite workflow in a standard skill shell plus a governance
 - `scripts/collect_evidence.sh`
 - `scripts/freeze_guard.sh`
 
-Replace the placeholder commands in those scripts with project-specific `lee` invocations when integrating the workflow into a real repository.
+{runtime_note}
 """
 
 
@@ -134,7 +150,34 @@ def render_openai_yaml(skill_name: str) -> str:
     )
 
 
-def render_ll_contract(skill_name: str, input_artifact: str, output_artifact: str, workflow_key: str, lee_command: str, max_revision_rounds: int) -> str:
+def render_ll_contract(
+    skill_name: str,
+    input_artifact: str,
+    output_artifact: str,
+    workflow_key: str,
+    runtime_mode: str,
+    runtime_command: str,
+    runtime_entry_script: str | None,
+    lee_command: str,
+    max_revision_rounds: int,
+) -> str:
+    if runtime_mode == "lite_native":
+        structural_checks = """  structural:
+    - "python scripts/workflow_runtime.py validate-input --input $INPUT"
+    - "python scripts/workflow_runtime.py run --input $INPUT --repo-root $REPO_ROOT --allow-update"
+    - "python scripts/workflow_runtime.py validate-output --artifacts-dir $OUTPUT"
+    - "python scripts/workflow_runtime.py validate-package-readiness --artifacts-dir $OUTPUT"
+"""
+    else:
+        structural_checks = f"""  structural:
+    - "{lee_command} validate schema $INPUT"
+    - "{lee_command} validate trace $INPUT"
+    - "{lee_command} validate freeze $INPUT"
+    - "{lee_command} validate schema $OUTPUT"
+    - "{lee_command} validate trace $OUTPUT"
+    - "{lee_command} validate naming $OUTPUT"
+"""
+    runtime_entry_yaml = f"\n  entry_script: {runtime_entry_script}" if runtime_entry_script else ""
     return f"""skill_id: {skill_name}
 skill_type: workflow
 version: 0.1.0
@@ -149,6 +192,10 @@ roles:
     required: true
     evidence_required: true
     prompt_file: agents/supervisor.md
+
+runtime:
+  mode: {runtime_mode}
+  command: {runtime_command}{runtime_entry_yaml}
 
 input:
   artifact_type: {input_artifact}
@@ -166,13 +213,7 @@ output:
   semantic_validation_required: true
 
 validation:
-  structural:
-    - "{lee_command} validate schema $INPUT"
-    - "{lee_command} validate trace $INPUT"
-    - "{lee_command} validate freeze $INPUT"
-    - "{lee_command} validate schema $OUTPUT"
-    - "{lee_command} validate trace $OUTPUT"
-    - "{lee_command} validate naming $OUTPUT"
+{structural_checks}
   semantic:
     input_checklist: input/semantic-checklist.md
     output_checklist: output/semantic-checklist.md
@@ -582,9 +623,9 @@ def render_authoring_checklist() -> str:
 
 - Define the workflow boundary in plain language.
 - Confirm input and output artifact types.
-- Confirm authoritative source and freeze expectations.
+- Confirm authoritative source, runtime mode, and freeze expectations.
 - Fill input and output contracts with explicit required fields and refs.
-- Replace placeholder `lee` commands with real project commands.
+- For LEE Lite, generate a direct runtime entrypoint instead of defaulting to `lee run`.
 - Update semantic checklists with workflow-specific risks.
 - Keep executor and supervisor instructions separate.
 """
@@ -602,7 +643,94 @@ def render_review_checklist() -> str:
 """
 
 
-def render_validate_script(kind: str) -> str:
+def render_runtime_script(skill_name: str, input_artifact: str, output_artifact: str) -> str:
+    return f"""#!/usr/bin/env python3
+\"\"\"
+Lite-native workflow runtime scaffold for {skill_name}.
+Replace the TODO sections with workflow-specific transformation logic.
+\"\"\"
+
+from __future__ import annotations
+
+import argparse
+import json
+import sys
+from pathlib import Path
+
+
+def emit(payload: dict[str, object]) -> int:
+    print(json.dumps(payload, ensure_ascii=False))
+    return 0
+
+
+def command_validate_input(args: argparse.Namespace) -> int:
+    return emit({{"ok": False, "todo": "Implement validate-input for {input_artifact}.", "input": str(Path(args.input).resolve())}})
+
+
+def command_run(args: argparse.Namespace) -> int:
+    return emit(
+        {{
+            "ok": False,
+            "todo": "Implement lite-native run flow for {skill_name}.",
+            "input": str(Path(args.input).resolve()),
+            "repo_root": str(Path(args.repo_root).resolve()) if args.repo_root else None,
+        }}
+    )
+
+
+def command_validate_output(args: argparse.Namespace) -> int:
+    return emit({{"ok": False, "todo": "Implement validate-output for {output_artifact}.", "artifacts_dir": str(Path(args.artifacts_dir).resolve())}})
+
+
+def command_validate_package_readiness(args: argparse.Namespace) -> int:
+    return emit({{"ok": False, "todo": "Implement validate-package-readiness.", "artifacts_dir": str(Path(args.artifacts_dir).resolve())}})
+
+
+def build_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(description="Run the {skill_name} workflow.")
+    subparsers = parser.add_subparsers(dest="command", required=True)
+
+    validate_input_parser = subparsers.add_parser("validate-input")
+    validate_input_parser.add_argument("--input", required=True)
+    validate_input_parser.set_defaults(func=command_validate_input)
+
+    run_parser = subparsers.add_parser("run")
+    run_parser.add_argument("--input", required=True)
+    run_parser.add_argument("--repo-root")
+    run_parser.add_argument("--allow-update", action="store_true")
+    run_parser.set_defaults(func=command_run)
+
+    validate_output_parser = subparsers.add_parser("validate-output")
+    validate_output_parser.add_argument("--artifacts-dir", required=True)
+    validate_output_parser.set_defaults(func=command_validate_output)
+
+    readiness_parser = subparsers.add_parser("validate-package-readiness")
+    readiness_parser.add_argument("--artifacts-dir", required=True)
+    readiness_parser.set_defaults(func=command_validate_package_readiness)
+
+    return parser
+
+
+def main() -> int:
+    parser = build_parser()
+    args = parser.parse_args()
+    return args.func(args)
+
+
+if __name__ == "__main__":
+    sys.exit(main())
+"""
+
+
+def render_validate_script(kind: str, runtime_mode: str) -> str:
+    if runtime_mode == "lite_native":
+        command_name = "validate-input" if kind == "input" else "validate-output"
+        arg_name = "--input" if kind == "input" else "--artifacts-dir"
+        return f"""#!/usr/bin/env bash
+set -euo pipefail
+
+python scripts/workflow_runtime.py {command_name} {arg_name} "$1"
+"""
     contract_path = f"{kind}/contract.yaml"
     schema_path = f"{kind}/schema.json"
     return f"""#!/usr/bin/env bash
@@ -625,7 +753,14 @@ echo "Replace this placeholder with project-specific lee validation commands."
 """
 
 
-def render_collect_evidence_script() -> str:
+def render_collect_evidence_script(runtime_mode: str) -> str:
+    if runtime_mode == "lite_native":
+        return """#!/usr/bin/env bash
+set -euo pipefail
+
+echo "Collect evidence from the files emitted by scripts/workflow_runtime.py."
+echo "Add workflow-specific report generation once the direct runtime is implemented."
+"""
     return """#!/usr/bin/env bash
 set -euo pipefail
 
@@ -634,7 +769,13 @@ echo "Replace this placeholder with project-specific evidence collection logic."
 """
 
 
-def render_freeze_guard_script() -> str:
+def render_freeze_guard_script(runtime_mode: str) -> str:
+    if runtime_mode == "lite_native":
+        return """#!/usr/bin/env bash
+set -euo pipefail
+
+python scripts/workflow_runtime.py validate-package-readiness --artifacts-dir "$1"
+"""
     return """#!/usr/bin/env bash
 set -euo pipefail
 
@@ -643,16 +784,31 @@ echo "Replace this placeholder with project-specific freeze guard logic."
 """
 
 
-def initialize_skill(skill_name: str, output_dir: Path, input_artifact: str, output_artifact: str, workflow_key: str, lee_command: str, max_revision_rounds: int) -> Path:
+def initialize_skill(
+    skill_name: str,
+    output_dir: Path,
+    input_artifact: str,
+    output_artifact: str,
+    workflow_key: str,
+    runtime_mode: str,
+    lee_command: str,
+    max_revision_rounds: int,
+) -> Path:
     skill_dir = output_dir / skill_name
     if skill_dir.exists():
         raise FileExistsError(f"Skill directory already exists: {skill_dir}")
 
     title = format_title(skill_name)
     description = skill_description(input_artifact, output_artifact, workflow_key)
+    runtime_entry_script = "scripts/workflow_runtime.py" if runtime_mode == "lite_native" else None
+    runtime_command = (
+        "python scripts/workflow_runtime.py run --input <artifact> --repo-root <repo-root>"
+        if runtime_mode == "lite_native"
+        else f"{lee_command} run {workflow_key} --input <artifact>"
+    )
     skill_dir.mkdir(parents=True, exist_ok=False)
 
-    write_text(skill_dir / "SKILL.md", render_skill_md(skill_name, title, description))
+    write_text(skill_dir / "SKILL.md", render_skill_md(skill_name, title, description, runtime_mode, runtime_command, runtime_entry_script))
     write_text(skill_dir / "agents" / "openai.yaml", render_openai_yaml(skill_name))
     write_text(
         skill_dir / "ll.contract.yaml",
@@ -661,6 +817,9 @@ def initialize_skill(skill_name: str, output_dir: Path, input_artifact: str, out
             input_artifact,
             output_artifact,
             workflow_key,
+            runtime_mode,
+            runtime_command,
+            runtime_entry_script,
             lee_command,
             max_revision_rounds,
         ),
@@ -701,15 +860,19 @@ def initialize_skill(skill_name: str, output_dir: Path, input_artifact: str, out
     write_text(skill_dir / "resources" / "examples" / "output.example.md", render_output_example(output_artifact, input_artifact))
     write_text(skill_dir / "resources" / "checklists" / "authoring-checklist.md", render_authoring_checklist())
     write_text(skill_dir / "resources" / "checklists" / "review-checklist.md", render_review_checklist())
+    if runtime_mode == "lite_native":
+        workflow_runtime = skill_dir / "scripts" / "workflow_runtime.py"
+        write_text(workflow_runtime, render_runtime_script(skill_name, input_artifact, output_artifact))
+        make_executable(workflow_runtime)
 
     validate_input = skill_dir / "scripts" / "validate_input.sh"
     validate_output = skill_dir / "scripts" / "validate_output.sh"
     collect_evidence = skill_dir / "scripts" / "collect_evidence.sh"
     freeze_guard = skill_dir / "scripts" / "freeze_guard.sh"
-    write_text(validate_input, render_validate_script("input"))
-    write_text(validate_output, render_validate_script("output"))
-    write_text(collect_evidence, render_collect_evidence_script())
-    write_text(freeze_guard, render_freeze_guard_script())
+    write_text(validate_input, render_validate_script("input", runtime_mode))
+    write_text(validate_output, render_validate_script("output", runtime_mode))
+    write_text(collect_evidence, render_collect_evidence_script(runtime_mode))
+    write_text(freeze_guard, render_freeze_guard_script(runtime_mode))
     make_executable(validate_input)
     make_executable(validate_output)
     make_executable(collect_evidence)
@@ -725,6 +888,7 @@ def main() -> int:
     parser.add_argument("--input-artifact", required=True, help="Input artifact type, for example src")
     parser.add_argument("--output-artifact", required=True, help="Output artifact type, for example epic")
     parser.add_argument("--workflow-key", help="Optional workflow key override")
+    parser.add_argument("--runtime-mode", choices=["lite_native", "legacy_lee"], default="lite_native", help="Execution mode to scaffold")
     parser.add_argument("--lee-command", default="lee", help="LEE command prefix to place in templates")
     parser.add_argument("--max-revision-rounds", type=int, default=2, help="Maximum revision rounds in lifecycle")
     args = parser.parse_args()
@@ -750,6 +914,7 @@ def main() -> int:
             input_artifact=args.input_artifact.strip().lower(),
             output_artifact=args.output_artifact.strip().lower(),
             workflow_key=workflow_key,
+            runtime_mode=args.runtime_mode,
             lee_command=args.lee_command.strip(),
             max_revision_rounds=args.max_revision_rounds,
         )
@@ -758,7 +923,10 @@ def main() -> int:
         return 1
 
     print(f"[OK] Created governed workflow skill at {skill_dir}")
-    print("[OK] Next: replace placeholder sections and project-specific lee commands.")
+    if args.runtime_mode == "lite_native":
+        print("[OK] Next: implement the direct runtime logic in scripts/workflow_runtime.py before using the skill.")
+    else:
+        print("[OK] Next: replace placeholder sections and project-specific legacy lee commands.")
     return 0
 
 

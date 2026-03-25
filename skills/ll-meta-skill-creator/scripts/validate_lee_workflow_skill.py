@@ -117,7 +117,7 @@ def validate_contract(skill_dir: Path, errors: list[str]) -> None:
         errors.append("ll.contract.yaml must be a YAML mapping.")
         return
 
-    for key in ["skill_id", "skill_type", "version", "roles", "input", "output", "validation", "evidence", "lifecycle", "gate"]:
+    for key in ["skill_id", "skill_type", "version", "roles", "runtime", "input", "output", "validation", "evidence", "lifecycle", "gate"]:
         if key not in contract:
             errors.append(f"ll.contract.yaml is missing '{key}'.")
 
@@ -157,6 +157,31 @@ def validate_contract(skill_dir: Path, errors: list[str]) -> None:
                 errors.append(f"ll.contract.yaml validation.semantic.{checklist_key} is required.")
             elif not (skill_dir / checklist_path).exists():
                 errors.append(f"Semantic checklist path is missing: {checklist_path}")
+
+    runtime = contract.get("runtime", {})
+    if not isinstance(runtime, dict):
+        errors.append("ll.contract.yaml runtime must be a mapping.")
+    else:
+        mode = runtime.get("mode")
+        command = runtime.get("command")
+        entry_script = runtime.get("entry_script")
+        if mode not in {"lite_native", "legacy_lee"}:
+            errors.append("ll.contract.yaml runtime.mode must be lite_native or legacy_lee.")
+        if not isinstance(command, str) or not command.strip():
+            errors.append("ll.contract.yaml runtime.command is required.")
+        if isinstance(command, str) and "lee " in command and mode != "legacy_lee":
+            errors.append("runtime.command references lee but runtime.mode is not legacy_lee.")
+        if mode == "lite_native":
+            if not isinstance(entry_script, str) or not entry_script.strip():
+                errors.append("lite_native workflows must declare runtime.entry_script.")
+            elif not (skill_dir / entry_script).exists():
+                errors.append(f"runtime.entry_script points to a missing path: {entry_script}")
+            if isinstance(command, str) and not command.strip().startswith("python "):
+                errors.append("lite_native runtime.command should invoke a local python entrypoint.")
+            if isinstance(structural, list):
+                legacy_checks = [item for item in structural if isinstance(item, str) and "lee " in item]
+                if legacy_checks:
+                    errors.append("lite_native validation.structural must not reference legacy lee commands.")
 
     evidence = contract.get("evidence", {})
     if isinstance(evidence, dict):
