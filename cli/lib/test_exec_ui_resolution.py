@@ -123,6 +123,8 @@ def _resolve_step(step: dict[str, Any], selectors: dict[str, Any]) -> dict[str, 
         binding = _selector_binding(selectors, target)
         for key, value in binding.items():
             resolved.setdefault(key, value)
+        if binding:
+            resolved.setdefault("binding_source", "explicit_selectors")
     return resolved
 
 
@@ -142,17 +144,113 @@ def _step_is_bound(step: dict[str, Any]) -> bool:
     return any(step.get(key) for key in locator_keys)
 
 
-def resolve_ui_binding(case_pack: dict[str, Any], ui_intent: dict[str, Any], ui_source_spec: dict[str, Any]) -> dict[str, Any]:
+def _runtime_pages_for_case(source_context: dict[str, Any], page_path: str) -> list[dict[str, Any]]:
+    pages = source_context.get("runtime", {}).get("pages", [])
+    if page_path:
+        exact = [item for item in pages if item.get("page_path") == page_path]
+        if exact:
+            return exact
+    return pages
+
+
+def _candidate_pool(source_context: dict[str, Any], page_path: str) -> dict[str, list[dict[str, Any]]]:
+    runtime_pages = _runtime_pages_for_case(source_context, page_path)
+    pool = {
+        "testids": list(source_context.get("codebase", {}).get("testids", [])),
+        "ids": list(source_context.get("codebase", {}).get("ids", [])),
+        "inputs": list(source_context.get("codebase", {}).get("inputs", [])),
+        "buttons": list(source_context.get("codebase", {}).get("buttons", [])),
+        "paths": list(source_context.get("codebase", {}).get("paths", [])),
+    }
+    for page in runtime_pages:
+        for key in pool:
+            pool[key].extend(page.get(key, []))
+    return pool
+
+
+def _contains(candidate: dict[str, Any], tokens: list[str]) -> bool:
+    text = " ".join(str(candidate.get(key, "")) for key in ("value", "selector", "name", "role")).lower()
+    return any(token in text for token in tokens)
+
+
+def _best_fill_binding(target: str, pool: dict[str, list[dict[str, Any]]]) -> dict[str, Any]:
+    target_lower = target.lower()
+    preferred = []
+    if "email" in target_lower:
+        preferred = ["email", "user"]
+    elif "password" in target_lower:
+        preferred = ["password", "pass"]
+    for item in pool["testids"]:
+        if _contains(item, preferred or [target_lower]):
+            return {"testid": item["value"], "binding_source": "source_scan"}
+    for item in pool["inputs"]:
+        if _contains(item, preferred or [target_lower]):
+            return {"selector": item["selector"], "binding_source": "source_scan"}
+    for item in pool["ids"]:
+        if _contains(item, preferred or [target_lower]):
+            return {"selector": item["selector"], "binding_source": "source_scan"}
+    return {}
+
+
+def _best_click_binding(target: str, pool: dict[str, list[dict[str, Any]]], case: dict[str, Any]) -> dict[str, Any]:
+    tokens = [target.lower(), "sign in", "login", "submit", "continue"]
+    title_tokens = case.get("title", "").lower().split()
+    tokens.extend(title_tokens)
+    for item in pool["buttons"]:
+        if _contains(item, tokens):
+            return {"role": item.get("role", "button"), "name": item.get("name", item.get("value", "")), "binding_source": "source_scan"}
+    if len(pool["buttons"]) == 1:
+        item = pool["buttons"][0]
+        return {"role": item.get("role", "button"), "name": item.get("name", item.get("value", "")), "binding_source": "source_scan"}
+    return {}
+
+
+def _bind_from_sources(step: dict[str, Any], case: dict[str, Any], source_context: dict[str, Any], page_path: str) -> dict[str, Any]:
+    if _step_is_bound(step):
+        return step
+    action = str(step.get("action", "")).lower()
+    target = str(step.get("semantic_target", step.get("target", "")))
+    pool = _candidate_pool(source_context, page_path)
+    if action == "fill":
+        binding = _best_fill_binding(target, pool)
+        if binding:
+            return {**step, **binding}
+    if action == "click":
+        binding = _best_click_binding(target, pool, case)
+        if binding:
+            return {**step, **binding}
+    if action == "assert_text" and case.get("expected_text"):
+        return {**step, "text": case["expected_text"], "binding_source": "case_expected_text"}
+    return step
+
+
+def _source_summary(source_context: dict[str, Any], page_path: str) -> dict[str, Any]:
+    runtime_pages = _runtime_pages_for_case(source_context, page_path)
+    return {
+        "codebase_resolved": bool(source_context.get("codebase", {}).get("resolved")),
+        "runtime_pages_considered": [item.get("page_path", "") for item in runtime_pages],
+        "codebase_testids": len(source_context.get("codebase", {}).get("testids", [])),
+        "runtime_testids": sum(len(item.get("testids", [])) for item in runtime_pages),
+        "runtime_buttons": sum(len(item.get("buttons", [])) for item in runtime_pages),
+    }
+
+
+def resolve_ui_binding(
+    case_pack: dict[str, Any],
+    ui_intent: dict[str, Any],
+    ui_source_spec: dict[str, Any],
+    source_context: dict[str, Any],
+) -> dict[str, Any]:
     intent_map = {item["case_id"]: item for item in ui_intent.get("cases", [])}
     cases = []
     for case in case_pack.get("cases", []):
         intent = intent_map.get(case["case_id"], {})
-        steps = _resolved_steps(case, intent)
+        page_path = case.get("page_path", "") or intent.get("semantic_page", "")
+        steps = [_bind_from_sources(step, case, source_context, page_path) for step in _resolved_steps(case, intent)]
         unresolved_targets = []
         for step in steps:
             if not _step_is_bound(step):
                 unresolved_targets.append(str(step.get("semantic_target", step.get("target", "unknown"))))
-        page_path = case.get("page_path", "") or intent.get("semantic_page", "")
         resolution_status = "resolved"
         if not steps and not page_path:
             resolution_status = "fallback_smoke"
@@ -171,6 +269,7 @@ def resolve_ui_binding(case_pack: dict[str, Any], ui_intent: dict[str, Any], ui_
                     "explicit_ui_steps": bool(case.get("ui_steps")),
                     "selectors": sorted(case.get("selectors", {}).keys()) if isinstance(case.get("selectors"), dict) else [],
                     "intent_mode": intent.get("derivation_mode", ""),
+                    "source_summary": _source_summary(source_context, page_path),
                 },
             }
         )

@@ -21,6 +21,7 @@ from cli.lib.test_exec_artifacts import (
     resolve_ssot_context,
 )
 from cli.lib.test_exec_playwright import run_playwright_project, write_playwright_project
+from cli.lib.test_exec_ui_sources import collect_ui_source_context
 from cli.lib.test_exec_ui_resolution import apply_ui_binding, derive_ui_intent, resolve_ui_binding
 
 
@@ -328,6 +329,100 @@ def validate_outputs(
     }
 
 
+def _build_execution_refs(output_root: Path, workspace_root: Path) -> dict[str, str]:
+    return {
+        "resolved_ssot_context_ref": to_canonical_path(output_root / "resolved-ssot-context.yaml", workspace_root),
+        "ui_intent_ref": to_canonical_path(output_root / "ui-intent.json", workspace_root),
+        "ui_source_context_ref": to_canonical_path(output_root / "ui-source-context.json", workspace_root),
+        "ui_binding_map_ref": to_canonical_path(output_root / "ui-binding-map.json", workspace_root),
+        "test_case_pack_ref": to_canonical_path(output_root / "test-case-pack.yaml", workspace_root),
+        "test_case_pack_meta_ref": to_canonical_path(output_root / "test-case-pack.meta.json", workspace_root),
+        "script_pack_ref": to_canonical_path(output_root / "script-pack.json", workspace_root),
+        "script_pack_meta_ref": to_canonical_path(output_root / "script-pack.meta.json", workspace_root),
+        "raw_runner_output_ref": to_canonical_path(output_root / "raw-runner-output.json", workspace_root),
+        "compliance_result_ref": to_canonical_path(output_root / "compliance-result.json", workspace_root),
+        "case_results_ref": to_canonical_path(output_root / "case-results.json", workspace_root),
+        "results_summary_ref": to_canonical_path(output_root / "results-summary.json", workspace_root),
+        "evidence_bundle_ref": to_canonical_path(output_root / "evidence" / "index.json", workspace_root),
+        "test_report_ref": to_canonical_path(output_root / "test-report.md", workspace_root),
+        "output_validation_ref": to_canonical_path(output_root / "output-validation.json", workspace_root),
+        "tse_ref": to_canonical_path(output_root / "tse.json", workspace_root),
+    }
+
+
+def _write_pre_execution_artifacts(
+    workspace_root: Path,
+    refs: dict[str, str],
+    context: dict[str, Any],
+    ui_intent: dict[str, Any],
+    ui_source_context: dict[str, Any],
+    ui_binding_map: dict[str, Any],
+    case_pack: dict[str, Any],
+    case_meta: dict[str, Any],
+) -> None:
+    (workspace_root / refs["test_case_pack_ref"]).parent.mkdir(parents=True, exist_ok=True)
+    _write_yaml(workspace_root / refs["resolved_ssot_context_ref"], context)
+    write_json(workspace_root / refs["ui_intent_ref"], ui_intent)
+    write_json(workspace_root / refs["ui_source_context_ref"], ui_source_context)
+    write_json(workspace_root / refs["ui_binding_map_ref"], ui_binding_map)
+    _write_yaml(workspace_root / refs["test_case_pack_ref"], case_pack)
+    write_json(workspace_root / refs["test_case_pack_meta_ref"], case_meta)
+
+
+def _finalize_execution_outputs(
+    workspace_root: Path,
+    output_root: Path,
+    refs: dict[str, str],
+    trace: dict[str, Any],
+    case_pack: dict[str, Any],
+    script_pack: dict[str, Any],
+    environment: dict[str, Any],
+    case_runs: list[dict[str, Any]],
+    raw_output: dict[str, Any],
+) -> dict[str, str]:
+    script_meta = build_freeze_meta("script_pack", script_pack)
+    write_json(workspace_root / refs["script_pack_ref"], script_pack)
+    write_json(workspace_root / refs["script_pack_meta_ref"], script_meta)
+    write_json(workspace_root / refs["raw_runner_output_ref"], {"trace": trace, **raw_output, "results": case_runs})
+    compliance = evaluate_compliance(case_pack, str(environment.get("execution_modality", "")), case_runs, workspace_root)
+    write_json(workspace_root / refs["compliance_result_ref"], compliance)
+    case_results = judge_case_results(case_pack, case_runs, compliance)
+    write_json(workspace_root / refs["case_results_ref"], {"trace": trace, "results": case_results})
+    write_json(workspace_root / refs["evidence_bundle_ref"], {"trace": trace, "cases": case_runs, "compliance_status": compliance["status"]})
+    refs["bug_bundle_ref"] = build_bug_bundle(case_results, output_root, workspace_root)
+    provisional = build_results_summary(case_results, compliance, output_ok=True)
+    write_json(workspace_root / refs["results_summary_ref"], provisional)
+    write_text(workspace_root / refs["test_report_ref"], render_report(provisional, compliance, case_results))
+    output_validation = validate_outputs(workspace_root, case_pack, case_results, refs)
+    write_json(workspace_root / refs["output_validation_ref"], output_validation)
+    summary = build_results_summary(case_results, compliance, output_ok=output_validation["status"] == "pass")
+    write_json(workspace_root / refs["results_summary_ref"], summary)
+    write_text(workspace_root / refs["test_report_ref"], render_report(summary, compliance, case_results))
+    write_json(workspace_root / refs["tse_ref"], _build_tse_payload(trace, refs, summary["run_status"]))
+    return {"bug_bundle_ref": refs["bug_bundle_ref"], "run_status": summary["run_status"]}
+
+
+def _build_tse_payload(trace: dict[str, Any], refs: dict[str, str], run_status: str) -> dict[str, Any]:
+    return {
+        "trace": trace,
+        "run_status": run_status,
+        "acceptance_status": "not_reviewed",
+        "resolved_ssot_context_ref": refs["resolved_ssot_context_ref"],
+        "ui_intent_ref": refs["ui_intent_ref"],
+        "ui_source_context_ref": refs["ui_source_context_ref"],
+        "ui_binding_map_ref": refs["ui_binding_map_ref"],
+        "test_case_pack_ref": refs["test_case_pack_ref"],
+        "script_pack_ref": refs["script_pack_ref"],
+        "compliance_result_ref": refs["compliance_result_ref"],
+        "case_results_ref": refs["case_results_ref"],
+        "results_summary_ref": refs["results_summary_ref"],
+        "evidence_bundle_ref": refs["evidence_bundle_ref"],
+        "bug_bundle_ref": refs["bug_bundle_ref"],
+        "test_report_ref": refs["test_report_ref"],
+        "output_validation_ref": refs["output_validation_ref"],
+    }
+
+
 def run_narrow_execution(
     workspace_root: Path,
     trace: dict[str, Any],
@@ -348,77 +443,32 @@ def run_narrow_execution(
     context = resolve_ssot_context(test_set, environment, ui_source_spec)
     raw_case_pack = build_test_case_pack(test_set)
     ui_intent = derive_ui_intent(raw_case_pack, ui_source_spec)
-    ui_binding_map = resolve_ui_binding(raw_case_pack, ui_intent, ui_source_spec)
+    ui_source_context = collect_ui_source_context(workspace_root, ui_source_spec, environment, raw_case_pack)
+    ui_binding_map = resolve_ui_binding(raw_case_pack, ui_intent, ui_source_spec, ui_source_context)
     case_pack = apply_ui_binding(raw_case_pack, ui_binding_map)
     script_pack = build_script_pack(action, environment, case_pack, ui_source_spec)
     case_meta = build_freeze_meta("test_case_pack", case_pack)
-
-    refs = {
-        "resolved_ssot_context_ref": to_canonical_path(output_root / "resolved-ssot-context.yaml", workspace_root),
-        "ui_intent_ref": to_canonical_path(output_root / "ui-intent.json", workspace_root),
-        "ui_binding_map_ref": to_canonical_path(output_root / "ui-binding-map.json", workspace_root),
-        "test_case_pack_ref": to_canonical_path(output_root / "test-case-pack.yaml", workspace_root),
-        "test_case_pack_meta_ref": to_canonical_path(output_root / "test-case-pack.meta.json", workspace_root),
-        "script_pack_ref": to_canonical_path(output_root / "script-pack.json", workspace_root),
-        "script_pack_meta_ref": to_canonical_path(output_root / "script-pack.meta.json", workspace_root),
-        "raw_runner_output_ref": to_canonical_path(output_root / "raw-runner-output.json", workspace_root),
-        "compliance_result_ref": to_canonical_path(output_root / "compliance-result.json", workspace_root),
-        "case_results_ref": to_canonical_path(output_root / "case-results.json", workspace_root),
-        "results_summary_ref": to_canonical_path(output_root / "results-summary.json", workspace_root),
-        "evidence_bundle_ref": to_canonical_path(output_root / "evidence" / "index.json", workspace_root),
-        "test_report_ref": to_canonical_path(output_root / "test-report.md", workspace_root),
-        "output_validation_ref": to_canonical_path(output_root / "output-validation.json", workspace_root),
-        "tse_ref": to_canonical_path(output_root / "tse.json", workspace_root),
-    }
-    (workspace_root / refs["test_case_pack_ref"]).parent.mkdir(parents=True, exist_ok=True)
-    _write_yaml(workspace_root / refs["resolved_ssot_context_ref"], context)
-    write_json(workspace_root / refs["ui_intent_ref"], ui_intent)
-    write_json(workspace_root / refs["ui_binding_map_ref"], ui_binding_map)
-    _write_yaml(workspace_root / refs["test_case_pack_ref"], case_pack)
-    write_json(workspace_root / refs["test_case_pack_meta_ref"], case_meta)
-    case_runs, raw_output = execute_cases(workspace_root, output_root, action, case_pack, script_pack, environment, evidence_root)
-    script_meta = build_freeze_meta("script_pack", script_pack)
-    write_json(workspace_root / refs["script_pack_ref"], script_pack)
-    write_json(workspace_root / refs["script_pack_meta_ref"], script_meta)
-    write_json(workspace_root / refs["raw_runner_output_ref"], {"trace": trace, **raw_output, "results": case_runs})
-    compliance = evaluate_compliance(case_pack, str(environment.get("execution_modality", "")), case_runs, workspace_root)
-    write_json(workspace_root / refs["compliance_result_ref"], compliance)
-    case_results = judge_case_results(case_pack, case_runs, compliance)
-    write_json(workspace_root / refs["case_results_ref"], {"trace": trace, "results": case_results})
-    write_json(workspace_root / refs["evidence_bundle_ref"], {"trace": trace, "cases": case_runs, "compliance_status": compliance["status"]})
-    bug_bundle_ref = build_bug_bundle(case_results, output_root, workspace_root)
-    refs["bug_bundle_ref"] = bug_bundle_ref
-
-    provisional_summary = build_results_summary(case_results, compliance, output_ok=True)
-    write_json(workspace_root / refs["results_summary_ref"], provisional_summary)
-    write_text(workspace_root / refs["test_report_ref"], render_report(provisional_summary, compliance, case_results))
-    output_validation = validate_outputs(workspace_root, case_pack, case_results, refs)
-    write_json(workspace_root / refs["output_validation_ref"], output_validation)
-    summary = build_results_summary(case_results, compliance, output_ok=output_validation["status"] == "pass")
-    write_json(workspace_root / refs["results_summary_ref"], summary)
-    write_text(workspace_root / refs["test_report_ref"], render_report(summary, compliance, case_results))
-    write_json(
-        workspace_root / refs["tse_ref"],
-        {
-            "trace": trace,
-            "run_status": summary["run_status"],
-            "acceptance_status": "not_reviewed",
-            "resolved_ssot_context_ref": refs["resolved_ssot_context_ref"],
-            "ui_intent_ref": refs["ui_intent_ref"],
-            "ui_binding_map_ref": refs["ui_binding_map_ref"],
-            "test_case_pack_ref": refs["test_case_pack_ref"],
-            "script_pack_ref": refs["script_pack_ref"],
-            "compliance_result_ref": refs["compliance_result_ref"],
-            "case_results_ref": refs["case_results_ref"],
-            "results_summary_ref": refs["results_summary_ref"],
-            "evidence_bundle_ref": refs["evidence_bundle_ref"],
-            "bug_bundle_ref": refs["bug_bundle_ref"],
-            "test_report_ref": refs["test_report_ref"],
-            "output_validation_ref": refs["output_validation_ref"],
-        },
+    refs = _build_execution_refs(output_root, workspace_root)
+    _write_pre_execution_artifacts(
+        workspace_root,
+        refs,
+        context,
+        ui_intent,
+        ui_source_context,
+        ui_binding_map,
+        case_pack,
+        case_meta,
     )
-    return {
-        **refs,
-        "bug_bundle_ref": refs["bug_bundle_ref"],
-        "run_status": summary["run_status"],
-    }
+    case_runs, raw_output = execute_cases(workspace_root, output_root, action, case_pack, script_pack, environment, evidence_root)
+    outcome = _finalize_execution_outputs(
+        workspace_root,
+        output_root,
+        refs,
+        trace,
+        case_pack,
+        script_pack,
+        environment,
+        case_runs,
+        raw_output,
+    )
+    return {**refs, **outcome}
