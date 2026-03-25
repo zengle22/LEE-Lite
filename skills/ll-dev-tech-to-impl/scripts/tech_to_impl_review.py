@@ -21,6 +21,7 @@ REQUIRED_OUTPUT_FILES = [
     "impl-acceptance-report.json",
     "impl-defect-list.json",
     "handoff-to-feature-delivery.json",
+    "semantic-drift-check.json",
     "execution-evidence.json",
     "supervision-evidence.json",
 ]
@@ -63,6 +64,7 @@ def write_executor_outputs(output_dir: Path, package: Any, generated: dict[str, 
     dump_json(output_dir / "impl-acceptance-report.json", generated["acceptance_report"])
     dump_json(output_dir / "impl-defect-list.json", generated["defect_list"])
     dump_json(output_dir / "handoff-to-feature-delivery.json", generated["handoff"])
+    dump_json(output_dir / "semantic-drift-check.json", generated["semantic_drift_check"])
 
     optional_markdown = [
         ("frontend-workstream.md", generated["frontend_frontmatter"], generated["frontend_body"]),
@@ -98,6 +100,7 @@ def write_executor_outputs(output_dir: Path, package: Any, generated: dict[str, 
             "defect_list_ref": str(output_dir / "impl-defect-list.json"),
             "smoke_gate_subject_ref": str(output_dir / "smoke-gate-subject.json"),
             "handoff_ref": str(output_dir / "handoff-to-feature-delivery.json"),
+            "semantic_drift_check_ref": str(output_dir / "semantic-drift-check.json"),
             "execution_evidence_ref": str(output_dir / "execution-evidence.json"),
             "supervision_evidence_ref": str(output_dir / "supervision-evidence.json"),
         },
@@ -119,6 +122,8 @@ def write_executor_outputs(output_dir: Path, package: Any, generated: dict[str, 
                 "backend_required": generated["assessment"]["backend_required"],
                 "migration_required": generated["assessment"]["migration_required"],
                 "consistency_passed": generated["consistency"]["passed"],
+                "semantic_lock_present": bool(generated["bundle_json"].get("semantic_lock")),
+                "semantic_lock_preserved": generated["semantic_drift_check"].get("semantic_lock_preserved", True),
             },
             "key_decisions": generated["execution_decisions"],
             "uncertainties": generated["execution_uncertainties"],
