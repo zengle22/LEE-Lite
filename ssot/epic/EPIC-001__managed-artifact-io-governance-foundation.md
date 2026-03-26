@@ -38,7 +38,7 @@ frozen_at: '2026-03-24T12:30:00Z'
 
 ## 非目标
 
-- 不负责下游 EPIC/FEAT/TASK 分解与实现细节。
+- 不负责下游 EPIC/FEAT/TECH/IMPL/TESTSET 分解与实现细节。
 - 不要求一次性完成所有现有 governed skill 的全量迁移或全仓 cutover。
 - 不要求覆盖所有 producer/consumer 组合场景，只要求在下游 FEAT 中显式定义 onboarding 范围、迁移波次和至少一条真实跨 skill pilot 主链。
 - 不负责把 onboarding / migration_cutover 扩大为仓库级全局文件治理改造。

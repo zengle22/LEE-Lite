@@ -26,8 +26,8 @@ For `governance_bridge_src`, the runtime contract also assumes:
 
 ## Boundary
 
-- `raw-to-src` emits candidate artifacts, evidence, and proposals.
-- External gate / queue handlers materialize final handoffs and jobs.
+- `raw-to-src` emits candidate artifacts, evidence, proposals, and an authoritative gate-pending submission.
+- External gate / queue handlers still own decision, review, and final handoff/job materialization.
 - Final `SRC` freeze is outside the skill runtime boundary.
 
 ## Canonical Contract Set

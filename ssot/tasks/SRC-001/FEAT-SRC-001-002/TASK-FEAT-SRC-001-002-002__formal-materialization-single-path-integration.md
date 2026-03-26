@@ -3,6 +3,11 @@ id: TASK-FEAT-SRC-001-002-002
 ssot_type: task
 title: formal materialization 与单一路径推进集成
 status: frozen
+lifecycle_state: historical_only
+higher_order_status: superseded
+superseded_by:
+  - IMPL-FEAT-SRC-001-002
+historical_note: TASK has been replaced by IMPL in the canonical SSOT chain. This document is retained only for traceability.
 version: v2
 workflow_instance_id: manual-feat-to-delivery-prep-epic-001-20260324-v2
 parent_id: FEAT-SRC-001-002

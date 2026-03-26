@@ -3,6 +3,10 @@ id: ARCH-SRC-001-003
 ssot_type: ARCHITECTURE
 title: External Gate Decision Materializer Skill Design
 status: active
+lifecycle_state: historical_only
+higher_order_status: superseded
+superseded_by:
+  - ADR-016
 version: v1
 schema_version: 0.1.0
 architecture_root_id: arch-root-src-001-003
@@ -43,9 +47,14 @@ properties:
   runtime_carrier: cli-first file-runtime
   standard_skill_name: ll-gate-decision-materializer
   precedence_rule: if this design conflicts with ADR-006 or ARCH-SRC-001-002, ADR-006 and ARCH-SRC-001-002 win
+historical_note: This architecture note preserves the pre-ADR-016 external gate materializer design. Current gate runtime identity and second-session queue semantics are governed by ADR-016 and ll-gate-human-orchestrator.
 ---
 
 # External Gate Decision Materializer Skill Design
+
+> 历史说明：本文保留 external gate 分层、formal object 只能经 gate 晋升、formal 写入必须走受治理 IO 这些设计动机。
+>
+> 对当前实现，`ADR-016` 的 `ll-gate-human-orchestrator`、pending gate queue、claim / decision / dispatch 接缝优先于本文中的 materializer 命名和对象名。
 
 ## 文档定位
 

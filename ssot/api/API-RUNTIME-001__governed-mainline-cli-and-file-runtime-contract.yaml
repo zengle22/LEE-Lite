@@ -39,6 +39,7 @@ source_refs:
   - ADR-005
   - ADR-008
   - ADR-009
+  - ADR-016
 owner: contract-architect
 tags:
   - api
@@ -61,7 +62,6 @@ properties:
   consumer_scope:
     - governed skill
     - execution loop
-    - external gate loop
     - human gate loop
     - auditor
   umbrella_contract: true
@@ -102,16 +102,16 @@ control_cli_boundary:
   callable_by_skill: false
   callable_by:
     - execution loop
-    - external gate loop
     - human gate loop
     - watcher
   command_families:
     - loop
+    - gate-claim
     - gate-decision
-    - gate-materialization
+    - gate-dispatch
     - run-close
   rule: >
-    control CLI 负责状态推进、decision 物化、dispatch 与 closure；业务 skill
+    control CLI 负责 gate pending claim、decision capture、dispatch 与 closure；业务 skill
     不得直接调用这些命令以绕过 gate 分权。
 standard_envelope:
   request_envelope:
@@ -125,7 +125,7 @@ standard_envelope:
       - payload
     field_semantics:
       api_version: 命令契约版本，当前固定为 v1。
-      command: 逻辑命令名，例如 artifact.write 或 gate.evaluate。
+      command: 逻辑命令名，例如 artifact.write 或 gate.claim-next。
       request_id: 本次调用的稳定请求标识，用于 evidence 与日志关联。
       workspace_root: 本次调用绑定的工作区根目录。
       actor_ref: 调用方标识，例如 governed-skill/raw-to-src 或 loop/external-gate。
@@ -201,7 +201,7 @@ caller_assumptions:
   - 调用方运行在本地文件系统语境中，而不是远程 RPC 语境中。
   - 调用方可以读写 request/response/evidence 文件，但不能越权改写 formal object。
   - governed skill 只负责 candidate/evidence/proposal，不负责最终 decision/materialization。
-  - formal ssot object、materialized handoff、materialized job 与 run closure 只能由 gate/control 层物化。
+  - formal ssot object、authoritative handoff submission、dispatch result 与 run closure 只能由 gate/control 层物化。
   - human gate 可通过文件对象与 loop 消费链协作，不要求必须先有 Web UI。
 interfaces:
   - interface_id: artifact_operations
@@ -337,28 +337,27 @@ interfaces:
     common_errors:
       - INVALID_REQUEST
       - PRECONDITION_FAILED
-  - interface_id: gate_decision_and_materialization
+  - interface_id: gate_pending_review_and_dispatch
     provider: ll gate
     permission_scope: control-cli
     callable_by:
-      - external gate loop
       - human gate loop
       - watcher
     consumers:
-      - external gate loop
       - human gate loop
-    purpose: gate-ready package 评估、decision 生成、formal materialization、dispatch、run closure。
+    purpose: gate pending queue 的 claim、human decision capture、dispatch 与 run closure。
     allowed_actions:
-      - evaluate
-      - materialize
+      - show-pending
+      - claim-next
+      - capture-decision
       - dispatch
       - close-run
     payload_contract:
       required_fields:
-        - gate_ready_package_ref | handoff_ref
-        - audit_finding_refs
-        - target_matrix
+        - gate_pending_ref | claim_ref | gate_decision_ref
       optional_fields:
+        - gate_ready_package_ref
+        - audit_finding_refs
         - human_decision_ref
         - guarded_enablement_ref
         - decision_target
@@ -369,18 +368,20 @@ interfaces:
         - canonical_path
         - brief_record_ref
         - pending_human_decision_ref
+        - claim_ref
         - gate_decision_ref
         - decision
         - decision_target
         - decision_basis_refs
         - dispatch_target
-        - materialized_handoff_ref
-        - materialized_job_ref
+        - authoritative_handoff_ref
+        - ready_job_ref
+        - dispatch_result_ref
         - run_closure_ref
         - enablement_scope
       notes:
-        - evaluate 必须先生成 gate-brief-record、gate-pending-human-decision 与唯一 authoritative gate-decision。
-        - approve 在默认主链中表示审批通过并直接进入 formal materialization；materialize 仍保留为 repair/replay 接口。
+        - claim-next 必须锁定唯一 pending 项，并生成 gate-brief-record 与可回交流水。
+        - capture-decision 必须生成唯一 authoritative gate-decision。
         - dispatch 必须按 decision 语义分流，不允许把 human decision action 当成 runtime state。
         - guarded slice 必须明确返回 enablement_scope=guarded-only。
     common_errors:
@@ -391,7 +392,7 @@ interfaces:
 object_events:
   - object_type: gate_ready_package
     producer: governed skill + packaging/orchestration
-    consumer: ll gate evaluate
+    consumer: ll gate claim-next
     required_fields:
       - candidate_ref
       - acceptance_ref
@@ -402,16 +403,15 @@ object_events:
     producer: ll audit emit-finding-bundle
     consumer:
       - repair flow
-      - ll gate evaluate
+      - ll gate capture-decision
     required_fields:
       - findings
       - severity_summary
       - minimal_patch_scope
       - trace
   - object_type: gate_decision
-    producer: ll gate evaluate
+    producer: ll gate capture-decision
     consumer:
-      - ll gate materialize
       - ll gate dispatch
       - ll gate close-run
     required_fields:
@@ -423,7 +423,7 @@ object_events:
       - rationale
       - trace
   - object_type: gate_brief_record
-    producer: ll gate evaluate
+    producer: ll gate claim-next
     consumer:
       - human gate loop
       - ll gate dispatch
@@ -436,7 +436,7 @@ object_events:
       - human_projection
       - trace
   - object_type: gate_pending_human_decision
-    producer: ll gate evaluate
+    producer: ll gate claim-next
     consumer:
       - human gate loop
       - ll gate dispatch
@@ -447,17 +447,17 @@ object_events:
       - decision_round
       - state
       - trace
-  - object_type: materialized_handoff
-    producer: ll gate evaluate (approve auto-materialize) / ll gate materialize
+  - object_type: authoritative_handoff_submission
+    producer: ll gate submit-handoff
     consumer:
       - human gate loop
-      - downstream consumer
+      - ll gate claim-next
     required_fields:
       - handoff_type
       - input_refs
-      - gate_decision_ref
+      - gate_pending_ref
       - trace
-  - object_type: materialized_job
+  - object_type: ready_execution_job
     producer: ll gate dispatch
     consumer:
       - execution loop
@@ -465,6 +465,16 @@ object_events:
       - job_type
       - payload_ref
       - gate_decision_ref
+      - trace
+  - object_type: dispatch_result
+    producer: ll gate dispatch
+    consumer:
+      - reporting
+      - orchestration
+    required_fields:
+      - gate_decision_ref
+      - dispatch_target
+      - dispatch_status
       - trace
   - object_type: run_closure
     producer: ll gate close-run
@@ -536,39 +546,74 @@ examples:
       diagnostics: []
       evidence_refs:
         - artifacts/active/run-001/receipts/write-001.json
-  gate_evaluate_request:
-    cli: ll gate evaluate --request contracts/input/gate-evaluate.request.json --response-out artifacts/active/run-001/gate/gate-evaluate.response.json
+  gate_claim_next_request:
+    cli: ll gate claim-next --request contracts/input/gate-claim-next.request.json --response-out artifacts/active/run-001/gate/gate-claim-next.response.json
     request:
       api_version: v1
-      command: gate.evaluate
-      request_id: req-gate-evaluate-001
+      command: gate.claim-next
+      request_id: req-gate-claim-next-001
       workspace_root: E:/ai/LEE-Lite-skill-first
-      actor_ref: loop/external-gate
+      actor_ref: loop/human-gate
       trace:
         run_ref: RUN-001
         feat_ref: FEAT-SRC-001-002
       payload:
-        gate_ready_package_ref: artifacts/active/gates/packages/gate-ready-package.json
-        audit_finding_refs:
-          - artifacts/active/audit/finding-bundle.json
-        decision_target: candidate.impl
-        target_matrix:
-          allowed_targets:
-            - materialized_handoff
-            - materialized_job
-            - run_closure
+        gate_pending_ref: artifacts/active/gates/pending/gate-pending-001.json
     response:
       api_version: v1
-      command: gate.evaluate
-      request_id: req-gate-evaluate-001
+      command: gate.claim-next
+      request_id: req-gate-claim-next-001
       result_status: success
       status_code: OK
       exit_code: 0
-      message: gate decision produced
+      message: pending gate item claimed
+      data:
+        canonical_path: artifacts/active/gates/claims/gate-claim-001.json
+        brief_record_ref: artifacts/active/gates/briefs/gate-brief-record.json
+        pending_human_decision_ref: artifacts/active/gates/pending/gate-pending-human-decision.json
+        claim_ref: artifacts/active/gates/claims/gate-claim-001.json
+        authoritative_handoff_ref: artifacts/active/gates/handoffs/handoff-001.json
+        decision_target: candidate.impl
+        decision_basis_refs:
+          - artifacts/active/gates/briefs/gate-brief-record.json
+          - artifacts/active/audit/finding-bundle.json
+        enablement_scope: guarded-only
+      diagnostics:
+        - pending item is now owned by the current human gate session
+      evidence_refs:
+        - artifacts/active/gates/briefs/gate-brief-record.json
+        - artifacts/active/gates/pending/gate-pending-human-decision.json
+        - artifacts/active/gates/claims/gate-claim-001.json
+  gate_capture_decision_request:
+    cli: ll gate capture-decision --request contracts/input/gate-capture-decision.request.json --response-out artifacts/active/run-001/gate/gate-capture-decision.response.json
+    request:
+      api_version: v1
+      command: gate.capture-decision
+      request_id: req-gate-capture-decision-001
+      workspace_root: E:/ai/LEE-Lite-skill-first
+      actor_ref: loop/human-gate
+      trace:
+        run_ref: RUN-001
+        feat_ref: FEAT-SRC-001-002
+      payload:
+        claim_ref: artifacts/active/gates/claims/gate-claim-001.json
+        decision: approve
+        decision_target: candidate.impl
+        dispatch_target: formal_publication_trigger
+        decision_basis_refs:
+          - artifacts/active/gates/briefs/gate-brief-record.json
+          - artifacts/active/audit/finding-bundle.json
+    response:
+      api_version: v1
+      command: gate.capture-decision
+      request_id: req-gate-capture-decision-001
+      result_status: success
+      status_code: OK
+      exit_code: 0
+      message: authoritative gate decision captured
       data:
         canonical_path: artifacts/active/gates/decisions/gate-decision.json
-        brief_record_ref: artifacts/active/gates/briefs/gate-brief-record.json
-        pending_human_decision_ref: artifacts/active/gates/pending-human/gate-pending-human-decision.json
+        claim_ref: artifacts/active/gates/claims/gate-claim-001.json
         gate_decision_ref: artifacts/active/gates/decisions/gate-decision.json
         decision: approve
         decision_target: candidate.impl
@@ -576,18 +621,11 @@ examples:
           - artifacts/active/gates/briefs/gate-brief-record.json
           - artifacts/active/audit/finding-bundle.json
         dispatch_target: formal_publication_trigger
-        materialized_handoff_ref: artifacts/active/handoffs/materialized-handoff.json
-        materialized_job_ref: ""
         run_closure_ref: ""
-        formal_ref: formal.handoff.candidate-impl
         enablement_scope: guarded-only
-      diagnostics:
-        - guarded slice remains provisional under ADR-006
+      diagnostics: []
       evidence_refs:
-        - artifacts/active/gates/briefs/gate-brief-record.json
-        - artifacts/active/gates/pending-human/gate-pending-human-decision.json
         - artifacts/active/gates/decisions/gate-decision.json
-        - artifacts/active/handoffs/materialized-handoff.json
   gate_dispatch_request:
     cli: ll gate dispatch --request contracts/input/gate-dispatch.request.json --response-out artifacts/active/run-001/gate/gate-dispatch.response.json
     request:
@@ -595,7 +633,7 @@ examples:
       command: gate.dispatch
       request_id: req-gate-dispatch-001
       workspace_root: E:/ai/LEE-Lite-skill-first
-      actor_ref: loop/external-gate
+      actor_ref: loop/human-gate
       trace:
         run_ref: RUN-001
         feat_ref: FEAT-SRC-001-002
@@ -610,52 +648,18 @@ examples:
       exit_code: 0
       message: gate decision dispatched
       data:
-        canonical_path: artifacts/active/gates/dispatch/gate-dispatch-receipt.json
+        canonical_path: artifacts/active/gates/dispatch/dispatch-result.json
         gate_decision_ref: artifacts/active/gates/decisions/gate-decision.json
-        dispatch_receipt_ref: artifacts/active/gates/dispatch/gate-dispatch-receipt.json
+        dispatch_result_ref: artifacts/active/gates/dispatch/dispatch-result.json
         dispatch_status: dispatched
-        materialized_handoff_ref: artifacts/active/handoffs/materialized-handoff.json
-        materialized_job_ref: ""
-        run_closure_ref: ""
+        authoritative_handoff_ref: artifacts/active/gates/handoffs/handoff-001.json
+        ready_job_ref: artifacts/jobs/ready/job-001.json
+        run_closure_ref: artifacts/active/gates/closures/run-001.json
         enablement_scope: core
       diagnostics: []
       evidence_refs:
-        - artifacts/active/gates/dispatch/gate-dispatch-receipt.json
-  gate_materialize_request:
-    cli: ll gate materialize --request contracts/input/gate-materialize.request.json --response-out artifacts/active/run-001/gate/gate-materialize.response.json
-    request:
-      api_version: v1
-      command: gate.materialize
-      request_id: req-gate-materialize-001
-      workspace_root: E:/ai/LEE-Lite-skill-first
-      actor_ref: loop/external-gate
-      trace:
-        run_ref: RUN-001
-        feat_ref: FEAT-SRC-001-002
-      payload:
-        gate_decision_ref: artifacts/active/gates/decisions/gate-decision.json
-        candidate_ref: candidate.impl
-        target_formal_kind: handoff
-    response:
-      api_version: v1
-      command: gate.materialize
-      request_id: req-gate-materialize-001
-      result_status: success
-      status_code: OK
-      exit_code: 0
-      message: formal handoff materialized
-      data:
-        canonical_path: artifacts/active/handoffs/materialized-handoff.json
-        gate_decision_ref: artifacts/active/gates/decisions/gate-decision.json
-        materialized_handoff_ref: artifacts/active/handoffs/materialized-handoff.json
-        materialized_job_ref: ""
-        run_closure_ref: ""
-        enablement_scope: core
-        formal_ref: formal.handoff.candidate-impl
-      diagnostics: []
-      evidence_refs:
-        - artifacts/active/handoffs/materialized-handoff.json
-        - artifacts/active/formalization/formal-handoff-candidate-impl-receipt.json
+        - artifacts/active/gates/dispatch/dispatch-result.json
+        - artifacts/jobs/ready/job-001.json
 compatibility_notes:
   - 该 API 是 v0.x 的 CLI/file-runtime 契约，不等价于 HTTP API 设计稿。
   - 若未来增加服务化 API，必须消费同一组 request/response/object 语义，不得另造第二套正式真相。

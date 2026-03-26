@@ -51,7 +51,7 @@ frozen_at: '2026-03-23T14:20:00Z'
 
 ## 关键约束
 
-- 保持与原始输入同题，不扩展到 EPIC、FEAT、TASK 或实现设计。
+- 保持与原始输入同题，不扩展到 EPIC、FEAT、TECH、IMPL、TESTSET 或实现设计。
 - 正式文件读写必须围绕 Artifact IO Gateway、Path Policy 的统一边界建模，不得在下游恢复自由路径写入。
 - 下游 skill 必须继承 Artifact IO Gateway 的统一约束，不得在本链路中重新发明等价规则。
 - 下游 skill 必须继承 Path Policy 的统一约束，不得在本链路中重新发明等价规则。
@@ -61,7 +61,7 @@ frozen_at: '2026-03-23T14:20:00Z'
 
 - In scope: 将 skill 文件读写、artifact 输入输出边界与路径策略统一收口为受治理对象，围绕 Artifact IO Gateway、Path Policy、路径与目录治理 建立稳定约束。
 - In scope: 为后续主链对象提供统一约束来源与交接依据，而不是在本层展开 API 或实现设计。
-- Out of scope: 下游 EPIC/FEAT/TASK 分解与实现细节。
+- Out of scope: 下游 EPIC/FEAT/TECH/IMPL/TESTSET 分解与实现细节。
 
 ## 来源追溯
 
@@ -75,6 +75,6 @@ frozen_at: '2026-03-23T14:20:00Z'
 - governance_objects: Artifact IO Gateway; Path Policy; 路径与目录治理; artifact 输入输出边界
 - current_failure_modes: 私自创建临时目录、复制目录、new/、final/、tmp/ 一类目录；; 在没有注册、没有声明、没有审批的情况下覆盖已有文件；; 通过路径猜测而不是 artifact 绑定来消费上下游文件。
 - downstream_inheritance_requirements: 下游 skill 必须继承 Artifact IO Gateway 的统一约束，不得在本链路中重新发明等价规则。; 下游 skill 必须继承 Path Policy 的统一约束，不得在本链路中重新发明等价规则。; 下游 skill 必须继承 路径与目录治理 的统一约束，不得在本链路中重新发明等价规则。
-- expected_downstream_objects: EPIC, FEAT, TASK
+- expected_downstream_objects: EPIC, FEAT, TECH, IMPL, TESTSET
 - acceptance_impact: 下游 gate、auditor 与 handoff 必须基于同一组受治理边界判断正式产物是否合法。; 下游消费方应能在不回读原始 ADR 的前提下理解主要失控行为与统一治理理由。; 评审时应确认 私自创建临时目录、复制目录、new/、final/、tmp/ 一类目录、在没有注册、没有声明、没有审批的情况下覆盖已有文件 不再被当作局部 skill 习惯处理。; 冻结前应确认该候选已经覆盖 下游 skill 与人类 gate 都无法稳定判断“哪个才是正式版本”、无法支撑多 skill 持续运行 等治理后果。
-- non_goals: 下游 EPIC/FEAT/TASK 分解与实现细节。
+- non_goals: 下游 EPIC/FEAT/TECH/IMPL/TESTSET 分解与实现细节。

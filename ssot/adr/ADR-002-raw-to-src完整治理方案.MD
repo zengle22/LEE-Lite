@@ -4,7 +4,13 @@
 * 日期：2026-03-20
 * 决策者：Le Zeng
 * 适用范围：LEE Lite（LL）skill-first 产品需求主链
-* 相关 ADR：ADR-001、ADR-003
+* 相关 ADR：ADR-001、ADR-003、ADR-016
+
+> 适用性说明：本 ADR 继续约束 `raw-to-src` 只产出 candidate / evidence / proposal，并通过正式 gate 接缝进入下游。
+>
+> 对当前 gate skill 名称、pending queue、claim / decision / dispatch 运行模型，以 `ADR-016` 为权威基线。
+>
+> 本文中出现的 `materialized-handoff.json`、`materialized-job.json` 等术语，应用于说明 proposal 与 formal object 的历史分层，不单独覆盖当前第二会话实现细节。
 
 ---
 

@@ -4,7 +4,13 @@
 * 日期：2026-03-23
 * 决策者：Le Zeng
 * 适用范围：LEE Lite（LL）v0.x skill-first 主链与通用治理链
-* 相关 ADR：ADR-001、ADR-002、ADR-003、ADR-004、ADR-005
+* 相关 ADR：ADR-001、ADR-002、ADR-003、ADR-004、ADR-005、ADR-016
+
+> 适用性说明：本 ADR 保留“external gate 独立于业务 skill”“candidate/proposal 与 formal object 分层”“formal 写入必须走受治理链路”这些原则。
+> 
+> 对 gate skill 标准名、第二会话职责划分、pending queue、claim / decision / dispatch 运行模型，以 `ADR-016` 为当前权威基线。
+> 
+> 本文中遗留的 `ll-gate-decision-materializer`、`materialized-handoff.json`、`materialized-job.json` 等表述视为历史设计词汇，不再作为当前实现约束。
 
 ---
 
