@@ -368,6 +368,49 @@ def _append_missing(items: list[str], additions: list[str]) -> list[str]:
     existing = {item.strip() for item in items}; return items + [item for item in additions if item.strip() not in existing]
 
 
+def _is_execution_runner_bridge(document: dict[str, Any], governance_objects: list[str], failure_modes: list[str]) -> bool:
+    source_refs = {str(item).strip().upper() for item in document.get("source_refs", [])}
+    text = " ".join(
+        [
+            str(document.get("title") or ""),
+            str(document.get("problem_statement") or ""),
+            " ".join(governance_objects),
+            " ".join(failure_modes),
+        ]
+    ).lower()
+    runner_markers = (
+        "adr-018" in source_refs
+        or "execution loop job runner" in text
+        or "artifacts/jobs/ready" in text
+        or "run-execution" in text
+        or ("自动推进" in text and "job" in text)
+    )
+    return runner_markers
+
+
+def _execution_runner_semantic_lock() -> dict[str, Any]:
+    return {
+        "domain_type": "execution_runner_rule",
+        "one_sentence_truth": "gate approve 后必须生成 ready execution job，并由 Execution Loop Job Runner 自动消费 artifacts/jobs/ready 后推进到下一个 skill，而不是停在 formal publication 或人工接力。",
+        "primary_object": "execution_loop_job_runner",
+        "lifecycle_stage": "post_gate_auto_progression",
+        "allowed_capabilities": [
+            "ready_execution_job_materialization",
+            "ready_queue_consumption",
+            "next_skill_dispatch",
+            "execution_result_recording",
+            "retry_reentry_return",
+        ],
+        "forbidden_capabilities": [
+            "formal_publication_substitution",
+            "admission_only_decomposition",
+            "third_session_human_relay",
+            "directory_guessing_consumer",
+        ],
+        "inheritance_rule": "approve semantics must stay coupled to ready-job emission and runner-driven next-skill progression; downstream may not replace this with formal publication or admission-only flows.",
+    }
+
+
 def synthesize_adr_bridge_candidate(candidate: dict[str, Any], document: dict[str, Any]) -> dict[str, Any]:
     working = deepcopy(candidate)
     payload = document.get("payload")
@@ -414,6 +457,8 @@ def synthesize_adr_bridge_candidate(candidate: dict[str, Any], document: dict[st
         "acceptance_impact": acceptance_impact,
         "non_goals": deepcopy(working["out_of_scope"]),
     }
+    if not working.get("semantic_lock") and _is_execution_runner_bridge(document, governance_objects, failure_modes):
+        working["semantic_lock"] = _execution_runner_semantic_lock()
     if _is_mainline_bridge(governance_objects) and _has_source_ref(working["source_refs"], "ADR-006"):
         working["source_refs"] = _append_missing(working["source_refs"], ["ADR-005"])
         working["in_scope"] = [working["in_scope"][0].replace("定义主链中 skill 文件读写、artifact 输入输出边界、路径策略与 handoff、gate、formal materialization 的统一治理边界。", "定义主链中 skill 文件读写、artifact 输入输出边界、路径策略如何接入 ADR-005 已提供的治理基础，以及 handoff、gate、formal materialization 的统一治理边界。")] + working["in_scope"][1:]
@@ -473,6 +518,26 @@ def semantic_review(candidate: dict[str, Any], duplicate_path: Any) -> tuple[dic
         weak_change_scope = _is_title_echo(candidate["title"], bridge.get("change_scope", ""))
         if weak_change_scope:
             findings.append({"severity": "P1", "type": "weak_bridge_change_scope", "description": "Bridge change_scope repeats the ADR title instead of summarizing the governance change."})
+        bridge_text = " ".join(
+            [
+                candidate.get("title", ""),
+                candidate.get("problem_statement", ""),
+                bridge.get("change_scope", ""),
+                " ".join(bridge.get("current_failure_modes", [])),
+            ]
+        ).lower()
+        needs_runtime_anchor = any(
+            marker in bridge_text
+            for marker in ("execution loop job runner", "artifacts/jobs/ready", "run-execution", "自动推进")
+        )
+        if needs_runtime_anchor and not semantic_lock:
+            findings.append(
+                {
+                    "severity": "P1",
+                    "type": "semantic_runtime_anchor_missing",
+                    "description": "Bridge SRC describes a dominant runtime anchor but does not freeze it as semantic_lock, so downstream skills can drift into generic governance decomposition.",
+                }
+            )
         required_fields = ["governance_objects", "current_failure_modes", "downstream_inheritance_requirements", "non_goals"]
         shallow_failure_modes = all(
             _is_title_echo(candidate["title"], str(item)) or len(str(item).strip()) < 20

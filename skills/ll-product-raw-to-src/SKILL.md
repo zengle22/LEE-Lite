@@ -12,7 +12,7 @@ Use this skill when a raw requirement, ADR, business opportunity, or frozen busi
 - Workflow key: `product.raw-to-src`
 - Inputs: `adr`, `raw_requirement`, `business_opportunity`, `business_opportunity_freeze`
 - Primary output: one `SRC candidate` package under `artifacts/raw-to-src/<run_id>`
-- Formal flow boundary: skill emits `candidate + evidence + proposed actions`; external gate decides `freeze`, `retry`, `human_handoff`, `blocked`, or downstream materialization
+- Formal flow boundary: skill emits `candidate + evidence + proposed actions`, then submits an authoritative handoff into gate pending; external gate still owns decision, review, and downstream materialization
 - Upstream authority: raw source only, never an already-frozen SSOT object
 
 ## Required Read Order
@@ -25,7 +25,7 @@ Use this skill when a raw requirement, ADR, business opportunity, or frozen busi
 6. Run `python scripts/raw_to_src.py executor-run --input <path>` for the executor phase, then `python scripts/raw_to_src.py supervisor-review --artifacts-dir <dir>` for the supervisor phase.
 7. Or use `python scripts/raw_to_src.py run --input <path>` as the compatibility wrapper that orchestrates both phases.
 8. Validate the candidate package with `python scripts/raw_to_src.py validate-package-readiness --artifacts-dir <dir>` before external gate consumption.
-9. Review `result-summary.json`, `proposed-next-actions.json`, `handoff-proposal.json` or `job-proposal.json`, and evidence before handing off to an external gate.
+9. Review `result-summary.json`, `proposed-next-actions.json`, `handoff-proposal.json`, `job-proposal.json`, and the gate submission refs before external gate review continues.
 
 ## Stage Mapping
 

@@ -11,6 +11,7 @@ from typing import Any
 
 from raw_to_src_bridge import acceptance_review, semantic_review
 from raw_to_src_common import WORKFLOW_KEY, find_duplicate_src
+from raw_to_src_gate_integration import create_gate_ready_package, submit_gate_pending
 from raw_to_src_records import (
     SEMANTIC_BUDGET,
     STRUCTURAL_BUDGET,
@@ -169,16 +170,72 @@ def supervisor_review(artifacts_dir: Path, repo_root: Path, run_id: str, allow_u
 
     handoff = build_handoff_proposal(run_id, action, target_skill, candidate_path, artifacts_dir)
     handoff_ref = None
+    handoff_submission_ref = None
     if handoff is not None:
         handoff_ref = str(artifacts_dir / "handoff-proposal.json")
         write_json(artifacts_dir / "handoff-proposal.json", handoff)
+        handoff_submission_ref = str((artifacts_dir / "handoff-proposal.json").resolve().relative_to(repo_root.resolve()).as_posix())
+
+    gate_ready_package_ref = None
+    authoritative_handoff_ref = None
+    gate_pending_ref = None
+    if action != "blocked" and handoff_ref is not None:
+        registry_record_ref = str(structural_report.get("cli_candidate_registry_record_ref", "")).strip()
+        candidate_ref = f"raw-to-src.{run_id}.src-candidate"
+        if registry_record_ref:
+            registry_record = read_json(repo_root / registry_record_ref)
+            candidate_ref = str(registry_record.get("artifact_ref", candidate_ref))
+        gate_ready_package = create_gate_ready_package(
+            repo_root=repo_root,
+            artifacts_dir=artifacts_dir,
+            run_id=run_id,
+            candidate_ref=candidate_ref,
+            machine_ssot_ref=str((artifacts_dir / "src-candidate.json").resolve().relative_to(repo_root.resolve()).as_posix()),
+            acceptance_ref=str((artifacts_dir / "acceptance-report.json").resolve().relative_to(repo_root.resolve()).as_posix()),
+            evidence_bundle_ref=str((artifacts_dir / "supervision-evidence.json").resolve().relative_to(repo_root.resolve()).as_posix()),
+        )
+        gate_ready_package_ref = str(gate_ready_package.resolve().relative_to(repo_root.resolve()).as_posix())
+        gate_submit = submit_gate_pending(
+            repo_root=repo_root,
+            artifacts_dir=artifacts_dir,
+            run_id=run_id,
+            proposal_ref=handoff_submission_ref,
+            payload_path=gate_ready_package,
+            trace_context_ref=str((artifacts_dir / "supervision-evidence.json").resolve().relative_to(repo_root.resolve()).as_posix()),
+        )
+        gate_submit_data = gate_submit["response"]["data"]
+        authoritative_handoff_ref = str(gate_submit_data.get("handoff_ref", ""))
+        gate_pending_ref = str(gate_submit_data.get("gate_pending_ref", ""))
+        supervisor_stages.append(
+            stage(
+                "gate_pending_submission",
+                "submitted",
+                "Authoritative handoff submitted to gate pending queue.",
+                "supervisor",
+                input_refs=[handoff_ref, gate_ready_package_ref],
+                output_refs=[authoritative_handoff_ref, gate_pending_ref, str(gate_submit["response_path"])],
+            )
+        )
 
     retry_budget = 0
     if action == "retry":
         retry_budget = STRUCTURAL_BUDGET if structural_report["issues"] else SEMANTIC_BUDGET
     job = build_job_proposal(run_id, action, target_skill, queue_path, handoff_ref, candidate_path, retry_budget)
     actions = build_proposed_actions(run_id, status, action, target_skill, queue_path)
-    summary = build_result_summary(run_id, status, action, target_skill, queue_path, candidate_path, artifacts_dir, handoff_ref, stage_state)
+    summary = build_result_summary(
+        run_id,
+        status,
+        action,
+        target_skill,
+        queue_path,
+        candidate_path,
+        artifacts_dir,
+        handoff_ref,
+        stage_state,
+        gate_ready_package_ref=gate_ready_package_ref,
+        authoritative_handoff_ref=authoritative_handoff_ref,
+        gate_pending_ref=gate_pending_ref,
+    )
     combined_stages = execution["stage_results"] + supervisor_stages
     run_state = build_run_state(run_id, stage_state, action, combined_stages)
     supervision = build_supervision_evidence(
@@ -189,13 +246,22 @@ def supervisor_review(artifacts_dir: Path, repo_root: Path, run_id: str, allow_u
         annotated_semantic_findings,
         action,
     )
-    manifest = build_package_manifest(artifacts_dir, candidate_path, status, action, handoff_ref)
+    write_json(artifacts_dir / "supervision-evidence.json", supervision)
+    manifest = build_package_manifest(
+        artifacts_dir,
+        candidate_path,
+        status,
+        action,
+        handoff_ref,
+        gate_ready_package_ref=gate_ready_package_ref,
+        authoritative_handoff_ref=authoritative_handoff_ref,
+        gate_pending_ref=gate_pending_ref,
+    )
 
     write_json(artifacts_dir / "job-proposal.json", job)
     write_json(artifacts_dir / "proposed-next-actions.json", actions)
     write_json(artifacts_dir / "result-summary.json", summary)
     write_json(artifacts_dir / "run-state.json", run_state)
-    write_json(artifacts_dir / "supervision-evidence.json", supervision)
     write_json(artifacts_dir / "package-manifest.json", manifest)
     report_path = collect_evidence_report(artifacts_dir)
 
@@ -210,5 +276,8 @@ def supervisor_review(artifacts_dir: Path, repo_root: Path, run_id: str, allow_u
         "handoff_proposal_path": handoff_ref,
         "job_proposal_path": str(artifacts_dir / "job-proposal.json"),
         "review_report_path": str(report_path),
+        "gate_ready_package_ref": gate_ready_package_ref,
+        "authoritative_handoff_ref": authoritative_handoff_ref,
+        "gate_pending_ref": gate_pending_ref,
         "input_issues": execution["structural_results"]["input_validation"]["issues"],
     }

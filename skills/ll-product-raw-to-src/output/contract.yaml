@@ -39,6 +39,7 @@ required_candidate_sections:
 optional_runtime_artifacts:
   - handoff-proposal.json
   - review-report.md
+  - input/gate-ready-package.json
   - materialized-handoff.json
   - materialized-job.json
 structural_checks:
@@ -59,7 +60,7 @@ job_routing:
   blocked_queue: artifacts/jobs/failed/
   human_queue: artifacts/human-queue/waiting-human/
 notes:
-  - The skill emits a candidate package only; final freeze and queue materialization are external-gate actions.
+  - The skill emits a candidate package and submits an authoritative gate-pending handoff; final freeze and queue materialization remain external-gate actions.
   - If the recommended action is not `blocked`, `handoff-proposal.json` must exist.
   - `source-semantic-findings.json` and `acceptance-report.json` must remain distinct artifacts and may not be collapsed into a single review object.
   - For `governance_bridge_src`, the candidate must include a governance summary section and a non-generic Bridge Context.

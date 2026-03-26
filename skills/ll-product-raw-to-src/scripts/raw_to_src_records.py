@@ -165,6 +165,9 @@ def build_result_summary(
     artifacts_dir: Path,
     handoff_ref: str | None,
     stage_state: str,
+    gate_ready_package_ref: str | None = None,
+    authoritative_handoff_ref: str | None = None,
+    gate_pending_ref: str | None = None,
 ) -> dict[str, Any]:
     return {
         "workflow_key": WORKFLOW_KEY,
@@ -178,6 +181,9 @@ def build_result_summary(
         "recommended_handoff_ref": handoff_ref,
         "stage_state": stage_state,
         "freeze_readiness": "freeze_ready" if action == "next_skill" else "not_ready",
+        "gate_ready_package_ref": gate_ready_package_ref or "",
+        "authoritative_handoff_ref": authoritative_handoff_ref or "",
+        "gate_pending_ref": gate_pending_ref or "",
     }
 
 
@@ -213,6 +219,9 @@ def build_package_manifest(
     status: str,
     action: str,
     handoff_ref: str | None,
+    gate_ready_package_ref: str | None = None,
+    authoritative_handoff_ref: str | None = None,
+    gate_pending_ref: str | None = None,
 ) -> dict[str, Any]:
     return {
         "artifacts_dir": str(artifacts_dir),
@@ -229,6 +238,9 @@ def build_package_manifest(
         "supervision_evidence_ref": str(artifacts_dir / "supervision-evidence.json"),
         "recommended_action": action,
         "status": status,
+        "gate_ready_package_ref": gate_ready_package_ref or "",
+        "authoritative_handoff_ref": authoritative_handoff_ref or "",
+        "gate_pending_ref": gate_pending_ref or "",
     }
 
 

@@ -7,7 +7,7 @@ external gate or handoff materialization.
 
 - Skill under test: `ll-product-raw-to-src`
 - Workflow key: `product.raw-to-src`
-- Output boundary: candidate package only
+- Output boundary: candidate package plus authoritative gate-pending submission
 - Out of scope:
   - `gate-decision.json`
   - `materialized-handoff.json`
@@ -39,6 +39,7 @@ Pass criteria:
 - result `recommended_action` is `next_skill`
 - `result-summary.json` sets `recommended_target_skill = product.src-to-epic`
 - candidate package exists under `artifacts/raw-to-src/<run_id>/`
+- `artifacts/active/gates/pending/index.json` contains one submitted pending handoff
 
 ### 2. ADR Bridge Run
 
@@ -172,4 +173,4 @@ Accept the skill only if:
 
 - all required manual cases pass
 - no new blocker defects are introduced
-- the skill still stops at proposal emission and does not materialize external gate outputs
+- the skill submits gate pending but does not materialize external gate outputs
