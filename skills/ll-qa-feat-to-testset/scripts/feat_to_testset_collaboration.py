@@ -52,7 +52,9 @@ def collaboration_units(
     refs: list[str],
 ) -> list[dict[str, Any]]:
     feat_ref = str(feature.get("feat_ref") or "")
-    checks = ensure_list(feature.get("acceptance_checks"))
+    checks = feature.get("acceptance_checks") or []
+    if not isinstance(checks, list):
+        checks = []
     check_ids = [str(item.get("id") or "") for item in checks if isinstance(item, dict)]
     ac1, ac2, ac3 = (check_ids + ["", "", ""])[:3]
     common = [
