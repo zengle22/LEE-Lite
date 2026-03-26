@@ -106,6 +106,21 @@ def collect_anchor_matches(feature: dict[str, Any], lock: dict[str, Any], genera
             matches.append("review_projection_axis")
         if all(token in generated_text for token in ["projection", "gate", "ssot"]):
             matches.append("review_projection_signature")
+    if str(lock.get("domain_type") or "").strip().lower() == "execution_runner_rule":
+        axis = explicit_axis(feature)
+        execution_runner_signatures = {
+            "runner_ready_job": ["ready", "job", "runner"],
+            "runner_operator_entry": ["runner", "operator"],
+            "runner_control_surface": ["runner", "control"],
+            "runner_intake": ["runner", "claim"],
+            "runner_dispatch": ["next", "skill", "dispatch"],
+            "runner_feedback": ["execution", "retry"],
+            "runner_observability": ["runner", "observability"],
+        }
+        if axis in execution_runner_signatures:
+            matches.append("execution_runner_axis")
+            if all(token in generated_text for token in execution_runner_signatures[axis]):
+                matches.append("execution_runner_signature")
     return matches
 
 
