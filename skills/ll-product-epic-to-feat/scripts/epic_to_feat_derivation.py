@@ -10,6 +10,7 @@ from typing import Any
 from epic_to_feat_common import (
     ensure_list,
     extract_src_ref,
+    normalize_semantic_lock,
     shorten_identifier,
     summarize_text,
     unique_strings,
@@ -73,6 +74,140 @@ def feat_track(axis: dict[str, str]) -> str:
     if configured:
         return configured
     return "adoption_e2e" if axis_key(axis) == "skill-adoption-e2e" else "foundation"
+
+
+def _is_execution_runner_epic(package: Any) -> bool:
+    lock = normalize_semantic_lock(package.epic_json.get("semantic_lock") or package.epic_frontmatter.get("semantic_lock"))
+    return str((lock or {}).get("domain_type") or "").strip().lower() == "execution_runner_rule"
+
+
+def _execution_runner_axis_defaults(axis_id: str) -> dict[str, Any]:
+    return {
+        "ready-job-emission": {
+            "constraints": [
+                "approve 必须稳定落成 ready execution job，而不是停在 formal publication。",
+                "ready job 必须写入 artifacts/jobs/ready，并保留 authoritative refs 与目标 skill。",
+                "revise / retry / reject / handoff 不得冒充 next-skill ready job。",
+                "approve-to-job 关系必须可追溯。",
+            ],
+            "main_flow": [
+                "gate 在 approve 后整理 next skill target、authoritative input 和 lineage。",
+                "dispatch 生成 ready execution job 并写入 artifacts/jobs/ready。",
+                "系统记录 approve-to-job 关系，供 runner 消费和审计。",
+            ],
+            "business_sequence": "```text\n[Approve Decision] -> [Ready Execution Job] -> [artifacts/jobs/ready]\n```",
+            "loop_gate_human_involvement": ["Gate / reviewer 负责 approve。", "Execution runner 在 job 生成后才介入。"],
+            "test_dimensions": ["approve happy path", "non-approve no-job path", "queue write traceability", "no formal-publication substitution"],
+            "frozen_product_shape": ["冻结 approve 后的 ready execution job 结构。"],
+            "open_technical_decisions": ["ready job schema", "queue index implementation"],
+            "authoritative_output": "ready execution job",
+            "input_objects": ["approve decision", "dispatch context", "next-skill target"],
+            "output_objects": ["ready execution job", "ready queue record", "approve-to-job lineage"],
+            "required_deliverables": ["ready execution job", "ready queue record", "approve-to-job lineage"],
+            "role_responsibility_split": ["gate / reviewer 负责 approve。", "dispatch writer 负责 materialize ready job。"],
+            "handoff_points": ["approve decision -> ready execution job", "ready execution job -> artifacts/jobs/ready"],
+            "interaction_timeline": ["1. approve", "2. materialize ready job", "3. write queue record"],
+            "dependencies": ["Boundary to runner intake FEAT: 本 FEAT 只负责 ready job emission，不负责 claim/running。"],
+        },
+        "execution-runner-intake": {
+            "constraints": [
+                "Execution Loop Job Runner 必须自动消费 ready queue。",
+                "claim 语义必须是 single-owner。",
+                "runner intake 不得回退到人工接力或临时脚本触发。",
+                "claim 和 running ownership 必须留下证据。",
+            ],
+            "main_flow": [
+                "runner 扫描 artifacts/jobs/ready 中的 ready execution job。",
+                "runner claim job 并记录 single-owner running ownership。",
+                "claimed job 进入下一步自动 dispatch。",
+            ],
+            "business_sequence": "```text\n[artifacts/jobs/ready] -> [Runner Claim] -> [Running Ownership]\n```",
+            "loop_gate_human_involvement": ["Execution runner 负责 claim/running。", "Human 不作为正常 intake 路径。"],
+            "test_dimensions": ["queue scan", "single-owner claim", "running ownership visibility", "no manual relay"],
+            "frozen_product_shape": ["冻结 ready -> claimed -> running 的 intake 状态链。"],
+            "open_technical_decisions": ["claim lock implementation", "runner polling cadence"],
+            "authoritative_output": "claimed execution job",
+            "input_objects": ["ready execution job", "queue ownership context"],
+            "output_objects": ["claimed execution job", "running ownership record", "claim evidence"],
+            "required_deliverables": ["claimed execution job", "running ownership record", "claim evidence"],
+            "role_responsibility_split": ["runner 负责 claim。", "gate 不负责 running ownership。"],
+            "handoff_points": ["ready execution job -> runner claim", "runner claim -> running ownership"],
+            "interaction_timeline": ["1. scan queue", "2. claim job", "3. record running ownership"],
+            "dependencies": ["Boundary to ready-job FEAT: 只有 ready execution job 能进入本 FEAT。", "Boundary to dispatch FEAT: claim 成功后才允许调用 next skill。"],
+        },
+        "next-skill-dispatch": {
+            "constraints": [
+                "claimed execution job 必须调用声明的 next skill。",
+                "dispatch 必须保留 authoritative input refs 和 target skill lineage。",
+                "自动推进不得回退为人工第三会话接力。",
+                "dispatch 失败必须回写 execution outcome。",
+            ],
+            "main_flow": [
+                "runner 读取 claimed execution job 中的 target skill 和 authoritative input。",
+                "runner 自动调用下一个 governed skill。",
+                "系统记录 invocation / execution attempt 供反馈链消费。",
+            ],
+            "business_sequence": "```text\n[Claimed Job] -> [Runner Dispatch] -> [Next Skill Invocation]\n```",
+            "loop_gate_human_involvement": ["Execution runner 负责派发。", "Downstream governed skill 接收 invocation。"],
+            "test_dimensions": ["target skill routing", "authoritative input preservation", "automatic dispatch path", "dispatch failure capture"],
+            "frozen_product_shape": ["冻结 claimed job 到 next skill invocation 的派发形态。"],
+            "open_technical_decisions": ["invocation adapter", "dispatch retry policy"],
+            "authoritative_output": "next-skill invocation record",
+            "input_objects": ["claimed execution job", "authoritative input package", "target skill ref"],
+            "output_objects": ["next-skill invocation", "execution attempt record", "dispatch lineage"],
+            "required_deliverables": ["next-skill invocation", "execution attempt record", "dispatch lineage"],
+            "role_responsibility_split": ["runner 负责自动派发。", "downstream skill 负责执行自身 workflow。"],
+            "handoff_points": ["claimed execution job -> runner dispatch", "runner dispatch -> next governed skill"],
+            "interaction_timeline": ["1. resolve target skill", "2. invoke downstream skill", "3. record execution attempt"],
+            "dependencies": ["Boundary to feedback FEAT: 本 FEAT 只负责启动下一个 skill，不负责最终 done/failed/retry outcome。"],
+        },
+        "execution-result-feedback": {
+            "constraints": [
+                "done / failed / retry-reentry outcome 必须显式记录。",
+                "失败证据必须和 execution attempt 绑定。",
+                "retry 必须回到 execution semantics，不得改写成 publish-only 状态。",
+                "approve 不是自动推进链的终态。",
+            ],
+            "main_flow": [
+                "runner 收集下一个 skill 的 execution result。",
+                "系统写出 done、failed 或 retry-reentry outcome。",
+                "审计链和上游编排读取结果，决定继续推进或回流。",
+            ],
+            "business_sequence": "```text\n[Execution Attempt] -> [Outcome Recording] -> [Done | Failed | Retry/Reentry]\n```",
+            "loop_gate_human_involvement": ["Execution runner 负责结果回写。", "Human 只在失败分析或策略判断时介入。"],
+            "test_dimensions": ["done path", "failed path", "retry-reentry path", "failure evidence completeness"],
+            "frozen_product_shape": ["冻结 execution outcome 与 retry-reentry directive 的结果形态。"],
+            "open_technical_decisions": ["outcome schema", "failure evidence storage"],
+            "authoritative_output": "execution outcome record",
+            "input_objects": ["execution attempt record", "downstream skill result", "runner state"],
+            "output_objects": ["execution outcome", "retry-reentry directive", "failure evidence"],
+            "required_deliverables": ["execution outcome", "retry-reentry directive", "failure evidence"],
+            "role_responsibility_split": ["runner 负责结果回写。", "编排方负责消费 done/failed/retry outcome。"],
+            "handoff_points": ["next-skill result -> outcome record", "outcome record -> orchestration / audit"],
+            "interaction_timeline": ["1. collect result", "2. record outcome", "3. expose retry or completion"],
+            "dependencies": ["Boundary to dispatch FEAT: 本 FEAT 只负责 post-dispatch outcome，不重写 invocation 过程。"],
+        },
+        "skill-adoption-e2e": {
+            "constraints": [
+                "pilot 链必须证明 ready job、runner、next-skill dispatch 和 execution outcome 这条自动推进链真实可用。",
+                "接入验证不得回退为人工第三会话接力。",
+                "cutover / fallback 必须围绕 runner 自动推进结果定义。",
+                "pilot evidence 必须绑定真实 approve -> runner -> next skill 链路。",
+            ],
+            "main_flow": [
+                "rollout owner 选定要接入自动推进链的 producer、runner 和 downstream skill。",
+                "pilot 波次运行真实 approve -> ready job -> runner -> next skill 链路。",
+                "audit / gate 基于 execution outcome 和 pilot evidence 决定 cutover 或 fallback。",
+            ],
+            "business_sequence": "```text\n[Onboarding Directive] -> [Pilot Auto-Progression Chain] -> [Execution Evidence] -> [Cutover or Fallback]\n```",
+            "loop_gate_human_involvement": ["Rollout owner 决定 wave。", "Audit / gate owner 基于 runner outcome 判断 cutover 或 fallback。"],
+            "test_dimensions": ["pilot auto-progression path", "cutover decision", "fallback path", "pilot evidence completeness"],
+            "frozen_product_shape": ["冻结 runner 自动推进 pilot 的 onboarding / cutover 结果形态。"],
+            "open_technical_decisions": ["pilot automation surface", "rollout evidence schema"],
+            "authoritative_output": "pilot evidence package",
+            "dependencies": ["Boundary to execution-result-feedback FEAT: adoption 依赖真实 runner outcome，而不是 formal publication/admission。"],
+        },
+    }.get(axis_id, {})
 
 
 def feat_title(axis: dict[str, str], package: Any) -> str:
@@ -1008,6 +1143,7 @@ def build_acceptance_checks(feat_ref: str, epic_ref: str, axis: dict[str, str]) 
 def derive_feat_axes(package: Any) -> list[dict[str, str]]:
     rollout_required = bool((package.epic_json.get("rollout_requirement") or {}).get("required"))
     required_tracks = ensure_list((package.epic_json.get("rollout_plan") or {}).get("required_feat_tracks"))
+    execution_runner_epic = _is_execution_runner_epic(package)
     product_behavior_slices = package.epic_json.get("product_behavior_slices")
     if isinstance(product_behavior_slices, list) and product_behavior_slices:
         normalized: list[dict[str, Any]] = []
@@ -1030,27 +1166,30 @@ def derive_feat_axes(package: Any) -> list[dict[str, str]]:
                     "overlay_families": ensure_list(item.get("overlay_families")),
                 }
             )
+            if execution_runner_epic:
+                normalized_item.update(_execution_runner_axis_defaults(normalized_item["id"]))
             normalized.append(normalized_item)
         if rollout_required and "adoption_e2e" in required_tracks and not any(axis_key(item) == "skill-adoption-e2e" for item in normalized):
-            normalized.append(
-                {
-                    "id": "skill-adoption-e2e",
-                    "name": "governed skill 接入与 pilot 验证流",
-                    "scope": [
-                        "定义 governed skill 的接入、pilot、cutover 与 fallback 规则，让主链能力通过真实链路验证成立。",
-                        "定义至少一条 producer -> consumer -> audit -> gate pilot 主链如何覆盖真实协作。",
-                        "定义 adoption 成立时业务方拿到的 evidence、integration matrix 与 cutover decision。",
-                    ],
-                    "feat_axis": "governed skill 接入与验证产品界面",
-                    "goal": "把 governed skill 的接入、pilot、cutover 与 fallback 冻结成可验证的业务接入流，而不是把上线建立在口头假设上。",
-                    "track": "adoption_e2e",
-                    "product_surface": "governed skill 接入与验证产品界面",
-                    "completed_state": "至少一条真实 pilot 链完成验证，cutover / fallback 决策可被观察。",
-                    "business_deliverable": "可执行的 onboarding / pilot / cutover package",
-                    "capability_axes": ["技能接入与跨 skill 闭环验证能力"],
-                    "overlay_families": ["skill_onboarding", "migration_cutover", "cross_skill_e2e_validation"],
-                }
-            )
+            appended = {
+                "id": "skill-adoption-e2e",
+                "name": "governed skill 接入与 pilot 验证流",
+                "scope": [
+                    "定义 governed skill 的接入、pilot、cutover 与 fallback 规则，让主链能力通过真实链路验证成立。",
+                    "定义至少一条 producer -> consumer -> audit -> gate pilot 主链如何覆盖真实协作。",
+                    "定义 adoption 成立时业务方拿到的 evidence、integration matrix 与 cutover decision。",
+                ],
+                "feat_axis": "governed skill 接入与验证产品界面",
+                "goal": "把 governed skill 的接入、pilot、cutover 与 fallback 冻结成可验证的业务接入流，而不是把上线建立在口头假设上。",
+                "track": "adoption_e2e",
+                "product_surface": "governed skill 接入与验证产品界面",
+                "completed_state": "至少一条真实 pilot 链完成验证，cutover / fallback 决策可被观察。",
+                "business_deliverable": "可执行的 onboarding / pilot / cutover package",
+                "capability_axes": ["技能接入与跨 skill 闭环验证能力"],
+                "overlay_families": ["skill_onboarding", "migration_cutover", "cross_skill_e2e_validation"],
+            }
+            if execution_runner_epic:
+                appended.update(_execution_runner_axis_defaults("skill-adoption-e2e"))
+            normalized.append(appended)
         if normalized:
             return normalized[:8]
     axes = package.epic_json.get("capability_axes")
@@ -1220,6 +1359,50 @@ def build_boundary_matrix(feats: list[dict[str, Any]]) -> list[dict[str, Any]]:
 
 def _feat_relations_for(axis_id: str) -> dict[str, Any]:
     mapping = {
+        "ready-job-emission": {
+            "upstream_axis_ids": [],
+            "downstream_axis_ids": ["execution-runner-intake"],
+            "gate_decision_axis_ids": [],
+            "admission_dependency_axis_ids": [],
+            "consumes": ["approve decision", "dispatch context", "next-skill target"],
+            "produces": ["ready execution job", "approve-to-job lineage", "ready queue record"],
+            "authoritative_artifact": "ready execution job",
+            "gate_decision_dependency": "owned by this FEAT; it binds approve semantics to ready-job emission instead of formal publication",
+            "admission_dependency": "none; downstream progression starts from runner intake, not admission",
+        },
+        "execution-runner-intake": {
+            "upstream_axis_ids": ["ready-job-emission"],
+            "downstream_axis_ids": ["next-skill-dispatch"],
+            "gate_decision_axis_ids": ["ready-job-emission"],
+            "admission_dependency_axis_ids": [],
+            "consumes": ["ready execution job", "ready queue ownership context"],
+            "produces": ["claimed execution job", "running ownership record", "claim evidence"],
+            "authoritative_artifact": "claimed execution job",
+            "gate_decision_dependency": "requires the ready-job FEAT to emit authoritative jobs into artifacts/jobs/ready before claim can begin",
+            "admission_dependency": "none; runner intake must not be replaced by formal publication or admission",
+        },
+        "next-skill-dispatch": {
+            "upstream_axis_ids": ["execution-runner-intake"],
+            "downstream_axis_ids": ["execution-result-feedback"],
+            "gate_decision_axis_ids": ["ready-job-emission"],
+            "admission_dependency_axis_ids": [],
+            "consumes": ["claimed execution job", "authoritative input package", "target skill ref"],
+            "produces": ["next-skill invocation", "execution attempt record", "dispatch lineage"],
+            "authoritative_artifact": "next-skill invocation record",
+            "gate_decision_dependency": "approve-derived jobs claimed by runner are the only source for automatic next-skill dispatch",
+            "admission_dependency": "none; dispatch must stay in execution semantics rather than formal publication",
+        },
+        "execution-result-feedback": {
+            "upstream_axis_ids": ["next-skill-dispatch"],
+            "downstream_axis_ids": [],
+            "gate_decision_axis_ids": ["ready-job-emission"],
+            "admission_dependency_axis_ids": [],
+            "consumes": ["execution attempt record", "downstream skill result", "runner state"],
+            "produces": ["execution outcome", "retry-reentry directive", "failure evidence"],
+            "authoritative_artifact": "execution outcome record",
+            "gate_decision_dependency": "approve starts the automatic progression chain, but this FEAT owns the post-dispatch done/failed/retry outcomes",
+            "admission_dependency": "none; post-dispatch results remain execution outcomes, not admission results",
+        },
         "collaboration-loop": {
             "upstream_axis_ids": [],
             "downstream_axis_ids": ["handoff-formalization"],
@@ -1294,8 +1477,21 @@ def _feat_relations_for(axis_id: str) -> dict[str, Any]:
 
 def apply_feature_relationships(feats: list[dict[str, Any]]) -> list[dict[str, Any]]:
     axis_to_ref = {str(feat.get("axis_id") or ""): str(feat.get("feat_ref") or "") for feat in feats}
+    execution_runner_bundle = "ready-job-emission" in axis_to_ref and "execution-result-feedback" in axis_to_ref
     for feat in feats:
         relations = _feat_relations_for(str(feat.get("axis_id") or ""))
+        if execution_runner_bundle and str(feat.get("axis_id") or "") == "skill-adoption-e2e":
+            relations = {
+                "upstream_axis_ids": ["ready-job-emission", "execution-runner-intake", "next-skill-dispatch", "execution-result-feedback"],
+                "downstream_axis_ids": [],
+                "gate_decision_axis_ids": ["ready-job-emission"],
+                "admission_dependency_axis_ids": [],
+                "consumes": ["ready execution job", "claimed execution job", "next-skill invocation record", "execution outcome record", "integration scope"],
+                "produces": ["integration matrix", "pilot evidence package", "cutover fallback decision"],
+                "authoritative_artifact": "pilot evidence package",
+                "gate_decision_dependency": "depends on approve-driven ready-job emission being usable in a real pilot chain",
+                "admission_dependency": "none; rollout validation depends on runner outcomes rather than formal publication or admission",
+            }
         upstream_feat_refs = [axis_to_ref[item] for item in relations["upstream_axis_ids"] if axis_to_ref.get(item)]
         downstream_feat_refs = [axis_to_ref[item] for item in relations["downstream_axis_ids"] if axis_to_ref.get(item)]
         feat["upstream_feat"] = upstream_feat_refs
@@ -1318,6 +1514,33 @@ def apply_feature_relationships(feats: list[dict[str, Any]]) -> list[dict[str, A
 
 def canonical_glossary(feats: list[dict[str, Any]]) -> list[dict[str, str]]:
     axis_to_ref = {str(feat.get("axis_id") or ""): str(feat.get("feat_ref") or "") for feat in feats}
+    if "ready-job-emission" in axis_to_ref:
+        return [
+            {
+                "term": "ready execution job",
+                "canonical_meaning": "Authoritative job emitted after approve and written into artifacts/jobs/ready for automatic runner consumption.",
+                "owned_by_feat": axis_to_ref.get("ready-job-emission", ""),
+                "must_not_be_confused_with": "formal publication package",
+            },
+            {
+                "term": "runner claim",
+                "canonical_meaning": "Single-owner intake step where Execution Loop Job Runner claims a ready job and records running ownership.",
+                "owned_by_feat": axis_to_ref.get("execution-runner-intake", ""),
+                "must_not_be_confused_with": "manual relay",
+            },
+            {
+                "term": "next-skill invocation",
+                "canonical_meaning": "Authoritative dispatch record showing which governed skill was invoked from a claimed execution job.",
+                "owned_by_feat": axis_to_ref.get("next-skill-dispatch", ""),
+                "must_not_be_confused_with": "directory scan trigger",
+            },
+            {
+                "term": "execution outcome",
+                "canonical_meaning": "Authoritative done, failed, or retry-reentry result emitted after runner dispatch completes.",
+                "owned_by_feat": axis_to_ref.get("execution-result-feedback", ""),
+                "must_not_be_confused_with": "approve terminal state",
+            },
+        ]
     return [
         {
             "term": "candidate",
@@ -1378,6 +1601,12 @@ def canonical_glossary(feats: list[dict[str, Any]]) -> list[dict[str, str]]:
 
 def prohibited_inference_rules() -> list[dict[str, Any]]:
     return [
+        {
+            "id": "no-formal-publication-substitution",
+            "applies_to": ["TECH", "TESTSET", "consumer"],
+            "rule": "Downstream work must not rewrite approve-driven automatic progression as formal publication, admission, or publish-only completion.",
+            "protected_fields": ["business_sequence", "authoritative_artifact", "acceptance_criteria"],
+        },
         {
             "id": "no-tech-product-shape-redefinition",
             "applies_to": ["TECH"],

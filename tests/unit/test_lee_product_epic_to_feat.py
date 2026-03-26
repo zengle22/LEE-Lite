@@ -548,3 +548,161 @@ class EpicToFeatWorkflowTests(unittest.TestCase):
             self.assertTrue(drift["semantic_lock_preserved"])
             self.assertEqual(drift["verdict"], "pass")
             self.assertFalse(drift["forbidden_axis_detected"])
+
+    def test_execution_runner_epic_preserves_semantic_lock_in_feat_bundle(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            repo_root = Path(temp_dir)
+            epic = {
+                "artifact_type": "epic_freeze_package",
+                "workflow_key": "product.src-to-epic",
+                "workflow_run_id": "epic-adr018",
+                "title": "Gate 审批后自动推进 Execution Runner 统一能力",
+                "status": "accepted",
+                "schema_version": "1.0.0",
+                "epic_freeze_ref": "EPIC-ADR018",
+                "src_root_id": "SRC-ADR018",
+                "source_refs": ["product.raw-to-src::src-adr018", "EPIC-ADR018", "SRC-ADR018", "ADR-018", "ADR-001", "ADR-003", "ADR-005"],
+                "semantic_lock": {
+                    "domain_type": "execution_runner_rule",
+                    "one_sentence_truth": "gate approve 后必须生成 ready execution job，并由 Execution Loop Job Runner 自动消费 artifacts/jobs/ready 后推进到下一个 skill，而不是停在 formal publication 或人工接力。",
+                    "primary_object": "execution_loop_job_runner",
+                    "lifecycle_stage": "post_gate_auto_progression",
+                    "allowed_capabilities": [
+                        "ready_execution_job_materialization",
+                        "ready_queue_consumption",
+                        "next_skill_dispatch",
+                        "execution_result_recording",
+                        "retry_reentry_return",
+                    ],
+                    "forbidden_capabilities": [
+                        "formal_publication_substitution",
+                        "admission_only_decomposition",
+                        "third_session_human_relay",
+                        "directory_guessing_consumer",
+                    ],
+                    "inheritance_rule": "approve semantics must stay coupled to ready-job emission and runner-driven next-skill progression; downstream may not replace this with formal publication or admission-only flows.",
+                },
+                "business_goal": "把 gate approve 后的 ready job、runner 消费、next-skill dispatch 和 execution result 回写冻结成连续的自动推进产品线。",
+                "business_value_problem": [
+                    "dispatch 已能产出 materialized-job，但系统仍缺少正式 consumer 去自动消费 artifacts/jobs/ready。",
+                    "approve 语义被附近的 formal publication 语义覆盖，导致自动推进链丢失。",
+                ],
+                "product_positioning": "该 EPIC 位于 gate 后自动推进运行时层。",
+                "actors_and_roles": [
+                    {"role": "gate / reviewer owner", "responsibility": "定义 approve 与非 approve 决策何时产生 ready execution job。"},
+                    {"role": "execution runner owner", "responsibility": "负责 ready queue 消费、claim、dispatch 与结果回写。"},
+                ],
+                "scope": [
+                    "统一上位产品能力：形成一条 gate approve 后自动推进到下一 skill 的运行时产品线。",
+                    "产品行为切片：批准后 Ready Job 生成流。",
+                    "产品行为切片：Execution Runner 自动取件流。",
+                    "产品行为切片：下游 Skill 自动派发流。",
+                    "产品行为切片：执行结果回写与重试边界流。",
+                ],
+                "upstream_and_downstream": ["Upstream：关于 gate approve 后自动推进缺口的 bridge SRC。", "Downstream：拆成 ready job、runner intake、dispatch、feedback 四个 FEAT。"],
+                "epic_success_criteria": [
+                    "至少一条 gate approve -> ready execution job -> runner claim -> next skill invocation 的真实链路可被验证。",
+                    "approve 后链路不再被改写成 formal publication / admission。",
+                ],
+                "non_goals": ["本 EPIC 不把 approve 重写成 formal publication。", "本 EPIC 不要求第三会话人工接力作为正常路径。"],
+                "decomposition_rules": [
+                    "FEAT 的 primary decomposition unit 是 approve 后 ready job 生成、runner intake、next-skill dispatch 与 execution result feedback。",
+                    "任何 FEAT 都不得把 approve 后链路重写成 formal publication、admission 或人工第三会话接力。",
+                ],
+                "product_behavior_slices": [
+                    {
+                        "id": "ready-job-emission",
+                        "name": "批准后 Ready Job 生成流",
+                        "track": "foundation",
+                        "goal": "冻结 gate approve 如何生成 ready execution job。",
+                        "scope": ["定义 approve 后必须产出的 ready execution job。", "定义 next skill target 和队列落点。", "定义非 approve 决策与 next-skill queue 的边界。"],
+                        "product_surface": "批准后 ready job 生成流：gate approve 生成可被 runner 自动消费的 ready execution job",
+                        "completed_state": "批准结果已经物化为 ready execution job，并进入 artifacts/jobs/ready。",
+                        "business_deliverable": "给 runner 消费的 ready execution job。",
+                        "capability_axes": ["批准后 Ready Job 生成能力"],
+                        "acceptance_checks": [
+                            {"id": "rj-1", "scenario": "Approve emits ready job", "given": "gate approves", "when": "dispatch ends", "then": "one ready execution job must be emitted.", "trace_hints": ["ready execution job"]},
+                            {"id": "rj-2", "scenario": "Approve is not formal publication", "given": "approve path is reviewed", "when": "next step is described", "then": "the path must continue into runner-ready execution.", "trace_hints": ["not formal publication"]},
+                            {"id": "rj-3", "scenario": "Non-approve stays out of queue", "given": "gate returns revise/retry/reject/handoff", "when": "dispatch evaluates", "then": "no next-skill ready job may be emitted.", "trace_hints": ["queue boundary"]},
+                        ],
+                    },
+                    {
+                        "id": "execution-runner-intake",
+                        "name": "Execution Runner 自动取件流",
+                        "track": "foundation",
+                        "goal": "冻结 Execution Loop Job Runner 如何自动消费 jobs/ready。",
+                        "scope": ["定义 runner 扫描、claim、running 和防重入边界。", "定义 ready -> claimed -> running 的状态转移。", "定义 claim 证据与 ownership 记录。"],
+                        "product_surface": "runner 自动取件流：Execution Loop Job Runner claim ready job 并接管执行责任",
+                        "completed_state": "ready execution job 已被 runner claim，并进入 running ownership 状态。",
+                        "business_deliverable": "claimed execution job / running record。",
+                        "capability_axes": ["Execution Runner 取件能力"],
+                        "acceptance_checks": [
+                            {"id": "ri-1", "scenario": "Ready queue is auto-consumed", "given": "jobs/ready has a job", "when": "runner runs", "then": "runner must claim it.", "trace_hints": ["jobs/ready", "claim"]},
+                            {"id": "ri-2", "scenario": "Claim is single-owner", "given": "multiple runner attempts", "when": "claim happens", "then": "only one owner may succeed.", "trace_hints": ["single owner"]},
+                            {"id": "ri-3", "scenario": "No manual relay", "given": "next step is reviewed", "when": "runner intake is described", "then": "it must not require manual third-session relay.", "trace_hints": ["no manual relay"]},
+                        ],
+                    },
+                    {
+                        "id": "next-skill-dispatch",
+                        "name": "下游 Skill 自动派发流",
+                        "track": "foundation",
+                        "goal": "冻结 claimed execution job 如何自动派发到下一个 governed skill。",
+                        "scope": ["定义 next skill target、输入包引用和调用边界。", "定义 authoritative invocation record。", "定义启动失败回写边界。"],
+                        "product_surface": "next skill 自动派发流：runner 基于 claimed job 调起下一个 governed skill",
+                        "completed_state": "claimed job 已被自动派发到目标 skill，并留下 invocation / execution attempt record。",
+                        "business_deliverable": "authoritative invocation / execution attempt record。",
+                        "capability_axes": ["下游 Skill 自动派发能力"],
+                        "acceptance_checks": [
+                            {"id": "nd-1", "scenario": "Dispatch targets declared skill", "given": "runner owns a claimed job", "when": "dispatch starts", "then": "the invocation must target the declared next skill.", "trace_hints": ["next skill"]},
+                            {"id": "nd-2", "scenario": "Dispatch preserves lineage", "given": "audit inspects dispatch", "when": "invocation is recorded", "then": "job refs and target-skill lineage must remain visible.", "trace_hints": ["lineage"]},
+                            {"id": "nd-3", "scenario": "Dispatch stays automatic", "given": "approve path is reviewed", "when": "the next step is described", "then": "the flow must show automatic runner dispatch.", "trace_hints": ["automatic dispatch"]},
+                        ],
+                    },
+                    {
+                        "id": "execution-result-feedback",
+                        "name": "执行结果回写与重试边界流",
+                        "track": "foundation",
+                        "goal": "冻结 runner 执行后的 done / failed / retry-reentry 结果。",
+                        "scope": ["定义 execution outcome 和 retry / reentry directive。", "定义 running -> done/failed/retry_return 的边界。", "定义失败证据与上游可见结果。"],
+                        "product_surface": "执行结果回写流：runner 把 next-skill execution 结果写回主链状态与后续动作",
+                        "completed_state": "执行结果已形成 authoritative outcome；成功、失败和重试回流都具有清晰状态与证据。",
+                        "business_deliverable": "execution outcome / retry-reentry directive / failure evidence。",
+                        "capability_axes": ["执行结果回写与重试边界能力"],
+                        "acceptance_checks": [
+                            {"id": "ef-1", "scenario": "Execution outcomes are explicit", "given": "runner finishes", "when": "result is recorded", "then": "done, failed, or retry outcomes must be explicit.", "trace_hints": ["done", "failed", "retry"]},
+                            {"id": "ef-2", "scenario": "Retry keeps execution semantics", "given": "another attempt is needed", "when": "the outcome is recorded", "then": "the result must return through retry / reentry semantics.", "trace_hints": ["retry", "reentry"]},
+                            {"id": "ef-3", "scenario": "Approve is not terminal", "given": "overall chain is reviewed", "when": "post-approve flow is inspected", "then": "the chain must continue through runner execution and feedback.", "trace_hints": ["approve", "runner", "feedback"]},
+                        ],
+                    },
+                ],
+                "constraints_and_dependencies": [
+                    "approve 必须落成 ready execution job。",
+                    "runner 必须自动消费 artifacts/jobs/ready。",
+                    "不得把 approve 改写成 formal publication。",
+                ],
+                "capability_axes": [
+                    {"id": "ready-job-emission", "name": "批准后 Ready Job 生成能力", "scope": "approve 后生成 ready job", "feat_axis": "approve 后 ready job 生成流"},
+                    {"id": "execution-runner-intake", "name": "Execution Runner 取件能力", "scope": "runner 自动 claim jobs/ready", "feat_axis": "ready job 自动取件流"},
+                    {"id": "next-skill-dispatch", "name": "下游 Skill 自动派发能力", "scope": "runner 派发到下一个 skill", "feat_axis": "next skill 自动派发流"},
+                    {"id": "execution-result-feedback", "name": "执行结果回写与重试边界能力", "scope": "runner 记录 done/failed/retry", "feat_axis": "执行结果回写流"},
+                ],
+                "rollout_requirement": {"required": False},
+                "rollout_plan": {"required_feat_tracks": ["foundation"], "required_feat_families": []},
+            }
+            input_dir = self.make_epic_package(repo_root, "epic-adr018", epic)
+            result = self.run_cmd("run", "--input", str(input_dir), "--repo-root", str(repo_root), "--run-id", "feat-adr018")
+            self.assertEqual(result.returncode, 0, result.stderr)
+            artifacts_dir = Path(json.loads(result.stdout)["artifacts_dir"])
+            bundle = json.loads((artifacts_dir / "feat-freeze-bundle.json").read_text(encoding="utf-8"))
+            drift = json.loads((artifacts_dir / "semantic-drift-check.json").read_text(encoding="utf-8"))
+            axis_ids = [feature["axis_id"] for feature in bundle["features"]]
+
+            self.assertEqual(axis_ids, ["ready-job-emission", "execution-runner-intake", "next-skill-dispatch", "execution-result-feedback"])
+            self.assertEqual(drift["verdict"], "pass")
+            self.assertTrue(drift["semantic_lock_preserved"])
+            self.assertEqual(bundle["glossary"][0]["term"], "ready execution job")
+            self.assertEqual(bundle["glossary"][0]["must_not_be_confused_with"], "formal publication package")
+            self.assertEqual(bundle["features"][0]["authoritative_artifact"], "ready execution job")
+            self.assertEqual(bundle["features"][1]["authoritative_artifact"], "claimed execution job")
+            self.assertEqual(bundle["features"][2]["authoritative_artifact"], "next-skill invocation record")
+            self.assertEqual(bundle["features"][3]["authoritative_artifact"], "execution outcome record")

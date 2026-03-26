@@ -286,6 +286,80 @@ class SrcToEpicWorkflowTests(unittest.TestCase):
             validate = self.run_cmd("validate-output", "--artifacts-dir", str(artifacts_dir))
             self.assertEqual(validate.returncode, 0, validate.stderr)
 
+    def test_execution_runner_semantic_lock_prevents_formal_publication_drift(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            repo_root = Path(temp_dir)
+            candidate = {
+                "artifact_type": "src_candidate_package",
+                "workflow_key": "product.raw-to-src",
+                "workflow_run_id": "src-adr018",
+                "title": "ADR 018 Execution Loop Job Runner 作为自动推进运行时",
+                "status": "freeze_ready",
+                "source_kind": "governance_bridge_src",
+                "source_refs": ["ADR-018", "ADR-001", "ADR-003", "ADR-005"],
+                "semantic_lock": {
+                    "domain_type": "execution_runner_rule",
+                    "one_sentence_truth": "gate approve 后必须生成 ready execution job，并由 Execution Loop Job Runner 自动消费 artifacts/jobs/ready 后推进到下一个 skill，而不是停在 formal publication 或人工接力。",
+                    "primary_object": "execution_loop_job_runner",
+                    "lifecycle_stage": "post_gate_auto_progression",
+                    "allowed_capabilities": [
+                        "ready_execution_job_materialization",
+                        "ready_queue_consumption",
+                        "next_skill_dispatch",
+                        "execution_result_recording",
+                        "retry_reentry_return",
+                    ],
+                    "forbidden_capabilities": [
+                        "formal_publication_substitution",
+                        "admission_only_decomposition",
+                        "third_session_human_relay",
+                        "directory_guessing_consumer",
+                    ],
+                    "inheritance_rule": "approve semantics must stay coupled to ready-job emission and runner-driven next-skill progression; downstream may not replace this with formal publication or admission-only flows.",
+                },
+                "problem_statement": "当前仍缺少一个正式 consumer 去自动消费 artifacts/jobs/ready/ 中的 job，并把它推进到下游 workflow。",
+                "target_users": ["workflow / orchestration 设计者", "execution runner owner"],
+                "trigger_scenarios": ["当 gate approve 之后需要自动推进到下一个 governed skill 时。"],
+                "business_drivers": ["需要把 gate approve 和下一 skill 自动推进重新绑回同一条运行时链。"],
+                "key_constraints": [
+                    "approve 必须落成 ready execution job。",
+                    "runner 必须自动消费 artifacts/jobs/ready。",
+                    "不得把 approve 改写成 formal publication。",
+                ],
+                "in_scope": ["冻结 approve -> ready job -> runner -> next skill -> outcome 这条自动推进链。"],
+                "out_of_scope": ["formal publication / admission 产品线", "第三会话人工接力"],
+                "bridge_context": {
+                    "governance_objects": ["Execution Loop Job Runner", "ready execution job", "artifacts/jobs/ready"],
+                    "current_failure_modes": ["approve 后停在 formal publication trigger。", "缺少自动消费 ready job 的正式 runner。"],
+                    "downstream_inheritance_requirements": ["下游不得把 approve 后链路改写成 formal publication。"],
+                    "expected_downstream_objects": ["EPIC", "FEAT", "TECH", "IMPL", "TESTSET"],
+                    "acceptance_impact": ["至少一条 approve -> ready job -> runner -> next skill 链路可被验证。"],
+                    "non_goals": ["formal publication / admission 产品线"],
+                },
+            }
+            input_dir = self.make_src_package(repo_root, "src-adr018", candidate)
+            result = self.run_cmd("run", "--input", str(input_dir), "--repo-root", str(repo_root), "--run-id", "epic-adr018")
+            self.assertEqual(result.returncode, 0, result.stderr)
+            artifacts_dir = Path(json.loads(result.stdout)["artifacts_dir"])
+            epic = json.loads((artifacts_dir / "epic-freeze.json").read_text(encoding="utf-8"))
+            drift = json.loads((artifacts_dir / "semantic-drift-check.json").read_text(encoding="utf-8"))
+            markdown = (artifacts_dir / "epic-freeze.md").read_text(encoding="utf-8")
+
+            self.assertEqual(epic["semantic_lock"]["domain_type"], "execution_runner_rule")
+            self.assertEqual(epic["title"], "Gate 审批后自动推进 Execution Runner 统一能力")
+            self.assertEqual(
+                [item["id"] for item in epic["product_behavior_slices"]],
+                ["ready-job-emission", "execution-runner-intake", "next-skill-dispatch", "execution-result-feedback"],
+            )
+            self.assertEqual(drift["verdict"], "pass")
+            self.assertTrue(drift["semantic_lock_preserved"])
+            self.assertNotIn("formal 发布与下游准入流", markdown)
+            self.assertIn("批准后 Ready Job 生成流", markdown)
+            self.assertIn("Execution Runner 自动取件流", markdown)
+
+            validate = self.run_cmd("validate-output", "--artifacts-dir", str(artifacts_dir))
+            self.assertEqual(validate.returncode, 0, validate.stderr)
+
     def test_architecture_ref_is_added_when_matching_architecture_exists(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             repo_root = Path(temp_dir)

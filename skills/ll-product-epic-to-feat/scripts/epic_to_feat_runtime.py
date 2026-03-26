@@ -122,7 +122,18 @@ def build_semantic_drift_check(package: Any, feats: list[dict[str, Any]]) -> dic
         review_projection_tokens = ["projection", "gate", "ssot"]
         if all(token in generated_text for token in review_projection_tokens):
             anchor_matches.append("review_projection_signature")
-    preserved = not forbidden_hits and len(anchor_matches) >= 1
+    domain_type = str(lock.get("domain_type") or "").strip().lower()
+    if domain_type == "execution_runner_rule":
+        runner_signatures = [
+            ("runner_ready_queue_signature", ["ready", "job", "runner"]),
+            ("approve_next_skill_signature", ["approve", "next", "skill"]),
+        ]
+        for label, tokens in runner_signatures:
+            if all(token in generated_text for token in tokens):
+                anchor_matches.append(label)
+        preserved = not forbidden_hits and "runner_ready_queue_signature" in anchor_matches and "approve_next_skill_signature" in anchor_matches
+    else:
+        preserved = not forbidden_hits and len(anchor_matches) >= 1
     return {
         "verdict": "pass" if preserved else "reject",
         "semantic_lock_present": True,

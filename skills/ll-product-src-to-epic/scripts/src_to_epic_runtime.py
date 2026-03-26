@@ -137,7 +137,18 @@ def build_semantic_drift_check(
         review_projection_tokens = ["projection", "gate", "ssot"]
         if all(token in generated_text for token in review_projection_tokens):
             anchor_matches.append("review_projection_signature")
-    preserved = not forbidden_hits and len(anchor_matches) >= 1
+    domain_type = str(lock.get("domain_type") or "").strip().lower()
+    if domain_type == "execution_runner_rule":
+        runner_signatures = [
+            ("runner_ready_queue_signature", ["ready", "job", "runner"]),
+            ("approve_next_skill_signature", ["approve", "next", "skill"]),
+        ]
+        for label, tokens in runner_signatures:
+            if all(token in generated_text for token in tokens):
+                anchor_matches.append(label)
+        preserved = not forbidden_hits and "runner_ready_queue_signature" in anchor_matches and "approve_next_skill_signature" in anchor_matches
+    else:
+        preserved = not forbidden_hits and len(anchor_matches) >= 1
     summary = "semantic_lock preserved." if preserved else "semantic_lock drift detected."
     return {
         "verdict": "pass" if preserved else "reject",
@@ -456,6 +467,7 @@ def validate_output_package(artifacts_dir: Path) -> tuple[list[str], dict[str, A
     source_refs = ensure_list(epic_json.get("source_refs"))
     semantic_lock_payload = normalize_semantic_lock(epic_json.get("semantic_lock"))
     is_review_projection = str((semantic_lock_payload or {}).get("domain_type") or "").strip().lower() == "review_projection_rule"
+    is_execution_runner = str((semantic_lock_payload or {}).get("domain_type") or "").strip().lower() == "execution_runner_rule"
     if not any(ref.startswith("product.raw-to-src::") for ref in source_refs):
         errors.append("epic-freeze.json source_refs must include product.raw-to-src::<run_id>.")
     if not any(ref.startswith("SRC-") for ref in source_refs):
@@ -484,9 +496,9 @@ def validate_output_package(artifacts_dir: Path) -> tuple[list[str], dict[str, A
     decomposition_rules = ensure_list(epic_json.get("decomposition_rules"))
     if has_governance_layers and not any("产品行为切片" in rule for rule in decomposition_rules):
         errors.append("epic-freeze.json decomposition_rules must declare product behavior slices as the primary FEAT decomposition unit.")
-    if has_governance_layers and not is_review_projection and not any("cross-cutting constraints" in rule for rule in decomposition_rules):
+    if has_governance_layers and not is_review_projection and not is_execution_runner and not any("cross-cutting constraints" in rule for rule in decomposition_rules):
         errors.append("epic-freeze.json decomposition_rules must declare capability axes as cross-cutting constraints rather than direct FEATs.")
-    if has_governance_layers and not is_review_projection and not any("mandatory overlays" in rule or "mandatory cross-cutting overlays" in rule or "mandatory overlays" in rule for rule in decomposition_rules):
+    if has_governance_layers and not is_review_projection and not is_execution_runner and not any("mandatory overlays" in rule or "mandatory cross-cutting overlays" in rule or "mandatory overlays" in rule for rule in decomposition_rules):
         errors.append("epic-freeze.json decomposition_rules must declare rollout families as mandatory cross-cutting overlays.")
     product_behavior_slices = epic_json.get("product_behavior_slices")
     if not isinstance(product_behavior_slices, list) or not product_behavior_slices:
@@ -503,11 +515,19 @@ def validate_output_package(artifacts_dir: Path) -> tuple[list[str], dict[str, A
     if not ensure_list(epic_json.get("epic_success_criteria")):
         errors.append("epic-freeze.json must include epic_success_criteria.")
     metrics_text = " ".join(ensure_list(epic_json.get("success_metrics")))
-    for token, label in (
-        ("producer -> consumer -> audit -> gate", "pilot chain"),
-        ("formal publish", "materialization"),
-        ("adoption / cutover / fallback", "rollout verification"),
-    ):
+    metric_tokens = (
+        (
+            ("approve -> ready execution job -> runner claim -> next skill invocation", "runner auto-progression"),
+            ("formal publication", "anti-formal-publication drift"),
+        )
+        if is_execution_runner
+        else (
+            ("producer -> consumer -> audit -> gate", "pilot chain"),
+            ("formal publish", "materialization"),
+            ("adoption / cutover / fallback", "rollout verification"),
+        )
+    )
+    for token, label in metric_tokens:
         if has_governance_layers and not is_review_projection and token not in metrics_text:
             errors.append(f"epic-freeze.json success_metrics must include the {label} completion signal.")
 

@@ -80,8 +80,12 @@ def is_review_projection_package(package: Any) -> bool:
     return str(semantic_lock(package).get("domain_type") or "").strip().lower() == "review_projection_rule"
 
 
+def is_execution_runner_package(package: Any) -> bool:
+    return str(semantic_lock(package).get("domain_type") or "").strip().lower() == "execution_runner_rule"
+
+
 def is_governance_bridge_package(package: Any) -> bool:
-    if is_review_projection_package(package):
+    if is_review_projection_package(package) or is_execution_runner_package(package):
         return False
     source_kind = str(package.src_candidate.get("source_kind") or "")
     title = str(package.src_candidate.get("title") or "")
@@ -142,6 +146,33 @@ def derive_capability_axes(package: Any, rollout_requirement: dict[str, Any] | N
                 "name": "Projection 批注回写能力",
                 "scope": "把 gate 审核意见稳定回写到 Machine SSOT，并确保 Projection 只能重生成，不能变成新的真相源。",
                 "feat_axis": "Projection 批注回写流",
+            },
+        ]
+    if is_execution_runner_package(package):
+        return [
+            {
+                "id": "ready-job-emission",
+                "name": "批准后 Ready Job 生成能力",
+                "scope": "把 gate approve 稳定映射成 ready execution job，而不是停在 formal publication 或人工接力。",
+                "feat_axis": "approve 后 ready job 生成流",
+            },
+            {
+                "id": "execution-runner-intake",
+                "name": "Execution Runner 取件能力",
+                "scope": "让 Execution Loop Job Runner 自动消费 artifacts/jobs/ready 中的 job，并形成唯一 claim / running 责任边界。",
+                "feat_axis": "ready job 自动取件流",
+            },
+            {
+                "id": "next-skill-dispatch",
+                "name": "下游 Skill 自动派发能力",
+                "scope": "把 claimed job 稳定推进到下一个 governed skill，并保留 authoritative refs、目标 skill 和输入边界。",
+                "feat_axis": "next skill 自动派发流",
+            },
+            {
+                "id": "execution-result-feedback",
+                "name": "执行结果回写与重试边界能力",
+                "scope": "把执行结果、重试回流与失败终止冻结成可审计的 runner 输出，而不是把 approve 当作终态。",
+                "feat_axis": "执行结果回写流",
             },
         ]
     if is_governance_bridge_package(package):
@@ -392,6 +423,89 @@ def derive_product_behavior_slices(package: Any, rollout_requirement: dict[str, 
                 ],
             },
         ]
+    if is_execution_runner_package(package):
+        return [
+            {
+                "id": "ready-job-emission",
+                "name": "批准后 Ready Job 生成流",
+                "track": "foundation",
+                "goal": "冻结 gate approve 如何生成 ready execution job，并把 approve 继续绑定到自动推进而不是 formal publication。",
+                "scope": [
+                    "定义 approve 后必须产出的 ready execution job 及其最小字段。",
+                    "定义 ready job 的 authoritative refs、next skill target 和队列落点。",
+                    "定义 revise / retry / reject / handoff 与 ready job 生成的边界，避免 approve 语义漂移。",
+                ],
+                "product_surface": "批准后 ready job 生成流：gate approve 生成可被 runner 自动消费的 ready execution job",
+                "completed_state": "批准结果已经稳定物化为 ready execution job，并进入 artifacts/jobs/ready 等待 runner 消费。",
+                "business_deliverable": "给 Execution Loop Job Runner 消费的 ready execution job，以及可追溯的 approve-to-job 关系。",
+                "capability_axes": ["批准后 Ready Job 生成能力"],
+                "acceptance_checks": [
+                    {"id": "ready-job-emission-AC-01", "scenario": "Approve emits one ready job", "given": "gate has approved a governed handoff", "when": "dispatch finishes", "then": "exactly one authoritative ready execution job must be materialized for runner consumption.", "trace_hints": ["approve", "ready execution job", "artifacts/jobs/ready"]},
+                    {"id": "ready-job-emission-AC-02", "scenario": "Approve is not rewritten as formal publication", "given": "a downstream reader inspects the product flow", "when": "the approve path is described", "then": "approve must continue into ready-job emission rather than being described as formal publication or admission.", "trace_hints": ["approve", "ready job", "not formal publication"]},
+                    {"id": "ready-job-emission-AC-03", "scenario": "Non-approve decisions do not emit next-skill jobs", "given": "gate returns revise, retry, handoff, or reject", "when": "dispatch evaluates the decision", "then": "the product flow must keep those outcomes out of the next-skill ready queue.", "trace_hints": ["revise", "retry", "reject", "queue boundary"]},
+                ],
+            },
+            {
+                "id": "execution-runner-intake",
+                "name": "Execution Runner 自动取件流",
+                "track": "foundation",
+                "goal": "冻结 Execution Loop Job Runner 如何从 ready queue 自动取件、claim job 并进入 running，而不是继续依赖第三会话人工接力。",
+                "scope": [
+                    "定义 runner 扫描、claim、running 和防重入边界。",
+                    "定义 jobs/ready 到 runner ownership 的状态转移。",
+                    "定义 runner 对 job lineage、claim 证据和并发责任的记录方式。",
+                ],
+                "product_surface": "runner 自动取件流：Execution Loop Job Runner claim ready job 并接管执行责任",
+                "completed_state": "ready execution job 已被 runner claim，并进入可观察的 running ownership 状态。",
+                "business_deliverable": "给编排方使用的 claimed execution job / running record，以及可追溯的 claim 证据。",
+                "capability_axes": ["Execution Runner 取件能力"],
+                "acceptance_checks": [
+                    {"id": "runner-intake-AC-01", "scenario": "Ready queue is auto-consumed", "given": "artifacts/jobs/ready contains a valid next-skill job", "when": "Execution Loop Job Runner runs", "then": "the runner must claim the job and record running ownership without human relay.", "trace_hints": ["jobs/ready", "claim", "running"]},
+                    {"id": "runner-intake-AC-02", "scenario": "Claim semantics are single-owner", "given": "multiple runner invocations inspect the same ready job", "when": "claim is attempted", "then": "only one runner ownership record may succeed.", "trace_hints": ["single owner", "claim", "ownership"]},
+                    {"id": "runner-intake-AC-03", "scenario": "Ready queue remains the authoritative intake", "given": "a downstream flow needs to start next-skill execution", "when": "the start condition is resolved", "then": "the FEAT must use the ready queue and runner claim path instead of directory guessing or ad hoc invocation.", "trace_hints": ["ready queue", "runner intake", "no ad hoc invocation"]},
+                ],
+            },
+            {
+                "id": "next-skill-dispatch",
+                "name": "下游 Skill 自动派发流",
+                "track": "foundation",
+                "goal": "冻结 claimed execution job 如何自动派发到下一个 governed skill，并保持 authoritative input / target skill / execution intent 一致。",
+                "scope": [
+                    "定义 next skill target、输入包引用和调用边界。",
+                    "定义 runner 把 claimed job 交给下游 skill 时的 authoritative invocation 记录。",
+                    "定义执行启动失败时如何回写 runner 结果而不是静默丢失。",
+                ],
+                "product_surface": "next skill 自动派发流：runner 基于 claimed job 调起下一个 governed skill",
+                "completed_state": "claimed job 已被自动派发到目标 skill，并留下 authoritative invocation / execution attempt 记录。",
+                "business_deliverable": "给下游 governed skill 使用的 authoritative invocation，以及给运行时使用的 execution attempt record。",
+                "capability_axes": ["下游 Skill 自动派发能力"],
+                "acceptance_checks": [
+                    {"id": "next-skill-dispatch-AC-01", "scenario": "Claimed job invokes the declared next skill", "given": "runner owns a claimed execution job", "when": "dispatch starts", "then": "the invocation must target the declared next governed skill with the authoritative input package.", "trace_hints": ["claimed job", "next skill", "authoritative input"]},
+                    {"id": "next-skill-dispatch-AC-02", "scenario": "Dispatch preserves lineage", "given": "a downstream skill is triggered by runner", "when": "audit inspects the invocation", "then": "the execution attempt must preserve upstream refs, job refs, and target-skill lineage.", "trace_hints": ["lineage", "job ref", "target skill"]},
+                    {"id": "next-skill-dispatch-AC-03", "scenario": "Dispatch does not regress to human relay", "given": "the happy path is described", "when": "the next step after approve is reviewed", "then": "the FEAT must show automatic runner dispatch rather than requiring a third-session human handoff.", "trace_hints": ["automatic dispatch", "no human relay"]},
+                ],
+            },
+            {
+                "id": "execution-result-feedback",
+                "name": "执行结果回写与重试边界流",
+                "track": "foundation",
+                "goal": "冻结 runner 执行后的 done / failed / retry-reentry 结果，让自动推进链在下一跳后仍可审计、可回流。",
+                "scope": [
+                    "定义 execution result、failure reason 和 retry / reentry directive 的 authoritative 结果。",
+                    "定义 job 从 running 进入 done / failed / retry_return 的状态边界。",
+                    "定义 runner 输出如何服务上游审计、下游继续推进和失败恢复。",
+                ],
+                "product_surface": "执行结果回写流：runner 把 next-skill execution 结果写回主链状态与后续动作",
+                "completed_state": "执行结果已形成 authoritative outcome；成功、失败和重试回流都具有清晰的状态与证据。",
+                "business_deliverable": "给编排方和审计链使用的 execution outcome、retry / reentry directive 与失败证据。",
+                "capability_axes": ["执行结果回写与重试边界能力"],
+                "acceptance_checks": [
+                    {"id": "execution-feedback-AC-01", "scenario": "Execution outcomes are explicit", "given": "runner has finished or failed a next-skill invocation", "when": "the result is recorded", "then": "the product flow must emit explicit done, failed, or retry/reentry outcomes with evidence.", "trace_hints": ["done", "failed", "retry", "evidence"]},
+                    {"id": "execution-feedback-AC-02", "scenario": "Retry returns to execution semantics", "given": "a downstream execution needs another attempt", "when": "the runner records the outcome", "then": "the result must return through retry / reentry semantics instead of being rewritten as publish-only status.", "trace_hints": ["retry", "reentry", "execution semantics"]},
+                    {"id": "execution-feedback-AC-03", "scenario": "Approve is not treated as terminal", "given": "the overall product chain is reviewed", "when": "the flow after gate approval is inspected", "then": "the chain must continue through runner execution and result feedback rather than ending at approve itself.", "trace_hints": ["approve", "runner", "not terminal"]},
+                ],
+            },
+        ]
     if is_governance_bridge_package(package):
         slices: list[dict[str, Any]] = [
             {
@@ -502,6 +616,8 @@ def derive_product_behavior_slices(package: Any, rollout_requirement: dict[str, 
 def derive_epic_title(package: Any) -> str:
     if is_review_projection_package(package):
         return "Gate 审核投影视图与 SSOT 回写统一能力"
+    if is_execution_runner_package(package):
+        return "Gate 审批后自动推进 Execution Runner 统一能力"
     if is_governance_bridge_package(package):
         return "主链正式交接与治理闭环统一能力"
     title = str(package.src_candidate.get("title") or package.run_id).strip()
@@ -530,6 +646,12 @@ def derive_business_goal(
             f"下游 FEAT 需要围绕 {slice_names} 这些审核视图能力冻结产品界面、完成态和回写边界，"
             "并始终保持 Projection 只是 derived-only review artifact。"
         )
+    if is_execution_runner_package(package):
+        slice_names = "、".join(str(item.get("name") or "") for item in (product_behavior_slices or [])[:4])
+        return (
+            "本 EPIC 的核心不是把 approve 改写成 formal publication，而是把 gate 批准后的自动推进运行时冻结成连续产品行为。"
+            f"下游 FEAT 需要围绕 {slice_names} 这些切片定义 approve 后的 ready job、runner 消费、next-skill dispatch 和 execution result 回写。"
+        )
     if is_governance_bridge_package(package):
         slice_names = "、".join(str(item.get("name") or "") for item in (product_behavior_slices or [])[:5])
         return (
@@ -556,6 +678,13 @@ def derive_business_value_problem(package: Any) -> list[str]:
             "如果 Projection 不能稳定保留 authoritative snapshot、review focus 和 writeback 边界，人类就会把 narrative 误当成新的真相源。",
         ]
         return unique_strings([item for item in items if item])
+    if is_execution_runner_package(package):
+        items = [
+            problem_statement or "dispatch 已能产出 materialized-job，但系统仍缺少正式 consumer 去自动消费 artifacts/jobs/ready 并推进到下一个 skill。",
+            business_drivers[0] if business_drivers else "需要把 gate approve 与下一 skill 自动推进重新绑回同一条运行时链，而不是让 approve 停在 formal publication 或人工接力。",
+            f"关键触发场景：{trigger_scenarios[0]}" if trigger_scenarios else "关键触发场景：当 gate approve 之后需要自动推进到下一个 governed skill 时。",
+        ]
+        return unique_strings([item for item in items if item])
     if is_governance_bridge_package(package):
         items = [
             "当前主链的 loop、handoff runtime、gate decision 与 formal publish 仍分散定义。若继续按局部规则理解，下游会把同一条主链拆成多个互不对齐的产品流程。",
@@ -577,13 +706,19 @@ def derive_product_positioning(
     capability_axes: list[dict[str, str]],
     product_behavior_slices: list[dict[str, Any]] | None = None,
 ) -> str:
+    slice_names = "、".join(str(item.get("name") or "") for item in (product_behavior_slices or [])[:5])
+    axis_names = "、".join(axis["name"] for axis in capability_axes[:5])
     if is_review_projection_package(package):
         return (
             "该 EPIC 位于 gate 审核视图层，承接上游 Machine SSOT，对下定义一套稳定的人类审核 Projection 能力。"
             "它服务 reviewer 的快速理解与判断，但不改变 SSOT 作为唯一权威源的地位。"
         )
-    slice_names = "、".join(str(item.get("name") or "") for item in (product_behavior_slices or [])[:5])
-    axis_names = "、".join(axis["name"] for axis in capability_axes[:5])
+    if is_execution_runner_package(package):
+        return (
+            "该 EPIC 位于 gate 后自动推进运行时层，承接上游 bridge SRC，"
+            "对下定义一条从 approve 后 ready job 生成、runner 自动取件、next-skill dispatch 到 execution result 回写的完整产品线。"
+            f"它对外呈现的是 {slice_names} 这些可交付的自动推进产品流；{axis_names} 只作为这些产品流共享的 cross-cutting constraints 存在。"
+        )
     if is_governance_bridge_package(package):
         return (
             "该 EPIC 位于主链产品行为层，承接上游 bridge SRC，对下定义一条从候选提交、gate 审核裁决、formal 发布与准入、"
@@ -604,6 +739,16 @@ def derive_actors_and_roles(package: Any, rollout_requirement: dict[str, Any] | 
                 {"role": "SSOT owner", "responsibility": "维护 Machine SSOT 作为唯一权威源，并接收来自 Projection 的修订意见回写。"},
                 {"role": "projection generator", "responsibility": "从最新 SSOT 稳定生成 Projection、Authoritative Snapshot、Review Focus 和风险提示。"},
                 {"role": "downstream designer", "responsibility": "继续只继承 Machine SSOT，而不是直接继承 Projection。"},
+            ]
+        )
+        return actors
+    if is_execution_runner_package(package):
+        actors.extend(
+            [
+                {"role": "gate / reviewer owner", "responsibility": "定义 approve 与非 approve 决策何时产生 ready execution job。"},
+                {"role": "execution runner owner", "responsibility": "负责 ready queue 消费、claim 语义、dispatch 与结果回写。"},
+                {"role": "downstream governed skill owner", "responsibility": "消费 authoritative runner invocation，而不是等待人工接力。"},
+                {"role": "workflow / orchestration 设计者", "responsibility": "保持 gate approve、job queue、runner 和 next skill 之间的单一路径。"},
             ]
         )
         return actors
@@ -631,6 +776,14 @@ def derive_upstream_downstream(package: Any, rollout_requirement: dict[str, Any]
         f"Upstream：承接 `product.raw-to-src::{package.run_id}` 冻结后的 SRC 包，而不是原始需求或单个 ADR 原文。",
         "Downstream：产出一个可继续拆分为多个 FEAT 的单一主 EPIC，并交接给 `product.epic-to-feat`。",
     ]
+    if is_execution_runner_package(package):
+        lines.extend(
+            [
+                "上游输入形态：关于 gate approve 后自动推进缺口的 bridge SRC，而不是 formal publication/admission 产品线定义。",
+                "下游消费形态：ready job emission、runner intake、next-skill dispatch、execution result feedback 等自动推进 FEAT 切片。",
+            ]
+        )
+        return lines
     if is_governance_bridge_package(package):
         lines.extend(
             [
@@ -659,6 +812,17 @@ def derive_scope(
                 ["统一上位产品能力：在 gate 阶段生成 Human Review Projection，并保持 SSOT 仍是唯一权威源。"]
                 + slice_scope
                 + [f"Cross-cutting capability constraints：{axis_names}；这些能力轴只作为审核视图约束附着在上述产品行为切片上。"]
+            )
+        if is_execution_runner_package(package):
+            slice_scope = [
+                f"产品行为切片：{item['name']}，对业务方交付 {str(item.get('business_deliverable') or item.get('product_surface') or item['name']).rstrip('。.')}。"
+                for item in (product_behavior_slices or [])[:6]
+            ]
+            axis_names = "、".join(axis["name"] for axis in capability_axes[:6])
+            return (
+                ["统一上位产品能力：形成一条 gate approve 后自动推进到下一 skill 的运行时产品线。"]
+                + slice_scope
+                + [f"Cross-cutting capability constraints：{axis_names}；这些能力轴只作为约束附着在上述产品行为切片上。"]
             )
         if is_governance_bridge_package(package):
             slice_scope = [
@@ -700,6 +864,16 @@ def derive_non_goals(package: Any, rollout_requirement: dict[str, Any] | None = 
             ]
         )
         return unique_strings(normalized)[:8]
+    if is_execution_runner_package(package):
+        normalized.extend(
+            [
+                "本 EPIC 不把 approve 重写成 formal publication、admission 或 publish-only 终态。",
+                "本 EPIC 不要求第三会话人工接力作为正常自动推进路径。",
+                "本 EPIC 不扩张成重型调度平台、事件总线或仓库级通用执行器设计。",
+                "本 EPIC 不把 runner intake 替换成目录扫描、路径猜测或临时脚本调用。",
+            ]
+        )
+        return unique_strings(normalized)[:8]
     if rollout_requirement and rollout_requirement.get("required"):
         normalized.extend(
             [
@@ -721,6 +895,14 @@ def derive_success_metrics(package: Any, capability_axes: list[dict[str, str]], 
             "gate 审核时，人类无需自行拼装主线就能理解产品摘要、主流程、关键交付物和 authoritative snapshot。",
             "Projection 始终被标记为 derived-only / non-authoritative / non-inheritable，下游继续只依赖 Machine SSOT。",
             "审核意见能稳定回写 SSOT，并在 SSOT 更新后重新生成 Projection，不产生第二真相源。",
+        ]
+    if is_execution_runner_package(package):
+        slice_names = "、".join(str(item["name"]) for item in (product_behavior_slices or [])[:4])
+        return [
+            f"下游 FEAT 能完整覆盖 {slice_names} 这些自动推进产品切片，而不是把 approve 后流程改写成 formal publication / admission。",
+            "至少一条 gate approve -> ready execution job -> runner claim -> next skill invocation 的真实链路可被验证。",
+            "ready queue、runner ownership、next-skill dispatch 与 execution outcome 的职责边界不再依赖人工接力。",
+            "失败、重试和回流仍保持 execution 语义，而不是在 approve 之后丢失运行时状态。",
         ]
     if is_governance_bridge_package(package):
         slice_names = "、".join(str(item["name"]) for item in (product_behavior_slices or [])[:5])
@@ -759,6 +941,12 @@ def derive_decomposition_rules(package: Any, capability_axes: list[dict[str, str
         rules.append("禁止任何 FEAT 把能力扩张成 handoff orchestration、formal publication、governed IO 或 skill onboarding runtime。")
         rules.append("所有 Projection 修改意见都必须回写 Machine SSOT，再重新生成 Projection。")
         return unique_strings(rules)[:8]
+    if is_execution_runner_package(package):
+        rules.append("FEAT 的 primary decomposition unit 是 approve 后 ready job 生成、runner intake、next-skill dispatch 与 execution result feedback 这些自动推进切片。")
+        rules.append("任何 FEAT 都不得把 approve 后链路重写成 formal publication、admission 或人工第三会话接力。")
+        rules.append("下游 FEAT 必须保持 artifacts/jobs/ready、runner claim 和 next-skill invocation 之间的单一路径。")
+        rules.append("失败、重试和回流必须保持 execution 语义，不得在 FEAT 层改写为 publish-only 状态。")
+        return unique_strings(rules)[:8]
     rules.append("保留 business skill、handoff runtime、external gate 的职责分层，不得在 FEAT 层重新混层。")
     if is_governance_bridge_package(package):
         rules.append("FEAT 的 primary decomposition unit 是产品行为切片；capability axes 只作为 cross-cutting constraints 保留，不直接等同于 FEAT。")
@@ -792,6 +980,31 @@ def derive_constraint_groups(package: Any, rollout_requirement: dict[str, Any] |
             "下游 FEAT 不得改写 src_root_id、epic_freeze_ref、source_refs 与 semantic_lock。",
             "下游 FEAT 不得把 Projection 当成新的 SSOT，也不得允许 TECH / TESTSET 直接继承 Projection。",
             "任何审核意见必须沉淀回 Machine SSOT，再重新生成 Projection。",
+        ]
+        return [
+            {"name": "Epic-level constraints", "items": unique_strings(epic_level_items)},
+            {"name": "Authoritative inherited constraints", "items": inherited_items},
+            {"name": "Downstream preservation rules", "items": unique_strings(downstream_items)},
+        ]
+    if is_execution_runner_package(package):
+        lock = semantic_lock(package)
+        epic_level_items = [
+            "本 EPIC 直接负责 gate approve 后的自动推进运行时，不把 approve 停在 formal publication 或人工接力。",
+            "自动推进主链固定为：approve -> ready execution job -> runner claim -> next skill dispatch -> execution outcome。",
+            "artifacts/jobs/ready 是正式 ready queue；runner claim 是唯一 intake；next skill dispatch 必须保留 authoritative refs 和目标 skill 边界。",
+        ]
+        inherited_items = unique_strings(
+            ([f"Semantic lock truth: {lock.get('one_sentence_truth')}"] if lock.get("one_sentence_truth") else [])
+            + ([f"Allowed capabilities: {', '.join(lock.get('allowed_capabilities', []))}"] if lock.get("allowed_capabilities") else [])
+            + ([f"Forbidden capabilities: {', '.join(lock.get('forbidden_capabilities', []))}"] if lock.get("forbidden_capabilities") else [])
+            + key_constraints
+            + ([f"Authoritative source refs: {', '.join(source_refs)}"] if source_refs else [])
+            + [f"Upstream package: {package.artifacts_dir}"]
+        )
+        downstream_items = [
+            "下游 FEAT 不得把 automatic progression 重新解释成 formal publication / admission-only 链。",
+            "下游 FEAT 不得跳过 ready queue 和 runner claim 直接以人工接力或路径猜测触发下一个 skill。",
+            "执行结果、重试和失败证据必须继续保持 execution 语义可追溯。",
         ]
         return [
             {"name": "Epic-level constraints", "items": unique_strings(epic_level_items)},
