@@ -1,0 +1,4 @@
+interface:
+  display_name: "Test Exec CLI"
+  short_description: "Governed CLI execution wrapper"
+  default_prompt: "Use $ll-test-exec-cli to run the governed CLI execution skill in the current workspace."

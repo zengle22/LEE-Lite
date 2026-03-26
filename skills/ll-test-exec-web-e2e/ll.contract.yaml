@@ -1,0 +1,97 @@
+skill_id: ll-test-exec-web-e2e
+skill_type: workflow
+version: 1.0.0
+workflow_key: qa.test-exec-web-e2e
+
+authority:
+  canonical_adr: E:\ai\LEE-Lite-skill-first\ssot\adr\ADR-007-QA Test Execution Governed Skill 标准方案.MD
+  upstream_skill: ll-qa-feat-to-testset
+  runtime_entry: python -m cli.ll skill test-exec-web-e2e
+  runtime_carrier: E:\ai\LEE-Lite-skill-first\cli\lib\test_exec_runtime.py
+  runner_carrier: E:\ai\LEE-Lite-skill-first\cli\lib\test_exec_playwright.py
+  downstream_workflow: governance.gate-human-orchestrator
+
+roles:
+  executor:
+    required: true
+    evidence_required: true
+    prompt_file: agents/executor.md
+  supervisor:
+    required: true
+    evidence_required: true
+    prompt_file: agents/supervisor.md
+
+runtime:
+  mode: lite_native
+  command: python -m cli.ll skill test-exec-web-e2e --request <request.json> --response-out <response.json>
+  entry_script: python -m cli.ll
+  accepted_input_paths:
+    - artifacts/feat-to-testset/<run_id>/test-set.yaml
+    - ssot/test-env/<environment>.yaml
+    - optional frontend_code_ref/ui_runtime_ref/ui_source_spec refs
+  produced_output_dir: artifacts/active/qa/executions/<slug>
+  required_output_artifacts:
+    - response envelope json
+    - candidate_artifact_ref
+    - candidate_managed_artifact_ref
+    - handoff_ref
+    - resolved_ssot_context_ref
+    - ui_binding_map_ref
+    - test_case_pack_ref
+    - script_pack_ref
+    - evidence_bundle_ref
+    - test_report_ref
+    - output_validation_ref
+    - tse_ref
+
+input:
+  artifact_type: test_exec_skill_request
+  contract_file: input/contract.yaml
+  schema_file: input/schema.json
+  structural_validation_required: true
+  semantic_validation_required: true
+
+output:
+  artifact_type: test_exec_skill_response
+  contract_file: output/contract.yaml
+  schema_file: output/schema.json
+  template_file: output/template.md
+  structural_validation_required: true
+  semantic_validation_required: true
+
+validation:
+  structural:
+    - "bash scripts/validate_input.sh $INPUT"
+    - "bash scripts/validate_output.sh $OUTPUT"
+    - "bash scripts/collect_evidence.sh $OUTPUT"
+    - "bash scripts/freeze_guard.sh $OUTPUT"
+  semantic:
+    input_checklist: input/semantic-checklist.md
+    output_checklist: output/semantic-checklist.md
+
+evidence:
+  execution_schema: evidence/execution-evidence.schema.json
+  supervision_schema: evidence/supervision-evidence.schema.json
+  report_template: evidence/report.template.md
+
+lifecycle:
+  definition_file: ll.lifecycle.yaml
+  max_revision_rounds: 2
+
+gate:
+  freeze_requires:
+    - input_structural_pass
+    - input_semantic_pass
+    - output_structural_pass
+    - output_semantic_pass
+    - execution_evidence_present
+    - supervision_evidence_present
+    - candidate_handoff_present
+    - runtime_refs_complete
+  reject_when:
+    - authoritative_input_missing
+    - testset_not_formal
+    - environment_modality_mismatch
+    - required_runtime_refs_missing
+    - response_envelope_inconsistent
+    - required_evidence_missing

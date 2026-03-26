@@ -1,0 +1,4 @@
+interface:
+  display_name: "Test Exec Web E2E"
+  short_description: "Governed web E2E execution wrapper"
+  default_prompt: "Use $ll-test-exec-web-e2e to run the governed web Playwright execution skill in the current workspace."

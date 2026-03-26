@@ -1,0 +1,80 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "test-exec-web-e2e request envelope",
+  "type": "object",
+  "properties": {
+    "api_version": {
+      "const": "v1"
+    },
+    "command": {
+      "const": "skill.test-exec-web-e2e"
+    },
+    "request_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "workspace_root": {
+      "type": "string",
+      "minLength": 1
+    },
+    "actor_ref": {
+      "type": "string",
+      "minLength": 1
+    },
+    "trace": {
+      "type": "object"
+    },
+    "payload": {
+      "type": "object",
+      "properties": {
+        "test_set_ref": {
+          "type": "string",
+          "minLength": 1
+        },
+        "test_environment_ref": {
+          "type": "string",
+          "minLength": 1
+        },
+        "proposal_ref": {
+          "type": "string"
+        },
+        "frontend_code_ref": {
+          "type": "string"
+        },
+        "ui_runtime_ref": {
+          "type": "string"
+        },
+        "ui_source_spec": {
+          "type": "object",
+          "properties": {
+            "codebase_ref": {
+              "type": "string"
+            },
+            "runtime_ref": {
+              "type": "string"
+            },
+            "prototype_ref": {
+              "type": "string"
+            }
+          },
+          "additionalProperties": true
+        }
+      },
+      "required": [
+        "test_set_ref",
+        "test_environment_ref"
+      ],
+      "additionalProperties": true
+    }
+  },
+  "required": [
+    "api_version",
+    "command",
+    "request_id",
+    "workspace_root",
+    "actor_ref",
+    "trace",
+    "payload"
+  ],
+  "additionalProperties": true
+}
