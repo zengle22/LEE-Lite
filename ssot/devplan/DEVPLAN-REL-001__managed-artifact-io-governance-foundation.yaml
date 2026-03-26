@@ -17,7 +17,7 @@ release_ref: REL-001
 source_refs:
 - REL-001
 - SRC-001
-- EPIC-001
+- EPIC-SRC-001-001
 - ARCH-SRC-001-001
 - FEAT-SRC-001-001
 - FEAT-SRC-001-002
@@ -46,7 +46,7 @@ derived_from_ids:
 properties:
   workflow_key: workflow.dev.devplan_management_l2
   source_freeze_ref: SRC-001
-  epic_ref: EPIC-001
+  epic_ref: EPIC-SRC-001-001
   src_root_id: src-root-src-001
   architecture_ref: ARCH-SRC-001-001
   release_scope_ref: ssot/release/REL-001__managed-artifact-io-governance-foundation-release.md

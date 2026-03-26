@@ -15,7 +15,7 @@ release_root_id: release-root-rel-001
 workflow_key: workflow.product.task.feat_to_release
 source_refs:
 - SRC-001
-- EPIC-001
+- EPIC-SRC-001-001
 - FEAT-SRC-001-001
 - FEAT-SRC-001-002
 - FEAT-SRC-001-003
@@ -38,7 +38,7 @@ derived_from_ids:
   version: v2
   required: true
 source_freeze_ref: SRC-001
-epic_ref: EPIC-001
+epic_ref: EPIC-SRC-001-001
 src_root_id: src-root-src-001
 created_at: '2026-03-24T13:30:00+08:00'
 owner: product

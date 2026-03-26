@@ -54,7 +54,7 @@ class FeatToTechWorkflowHarness(unittest.TestCase):
             "title": f"{feature['title']} FEAT Bundle",
             "status": "accepted",
             "schema_version": "1.0.0",
-            "epic_freeze_ref": "EPIC-SRC001",
+            "epic_freeze_ref": "EPIC-SRC-001-001",
             "src_root_id": "SRC-001",
             "feat_refs": [feat_ref],
             "downstream_workflows": [
@@ -64,7 +64,7 @@ class FeatToTechWorkflowHarness(unittest.TestCase):
             "source_refs": [
                 f"product.epic-to-feat::{run_id}",
                 feat_ref,
-                "EPIC-SRC001",
+                "EPIC-SRC-001-001",
                 "SRC-001",
                 "ADR-009",
             ],

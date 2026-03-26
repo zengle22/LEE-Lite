@@ -6,7 +6,7 @@ status: frozen
 lifecycle_state: historical_only
 higher_order_status: superseded
 superseded_by:
-  - IMPL-FEAT-SRC-001-004
+  - IMPL-SRC-001-004
 historical_note: TASK has been replaced by IMPL in the canonical SSOT chain. This document is retained only for traceability.
 version: v2
 workflow_instance_id: manual-feat-to-delivery-prep-epic-001-20260324-v2
@@ -17,14 +17,14 @@ derived_from_ids:
   required: true
 source_refs:
 - FEAT-SRC-001-004#验收检查
-- EPIC-001#范围
+- EPIC-SRC-001-001#范围
 - SRC-001#关键约束
 owner: runtime-engineer
 tags:
 - runtime
 - ssot
 properties:
-  epic_ref: EPIC-001
+  epic_ref: EPIC-SRC-001-001
   src_root_id: src-root-src-001
   task_kind: runtime
   workstream: runtime

@@ -538,7 +538,7 @@ class TechToImplWorkflowTests(TechToImplWorkflowHarness):
                 "--feat-ref",
                 feature["feat_ref"],
                 "--tech-ref",
-                "TECH-FEAT-SRC-001-404",
+                "TECH-SRC-001-404",
             )
             self.assertNotEqual(result.returncode, 0)
             payload = json.loads(result.stdout)
@@ -684,10 +684,10 @@ class TechToImplWorkflowTests(TechToImplWorkflowHarness):
             }
             bundle = self.make_bundle_json(feature, run_id="tech-formal-impl", arch_required=True, api_required=False)
             self.make_tech_package(repo_root, "tech-formal-impl", bundle)
-            formal_tech_path = repo_root / "ssot" / "tech" / "SRC-001" / "TECH-FEAT-SRC-001-401__configuration-implementation-mainline.md"
+            formal_tech_path = repo_root / "ssot" / "tech" / "SRC-001" / "TECH-SRC-001-401__configuration-implementation-mainline.md"
             formal_tech_path.parent.mkdir(parents=True, exist_ok=True)
             formal_tech_path.write_text(
-                "---\nid: TECH-FEAT-SRC-001-401\nssot_type: TECH\ntitle: 配置中心实施主链技术设计\nstatus: accepted\n---\n\n# 配置中心实施主链技术设计\n\nFormal TECH body.\n",
+                "---\nid: TECH-SRC-001-401\nssot_type: TECH\ntitle: 配置中心实施主链技术设计\nstatus: accepted\n---\n\n# 配置中心实施主链技术设计\n\nFormal TECH body.\n",
                 encoding="utf-8",
             )
             registry_dir = repo_root / "artifacts" / "registry"
@@ -696,14 +696,14 @@ class TechToImplWorkflowTests(TechToImplWorkflowHarness):
                 json.dumps(
                     {
                         "artifact_ref": "formal.tech.tech-formal-impl",
-                        "managed_artifact_ref": "ssot/tech/SRC-001/TECH-FEAT-SRC-001-401__configuration-implementation-mainline.md",
+                        "managed_artifact_ref": "ssot/tech/SRC-001/TECH-SRC-001-401__configuration-implementation-mainline.md",
                         "status": "materialized",
                         "trace": {"run_ref": "tech-formal-impl", "workflow_key": "dev.feat-to-tech"},
                         "metadata": {
                             "layer": "formal",
                             "source_package_ref": "artifacts/feat-to-tech/tech-formal-impl",
-                            "assigned_id": "TECH-FEAT-SRC-001-401",
-                            "tech_ref": "TECH-FEAT-SRC-001-401",
+                            "assigned_id": "TECH-SRC-001-401",
+                            "tech_ref": "TECH-SRC-001-401",
                             "feat_ref": "FEAT-SRC-001-401",
                             "ssot_type": "TECH",
                         },
@@ -723,7 +723,7 @@ class TechToImplWorkflowTests(TechToImplWorkflowHarness):
                 "--feat-ref",
                 "FEAT-SRC-001-401",
                 "--tech-ref",
-                "TECH-FEAT-SRC-001-401",
+                "TECH-SRC-001-401",
                 "--repo-root",
                 str(repo_root),
                 "--run-id",
@@ -745,7 +745,7 @@ class TechToImplWorkflowTests(TechToImplWorkflowHarness):
                 "--feat-ref",
                 "FEAT-SRC-001-401",
                 "--tech-ref",
-                "TECH-FEAT-SRC-001-401",
+                "TECH-SRC-001-401",
                 "--repo-root",
                 str(repo_root),
             )

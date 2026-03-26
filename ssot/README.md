@@ -40,6 +40,28 @@ RELEASE_NOTE
 * `UI` 是可选对象，不是每个 FEAT 必须具备。
 * `RELEASE_NOTE` 是发布后的事实记录对象。
 
+## Canonical Naming
+
+除 `ADR-*` 与 `SRC-*` 外，当前 active SSOT 对象都应显式带上所属 `SRC` 编号，方便一眼看出它属于哪条 `SRC` 链。
+
+推荐编号风格：
+
+* `EPIC-SRC-001-001__...`
+* `FEAT-SRC-001-001__...`
+* `ARCH-SRC-001-001__...`
+* `TECH-SRC-001-001__...`
+* `API-SRC-001-001__...`
+* `IMPL-SRC-001-001__...`
+* `TESTSET-SRC-001-001__...`
+* `UI-SRC-001-001__...`
+
+解释：
+
+* 第一段对象前缀表达对象类型。
+* `SRC-001` 表达它属于哪条 `SRC` 主链。
+* 末段三位序号表达该对象在该 `SRC` 链中的稳定槽位。
+* `FEAT` 及其直接派生对象应优先共享同一个 `SRC` lineage 槽位；例如 `FEAT-SRC-001-004` 的直接派生对象应优先写作 `TECH-SRC-001-004`、`IMPL-SRC-001-004`、`TESTSET-SRC-001-004`。
+
 ## Deprecated As Canonical SSOT
 
 以下对象不再作为未来标准主对象扩张：

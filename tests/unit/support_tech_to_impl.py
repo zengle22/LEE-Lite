@@ -112,12 +112,12 @@ class TechToImplWorkflowHarness(unittest.TestCase):
         api_required: bool = False,
     ) -> dict[str, object]:
         feat_ref = str(feature["feat_ref"])
-        tech_ref = f"TECH-{feat_ref}"
+        tech_ref = f"TECH-{feat_ref.replace('FEAT-', '', 1)}"
         source_refs = [
             f"dev.feat-to-tech::{run_id}",
             feat_ref,
             tech_ref,
-            "EPIC-SRC001",
+            "EPIC-SRC-001-001",
             "SRC-001",
             "ADR-014",
         ]

@@ -1,13 +1,13 @@
 ---
 artifact_type: epic_freeze_package
 workflow_key: product.src-to-epic
-workflow_run_id: SRC2EPIC-001
+workflow_run_id: src2epic-src-001-001
 status: accepted
 schema_version: 1.0.0
-epic_freeze_ref: EPIC-001
+epic_freeze_ref: EPIC-SRC-001-001
 src_root_id: src-root-src-001
 source_refs:
-  - product.raw-to-src::RAW2SRC-001
+  - product.src-to-epic::src2epic-src-001-001
   - SRC-001
 ---
 

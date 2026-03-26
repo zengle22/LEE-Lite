@@ -9,7 +9,7 @@ feat_root_id: feat-root-feat-src-001-001
 workflow_key: product.epic-to-feat
 workflow_run_id: src001-from-frozen-src-20260324
 source_refs:
-  - EPIC-001
+  - EPIC-SRC-001-001
   - SRC-001
   - ADR-005
   - ADR-001
@@ -17,8 +17,8 @@ source_refs:
   - ADR-003
   - ADR-004
   - ARCH-SRC-001-001
-epic_ref: EPIC-001
-epic_root_id: epic-root-epic-001
+epic_ref: EPIC-SRC-001-001
+epic_root_id: epic-root-src-001-001
 source_freeze_ref: SRC-001
 src_root_id: src-root-src-001
 frozen_at: '2026-03-24T12:30:00Z'
@@ -39,7 +39,7 @@ frozen_at: '2026-03-24T12:30:00Z'
 
 ## 输入
 
-- authoritative `EPIC-001`
+- authoritative `EPIC-SRC-001-001`
 - `SRC-001` 与相关 ADR 的治理边界
 - 上游对 execution / gate / human loop 的协作要求
 
@@ -69,7 +69,7 @@ frozen_at: '2026-03-24T12:30:00Z'
 
 - Loop 协作语义必须显式说明哪类对象触发 gate、哪类 decision 允许回流、哪类状态允许继续推进。
 - 本 FEAT 只负责 loop 协作边界，不得把 formalization 细则混入 loop 责任定义。
-- 本 FEAT 继承 `EPIC-001` 的主能力轴与 source refs，不得单独发明平行 queue / handoff 规则。
+- 本 FEAT 继承 `EPIC-SRC-001-001` 的主能力轴与 source refs，不得单独发明平行 queue / handoff 规则。
 
 ## 验收检查
 

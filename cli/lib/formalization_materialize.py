@@ -34,9 +34,8 @@ from cli.lib.formalization_snapshot import (
     formal_testset_output_path,
     infer_target_formal_kind,
     metadata_for,
-    extract_numeric_src_ref,
+    extract_src_ref,
     next_epic_id,
-    next_epic_lineage_id,
     next_src_id,
     read_candidate_snapshot,
     run_ref_for,
@@ -198,20 +197,17 @@ def _resolve_epic_target_path(
     candidate: dict[str, Any],
 ) -> tuple[str, Path]:
     explicit_id = str(snapshot["candidate_json"].get("epic_freeze_ref") or "").strip()
-    lineage_explicit_id = explicit_id if re.fullmatch(r"EPIC-SRC-\d+-\d+", explicit_id.upper()) else ""
-    numeric_explicit_id = explicit_id if explicit_id and explicit_id.upper().startswith("EPIC-") and explicit_id[5:].isdigit() else ""
-    src_ref = extract_numeric_src_ref(snapshot.get("source_refs") or [], fallback=str(snapshot["candidate_json"].get("src_root_id") or ""))
-    assigned_id = lineage_explicit_id or (next_epic_lineage_id(workspace_root, src_ref) if src_ref else "") or numeric_explicit_id or next_epic_id(workspace_root)
+    src_ref = extract_src_ref(snapshot.get("source_refs") or [], fallback=str(snapshot["candidate_json"].get("src_root_id") or ""))
+    ensure(src_ref, "PRECONDITION_FAILED", "epic formalization requires SRC lineage")
+    lineage_explicit_id = explicit_id if re.fullmatch(rf"EPIC-{re.escape(src_ref)}-\d+", explicit_id.upper()) else ""
+    assigned_id = lineage_explicit_id or next_epic_id(workspace_root, src_ref)
     target_path = formal_epic_output_path(workspace_root, assigned_id, title)
     existing = existing_formal_record(workspace_root, formal_ref)
     if existing:
         existing_path = canonical_to_path(str(existing.get("managed_artifact_ref", "")), workspace_root)
         if existing_path.exists() and compliant_epic_path(existing_path, workspace_root):
             existing_assigned_id = assigned_id_from_path(existing_path) or assigned_id
-            if not (
-                re.fullmatch(r"EPIC-SRC-\d+-\d+", existing_assigned_id.upper())
-                or (existing_assigned_id.upper().startswith("EPIC-") and existing_assigned_id[5:].isdigit())
-            ):
+            if not re.fullmatch(rf"EPIC-{re.escape(src_ref)}-\d+", existing_assigned_id.upper()):
                 return assigned_id, target_path
             normalized_existing_target = formal_epic_output_path(workspace_root, existing_assigned_id, title)
             if existing_path.name == normalized_existing_target.name:

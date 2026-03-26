@@ -292,6 +292,62 @@ RAW -> SRC -> EPIC -> FEAT
 * `API` 是契约源，代码是实现落点；
 * 测试、联调、mock、兼容性校验、发布审计都可以直接引用 `API` 对象，而不需要从代码反推契约。
 
+## 3.5 正式命名规则
+
+为避免对象编号只表达“类型”而不表达“属于哪条 `SRC` 链”，LL 对 `ADR` 与 `SRC` 之外的 active SSOT 正式采用 lineage-first 命名。
+
+### 总规则
+
+* `ADR` 继续使用 `ADR-xxx`
+* `SRC` 继续使用 `SRC-xxx`
+* 其余 active SSOT 对象必须显式带上 `SRC` 编号
+
+标准文件名前缀写法：
+
+```text
+EPIC-SRC-001-001__...
+FEAT-SRC-001-001__...
+ARCH-SRC-001-001__...
+TECH-SRC-001-001__...
+API-SRC-001-001__...
+IMPL-SRC-001-001__...
+TESTSET-SRC-001-001__...
+UI-SRC-001-001__...
+```
+
+### 语义解释
+
+* 第一段是对象类型前缀
+* `SRC-001` 表达该对象属于哪条主链需求
+* 最后一段三位序号表达该对象在该 `SRC` 链内的稳定槽位
+
+### 派生对象对齐规则
+
+围绕同一 `FEAT` 的派生对象，应与该 `FEAT` 共享同一个 `SRC` lineage 槽位，而不是再额外引入 `FEAT` 前缀串联。
+
+例如：
+
+```text
+FEAT-SRC-001-004
+TECH-SRC-001-004
+ARCH-SRC-001-004
+API-SRC-001-004
+IMPL-SRC-001-004
+TESTSET-SRC-001-004
+UI-SRC-001-004
+```
+
+禁止继续扩张为以下旧风格作为 active baseline：
+
+```text
+EPIC-001
+TECH-FEAT-SRC-001-004
+IMPL-FEAT-SRC-001-004
+TESTSET-FEAT-SRC-001-004
+```
+
+这些旧风格仅可作为历史兼容对象保留，不得作为后续 skill、formalization、SSOT 示例或新物化产物的默认命名。
+
 ### `IMPL`
 
 `IMPL` 正式定义为：
@@ -461,13 +517,14 @@ FEAT
 推荐文件命名如下：
 
 * `SRC-xxx__slug.md`
-* `EPIC-xxx__slug.md`
+* `EPIC-SRC-xxx-xxx__slug.md`
 * `FEAT-SRC-xxx-xxx__slug.md`
-* `TECH-FEAT-SRC-xxx-xxx__slug.md`
-* `API-FEAT-SRC-xxx-xxx__slug.yaml`
-* `IMPL-FEAT-SRC-xxx-xxx-xxx__slug.md`
-* `TESTSET-FEAT-SRC-xxx-xxx__slug.yaml`
-* `UI-FEAT-SRC-xxx-xxx__slug.md`
+* `ARCH-SRC-xxx-xxx__slug.md`
+* `TECH-SRC-xxx-xxx__slug.md`
+* `API-SRC-xxx-xxx__slug.yaml`
+* `IMPL-SRC-xxx-xxx__slug.md`
+* `TESTSET-SRC-xxx-xxx__slug.yaml`
+* `UI-SRC-xxx-xxx__slug.md`
 * `RELEASE_NOTE-xxx__slug.md`
 
 说明：

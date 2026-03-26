@@ -3,12 +3,12 @@ artifact_type: feat_freeze_package
 workflow_key: product.epic-to-feat
 status: accepted
 schema_version: 1.0.0
-epic_freeze_ref: EPIC-SRC-001
+epic_freeze_ref: EPIC-SRC-001-001
 src_root_id: SRC-001
 source_refs:
   - product.epic-to-feat::feat-src-001
   - FEAT-SRC-001-001
-  - EPIC-SRC-001
+- EPIC-SRC-001-001
   - SRC-001
 ---
 

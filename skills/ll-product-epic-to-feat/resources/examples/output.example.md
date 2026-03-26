@@ -1,10 +1,10 @@
 ---
 artifact_type: feat_freeze_package
 workflow_key: product.epic-to-feat
-workflow_run_id: EPIC2FEAT-001
+workflow_run_id: epic2feat-src-001-001
 status: accepted
 schema_version: 1.0.0
-epic_freeze_ref: EPIC-001
+epic_freeze_ref: EPIC-SRC-001-001
 src_root_id: src-root-src-001
 feat_refs:
   - FEAT-SRC-001-001
@@ -13,8 +13,8 @@ downstream_workflows:
   - workflow.dev.feat_to_tech
   - workflow.qa.feat_to_testset
 source_refs:
-  - product.src-to-epic::SRC2EPIC-001
-  - EPIC-001
+  - product.src-to-epic::src2epic-src-001-001
+  - EPIC-SRC-001-001
   - SRC-001
 ---
 
@@ -26,7 +26,7 @@ Decompose the parent EPIC into independently acceptable FEAT slices for downstre
 
 ## EPIC Context
 
-- epic_freeze_ref: `EPIC-001`
+- epic_freeze_ref: `EPIC-SRC-001-001`
 - src_root_id: `src-root-src-001`
 - inherited_scope:
   - Managed artifact gateway surface
@@ -58,4 +58,4 @@ Decompose the parent EPIC into independently acceptable FEAT slices for downstre
 
 ## Traceability
 
-- FEAT bundle intent and inventory trace back to `EPIC-001`, `SRC-001`, and `product.src-to-epic::SRC2EPIC-001`.
+- FEAT bundle intent and inventory trace back to `EPIC-SRC-001-001`, `SRC-001`, and `product.src-to-epic::src2epic-src-001-001`.

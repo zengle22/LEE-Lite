@@ -39,7 +39,7 @@ class FeatToTechWorkflowTests(FeatToTechWorkflowHarness):
                     {"scenario": "Loop re-entry conditions are bounded", "given": "revise", "when": "re-enter", "then": "明确 proposal 与 decision 回流"},
                     {"scenario": "Downstream flows do not redefine collaboration rules", "given": "consumer/provider", "when": "handoff", "then": "不得重造并行 contract"},
                 ],
-                "source_refs": ["FEAT-SRC-001-001", "EPIC-SRC001", "SRC-001", "ARCH-SRC-001-001"],
+                "source_refs": ["FEAT-SRC-001-001", "EPIC-SRC-001-001", "SRC-001", "ARCH-SRC-001-001"],
             }
             bundle = self.make_bundle_json(feature, run_id="feat-required")
             input_dir = self.make_feat_package(repo_root, "feat-required", bundle)
@@ -156,7 +156,7 @@ class FeatToTechWorkflowTests(FeatToTechWorkflowHarness):
                     {"scenario": "Help text is consistent", "given": "帮助提示", "when": "查看提示", "then": "帮助文案统一"},
                     {"scenario": "Status copy is consistent", "given": "成功失败提示", "when": "触发状态", "then": "状态文案统一"},
                 ],
-                "source_refs": ["FEAT-SRC-001-002", "EPIC-SRC001", "SRC-001"],
+                "source_refs": ["FEAT-SRC-001-002", "EPIC-SRC-001-001", "SRC-001"],
             }
             bundle = self.make_bundle_json(feature, run_id="feat-tech-only")
             input_dir = self.make_feat_package(repo_root, "feat-tech-only", bundle)
@@ -206,7 +206,7 @@ class FeatToTechWorkflowTests(FeatToTechWorkflowHarness):
                     {"scenario": "Governed path rules are inherited", "given": "formal write path", "when": "validated", "then": "必须使用受治理 path / mode 边界"},
                     {"scenario": "Global file governance is out of scope", "given": "repository-wide IO change", "when": "proposed", "then": "被留在本 FEAT 外"},
                 ],
-                "source_refs": ["FEAT-SRC-001-004", "EPIC-SRC001", "SRC-001", "ADR-005"],
+                "source_refs": ["FEAT-SRC-001-004", "EPIC-SRC-001-001", "SRC-001", "ADR-005"],
             }
             bundle = self.make_bundle_json(feature, run_id="feat-io-boundary")
             input_dir = self.make_feat_package(repo_root, "feat-io-boundary", bundle)
@@ -256,7 +256,7 @@ class FeatToTechWorkflowTests(FeatToTechWorkflowHarness):
                     {"scenario": "Help text is consistent", "given": "帮助提示", "when": "查看提示", "then": "帮助文案统一"},
                     {"scenario": "Stale optional artifacts are removed on rerun", "given": "allow-update rerun", "when": "optional contract output is no longer required", "then": "旧契约产物会被删除"},
                 ],
-                "source_refs": ["FEAT-SRC-001-005", "EPIC-SRC001", "SRC-001"],
+                "source_refs": ["FEAT-SRC-001-005", "EPIC-SRC-001-001", "SRC-001"],
             }
             bundle = self.make_bundle_json(feature, run_id="feat-update-clean")
             input_dir = self.make_feat_package(repo_root, "feat-update-clean", bundle)
@@ -306,7 +306,7 @@ class FeatToTechWorkflowTests(FeatToTechWorkflowHarness):
                     {"scenario": "Consumer admission is formal-ref based", "given": "consumer", "when": "validated", "then": "必须沿 formal refs 与 lineage 放行"},
                     {"scenario": "Path guessing is blocked", "given": "旁路读取", "when": "attempted", "then": "被拒绝"},
                 ],
-                "source_refs": ["FEAT-SRC-001-003", "EPIC-SRC001", "SRC-001"],
+                "source_refs": ["FEAT-SRC-001-003", "EPIC-SRC-001-001", "SRC-001"],
             }
             bundle = self.make_bundle_json(feature, run_id="feat-layering")
             input_dir = self.make_feat_package(repo_root, "feat-layering", bundle)
@@ -365,7 +365,7 @@ class FeatToTechWorkflowTests(FeatToTechWorkflowHarness):
                     {"scenario": "Decision vocabulary is canonical", "given": "reviewer", "when": "deciding", "then": "只允许 approve/revise/retry/handoff/reject"},
                     {"scenario": "Formal trigger is decision-owned", "given": "approve", "when": "publishing", "then": "formal trigger 只能来自 decision object"},
                 ],
-                "source_refs": ["FEAT-SRC-001-010", "EPIC-SRC001", "SRC-001"],
+                "source_refs": ["FEAT-SRC-001-010", "EPIC-SRC-001-001", "SRC-001"],
             }
             bundle = self.make_bundle_json(feature, run_id="feat-product-slice")
             input_dir = self.make_feat_package(repo_root, "feat-product-slice", bundle)
@@ -417,7 +417,7 @@ class FeatToTechWorkflowTests(FeatToTechWorkflowHarness):
                     {"scenario": "Formal object publish is explicit", "given": "approve", "when": "materialized", "then": "形成 formal refs"},
                     {"scenario": "Candidate does not bypass gate", "given": "candidate package", "when": "consumer reads", "then": "不允许直接消费"},
                 ],
-                "source_refs": ["FEAT-SRC-001-002", "EPIC-SRC001", "SRC-001", "ADR-006"],
+                "source_refs": ["FEAT-SRC-001-002", "EPIC-SRC-001-001", "SRC-001", "ADR-006"],
             }
             bundle = self.make_bundle_json(feature, run_id="feat-formalization-api")
             input_dir = self.make_feat_package(repo_root, "feat-formalization-api", bundle)
@@ -464,7 +464,7 @@ class FeatToTechWorkflowTests(FeatToTechWorkflowHarness):
                     {"scenario": "Fallback is explicit", "given": "pilot failure", "when": "cutover reviewed", "then": "fallback outcome 被记录"},
                     {"scenario": "Compat mode is frozen", "given": "legacy skill", "when": "onboarded", "then": "compat mode 明确可追踪"},
                 ],
-                "source_refs": ["FEAT-SRC-001-006", "EPIC-SRC001", "SRC-001"],
+                "source_refs": ["FEAT-SRC-001-006", "EPIC-SRC-001-001", "SRC-001"],
             }
             bundle = self.make_bundle_json(feature, run_id="feat-adoption-api")
             input_dir = self.make_feat_package(repo_root, "feat-adoption-api", bundle)
@@ -625,7 +625,7 @@ class FeatToTechWorkflowTests(FeatToTechWorkflowHarness):
                     {"scenario": "re-entry semantics stay outside", "given": "returned decision", "when": "reviewed", "then": "re-entry semantics remain outside this FEAT"},
                     {"scenario": "loop responsibility split is explicit", "given": "execution/gate/human loops", "when": "reviewed", "then": "责任边界清晰"},
                 ],
-                "source_refs": ["FEAT-SRC-001-011", "EPIC-SRC001", "SRC-001"],
+                "source_refs": ["FEAT-SRC-001-011", "EPIC-SRC-001-001", "SRC-001"],
             }
             bundle = self.make_bundle_json(feature, run_id="feat-ambiguous-reentry")
             input_dir = self.make_feat_package(repo_root, "feat-ambiguous-reentry", bundle)
@@ -660,7 +660,7 @@ class FeatToTechWorkflowTests(FeatToTechWorkflowHarness):
                     {"scenario": "Formal refs are required", "given": "consumer", "when": "读取", "then": "必须沿 formal refs"},
                     {"scenario": "Path guessing is blocked", "given": "旁路读取", "when": "尝试消费", "then": "被阻止"},
                 ],
-                "source_refs": ["FEAT-SRC-001-003", "EPIC-SRC001", "SRC-001"],
+                "source_refs": ["FEAT-SRC-001-003", "EPIC-SRC-001-001", "SRC-001"],
             }
             bundle = self.make_bundle_json(feature, run_id="feat-invalid")
             input_dir = self.make_feat_package(repo_root, "feat-invalid", bundle)
@@ -718,7 +718,7 @@ class FeatToTechWorkflowTests(FeatToTechWorkflowHarness):
                     {"scenario": "Projection does not drift into governance runtime", "given": "TECH derivation", "when": "review generated design", "then": "不得出现 handoff runtime、formal publication、governed IO 平台语义"},
                 ],
                 "semantic_lock": semantic_lock,
-                "source_refs": ["FEAT-SRC-ADR015-001", "EPIC-SRC001", "SRC-001", "ADR-015"],
+                "source_refs": ["FEAT-SRC-ADR015-001", "EPIC-SRC-001-001", "SRC-001", "ADR-015"],
             }
             bundle = self.make_bundle_json(feature, run_id="feat-review-projection")
             bundle["semantic_lock"] = semantic_lock
@@ -767,7 +767,7 @@ class FeatToTechWorkflowTests(FeatToTechWorkflowHarness):
                     {"scenario": "selected feat remains explicit", "given": "formal FEAT", "when": "derive TECH", "then": "feat_ref 与 title 不丢失"},
                     {"scenario": "input mode is formal admission", "given": "formal FEAT", "when": "validate input", "then": "input_mode=formal_admission"},
                 ],
-                "source_refs": ["FEAT-SRC-001-201", "EPIC-SRC001", "SRC-001"],
+                "source_refs": ["FEAT-SRC-001-201", "EPIC-SRC-001-001", "SRC-001"],
             }
             bundle = self.make_bundle_json(feature, run_id="feat-formal-tech")
             self.make_feat_package(repo_root, "feat-formal-tech", bundle)

@@ -97,9 +97,9 @@ class EpicToFeatWorkflowTests(unittest.TestCase):
             "title": "Managed Artifact IO Governance Foundation",
             "status": "accepted",
             "schema_version": "1.0.0",
-            "epic_freeze_ref": "EPIC-SRC001",
+            "epic_freeze_ref": "EPIC-SRC-001-001",
             "src_root_id": "SRC-001",
-            "source_refs": ["product.src-to-epic::src001", "EPIC-SRC001", "SRC-001", "ADR-005"],
+            "source_refs": ["product.src-to-epic::src001", "EPIC-SRC-001-001", "SRC-001", "ADR-005"],
             "business_goal": "把受治理的 artifact IO 主链收敛成统一底座，并能通过真实 skill 接入验证闭环成立。",
             "business_value_problem": [
                 "现有多个 governed skill 仍在自由读写文件，正式 consumer 也会靠目录扫描消费上下游产物。",
@@ -278,13 +278,13 @@ class EpicToFeatWorkflowTests(unittest.TestCase):
             run_id = "epic-formal-input"
             input_dir = self.make_epic_package(repo_root, run_id, epic)
 
-            formal_epic_path = repo_root / "ssot" / "epic" / "EPIC-SRC001__managed-artifact-io-governance-foundation.md"
+            formal_epic_path = repo_root / "ssot" / "epic" / "EPIC-SRC-001-001__managed-artifact-io-governance-foundation.md"
             formal_epic_path.parent.mkdir(parents=True, exist_ok=True)
             formal_epic_path.write_text(
                 "\n".join(
                     [
                         "---",
-                        "id: EPIC-SRC001",
+                        "id: EPIC-SRC-001-001",
                         "ssot_type: EPIC",
                         "src_ref: SRC-001",
                         "title: Managed Artifact IO Governance Foundation",
@@ -307,13 +307,13 @@ class EpicToFeatWorkflowTests(unittest.TestCase):
                 json.dumps(
                     {
                         "artifact_ref": "formal.epic.epic-formal-input",
-                        "managed_artifact_ref": "ssot/epic/EPIC-SRC001__managed-artifact-io-governance-foundation.md",
+                        "managed_artifact_ref": "ssot/epic/EPIC-SRC-001-001__managed-artifact-io-governance-foundation.md",
                         "status": "materialized",
                         "trace": {"run_ref": run_id, "workflow_key": "product.src-to-epic"},
                         "metadata": {
                             "layer": "formal",
                             "source_package_ref": f"artifacts/src-to-epic/{run_id}",
-                            "assigned_id": "EPIC-SRC001",
+                            "assigned_id": "EPIC-SRC-001-001",
                             "ssot_type": "EPIC",
                         },
                         "lineage": [f"src-to-epic.{run_id}.epic-freeze", "artifacts/active/gates/decisions/gate-decision.json"],
@@ -341,8 +341,8 @@ class EpicToFeatWorkflowTests(unittest.TestCase):
             bundle = json.loads((artifacts_dir / "feat-freeze-bundle.json").read_text(encoding="utf-8"))
             manifest = json.loads((artifacts_dir / "package-manifest.json").read_text(encoding="utf-8"))
 
-            self.assertEqual(bundle["epic_freeze_ref"], "EPIC-SRC001")
-            self.assertTrue(any(ref == "EPIC-SRC001" for ref in bundle["source_refs"]))
+            self.assertEqual(bundle["epic_freeze_ref"], "EPIC-SRC-001-001")
+            self.assertTrue(any(ref == "EPIC-SRC-001-001" for ref in bundle["source_refs"]))
             self.assertEqual(
                 manifest["input_artifacts_dir"],
                 str((repo_root / "artifacts" / "src-to-epic" / run_id).resolve()),

@@ -41,11 +41,14 @@ from src_to_epic_derivation import (
 from src_to_epic_common import (
     dump_json,
     ensure_list,
+    extract_src_ref,
     guess_repo_root_from_input,
     load_json,
     load_src_package,
     normalize_semantic_lock,
     parse_markdown_frontmatter,
+    resolve_formal_src_ref,
+    resolve_input_artifacts_dir,
     unique_strings,
     validate_input_package,
 )
@@ -76,11 +79,13 @@ def utc_now() -> str:
     return datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
 
 
-def repo_root_from(repo_root: str | None, input_path: Path | None = None) -> Path:
+def repo_root_from(repo_root: str | None, input_path: str | Path | None = None) -> Path:
     if repo_root:
         return Path(repo_root).resolve()
     if input_path is not None:
-        return guess_repo_root_from_input(input_path.resolve())
+        candidate = Path(str(input_path))
+        if candidate.exists():
+            return guess_repo_root_from_input(candidate.resolve())
     return Path.cwd().resolve()
 
 
@@ -576,11 +581,22 @@ def validate_package_readiness(artifacts_dir: Path) -> tuple[bool, list[str]]:
     return not readiness_errors, readiness_errors
 
 
-def executor_run(input_path: Path, repo_root: Path, run_id: str, allow_update: bool = False) -> dict[str, Any]:
-    errors, validation = validate_input_package(input_path)
+def executor_run(input_path: str | Path, repo_root: Path, run_id: str, allow_update: bool = False) -> dict[str, Any]:
+    errors, validation = validate_input_package(input_path, repo_root)
     if errors:
         raise ValueError("; ".join(errors))
-    package = load_src_package(input_path)
+    source_package_dir, input_resolution = resolve_input_artifacts_dir(input_path, repo_root)
+    package = load_src_package(source_package_dir)
+    resolved_src_ref = (
+        str(input_resolution.get("resolved_src_ref") or "").strip()
+        or resolve_formal_src_ref(repo_root, source_package_dir)
+        or extract_src_ref(
+            ensure_list(package.src_candidate.get("source_refs")),
+            fallback=str(package.src_candidate.get("src_root_id") or ""),
+        )
+    )
+    if resolved_src_ref:
+        package.src_candidate["src_root_id"] = resolved_src_ref
     effective_run_id = run_id or package.run_id
     generated = build_epic_payload(package, workflow_run_id=effective_run_id)
     output_dir = output_dir_for(repo_root, effective_run_id)
@@ -615,6 +631,15 @@ def supervisor_review(artifacts_dir: Path, repo_root: Path, run_id: str, allow_u
     package_run_id = source_run_ref.split("::", 1)[1] if "::" in source_run_ref else input_run_id
     source_package_dir = guess_repo_root_from_input(artifacts_dir) / "artifacts" / "raw-to-src" / package_run_id
     package = load_src_package(source_package_dir)
+    resolved_src_ref = (
+        resolve_formal_src_ref(repo_root, source_package_dir)
+        or extract_src_ref(
+            ensure_list(package.src_candidate.get("source_refs")),
+            fallback=str(package.src_candidate.get("src_root_id") or ""),
+        )
+    )
+    if resolved_src_ref:
+        package.src_candidate["src_root_id"] = resolved_src_ref
     generated = build_epic_payload(package, workflow_run_id=input_run_id)
 
     supervision = build_supervision_evidence(package, artifacts_dir, generated)

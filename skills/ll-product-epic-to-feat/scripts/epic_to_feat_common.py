@@ -161,6 +161,8 @@ def resolve_input_artifacts_dir(input_value: str | Path, repo_root: Path) -> tup
         "requested_ref": requested_ref,
         "resolved_formal_ref": admission["resolved_formal_ref"],
         "managed_artifact_ref": record.get("managed_artifact_ref", ""),
+        "resolved_epic_ref": str(metadata.get("assigned_id") or "").strip(),
+        "resolved_src_ref": extract_src_ref(ensure_list(metadata.get("source_refs")), fallback=str(metadata.get("src_ref") or "")),
     }
 
 
@@ -172,6 +174,8 @@ def extract_src_ref(values: list[str], fallback: str = "") -> str:
         legacy_match = re.fullmatch(r"SRC(\d+)", normalized)
         if legacy_match:
             return f"SRC-{legacy_match.group(1)}"
+        if normalized.startswith("SRC-"):
+            return normalized
     for value in values:
         match = re.search(r"(SRC-\d+)", value.upper())
         if match:
@@ -179,6 +183,9 @@ def extract_src_ref(values: list[str], fallback: str = "") -> str:
         legacy_match = re.search(r"(SRC)(\d+)", value.upper())
         if legacy_match:
             return f"SRC-{legacy_match.group(2)}"
+        generic_match = re.search(r"(SRC-[A-Z0-9-]+)", value.upper())
+        if generic_match:
+            return generic_match.group(1)
     if fallback:
         match = re.search(r"(SRC-\d+)", fallback.upper())
         if match:
@@ -186,7 +193,33 @@ def extract_src_ref(values: list[str], fallback: str = "") -> str:
         legacy_match = re.search(r"(SRC)(\d+)", fallback.upper())
         if legacy_match:
             return f"SRC-{legacy_match.group(2)}"
+        generic_match = re.search(r"(SRC-[A-Z0-9-]+)", fallback.upper())
+        if generic_match:
+            return generic_match.group(1)
     return ""
+
+
+def resolve_formal_lineage_refs(repo_root: Path, artifacts_dir: Path) -> dict[str, str]:
+    implementation_root = Path(__file__).resolve().parents[3]
+    if str(implementation_root) not in sys.path:
+        sys.path.insert(0, str(implementation_root))
+    from cli.lib.fs import to_canonical_path
+    from cli.lib.registry_store import list_registry_records
+
+    source_package_ref = to_canonical_path(artifacts_dir.resolve(), repo_root)
+    resolved_epic_ref = ""
+    resolved_src_ref = ""
+    for record in list_registry_records(repo_root):
+        metadata = record.get("metadata", {}) if isinstance(record.get("metadata"), dict) else {}
+        if str(metadata.get("source_package_ref") or "").strip() != source_package_ref:
+            continue
+        assigned_id = str(metadata.get("assigned_id") or "").strip().upper()
+        target_kind = str(metadata.get("target_kind") or "").strip().lower()
+        if target_kind == "epic" and re.fullmatch(r"EPIC-SRC-\d+-\d+", assigned_id):
+            resolved_epic_ref = assigned_id
+            resolved_src_ref = extract_src_ref(ensure_list(metadata.get("source_refs")), fallback=str(metadata.get("src_ref") or ""))
+            break
+    return {"resolved_epic_ref": resolved_epic_ref, "resolved_src_ref": resolved_src_ref}
 
 
 @dataclass

@@ -9,7 +9,7 @@ feat_root_id: feat-root-feat-src-001-005
 workflow_key: product.epic-to-feat
 workflow_run_id: src001-from-frozen-src-20260324
 source_refs:
-  - EPIC-001
+  - EPIC-SRC-001-001
   - SRC-001
   - ADR-005
   - ADR-001
@@ -17,8 +17,8 @@ source_refs:
   - ADR-003
   - ADR-004
   - ARCH-SRC-001-001
-epic_ref: EPIC-001
-epic_root_id: epic-root-epic-001
+epic_ref: EPIC-SRC-001-001
+epic_root_id: epic-root-src-001-001
 source_freeze_ref: SRC-001
 src_root_id: src-root-src-001
 frozen_at: '2026-03-24T12:30:00Z'
@@ -39,7 +39,7 @@ frozen_at: '2026-03-24T12:30:00Z'
 
 ## 输入
 
-- authoritative `EPIC-001`
+- authoritative `EPIC-SRC-001-001`
 - foundation FEAT 的能力边界
 - governed skill onboarding / migration / pilot validation 的 rollout 要求
 
@@ -76,7 +76,7 @@ frozen_at: '2026-03-24T12:30:00Z'
 ### AC-01 onboarding 范围与迁移波次必须明确
 
 - scenario: adoption readiness review
-- given: `EPIC-001` 要求真实 governed skill landing
+- given: `EPIC-SRC-001-001` 要求真实 governed skill landing
 - when: 评审本 FEAT 是否可下传
 - then: 必须定义 onboarding scope、migration waves、cutover / fallback 规则，而不是假装所有 governed skill 会同时迁移
 

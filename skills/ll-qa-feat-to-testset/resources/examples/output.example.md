@@ -10,7 +10,7 @@ derived_slug: governed-feat-to-testset
 source_refs:
   - product.epic-to-feat::feat-src-001
   - FEAT-SRC-001-001
-  - EPIC-SRC-001
+- EPIC-SRC-001-001
   - SRC-001
 ---
 

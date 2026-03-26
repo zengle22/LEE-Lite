@@ -16,12 +16,12 @@ derived_from_ids:
     required: true
 source_refs:
   - SRC-001
-  - EPIC-001
+  - EPIC-SRC-001-001
   - FEAT-SRC-001-002
   - FEAT-SRC-001-005
   - ARCH-SRC-001-001
-  - API-RUNTIME-001
-  - API-ROLLOUT-001
+  - API-SRC-001-001
+  - API-SRC-001-005
   - ADR-001
   - ADR-003
   - ADR-005

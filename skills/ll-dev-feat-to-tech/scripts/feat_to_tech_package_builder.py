@@ -235,7 +235,8 @@ def build_source_refs(package, refs, feature):
 
 def build_defects(focus, consistency, semantic_drift_check):
     defects: list[dict[str, Any]] = []
-    if len(focus) < 3:
+    focus_items = [str(item).strip() for item in focus if str(item).strip()]
+    if not focus_items:
         defects.append({"severity": "P1", "title": "TECH design focus is too thin", "detail": "The selected FEAT does not expose enough scope or constraint detail to support a robust TECH design."})
     if not consistency["passed"]:
         defects.append({"severity": "P1", "title": "Cross-artifact consistency failed", "detail": "; ".join(consistency["issues"])})

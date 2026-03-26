@@ -24,8 +24,8 @@ from src_to_epic_runtime import (
 
 def command_run(args: argparse.Namespace) -> int:
     result = run_workflow(
-        input_path=Path(args.input).resolve(),
-        repo_root=repo_root_from(args.repo_root, Path(args.input).resolve()),
+        input_path=args.input,
+        repo_root=repo_root_from(args.repo_root, args.input),
         run_id=args.run_id or "",
         allow_update=args.allow_update,
     )
@@ -35,8 +35,8 @@ def command_run(args: argparse.Namespace) -> int:
 
 def command_executor_run(args: argparse.Namespace) -> int:
     result = executor_run(
-        input_path=Path(args.input).resolve(),
-        repo_root=repo_root_from(args.repo_root, Path(args.input).resolve()),
+        input_path=args.input,
+        repo_root=repo_root_from(args.repo_root, args.input),
         run_id=args.run_id or "",
         allow_update=args.allow_update,
     )
@@ -56,7 +56,7 @@ def command_supervisor_review(args: argparse.Namespace) -> int:
 
 
 def command_validate_input(args: argparse.Namespace) -> int:
-    errors, result = validate_input_package(Path(args.input).resolve())
+    errors, result = validate_input_package(args.input, repo_root_from(args.repo_root, args.input))
     print(json.dumps({"ok": not errors, "result": result, "errors": errors}, ensure_ascii=False, indent=2))
     return 0 if not errors else 1
 
@@ -110,6 +110,7 @@ def build_parser() -> argparse.ArgumentParser:
 
     validate_input_parser = subparsers.add_parser("validate-input")
     validate_input_parser.add_argument("--input", required=True)
+    validate_input_parser.add_argument("--repo-root")
     validate_input_parser.set_defaults(func=command_validate_input)
 
     validate_output_parser = subparsers.add_parser("validate-output")

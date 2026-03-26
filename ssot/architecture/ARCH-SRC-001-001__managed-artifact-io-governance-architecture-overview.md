@@ -13,7 +13,7 @@ derived_from_ids:
     required: true
 source_refs:
   - SRC-001
-  - EPIC-001
+  - EPIC-SRC-001-001
   - REL-001
   - FEAT-SRC-001-001
   - FEAT-SRC-001-002
@@ -34,11 +34,11 @@ properties:
   provisional_slice_note: external gate decision and materialization remains provisional while ADR-006 is draft
   runtime_carrier: cli-first file-runtime with loop and watcher consumers
   tech_refs:
-    - TECH-FEAT-SRC-001-001
-    - TECH-FEAT-SRC-001-002
-    - TECH-FEAT-SRC-001-003
-    - TECH-FEAT-SRC-001-004
-    - TECH-FEAT-SRC-001-005
+    - TECH-SRC-001-001
+    - TECH-SRC-001-002
+    - TECH-SRC-001-003
+    - TECH-SRC-001-004
+    - TECH-SRC-001-005
   companion_arch_refs:
     - ARCH-SRC-001-002
   precedence_rule: if this overview conflicts with an ADR, the ADR wins; if it conflicts with a TECH on component implementation detail, the TECH wins
@@ -234,14 +234,14 @@ sequenceDiagram
 
 | 架构切面 | 当前 TECH | 状态 |
 | --- | --- | --- |
-| Managed operation surface | `TECH-FEAT-SRC-001-001` | `active` |
-| Path / mode governance | `TECH-FEAT-SRC-001-002` | `active` |
-| Identity / registry / formal reference | `TECH-FEAT-SRC-001-003` | `active` |
-| Runtime audit / finding model | `TECH-FEAT-SRC-001-004` | `active` |
-| External gate / materialization / dispatch | `TECH-FEAT-SRC-001-005` | `provisional` |
+| Managed operation surface | `TECH-SRC-001-001` | `active` |
+| Path / mode governance | `TECH-SRC-001-002` | `active` |
+| Identity / registry / formal reference | `TECH-SRC-001-003` | `active` |
+| Runtime audit / finding model | `TECH-SRC-001-004` | `active` |
+| External gate / materialization / dispatch | `TECH-SRC-001-005` | `provisional` |
 
 ## 当前版本状态
 
-- `TECH-FEAT-SRC-001-001` 至 `TECH-FEAT-SRC-001-004` 对应的架构切面可作为当前 active 基线理解。
-- `TECH-FEAT-SRC-001-005` 对应的 external gate 切面仍是本架构中的 provisional slice，因为 `ADR-006` 目前仍为 `Draft`。
+- `TECH-SRC-001-001` 至 `TECH-SRC-001-004` 对应的架构切面可作为当前 active 基线理解。
+- `TECH-SRC-001-005` 对应的 external gate 切面仍是本架构中的 provisional slice，因为 `ADR-006` 目前仍为 `Draft`。
 - 因此，这份 Architecture Overview 描述的是“当前系统总装图 + 已知 provisional area”，不是宣称所有切面都已完全冻结。

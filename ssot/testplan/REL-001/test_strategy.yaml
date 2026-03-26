@@ -18,16 +18,16 @@ scope_layers:
     - 若 pilot 含 gate branch，则验证其 guarded enablement semantics。
 test_layers:
   smoke:
-  - TS-FEAT-SRC-001-001
-  - TS-FEAT-SRC-001-003
+  - TS-SRC-001-001
+  - TS-SRC-001-003
   regression:
-  - TS-FEAT-SRC-001-002
-  - TS-FEAT-SRC-001-004
+  - TS-SRC-001-002
+  - TS-SRC-001-004
   pilot:
-  - TS-FEAT-SRC-001-005
+  - TS-SRC-001-005
 execution_policy:
   all_feat_tracks_default_execution: true
-  guarded_gate_branch_rule: TS-FEAT-SRC-001-005 的 gate branch 只输出 guarded semantics。
+  guarded_gate_branch_rule: TS-SRC-001-005 的 gate branch 只输出 guarded semantics。
 schedule_windows:
   foundation_scope_window:
     start: '2026-04-04T09:00:00+08:00'
@@ -50,5 +50,5 @@ risk_areas:
   focus: real producer -> consumer -> audit -> gate evidence
 stop_rules:
 - 任何 critical Test Set 发现 P0 bug 时暂停测试轮次并进入修复判断。
-- TS-FEAT-SRC-001-005 若输出 default-active gate enablement signal，立即阻断 pilot 继续推进。
+- TS-SRC-001-005 若输出 default-active gate enablement signal，立即阻断 pilot 继续推进。
 - 当五个 critical Test Set 全部处于最新有效通过状态且 exit_criteria 满足时结束本轮测试。

@@ -1,0 +1,125 @@
+id: TESTSET-SRC-003-007
+ssot_type: TESTSET
+workflow_key: qa.feat-to-testset
+workflow_run_id: adr018-runner-observe-testset-r1
+schema_version: 1.0.0
+template_id: template.qa.test_set_production
+template_workflow_key: workflow.qa.test_set_production_l3
+test_set_id: TS-SRC-003-007
+feat_ref: FEAT-SRC-003-007
+epic_ref: EPIC-SRC-003-001
+src_ref: SRC-003
+title: Runner 运行监控流 Test Set
+description: 冻结 runner observability surface 的状态可见性、lineage 与只读边界。
+status: frozen
+frozen_at: '2026-03-26T00:00:00+08:00'
+candidate_package_ref: artifacts/feat-to-testset/adr018-runner-observe-testset-r1
+coverage_scope:
+  - 定义 monitor surface：runner observability surface。
+  - 定义 ready backlog、running jobs、failed jobs、deadletters、waiting-human jobs 的最小可见集合。
+  - 定义监控面如何服务 operator 判断继续运行、恢复还是人工介入。
+recommended_coverage_scope_name:
+  - execution runner observability feature
+feature_owned_code_paths:
+  - cli/lib/runner_monitor.py
+  - cli/lib/job_queue.py
+  - cli/commands/loop/command.py
+risk_focus:
+  - 要求 every test unit 都能回链到 FEAT acceptance、governing ADR 与 expected downstream evidence。
+  - 监控面靠目录猜状态
+  - waiting-human / deadletter 状态不可见
+preconditions:
+  - selected FEAT 及其上游 source refs 可被稳定解析。
+  - ready queue、running ownership 与 outcome records 可被读取。
+  - status projector 可聚合 runner state。
+environment_assumptions:
+  - 需要可解析 selected FEAT 所依赖的集成环境与上游 artifact lineage。
+  - 需要能读取并追踪 FEAT、EPIC、SRC 与 governing ADR 引用。
+  - ready backlog、running、failed、deadletters、waiting-human 状态必须来自 authoritative runner records。
+  - observability snapshot 必须可追溯到 queue、ownership 与 outcome source。
+required_environment_inputs:
+  environment:
+    - 可运行 selected FEAT 的集成环境
+    - 可解析 source_refs 的受治理 workspace 上下文
+  data:
+    - runner observability snapshot
+    - ready/running/failed status sample
+    - waiting-human / deadletter sample
+  services:
+    - runner status projector
+    - observability snapshot query service
+  access:
+    - 读取 ready queue、running ownership、dispatch lineage 与 outcome records 的权限
+    - runner monitor identity 或等价 credential material
+  ui_or_integration_context:
+    - runner backlog / running / failed / waiting-human monitor context
+test_layers:
+  - integration
+test_units:
+  - unit_ref: TS-SRC-003-007-U01
+    title: 监控面覆盖 ready backlog / running / failed / waiting-human / deadletters
+    priority: P1
+    trigger_action: an operator inspects the monitoring surface
+    pass_conditions:
+      - 监控面覆盖 ready backlog、running、failed、waiting-human、deadletters。
+      - 状态缺失时返回明确 verdict。
+  - unit_ref: TS-SRC-003-007-U02
+    title: monitor snapshot 可回链到 authoritative runner records
+    priority: P1
+    trigger_action: the operator reads the monitoring surface
+    pass_conditions:
+      - 每个 monitor bucket 都可回链到 queue、ownership 或 outcome source。
+      - snapshot 不依赖目录扫描猜测状态。
+  - unit_ref: TS-SRC-003-007-U03
+    title: 监控面保持只读，不承担控制或 dispatch 职责
+    priority: P1
+    trigger_action: FEAT-SRC-003-007 is reviewed as a product surface
+    pass_conditions:
+      - monitor surface 只做查询与展示。
+      - monitor 不直接 claim、dispatch 或重写 outcome。
+coverage_exclusions:
+  - 不覆盖 selected FEAT 之外的相邻 FEAT 语义。
+  - 不把本 TESTSET 扩展为 TASK、TECH 或 runner-level 实现细节。
+pass_criteria:
+  - 每条 acceptance check 都有至少一个可执行测试单元映射。
+  - 监控面必须覆盖 ready backlog、running、failed、deadletters、waiting-human 状态。
+  - 监控面只能读取 authoritative runner records，不得扫目录猜状态。
+evidence_required:
+  - runner observability snapshot
+  - backlog / running / failed status evidence
+  - waiting-human / deadletter view evidence
+acceptance_traceability:
+  - acceptance_ref: runner-observability-surface-AC-01
+    acceptance_scenario: Core queue states are visible
+    coverage_status: covered
+  - acceptance_ref: runner-observability-surface-AC-02
+    acceptance_scenario: Monitoring supports operator action
+    coverage_status: covered
+  - acceptance_ref: FEAT-SRC-003-007-AC-01
+    acceptance_scenario: Runner observability covers critical states
+    coverage_status: covered
+source_refs:
+  - product.epic-to-feat::adr018-entry-surface-feat-r3
+  - FEAT-SRC-003-007
+  - EPIC-SRC-003-001
+  - SRC-003
+  - product.raw-to-src::adr018-entry-surface-r1
+  - product.src-to-epic::adr018-entry-surface-epic-r1
+  - ADR-018
+  - ADR-001
+  - ADR-003
+  - ADR-005
+  - ADR-006
+  - ADR-009
+governing_adrs:
+  - ADR-018
+  - ADR-001
+  - ADR-003
+  - ADR-005
+  - ADR-006
+  - ADR-009
+semantic_lock:
+  domain_type: execution_runner_rule
+  primary_object: execution_loop_job_runner
+  lifecycle_stage: governed_runtime
+  one_sentence_truth: gate approve 后必须生成 ready execution job，并由 Execution Loop Job Runner 自动消费 artifacts/jobs/ready 后推进到下一个 skill，而不是停在 formal publication 或人工接力。

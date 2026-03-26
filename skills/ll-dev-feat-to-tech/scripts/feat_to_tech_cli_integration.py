@@ -214,6 +214,13 @@ def update_supervisor_outputs(
     manifest["status"] = updated_json["status"]
     manifest["cli_supervisor_commit_ref"] = str(cli_commit["response_path"])
     dump_json(artifacts_dir / "package-manifest.json", manifest)
+    for doc_name in ["tech-spec.md", "arch-design.md", "api-contract.md"]:
+        doc_path = artifacts_dir / doc_name
+        if not doc_path.exists():
+            continue
+        doc_frontmatter, doc_body = parse_markdown_frontmatter(doc_path.read_text(encoding="utf-8"))
+        doc_frontmatter["status"] = updated_json["status"]
+        doc_path.write_text(render_markdown(doc_frontmatter, doc_body), encoding="utf-8")
 
 
 def collect_evidence_report(artifacts_dir: Path) -> Path:

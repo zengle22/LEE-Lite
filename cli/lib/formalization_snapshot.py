@@ -162,6 +162,32 @@ def assigned_id_from_path(path: Path) -> str:
     return match.group(1).upper() if match else ""
 
 
+def extract_src_ref(values: list[str], fallback: str = "") -> str:
+    for value in values:
+        normalized = str(value).strip().upper()
+        if re.fullmatch(r"SRC-\d+", normalized):
+            return normalized
+    for value in values:
+        match = re.search(r"(SRC-\d+)", str(value).upper())
+        if match:
+            return match.group(1)
+    if fallback:
+        fallback_match = re.search(r"(SRC-\d+)", str(fallback).upper())
+        if fallback_match:
+            return fallback_match.group(1)
+    return ""
+
+
+def _next_suffix_for_pattern(directory: Path, pattern: str, regex: str) -> int:
+    highest = 0
+    if directory.exists():
+        for path in directory.glob(pattern):
+            match = re.match(regex, path.name, re.IGNORECASE)
+            if match:
+                highest = max(highest, int(match.group(1)))
+    return highest + 1
+
+
 def next_src_id(workspace_root: Path) -> str:
     src_dir = workspace_root / "ssot" / "src"
     highest = 0
@@ -173,15 +199,15 @@ def next_src_id(workspace_root: Path) -> str:
     return f"SRC-{highest + 1:03d}"
 
 
-def next_epic_id(workspace_root: Path) -> str:
+def next_epic_id(workspace_root: Path, src_ref: str) -> str:
     epic_dir = workspace_root / "ssot" / "epic"
-    highest = 0
-    if epic_dir.exists():
-        for path in epic_dir.glob("EPIC-*.md"):
-            match = re.match(r"^EPIC-(\d+)", path.name, re.IGNORECASE)
-            if match:
-                highest = max(highest, int(match.group(1)))
-    return f"EPIC-{highest + 1:03d}"
+    prefix = f"EPIC-{src_ref.upper()}-"
+    next_suffix = _next_suffix_for_pattern(
+        epic_dir,
+        f"{prefix}*.md",
+        rf"^{re.escape(prefix)}(\d+)",
+    )
+    return f"{prefix}{next_suffix:03d}"
 
 
 def extract_numeric_src_ref(values: list[str], fallback: str = "") -> str:

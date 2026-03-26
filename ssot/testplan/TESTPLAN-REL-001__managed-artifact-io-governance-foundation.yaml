@@ -18,18 +18,18 @@ source_refs:
 - REL-001
 - DEVPLAN-REL-001
 - SRC-001
-- EPIC-001
+- EPIC-SRC-001-001
 - ARCH-SRC-001-001
 - FEAT-SRC-001-001
 - FEAT-SRC-001-002
 - FEAT-SRC-001-003
 - FEAT-SRC-001-004
 - FEAT-SRC-001-005
-- TESTSET-FEAT-SRC-001-001
-- TESTSET-FEAT-SRC-001-002
-- TESTSET-FEAT-SRC-001-003
-- TESTSET-FEAT-SRC-001-004
-- TESTSET-FEAT-SRC-001-005
+- TESTSET-SRC-001-001
+- TESTSET-SRC-001-002
+- TESTSET-SRC-001-003
+- TESTSET-SRC-001-004
+- TESTSET-SRC-001-005
 derived_from_ids:
 - id: REL-001
   version: v2
@@ -37,25 +37,25 @@ derived_from_ids:
 - id: DEVPLAN-REL-001
   version: 2.0.0
   required: true
-- id: TESTSET-FEAT-SRC-001-001
+- id: TESTSET-SRC-001-001
   version: '2.0'
   required: true
-- id: TESTSET-FEAT-SRC-001-002
+- id: TESTSET-SRC-001-002
   version: '2.0'
   required: true
-- id: TESTSET-FEAT-SRC-001-003
+- id: TESTSET-SRC-001-003
   version: '2.0'
   required: true
-- id: TESTSET-FEAT-SRC-001-004
+- id: TESTSET-SRC-001-004
   version: '2.0'
   required: true
-- id: TESTSET-FEAT-SRC-001-005
+- id: TESTSET-SRC-001-005
   version: '2.0'
   required: true
 properties:
   workflow_key: workflow.qa.testplan_management_l2
   source_freeze_ref: SRC-001
-  epic_ref: EPIC-001
+  epic_ref: EPIC-SRC-001-001
   src_root_id: src-root-src-001
   target_release_ref: ssot/release/REL-001__managed-artifact-io-governance-foundation-release.md
   architecture_ref: ssot/architecture/ARCH-SRC-001-001__managed-artifact-io-governance-architecture-overview.md
@@ -67,7 +67,7 @@ properties:
   - FEAT-SRC-001-003
   - FEAT-SRC-001-004
   - FEAT-SRC-001-005
-  guarded_scope_rule: 若 TS-FEAT-SRC-001-005 的 pilot 链包含 external gate branch，该分支只允许输出
+  guarded_scope_rule: 若 TS-SRC-001-005 的 pilot 链包含 external gate branch，该分支只允许输出
     guarded pass / failure。
   report_minimum_shape:
   - five-feat pass/fail summary
@@ -90,19 +90,19 @@ out_of_scope:
 - 不含 evidence 的口头 pilot 成立判断
 - default-active external gate without ADR-006 freeze or equivalent approval
 test_sets:
-- test_set_id: TS-FEAT-SRC-001-001
+- test_set_id: TS-SRC-001-001
   critical: true
   order: 1
-- test_set_id: TS-FEAT-SRC-001-003
+- test_set_id: TS-SRC-001-003
   critical: true
   order: 2
-- test_set_id: TS-FEAT-SRC-001-002
+- test_set_id: TS-SRC-001-002
   critical: true
   order: 3
-- test_set_id: TS-FEAT-SRC-001-004
+- test_set_id: TS-SRC-001-004
   critical: true
   order: 4
-- test_set_id: TS-FEAT-SRC-001-005
+- test_set_id: TS-SRC-001-005
   critical: true
   order: 5
 risk_policy:
@@ -112,7 +112,7 @@ risk_policy:
   p2_bug_threshold: 8
 execution_policy:
   all_feat_tracks_default_execution: true
-  guarded_gate_branch_rule: TS-FEAT-SRC-001-005 的 gate branch 只验证 guarded semantics。
+  guarded_gate_branch_rule: TS-SRC-001-005 的 gate branch 只验证 guarded semantics。
 schedule_windows:
   foundation_scope_window:
     start: '2026-04-04T09:00:00+08:00'

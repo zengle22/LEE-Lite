@@ -178,8 +178,18 @@ def supervisor_review(artifacts_dir: Path, repo_root: Path, run_id: str, allow_u
 
 def run_workflow(input_path: str | Path, feat_ref: str, repo_root: Path | None = None, run_id: str | None = None, allow_update: bool = False) -> dict[str, Any]:
     root = repo_root or repo_root_from(None, input_path)
-    if run_id:
-        executor_result = executor_run(input_path=input_path, feat_ref=feat_ref, repo_root=root, run_id=run_id, allow_update=allow_update)
-        supervisor_result = supervisor_review(Path(executor_result["artifacts_dir"]), root, run_id, allow_update=allow_update)
-        return {**executor_result, **supervisor_result}
-    return executor_run(input_path=input_path, feat_ref=feat_ref, repo_root=root, run_id="", allow_update=allow_update)
+    effective_run_id = run_id or ""
+    executor_result = executor_run(
+        input_path=input_path,
+        feat_ref=feat_ref,
+        repo_root=root,
+        run_id=effective_run_id,
+        allow_update=allow_update,
+    )
+    supervisor_result = supervisor_review(
+        Path(executor_result["artifacts_dir"]),
+        root,
+        effective_run_id,
+        allow_update=allow_update,
+    )
+    return {**executor_result, **supervisor_result}

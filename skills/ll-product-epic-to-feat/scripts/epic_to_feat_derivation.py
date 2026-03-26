@@ -5,6 +5,7 @@ Derivation helpers for the lite-native epic-to-feat runtime.
 
 from __future__ import annotations
 
+import re
 from typing import Any
 
 from epic_to_feat_common import (
@@ -18,6 +19,9 @@ from epic_to_feat_common import (
 
 
 def choose_src_ref(package: Any) -> str:
+    resolved = str(package.manifest.get("resolved_src_ref") or "").strip().upper()
+    if resolved:
+        return resolved
     source_refs = ensure_list(package.epic_json.get("source_refs"))
     src_ref = extract_src_ref(source_refs, fallback=str(package.epic_json.get("src_root_id") or ""))
     if src_ref:
@@ -26,9 +30,18 @@ def choose_src_ref(package: Any) -> str:
 
 
 def choose_epic_ref(package: Any) -> str:
+    resolved = str(package.manifest.get("resolved_epic_ref") or "").strip().upper()
+    if resolved:
+        return resolved
     existing = str(package.epic_json.get("epic_freeze_ref") or "").strip()
     if existing:
+        src_ref = choose_src_ref(package)
+        if src_ref and re.fullmatch(rf"EPIC-{re.escape(src_ref)}-\d+", existing.upper()):
+            return existing
         return existing
+    src_ref = choose_src_ref(package)
+    if src_ref:
+        return f"EPIC-{src_ref}-001"
     title = str(package.epic_json.get("title") or package.run_id)
     return f"EPIC-{shorten_identifier(title, limit=40)}"
 
