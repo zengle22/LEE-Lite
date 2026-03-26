@@ -87,6 +87,10 @@ artifacts/*/
 evidence/
 evidence/*/
 
+# Keep CLI evidence command
+!cli/commands/evidence/__init__.py
+!cli/commands/evidence/command.py
+
 # Node.js dependencies
 node_modules/
 package-lock.json
