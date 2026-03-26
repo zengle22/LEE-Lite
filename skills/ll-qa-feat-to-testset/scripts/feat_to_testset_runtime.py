@@ -31,6 +31,7 @@ from feat_to_testset_derivation import (
     build_gate_subjects,
     build_test_set_yaml,
     derive_analysis_markdown,
+    derive_downstream_target_skill,
     derive_required_environment_inputs,
     derive_strategy_yaml,
 )
@@ -65,7 +66,6 @@ REQUIRED_MARKDOWN_HEADINGS = [
     "Downstream Handoff",
     "Traceability",
 ]
-DOWNSTREAM_SKILL = "skill.qa.test_exec_web_e2e"
 SUBJECT_FILE_NAMES = {
     "analysis_review": "analysis-review-subject.json",
     "strategy_review": "strategy-review-subject.json",
@@ -79,6 +79,10 @@ ENVIRONMENT_INPUT_CATEGORIES = [
     "feature_flags",
     "ui_or_integration_context",
 ]
+SUPPORTED_DOWNSTREAM_SKILLS = {
+    "skill.qa.test_exec_cli",
+    "skill.qa.test_exec_web_e2e",
+}
 
 
 def utc_now() -> str:
@@ -233,7 +237,9 @@ def build_candidate_package(package: Any, feature: dict[str, Any], feat_ref: str
         + ensure_list(feature.get("source_refs"))
         + ensure_list(package.feat_json.get("source_refs"))
     )
-    required_environment_inputs = derive_required_environment_inputs(feature, ensure_list(test_set_yaml.get("test_layers")))
+    test_layers = ensure_list(test_set_yaml.get("test_layers"))
+    downstream_skill = derive_downstream_target_skill(feature, test_layers)
+    required_environment_inputs = derive_required_environment_inputs(feature, test_layers)
     test_set_ref = str(test_set_yaml.get("id") or "")
     artifact_refs = {
         "test_set": "test-set.yaml",
@@ -304,7 +310,7 @@ def build_candidate_package(package: Any, feature: dict[str, Any], feat_ref: str
         "handoff_id": f"handoff-{run_id}-to-test-execution",
         "from_skill": "ll-qa-feat-to-testset",
         "source_run_id": run_id,
-        "target_skill": DOWNSTREAM_SKILL,
+        "target_skill": downstream_skill,
         "feat_ref": feature.get("feat_ref"),
         "test_set_ref": test_set_ref,
         "package_ref": "test-set-bundle.json",
@@ -339,7 +345,7 @@ def build_candidate_package(package: Any, feature: dict[str, Any], feat_ref: str
         "semantic_lock": feature["semantic_lock"],
         "artifact_refs": artifact_refs,
         "gate_subject_refs": gate_subject_refs,
-        "downstream_target": DOWNSTREAM_SKILL,
+        "downstream_target": downstream_skill,
     }
     bundle_frontmatter = {
         "artifact_type": bundle_json["artifact_type"],
@@ -430,7 +436,7 @@ def build_candidate_package(package: Any, feature: dict[str, Any], feat_ref: str
             "## Downstream Handoff\n\n"
             + "\n".join(
                 [
-                    f"- target_skill: `{DOWNSTREAM_SKILL}`",
+                    f"- target_skill: `{downstream_skill}`",
                     f"- package_ref: `{handoff['package_ref']}`",
                     "- required_environment_inputs:",
                     *[
@@ -471,7 +477,7 @@ def build_candidate_package(package: Any, feature: dict[str, Any], feat_ref: str
         f"Selected FEAT {feature.get('feat_ref')} from upstream run {package.run_id}.",
         f"Derived TESTSET main object {test_set_ref}.",
         "Kept analysis and strategy as companion artifacts, not parallel SSOT objects.",
-        f"Prepared downstream handoff to {DOWNSTREAM_SKILL}.",
+        f"Prepared downstream handoff to {downstream_skill}.",
     ]
     execution_uncertainties = []
     if not ensure_list(test_set_yaml.get("governing_adrs")):
@@ -826,12 +832,27 @@ def validate_output_package(artifacts_dir: Path) -> tuple[list[str], dict[str, A
         if subject.get("candidate_package_ref") != "test-set-bundle.json":
             errors.append(f"{filename} candidate_package_ref must be test-set-bundle.json.")
 
-    if handoff.get("target_skill") != DOWNSTREAM_SKILL:
-        errors.append(f"handoff-to-test-execution.json must target {DOWNSTREAM_SKILL}.")
+    target_skill = str(handoff.get("target_skill") or "")
+    bundle_target = str(bundle_json.get("downstream_target") or "")
+    if target_skill not in SUPPORTED_DOWNSTREAM_SKILLS:
+        errors.append("handoff-to-test-execution.json target_skill must be a supported test execution sibling.")
+    if bundle_target not in SUPPORTED_DOWNSTREAM_SKILLS:
+        errors.append("test-set-bundle.json downstream_target must be a supported test execution sibling.")
+    if target_skill and bundle_target and target_skill != bundle_target:
+        errors.append("handoff-to-test-execution.json target_skill must match test-set-bundle.json downstream_target.")
     required_inputs = handoff.get("required_environment_inputs") or {}
     for category in ENVIRONMENT_INPUT_CATEGORIES:
         if not ensure_list(required_inputs.get(category)):
             errors.append(f"required_environment_inputs.{category} must be populated.")
+    execution_context = " ".join(ensure_list(required_inputs.get("ui_or_integration_context"))).lower()
+    if target_skill == "skill.qa.test_exec_cli" and not any(
+        marker in execution_context for marker in ["cli", "command", "integration", "api", "调用", "命令"]
+    ):
+        errors.append("CLI downstream handoff must describe CLI, command, API, or integration execution context.")
+    if target_skill == "skill.qa.test_exec_web_e2e" and not any(
+        marker in execution_context for marker in ["browser", "page", "locator", "selector", "ui", "浏览器", "页面", "定位器"]
+    ):
+        errors.append("Web downstream handoff must describe browser, page, locator, or UI execution context.")
 
     test_set_status = str(test_set_yaml.get("status") or "")
     manifest_status = str(manifest.get("status") or "")
