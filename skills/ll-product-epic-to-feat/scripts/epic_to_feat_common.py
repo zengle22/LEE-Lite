@@ -167,14 +167,14 @@ def resolve_input_artifacts_dir(input_value: str | Path, repo_root: Path) -> tup
 def extract_src_ref(values: list[str], fallback: str = "") -> str:
     for value in values:
         normalized = str(value).strip().upper()
-        if normalized.startswith("SRC-"):
+        if re.fullmatch(r"SRC-\d+", normalized):
             return normalized
     for value in values:
-        match = re.search(r"(SRC-[A-Z0-9-]+)", value.upper())
+        match = re.search(r"(SRC-\d+)", value.upper())
         if match:
             return match.group(1)
     if fallback:
-        match = re.search(r"(SRC-[A-Z0-9-]+)", fallback.upper())
+        match = re.search(r"(SRC-\d+)", fallback.upper())
         if match:
             return match.group(1)
     return ""

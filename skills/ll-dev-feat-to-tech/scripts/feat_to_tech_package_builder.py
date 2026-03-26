@@ -203,7 +203,7 @@ def build_tech_package(package: Any, feature: dict[str, Any], feat_ref: str, run
 
 def build_design_context(package, feature, refs, assessment):
     return {
-        "focus": design_focus(feature),
+        "focus": ensure_list(design_focus(feature)),
         "rules": implementation_rules(feature),
         "nfrs": non_functional_requirements(feature, package),
         "implementation_arch": implementation_architecture(feature),

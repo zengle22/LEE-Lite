@@ -184,6 +184,36 @@ def next_epic_id(workspace_root: Path) -> str:
     return f"EPIC-{highest + 1:03d}"
 
 
+def extract_numeric_src_ref(values: list[str], fallback: str = "") -> str:
+    for value in values:
+        normalized = str(value or "").strip().upper()
+        if re.fullmatch(r"SRC-\d+", normalized):
+            return normalized
+    for value in values:
+        match = re.search(r"(SRC-\d+)", str(value or "").upper())
+        if match:
+            return match.group(1)
+    if fallback:
+        match = re.search(r"(SRC-\d+)", str(fallback).upper())
+        if match:
+            return match.group(1)
+    return ""
+
+
+def next_epic_lineage_id(workspace_root: Path, src_ref: str) -> str:
+    src_ref = str(src_ref or "").strip().upper()
+    ensure(re.fullmatch(r"SRC-\d+", src_ref), "PRECONDITION_FAILED", f"invalid src_ref for epic lineage: {src_ref}")
+    epic_dir = workspace_root / "ssot" / "epic"
+    highest = 0
+    if epic_dir.exists():
+        pattern = re.compile(rf"^EPIC-{re.escape(src_ref)}-(\d+)", re.IGNORECASE)
+        for path in epic_dir.glob(f"EPIC-{src_ref}-*.md"):
+            match = pattern.match(path.name)
+            if match:
+                highest = max(highest, int(match.group(1)))
+    return f"EPIC-{src_ref}-{highest + 1:03d}"
+
+
 def formal_src_output_path(workspace_root: Path, assigned_id: str, title: str) -> Path:
     return workspace_root / "ssot" / "src" / f"{assigned_id}__{slugify(title)}.md"
 

@@ -3,6 +3,9 @@
 
 from __future__ import annotations
 
+import json
+import re
+from pathlib import Path
 from typing import Any
 
 from src_to_epic_common import ensure_list, guess_repo_root_from_input, normalize_semantic_lock, shorten_identifier, unique_strings
@@ -16,9 +19,55 @@ ROLLOUT_KEYWORD_GROUPS = {
 }
 
 
+NUMERIC_SRC_REF_RE = re.compile(r"^SRC-\d+$", re.IGNORECASE)
+
+
+def _canonical_to_repo(path: Path, repo_root: Path) -> str:
+    return path.resolve().relative_to(repo_root.resolve()).as_posix()
+
+
+def _resolve_materialized_src_root_id(package: Any) -> str:
+    artifacts_dir = getattr(package, "artifacts_dir", None)
+    if not isinstance(artifacts_dir, Path) or not artifacts_dir.exists():
+        return ""
+    repo_root = guess_repo_root_from_input(artifacts_dir.resolve())
+    registry_dir = repo_root / "artifacts" / "registry"
+    if not registry_dir.exists():
+        return ""
+    source_package_ref = _canonical_to_repo(artifacts_dir, repo_root)
+    for record_path in registry_dir.glob("formal-src-*.json"):
+        try:
+            record = json.loads(record_path.read_text(encoding="utf-8"))
+        except Exception:
+            continue
+        metadata = record.get("metadata") or {}
+        if not isinstance(metadata, dict):
+            continue
+        assigned_id = str(metadata.get("assigned_id") or "").strip().upper()
+        if not NUMERIC_SRC_REF_RE.fullmatch(assigned_id):
+            continue
+        candidate_package_ref = str(metadata.get("candidate_package_ref") or "").strip()
+        source_package_metadata_ref = str(metadata.get("source_package_ref") or "").strip()
+        if source_package_ref in {candidate_package_ref, source_package_metadata_ref}:
+            return assigned_id
+    return ""
+
+
 def choose_src_root_id(package: Any) -> str:
     existing = package.src_candidate.get("src_root_id")
-    return str(existing) if existing else f"SRC-{shorten_identifier(package.run_id, limit=64)}"
+    existing_value = str(existing or "").strip().upper()
+    if NUMERIC_SRC_REF_RE.fullmatch(existing_value):
+        return existing_value
+    for ref in ensure_list(package.src_candidate.get("source_refs")):
+        normalized = str(ref).strip().upper()
+        if NUMERIC_SRC_REF_RE.fullmatch(normalized):
+            return normalized
+    resolved_formal_id = _resolve_materialized_src_root_id(package)
+    if resolved_formal_id:
+        return resolved_formal_id
+    if existing_value:
+        return existing_value
+    return f"SRC-{shorten_identifier(package.run_id, limit=64)}"
 
 
 def semantic_lock(package: Any) -> dict[str, Any]:

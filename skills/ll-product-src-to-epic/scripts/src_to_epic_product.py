@@ -1,6 +1,6 @@
 from typing import Any
 
-from src_to_epic_identity import is_review_projection_package, is_execution_runner_package, is_governance_bridge_package, uses_adr005_prerequisite, operator_surface_names
+from src_to_epic_identity import choose_src_root_id, is_review_projection_package, is_execution_runner_package, is_governance_bridge_package, uses_adr005_prerequisite, operator_surface_names
 from src_to_epic_common import shorten_identifier, ensure_list, unique_strings, summarize_text
 
 
@@ -18,6 +18,9 @@ def derive_epic_title(package: Any) -> str:
 
 
 def choose_epic_freeze_ref(package: Any) -> str:
+    src_root_id = choose_src_root_id(package)
+    if src_root_id.upper().startswith("SRC-") and src_root_id[4:].isdigit():
+        return f"EPIC-{src_root_id}-001"
     base = derive_epic_title(package)
     slug = shorten_identifier(str(base), limit=44)
     if slug == "UNSPECIFIED":
