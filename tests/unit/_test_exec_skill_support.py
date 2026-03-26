@@ -161,6 +161,8 @@ class SkillRuntimeHarness(unittest.TestCase):
             "results_summary_ref",
             "evidence_bundle_ref",
             "test_report_ref",
+            "coverage_summary_ref",
+            "coverage_report_ref",
             "output_validation_ref",
             "tse_ref",
         ):
@@ -178,6 +180,8 @@ class SkillRuntimeHarness(unittest.TestCase):
         self.assertEqual(len(ui_binding_map["cases"]), expected_cases)
         output_validation = read_json(self.resolve_ref(payload["output_validation_ref"]))
         self.assertEqual(output_validation["status"], "pass")
+        coverage_summary = read_json(self.resolve_ref(payload["coverage_summary_ref"]))
+        self.assertIn(coverage_summary["status"], {"disabled", "unavailable", "collected"})
         tse = read_json(self.resolve_ref(payload["tse_ref"]))
         self.assertEqual(tse["run_status"], expected_status)
         candidate = read_json(self.resolve_ref(payload["candidate_managed_artifact_ref"]))

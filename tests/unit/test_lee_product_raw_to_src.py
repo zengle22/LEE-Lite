@@ -76,12 +76,35 @@ class RawToSrcWorkflowTests(unittest.TestCase):
             self.assertTrue((artifacts_dir / "source-semantic-findings.json").exists())
             self.assertTrue((artifacts_dir / "handoff-proposal.json").exists())
             self.assertTrue((artifacts_dir / "job-proposal.json").exists())
+            self.assertTrue((artifacts_dir / "input" / "gate-ready-package.json").exists())
+            self.assertTrue((artifacts_dir / "_cli" / "gate-submit-handoff.response.json").exists())
             self.assertTrue((artifacts_dir / "_cli" / "artifact-commit.response.json").exists())
             self.assertTrue((repo_root / "artifacts" / "registry" / "raw-to-src-test-run-basic-src-candidate.json").exists())
+            self.assertEqual(
+                payload["gate_ready_package_ref"],
+                "artifacts/raw-to-src/test-run-basic/input/gate-ready-package.json",
+            )
+            self.assertTrue(payload["authoritative_handoff_ref"].startswith("artifacts/active/gates/handoffs/"))
+            self.assertTrue(payload["gate_pending_ref"].startswith("artifacts/active/gates/pending/"))
 
             cli_response = json.loads((artifacts_dir / "_cli" / "artifact-commit.response.json").read_text(encoding="utf-8"))
             self.assertEqual(cli_response["status_code"], "OK")
             self.assertEqual(cli_response["data"]["canonical_path"], "artifacts/raw-to-src/test-run-basic/src-candidate.md")
+            gate_submit = json.loads((artifacts_dir / "_cli" / "gate-submit-handoff.response.json").read_text(encoding="utf-8"))
+            self.assertEqual(gate_submit["status_code"], "OK")
+            self.assertEqual(gate_submit["data"]["gate_pending_ref"], payload["gate_pending_ref"])
+
+            gate_ready_package = json.loads((artifacts_dir / "input" / "gate-ready-package.json").read_text(encoding="utf-8"))
+            self.assertEqual(gate_ready_package["payload"]["candidate_ref"], "raw-to-src.test-run-basic.src-candidate")
+            self.assertEqual(
+                gate_ready_package["payload"]["machine_ssot_ref"],
+                "artifacts/raw-to-src/test-run-basic/src-candidate.json",
+            )
+
+            pending_index = json.loads((repo_root / "artifacts" / "active" / "gates" / "pending" / "index.json").read_text(encoding="utf-8"))
+            self.assertEqual(len(pending_index["handoffs"]), 1)
+            self.assertTrue((repo_root / payload["authoritative_handoff_ref"]).exists())
+            self.assertTrue((repo_root / payload["gate_pending_ref"]).exists())
 
             execution = json.loads((artifacts_dir / "execution-evidence.json").read_text(encoding="utf-8"))
             stage_ids = {item["stage_id"] for item in execution["stage_results"]}
@@ -155,6 +178,38 @@ class RawToSrcWorkflowTests(unittest.TestCase):
             self.assertEqual(candidate["semantic_lock"]["domain_type"], "review_projection_rule")
             self.assertIn("projection_generation", candidate["semantic_lock"]["allowed_capabilities"])
             self.assertIn("mainline_runtime_governance", candidate["semantic_lock"]["forbidden_capabilities"])
+
+    def test_adr018_bridge_synthesizes_execution_runner_semantic_lock(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            repo_root = Path(temp_dir)
+            self.make_repo(repo_root)
+            source = repo_root / "ADR-018.md"
+            source.write_text(
+                "\n".join(
+                    [
+                        "# ADR-018 Execution Loop Job Runner 作为自动推进运行时",
+                        "",
+                        "## 问题陈述",
+                        "",
+                        "dispatch 已经可以产出 materialized-job，但当前仍缺少一个正式 consumer 去自动消费 artifacts/jobs/ready/ 中的 job，并把它推进到下游 workflow。",
+                        "",
+                        "- gate approve 后会停在 formal publication trigger，不能自动跑到下一个 skill。",
+                        "- 当前仍依赖第三会话人工接力。", 
+                        "",
+                    ]
+                ),
+                encoding="utf-8",
+            )
+            result = self.run_cmd("run", "--input", str(source), "--repo-root", str(repo_root), "--run-id", "test-run-adr018")
+            self.assertEqual(result.returncode, 0, result.stderr)
+            payload = json.loads(result.stdout)
+            candidate = json.loads((Path(payload["artifacts_dir"]) / "src-candidate.json").read_text(encoding="utf-8"))
+            semantic_lock = candidate["semantic_lock"]
+
+            self.assertEqual(semantic_lock["domain_type"], "execution_runner_rule")
+            self.assertEqual(semantic_lock["primary_object"], "execution_loop_job_runner")
+            self.assertIn("ready_queue_consumption", semantic_lock["allowed_capabilities"])
+            self.assertIn("formal_publication_substitution", semantic_lock["forbidden_capabilities"])
 
     def test_markdown_adr_bridge_does_not_inline_full_body(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -432,6 +487,9 @@ class RawToSrcWorkflowTests(unittest.TestCase):
             self.assertEqual(payload["status"], "blocked")
             self.assertEqual(payload["recommended_action"], "blocked")
             self.assertIsNone(payload["handoff_proposal_path"])
+            self.assertIsNone(payload["gate_ready_package_ref"])
+            self.assertIsNone(payload["authoritative_handoff_ref"])
+            self.assertIsNone(payload["gate_pending_ref"])
 
             artifacts_dir = Path(payload["artifacts_dir"])
             result_summary = json.loads((artifacts_dir / "result-summary.json").read_text(encoding="utf-8"))
@@ -441,6 +499,8 @@ class RawToSrcWorkflowTests(unittest.TestCase):
             self.assertIn("duplicate_title", defect_types)
             self.assertFalse((artifacts_dir / "handoff-proposal.json").exists())
             self.assertTrue((artifacts_dir / "job-proposal.json").exists())
+            self.assertFalse((artifacts_dir / "input" / "gate-ready-package.json").exists())
+            self.assertFalse((repo_root / "artifacts" / "active" / "gates" / "pending" / "index.json").exists())
 
     def test_validate_output_checks_runtime_package(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:

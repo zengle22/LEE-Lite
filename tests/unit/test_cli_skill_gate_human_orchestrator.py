@@ -92,6 +92,45 @@ class GateHumanOrchestratorSkillCliTest(unittest.TestCase):
         )
         return "artifacts/active/gates/packages/gate-ready-package.json"
 
+    def make_runtime_pending_item(self, *, key: str = "gate-job-001") -> None:
+        handoff_ref = f"artifacts/active/gates/handoffs/{key}.json"
+        pending_ref = f"artifacts/active/gates/pending/{key}.json"
+        write_json(
+            self.workspace / handoff_ref,
+            {
+                "trace": {"run_ref": "RUN-GATE-SKILL"},
+                "producer_ref": "skill.test",
+                "proposal_ref": key,
+                "payload_ref": "artifacts/active/gates/packages/gate-ready-package.json",
+                "pending_state": "gate_pending",
+            },
+        )
+        write_json(
+            self.workspace / pending_ref,
+            {
+                "trace": {"run_ref": "RUN-GATE-SKILL"},
+                "handoff_ref": handoff_ref,
+                "producer_ref": "skill.test",
+                "proposal_ref": key,
+                "pending_state": "gate_pending",
+            },
+        )
+        write_json(
+            self.workspace / "artifacts" / "active" / "gates" / "pending" / "index.json",
+            {
+                "handoffs": {
+                    key: {
+                        "handoff_ref": handoff_ref,
+                        "gate_pending_ref": pending_ref,
+                        "payload_digest": "digest",
+                        "trace_ref": "",
+                        "pending_state": "gate_pending",
+                        "assigned_gate_queue": "mainline.gate.pending",
+                    }
+                }
+            },
+        )
+
     def test_cli_skill_runs_gate_human_orchestrator(self) -> None:
         input_ref = self.make_gate_ready_package()
         request = self.build_request(
@@ -114,6 +153,40 @@ class GateHumanOrchestratorSkillCliTest(unittest.TestCase):
         bundle = read_json(Path(payload["bundle_ref"]))
         self.assertEqual(bundle["machine_ssot_ref"], "candidate.impl")
         self.assertEqual(bundle["projection_status"], "review_visible")
+
+    def test_cli_skill_claim_next_returns_human_brief(self) -> None:
+        self.make_gate_ready_package()
+        self.make_runtime_pending_item(key="queue-item-001")
+        request = self.build_request(
+            "skill.gate-human-orchestrator",
+            {"operation": "claim-next"},
+        )
+        req = self.request_path("skill-gate-human-claim.json")
+        write_json(req, request)
+        response = self.response_path("skill-gate-human-claim.response.json")
+
+        self.assertEqual(
+            self.run_cli("skill", "gate-human-orchestrator", "--request", str(req), "--response-out", str(response)),
+            0,
+        )
+        response_payload = read_json(response)
+        payload = response_payload["data"]
+        self.assertEqual(response_payload["message"], "governed gate human orchestrator prepared a pending human brief")
+        self.assertEqual(payload["operation"], "claim-next")
+        self.assertEqual(payload["status"], "claimed")
+        self.assertEqual(payload["decision_target"], "candidate.impl")
+        self.assertTrue(payload["canonical_path"].endswith("human-decision-request.json"))
+        self.assertIn("## 需要你做的决定", payload["human_brief_markdown"])
+        self.assertIn("## Machine SSOT 摘要", payload["human_brief_markdown"])
+        self.assertIn("## Machine SSOT 人类友好全文", payload["human_brief_markdown"])
+        self.assertIn("## Machine SSOT 文件骨架", payload["human_brief_markdown"])
+        self.assertIn("## 关键待审阅点", payload["human_brief_markdown"])
+        self.assertTrue(payload["review_summary"]["ssot_excerpt"])
+        self.assertTrue(payload["review_summary"]["ssot_fulltext_markdown"])
+        self.assertTrue(payload["review_summary"]["ssot_outline"])
+        self.assertTrue(payload["review_summary"]["review_checkpoints"])
+        self.assertEqual(payload["review_summary"]["status"], "pending_human_reply")
+        self.assertTrue(any(ref.endswith("queue-item-001.json") for ref in response_payload["evidence_refs"]))
 
 
 if __name__ == "__main__":

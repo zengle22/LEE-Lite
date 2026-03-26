@@ -80,7 +80,7 @@ class FeatToTestSetWorkflowTests(FeatToTestSetWorkflowHarness):
             self.assertNotEqual(test_set["derived_slug"], "unspecified")
             self.assertTrue(all("review" not in unit["trigger_action"].lower() for unit in test_set["test_units"]))
             self.assertTrue(all("inspect" not in unit["trigger_action"].lower() for unit in test_set["test_units"]))
-            self.assertEqual(handoff["target_skill"], "skill.qa.test_exec_web_e2e")
+            self.assertEqual(handoff["target_skill"], "skill.qa.test_exec_cli")
             self.assertTrue(
                 any("authoritative handoff submission" in item for item in handoff["required_environment_inputs"]["data"])
             )
@@ -90,10 +90,16 @@ class FeatToTestSetWorkflowTests(FeatToTestSetWorkflowHarness):
             self.assertTrue(
                 any("handoff service identity" in item or "账号材料" in item for item in handoff["required_environment_inputs"]["access"])
             )
+            self.assertTrue(
+                any(
+                    "cli" in item.lower() or "命令" in item or "integration context" in item.lower()
+                    for item in handoff["required_environment_inputs"]["ui_or_integration_context"]
+                )
+            )
             self.assertTrue((artifacts_dir / "analysis-review-subject.json").exists())
             self.assertTrue((artifacts_dir / "strategy-review-subject.json").exists())
             self.assertTrue((artifacts_dir / "test-set-approval-subject.json").exists())
-            self.assertGreaterEqual(len(test_set["test_units"]), 3)
+            self.assertGreaterEqual(len(test_set["test_units"]), 10)
             self.assertTrue(all(unit.get("input_preconditions") for unit in test_set["test_units"]))
             self.assertTrue(all(unit.get("trigger_action") for unit in test_set["test_units"]))
             self.assertTrue(all(unit.get("pass_conditions") for unit in test_set["test_units"]))
@@ -102,6 +108,7 @@ class FeatToTestSetWorkflowTests(FeatToTestSetWorkflowHarness):
             self.assertTrue(any("pending_state" in ref for unit in test_set["test_units"] for ref in unit["supporting_refs"]))
             self.assertTrue(any("gate_pending_ref" in ref for unit in test_set["test_units"] for ref in unit["supporting_refs"]))
             self.assertTrue(any("assigned_gate_queue" in ref for unit in test_set["test_units"] for ref in unit["supporting_refs"]))
+            self.assertTrue(any("payload_digest" in ref for unit in test_set["test_units"] for ref in unit["supporting_refs"]))
             self.assertTrue(any("canonical_payload_path" in item for unit in test_set["test_units"] for item in unit["pass_conditions"]))
             self.assertTrue(any("response envelope" in item for unit in test_set["test_units"] for item in unit["required_evidence"]))
             self.assertFalse(any("error code -> retryable -> idempotent_replay mapping" in item for unit in test_set["test_units"] for item in unit["observation_points"]))
@@ -113,6 +120,69 @@ class FeatToTestSetWorkflowTests(FeatToTestSetWorkflowHarness):
             self.assertEqual(validate.returncode, 0, validate.stderr)
             readiness = self.run_cmd("validate-package-readiness", "--artifacts-dir", str(artifacts_dir))
             self.assertEqual(readiness.returncode, 0, readiness.stderr)
+
+    def test_explicit_web_feat_routes_to_web_test_exec(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            repo_root = Path(temp_dir)
+            feature = {
+                "feat_ref": "FEAT-SRC-001-WEB",
+                "title": "登录页浏览器可用性验证流",
+                "goal": "将前端登录页的浏览器路径与页面断言派生成可执行 TESTSET。",
+                "scope": [
+                    "验证 browser 中的 page load、form fill 与 button click 流程。",
+                    "验证 locator、selector 与 expected url 断言。",
+                    "输出交给 playwright sibling 的 test execution handoff。",
+                ],
+                "constraints": [
+                    "必须保留 page、locator 与 selector 级别的执行上下文。",
+                    "不得把浏览器验证降级成纯 CLI 命令 smoke。",
+                ],
+                "dependencies": [
+                    "frontend codebase 可提供 route 与 data-testid 线索。",
+                    "browser automation environment 可访问 base_url。",
+                ],
+                "acceptance_checks": [
+                    {
+                        "id": "AC-01",
+                        "scenario": "page and locator context preserved",
+                        "given": "login page",
+                        "when": "generate testset",
+                        "then": "handoff 保留 browser page / locator / selector 上下文",
+                    },
+                    {
+                        "id": "AC-02",
+                        "scenario": "browser route stays executable",
+                        "given": "base_url and route",
+                        "when": "derive handoff",
+                        "then": "required_environment_inputs 能表达 browser automation 运行上下文",
+                    },
+                    {
+                        "id": "AC-03",
+                        "scenario": "playwright sibling selected",
+                        "given": "frontend page flow",
+                        "when": "choose downstream target",
+                        "then": "target skill 指向 web e2e sibling",
+                    },
+                ],
+                "source_refs": ["FEAT-SRC-001-WEB", "EPIC-SRC-001", "SRC-001", "ADR-012"],
+            }
+            bundle = self.make_bundle_json(feature, run_id="feat-to-testset-web")
+            input_dir = self.make_feat_package(repo_root, "feat-to-testset-web", bundle)
+            artifacts_dir = self.run_testset_flow(repo_root, input_dir, "FEAT-SRC-001-WEB", "feat-to-testset-web-output")
+
+            handoff = json.loads((artifacts_dir / "handoff-to-test-execution.json").read_text(encoding="utf-8"))
+            bundle_json = json.loads((artifacts_dir / "test-set-bundle.json").read_text(encoding="utf-8"))
+
+            self.assertEqual(handoff["target_skill"], "skill.qa.test_exec_web_e2e")
+            self.assertEqual(bundle_json["downstream_target"], "skill.qa.test_exec_web_e2e")
+            self.assertTrue(
+                any(
+                    any(token in item.lower() for token in ["browser", "page", "locator", "selector", "ui"])
+                    for item in handoff["required_environment_inputs"]["ui_or_integration_context"]
+                )
+            )
+            validate = self.run_cmd("validate-output", "--artifacts-dir", str(artifacts_dir))
+            self.assertEqual(validate.returncode, 0, validate.stderr)
 
     def test_validate_input_rejects_missing_feat_ref(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -283,7 +353,21 @@ class FeatToTestSetWorkflowTests(FeatToTestSetWorkflowHarness):
             self.assertTrue(any("gate_pending_ref" in ref for unit in test_set["test_units"] for ref in unit["supporting_refs"]))
             self.assertTrue(any("assigned_gate_queue" in ref for unit in test_set["test_units"] for ref in unit["supporting_refs"]))
             self.assertTrue(any("retryable / idempotent_replay field semantics" in item for unit in test_set["test_units"] for item in unit["observation_points"]))
+            self.assertTrue(any("payload mismatch" in unit["title"].lower() or "不同 payload" in unit["title"] for unit in test_set["test_units"]))
+            self.assertTrue(any("payload_ref" in unit["title"] or "坏路径" in unit["title"] for unit in test_set["test_units"]))
+            self.assertTrue(any("pending visibility" in unit["title"].lower() or "空队列" in unit["title"] for unit in test_set["test_units"]))
+            self.assertTrue(any("reentry directive" in item.lower() or "reentry_directive" in item.lower() for unit in test_set["test_units"] for item in unit["required_evidence"] + unit["supporting_refs"]))
+            self.assertGreaterEqual(len(test_set["test_units"]), 10)
             self.assertTrue(any("尚未冻结完整 error mapping table" in item for unit in test_set["test_units"] for item in unit["pass_conditions"]))
+            self.assertEqual(test_set["recommended_coverage_scope_name"], ["mainline collaboration feature"])
+            self.assertEqual(
+                test_set["feature_owned_code_paths"],
+                [
+                    "cli/lib/mainline_runtime.py",
+                    "cli/lib/reentry.py",
+                    "cli/lib/gate_collaboration_actions.py",
+                ],
+            )
             collaboration_trace = {
                 row["acceptance_ref"]: row for row in test_set["acceptance_traceability"]
             }

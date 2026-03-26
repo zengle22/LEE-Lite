@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from _test_exec_skill_support import SkillRuntimeHarness, python_command, read_json, write_json
+from _test_exec_skill_support import SkillRuntimeHarness, python_command, python_file_command, read_json, write_json, write_yaml
 
 
 class TestCliExecSkillRuntime(SkillRuntimeHarness):
@@ -172,3 +172,116 @@ class TestCliExecSkillRuntime(SkillRuntimeHarness):
             {"wave_id": "wave-pilot-01", "pilot_evidence_ref": pilot_payload["pilot_evidence_ref"]},
         )
         self.assertEqual(cutover_payload["readiness_label"], "cutover_guarded")
+
+    def test_cli_skill_collects_real_coverage_when_enabled_for_python_script(self) -> None:
+        script_path = self.workspace / "tools" / "coverage_target.py"
+        write_yaml(
+            script_path,
+            "import os\n"
+            "case_id = os.environ['LEE_TEST_CASE_ID']\n"
+            "if case_id.endswith('U03'):\n"
+            "    print('branch-three')\n"
+            "else:\n"
+            "    print('branch-default')\n",
+        )
+        env_ref = self.write_env_spec(
+            "cli-coverage-env.yaml",
+            "execution_modality: cli\n"
+            "coverage_enabled: true\n"
+            "coverage_scope_name:\n"
+            "  - collaboration-cli-runtime\n"
+            "coverage_include:\n"
+            f"  - {script_path.as_posix()}\n"
+            "command_entry: >-\n"
+            f"  {python_file_command(script_path)}\n"
+            "workdir: .\n",
+        )
+        request = self.build_request(
+            "skill.test-exec-cli",
+            {
+                "test_set_ref": self.feat_testset_path("005"),
+                "test_environment_ref": env_ref,
+                "proposal_ref": "proposal-cli-coverage-001",
+            },
+        )
+        req = self.request_path("skill-cli-coverage.json")
+        write_json(req, request)
+        response = self.response_path("skill-cli-coverage.response.json")
+        self.assertEqual(self.run_cli("skill", "test-exec-cli", "--request", str(req), "--response-out", str(response)), 0)
+        payload = read_json(response)["data"]
+        coverage_summary = read_json(self.resolve_ref(payload["coverage_summary_ref"]))
+        self.assertEqual(coverage_summary["status"], "collected")
+        self.assertGreater(float(coverage_summary["line_rate_percent"]), 0.0)
+
+    def test_cli_skill_auto_adopts_feature_owned_coverage_scope_from_testset(self) -> None:
+        script_path = self.workspace / "tools" / "auto_coverage_target.py"
+        write_yaml(
+            script_path,
+            "import os\n"
+            "case_id = os.environ['LEE_TEST_CASE_ID']\n"
+            "if case_id.endswith('U02'):\n"
+            "    print('branch-u02')\n"
+            "else:\n"
+            "    print('branch-default')\n",
+        )
+        testset_ref = self.write_testset(
+            "auto-coverage-testset.yaml",
+            "id: TESTSET-AUTO-COVERAGE\n"
+            "ssot_type: TESTSET\n"
+            "test_set_id: TESTSET-AUTO-COVERAGE\n"
+            "title: Auto Coverage Test Set\n"
+            "feat_ref: FEAT-AUTO-COVERAGE\n"
+            "recommended_coverage_scope_name:\n"
+            "  - auto feature scope\n"
+            "feature_owned_code_paths:\n"
+            f"  - {script_path.as_posix()}\n"
+            "test_units:\n"
+            "  - unit_ref: TESTSET-AUTO-COVERAGE-U01\n"
+            "    title: first branch\n"
+            "    priority: P0\n"
+            "    input_preconditions: []\n"
+            "    trigger_action: run\n"
+            "    pass_conditions:\n"
+            "      - exits successfully\n"
+            "    fail_conditions: []\n"
+            "    required_evidence:\n"
+            "      - stdout\n"
+            "  - unit_ref: TESTSET-AUTO-COVERAGE-U02\n"
+            "    title: second branch\n"
+            "    priority: P0\n"
+            "    input_preconditions: []\n"
+            "    trigger_action: run\n"
+            "    pass_conditions:\n"
+            "      - exits successfully\n"
+            "    fail_conditions: []\n"
+            "    required_evidence:\n"
+            "      - stdout\n",
+        )
+        env_ref = self.write_env_spec(
+            "cli-auto-coverage-env.yaml",
+            "execution_modality: cli\n"
+            "command_entry: >-\n"
+            f"  {python_file_command(script_path)}\n"
+            "workdir: .\n",
+        )
+        request = self.build_request(
+            "skill.test-exec-cli",
+            {
+                "test_set_ref": testset_ref,
+                "test_environment_ref": env_ref,
+                "proposal_ref": "proposal-cli-auto-coverage-001",
+            },
+        )
+        req = self.request_path("skill-cli-auto-coverage.json")
+        write_json(req, request)
+        response = self.response_path("skill-cli-auto-coverage.response.json")
+        self.assertEqual(self.run_cli("skill", "test-exec-cli", "--request", str(req), "--response-out", str(response)), 0)
+        payload = read_json(response)["data"]
+        self.assert_execution_outputs(payload, expected_cases=2, expected_status="completed")
+        coverage_summary = read_json(self.resolve_ref(payload["coverage_summary_ref"]))
+        self.assertEqual(coverage_summary["status"], "collected")
+        self.assertEqual(coverage_summary["scope"], ["auto feature scope"])
+        self.assertEqual(coverage_summary["scope_origin"], "test_set.feature_owned_code_paths")
+        self.assertEqual(coverage_summary["include"], [script_path.as_posix()])
+        report_text = self.resolve_ref(payload["test_report_ref"]).read_text(encoding="utf-8")
+        self.assertIn("coverage_scope_origin: test_set.feature_owned_code_paths", report_text)
