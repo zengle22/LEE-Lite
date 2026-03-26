@@ -189,14 +189,23 @@ def extract_numeric_src_ref(values: list[str], fallback: str = "") -> str:
         normalized = str(value or "").strip().upper()
         if re.fullmatch(r"SRC-\d+", normalized):
             return normalized
+        legacy_match = re.fullmatch(r"SRC(\d+)", normalized)
+        if legacy_match:
+            return f"SRC-{legacy_match.group(1)}"
     for value in values:
         match = re.search(r"(SRC-\d+)", str(value or "").upper())
         if match:
             return match.group(1)
+        legacy_match = re.search(r"(SRC)(\d+)", str(value or "").upper())
+        if legacy_match:
+            return f"SRC-{legacy_match.group(2)}"
     if fallback:
         match = re.search(r"(SRC-\d+)", str(fallback).upper())
         if match:
             return match.group(1)
+        legacy_match = re.search(r"(SRC)(\d+)", str(fallback).upper())
+        if legacy_match:
+            return f"SRC-{legacy_match.group(2)}"
     return ""
 
 
