@@ -262,6 +262,38 @@ class GateHumanOrchestratorWorkflowTests(GateHumanOrchestratorTestSupport):
 
             self.assertEqual(synthetic["payload"]["candidate_ref"], "formal.src.run-legacy")
 
+    def test_prepare_round_feat_freeze_package_renders_human_friendly_bundle_summary(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            repo_root = Path(temp_dir)
+            input_dir = self.make_feat_freeze_gate_ready_package(repo_root, run_id="feat-freeze-round")
+
+            prepare = self.run_cmd(
+                "prepare-round",
+                "--input",
+                str(input_dir),
+                "--repo-root",
+                str(repo_root),
+                "--run-id",
+                "gate-feat-freeze-round",
+                cwd=ROOT,
+            )
+            self.assertEqual(prepare.returncode, 0, prepare.stderr)
+            prepare_payload = json.loads(prepare.stdout)
+            summary = prepare_payload["review_summary"]
+            markdown = prepare_payload["human_brief"]["markdown"]
+
+            self.assertTrue(any(item.startswith("Bundle 意图:") for item in summary["ssot_excerpt"]))
+            self.assertTrue(any(item.startswith("拆分结果:") for item in summary["ssot_excerpt"]))
+            self.assertTrue(any("features[3]" in item for item in summary["ssot_outline"]))
+            self.assertTrue(any("Runner 用户入口流" in item for item in summary["ssot_outline"]))
+            self.assertTrue(any("用户入口" in item for item in summary["review_checkpoints"]))
+            self.assertIn("### 本轮实际拆出的 FEAT", markdown)
+            self.assertIn("Runner 用户入口流", markdown)
+            self.assertIn("Runner 控制面流", markdown)
+            self.assertIn("Runner 运行监控流", markdown)
+            self.assertIn("workflow.dev.feat_to_tech", markdown)
+            self.assertIn("### 这轮 FEAT 面向的关键角色", markdown)
+
     def test_capture_decision_refreshes_legacy_synthetic_round_target(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             repo_root = Path(temp_dir)
@@ -293,6 +325,46 @@ class GateHumanOrchestratorWorkflowTests(GateHumanOrchestratorTestSupport):
             self.assertEqual(capture.returncode, 0, capture.stderr)
             submission = json.loads((artifacts_dir / "human-decision-submission.json").read_text(encoding="utf-8"))
             self.assertEqual(submission["decision_target"], "formal.src.run-legacy")
+
+    def test_capture_decision_approve_materializes_formal_src_for_raw_to_src_candidate(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            repo_root = Path(temp_dir)
+            input_dir = self.make_raw_to_src_gate_ready_package(repo_root, run_id="raw-src-approve")
+
+            prepare = self.run_cmd(
+                "prepare-round",
+                "--input",
+                str(input_dir),
+                "--repo-root",
+                str(repo_root),
+                "--run-id",
+                "gate-raw-src-approve",
+                cwd=ROOT,
+            )
+            self.assertEqual(prepare.returncode, 0, prepare.stderr)
+            artifacts_dir = repo_root / "artifacts" / "gate-human-orchestrator" / "gate-raw-src-approve"
+
+            capture = self.run_cmd(
+                "capture-decision",
+                "--artifacts-dir",
+                str(artifacts_dir),
+                "--repo-root",
+                str(repo_root),
+                "--reply",
+                "approve",
+                "--approver",
+                "human/reviewer-001",
+                cwd=ROOT,
+            )
+            self.assertEqual(capture.returncode, 0, capture.stderr)
+            bundle = json.loads((artifacts_dir / "gate-decision-bundle.json").read_text(encoding="utf-8"))
+
+            self.assertEqual(bundle["formal_ref"], "formal.src.raw-src-approve")
+            self.assertEqual(bundle["assigned_id"], "SRC-001")
+            self.assertTrue(bundle["materialized_ssot_ref"].endswith("materialized-src.json"))
+            formal_path = repo_root / "ssot" / "src" / "SRC-001__src-candidate.md"
+            self.assertTrue(formal_path.exists())
+            self.assertIn("Approved content.", formal_path.read_text(encoding="utf-8"))
 
     def test_close_run_releases_claim_and_allows_next_queue_item(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
