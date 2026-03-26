@@ -34,6 +34,8 @@ def resolve_ssot_context(test_set: dict[str, Any], environment: dict[str, Any], 
         "governing_adrs": test_set.get("governing_adrs", []),
         "environment_assumptions": test_set.get("environment_assumptions", []),
         "coverage_scope": test_set.get("coverage_scope", []),
+        "recommended_coverage_scope_name": test_set.get("recommended_coverage_scope_name", []),
+        "feature_owned_code_paths": test_set.get("feature_owned_code_paths", []),
         "risk_focus": test_set.get("risk_focus", []),
         "ui_source_spec": ui_source_spec,
         "environment_contract": {
@@ -44,6 +46,10 @@ def resolve_ssot_context(test_set: dict[str, Any], environment: dict[str, Any], 
             "browser": environment.get("browser"),
             "headless": environment.get("headless"),
             "has_command_entry": bool(environment.get("command_entry") or environment.get("runner_command")),
+            "coverage_enabled": bool(environment.get("coverage_enabled")),
+            "coverage_scope_name": environment.get("coverage_scope_name", []),
+            "coverage_include": environment.get("coverage_include", []),
+            "coverage_scope_origin": environment.get("coverage_scope_origin", "environment"),
         },
     }
 
@@ -151,9 +157,25 @@ def render_report(summary: dict[str, Any], compliance: dict[str, Any], case_resu
         f"- blocked: {summary['blocked']}",
         f"- invalid: {summary['invalid']}",
         f"- not_executed: {summary['not_executed']}",
-        "",
-        "## Case Results",
     ]
+    coverage = summary.get("coverage") or {}
+    if coverage:
+        lines.extend(
+            [
+                f"- coverage_status: {coverage.get('status')}",
+                f"- coverage_line_rate_percent: {coverage.get('line_rate_percent')}",
+                f"- coverage_covered_lines: {coverage.get('covered_lines')}",
+                f"- coverage_num_statements: {coverage.get('num_statements')}",
+                f"- coverage_scope: {', '.join(coverage.get('scope') or [])}",
+                f"- coverage_scope_origin: {coverage.get('scope_origin')}",
+            ]
+        )
+    lines.extend(
+        [
+            "",
+            "## Case Results",
+        ]
+    )
     for item in case_results:
         lines.append(f"- {item['case_id']}: {item['status']} ({item['actual']})")
     return "\n".join(lines) + "\n"

@@ -18,9 +18,12 @@ def _skill_handler(ctx: CommandContext):
             trace=ctx.trace,
             payload=ctx.payload,
         )
-        evidence_refs = [result["bundle_ref"]]
-        return "OK", "governed gate human orchestrator completed", {
-            "canonical_path": result["bundle_ref"],
+        evidence_refs = _collect_refs(result)
+        message = "governed gate human orchestrator completed"
+        if result.get("human_brief_markdown"):
+            message = "governed gate human orchestrator prepared a pending human brief"
+        return "OK", message, {
+            "canonical_path": result["canonical_path"],
             **result,
         }, [], evidence_refs
     payload = ctx.payload
@@ -39,6 +42,22 @@ def _skill_handler(ctx: CommandContext):
         "canonical_path": result["handoff_ref"],
         **result,
     }, [], evidence_refs
+
+
+def _collect_refs(payload: dict[str, object]) -> list[str]:
+    excluded = {"skill_ref", "runner_skill_ref"}
+    refs: list[str] = []
+    for key, value in payload.items():
+        if key.endswith("_ref") and key not in excluded and isinstance(value, str) and value.strip():
+            refs.append(value)
+        elif key == "items" and isinstance(value, list):
+            for item in value:
+                if not isinstance(item, dict):
+                    continue
+                for nested_key, nested_value in item.items():
+                    if nested_key.endswith("_ref") and nested_key not in excluded and isinstance(nested_value, str) and nested_value.strip():
+                        refs.append(nested_value)
+    return list(dict.fromkeys(refs))
 
 
 def handle(args: Namespace) -> int:

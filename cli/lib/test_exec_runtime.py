@@ -32,6 +32,14 @@ SKILL_CONFIG = {
 }
 
 
+def _as_list(value: Any) -> list[str]:
+    if isinstance(value, list):
+        return [str(item) for item in value if str(item).strip()]
+    if value in (None, ""):
+        return []
+    return [str(value)]
+
+
 def load_yaml_document(ref_value: str, workspace_root: Path) -> dict[str, Any]:
     path = canonical_to_path(ref_value, workspace_root)
     ensure(path.exists(), "PRECONDITION_FAILED", f"yaml file not found: {ref_value}")
@@ -92,6 +100,21 @@ def _validate_environment(action: str, environment: dict[str, Any]) -> None:
         )
 
 
+def _apply_testset_coverage_defaults(test_set: dict[str, Any], environment: dict[str, Any]) -> dict[str, Any]:
+    resolved = dict(environment)
+    feature_owned = _as_list(test_set.get("feature_owned_code_paths"))
+    recommended_scope = _as_list(test_set.get("recommended_coverage_scope_name"))
+    explicit_scope = bool(_as_list(environment.get("coverage_include")) or _as_list(environment.get("coverage_source")))
+    if feature_owned and not explicit_scope:
+        resolved["coverage_enabled"] = bool(environment.get("coverage_enabled", True))
+        resolved["coverage_include"] = feature_owned
+        resolved["coverage_scope_name"] = recommended_scope or [str(test_set.get("title") or "feature coverage")]
+        resolved["coverage_scope_origin"] = "test_set.feature_owned_code_paths"
+    else:
+        resolved["coverage_scope_origin"] = "environment"
+    return resolved
+
+
 def execute_test_exec_skill(
     workspace_root: Path,
     trace: dict[str, Any],
@@ -102,6 +125,7 @@ def execute_test_exec_skill(
     test_set = load_yaml_document(str(payload.get("test_set_ref", "")), workspace_root)
     environment = load_yaml_document(str(payload.get("test_environment_ref", "")), workspace_root)
     ensure(test_set.get("ssot_type") == "TESTSET", "PRECONDITION_FAILED", "test_set_ref must resolve to a TESTSET")
+    environment = _apply_testset_coverage_defaults(test_set, environment)
     _validate_environment(action, environment)
     execution_result = run_narrow_execution(workspace_root, trace, request_id, action, test_set, environment, payload)
 

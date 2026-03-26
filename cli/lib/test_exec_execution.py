@@ -2,15 +2,20 @@
 
 from __future__ import annotations
 
+import io
+import json
 import os
+import shlex
 import subprocess
+from pathlib import PurePath
 from pathlib import Path
 from typing import Any
 
 import yaml
+from coverage import Coverage
 
 from cli.lib.errors import ensure
-from cli.lib.fs import canonical_to_path, to_canonical_path, write_json, write_text
+from cli.lib.fs import canonical_to_path, read_text, to_canonical_path, write_json, write_text
 from cli.lib.registry_store import slugify
 from cli.lib.test_exec_artifacts import (
     build_freeze_meta,
@@ -29,7 +34,12 @@ def _write_yaml(path: Path, payload: dict[str, Any]) -> None:
     write_text(path, yaml.safe_dump(payload, sort_keys=False, allow_unicode=True))
 
 
-
+def _as_list(value: Any) -> list[str]:
+    if isinstance(value, list):
+        return [str(item) for item in value if str(item).strip()]
+    if value in (None, ""):
+        return []
+    return [str(value)]
 
 def _execution_env(case: dict[str, Any], environment: dict[str, Any]) -> dict[str, str]:
     extra = os.environ.copy()
@@ -47,6 +57,12 @@ def _execution_env(case: dict[str, Any], environment: dict[str, Any]) -> dict[st
     if environment.get("browser"):
         extra["LEE_BROWSER"] = str(environment["browser"])
     return extra
+
+
+def _case_slug(case_id: str) -> str:
+    tail = slugify(case_id.split("-")[-1])[-12:] or "case"
+    digest = slugify(case_id)[-10:]
+    return f"{tail}-{digest}"
 
 
 def _evidence_refs(case_dir: Path, workspace_root: Path) -> dict[str, str]:
@@ -96,8 +112,12 @@ def execute_case(
     environment: dict[str, Any],
     evidence_root: Path,
 ) -> dict[str, Any]:
-    case_dir = evidence_root / slugify(case["case_id"])
+    case_dir = evidence_root / _case_slug(str(case["case_id"]))
     refs = _write_case_manifests(workspace_root, case, command_entry, environment, case_dir)
+    refs["coverage_data_ref"] = to_canonical_path(
+        evidence_root.parent / "coverage-raw" / f"{slugify(case['case_id'])[-24:]}.cov",
+        workspace_root,
+    )
     workdir = canonical_to_path(str(environment.get("workdir", ".")), workspace_root)
     timeout = int(environment.get("timeout_seconds", 30))
     stdout_text = ""
@@ -105,10 +125,31 @@ def execute_case(
     exit_code: int | None = None
     raw_status = "runner_error"
     diagnostics: list[str] = []
+    coverage_status = "disabled"
+    coverage_reason = ""
+    run_command: str | list[str] = command_entry
+    run_with_shell = True
+    coverage_enabled = bool(environment.get("coverage_enabled"))
+    if coverage_enabled:
+        try:
+            tokens = shlex.split(command_entry, posix=False)
+        except ValueError:
+            tokens = []
+        tokens = [token.strip('"') for token in tokens if token]
+        if tokens and PurePath(tokens[0].strip('"')).name.lower().startswith("python"):
+            coverage_data_path = workspace_root / refs["coverage_data_ref"]
+            coverage_data_path.parent.mkdir(parents=True, exist_ok=True)
+            run_command = [tokens[0], "-m", "coverage", "run", f"--data-file={coverage_data_path}", *tokens[1:]]
+            run_with_shell = False
+            coverage_status = "enabled"
+        else:
+            coverage_status = "unsupported"
+            coverage_reason = "coverage instrumentation requires a Python script/module command entry"
+            diagnostics.append(coverage_reason)
     try:
         result = subprocess.run(
-            command_entry,
-            shell=True,
+            run_command,
+            shell=run_with_shell,
             cwd=workdir,
             env=_execution_env(case, environment),
             capture_output=True,
@@ -132,14 +173,22 @@ def execute_case(
     payload = {
         "case_id": case["case_id"],
         "command_entry": command_entry,
+        "executed_command": run_command if isinstance(run_command, str) else " ".join(run_command),
         "exit_code": exit_code,
         "raw_status": raw_status,
         "stdout_ref": refs["stdout_ref"],
         "stderr_ref": refs["stderr_ref"],
         "command_manifest_ref": refs["command_manifest_ref"],
         "env_snapshot_ref": refs["env_snapshot_ref"],
+        "coverage_enabled": coverage_enabled,
+        "coverage_status": coverage_status,
+        "coverage_reason": coverage_reason,
         "diagnostics": diagnostics,
     }
+    coverage_data_path = workspace_root / refs["coverage_data_ref"]
+    if coverage_enabled and coverage_status == "enabled" and coverage_data_path.exists():
+        payload["coverage_data_ref"] = refs["coverage_data_ref"]
+        payload["coverage_status"] = "collected"
     write_json(workspace_root / refs["result_ref"], payload)
     payload["result_ref"] = refs["result_ref"]
     return payload
@@ -265,7 +314,36 @@ def judge_case_results(
     return results
 
 
-def build_results_summary(case_results: list[dict[str, Any]], compliance: dict[str, Any], output_ok: bool) -> dict[str, Any]:
+def _derive_actual_message(workspace_root: Path, run: dict[str, Any] | None, status: str) -> str:
+    if run is None:
+        return "case did not execute"
+    stdout_ref = run.get("stdout_ref")
+    if isinstance(stdout_ref, str) and stdout_ref:
+        stdout_path = canonical_to_path(stdout_ref, workspace_root)
+    else:
+        stdout_path = None
+    if stdout_path and stdout_path.exists():
+        lines = [line.strip() for line in read_text(stdout_path).splitlines() if line.strip()]
+        if lines:
+            first = lines[0]
+            if len(first) > 220:
+                first = first[:217] + "..."
+            return first
+    if status == "blocked":
+        return "command timed out"
+    if status == "invalid":
+        return "required evidence missing" if run.get("raw_status") != "runner_error" else "runner error"
+    if status == "failed":
+        return f"command exited with {run.get('exit_code')}"
+    return "command exited with 0"
+
+
+def build_results_summary(
+    case_results: list[dict[str, Any]],
+    compliance: dict[str, Any],
+    output_ok: bool,
+    coverage_summary: dict[str, Any],
+) -> dict[str, Any]:
     counts = {key: 0 for key in ("passed", "failed", "blocked", "invalid", "not_executed")}
     for item in case_results:
         counts[item["status"]] += 1
@@ -279,7 +357,19 @@ def build_results_summary(case_results: list[dict[str, Any]], compliance: dict[s
         run_status = "completed_with_warnings"
     else:
         run_status = "completed"
-    return {"artifact_type": "results_summary", **counts, "run_status": run_status}
+    return {
+        "artifact_type": "results_summary",
+        **counts,
+        "run_status": run_status,
+        "coverage": {
+            "status": coverage_summary.get("status"),
+            "line_rate_percent": coverage_summary.get("line_rate_percent"),
+            "covered_lines": coverage_summary.get("covered_lines"),
+            "num_statements": coverage_summary.get("num_statements"),
+            "scope": coverage_summary.get("scope"),
+            "scope_origin": coverage_summary.get("scope_origin"),
+        },
+    }
 
 
 def build_bug_bundle(case_results: list[dict[str, Any]], output_root: Path, workspace_root: Path) -> str:
@@ -329,6 +419,89 @@ def validate_outputs(
     }
 
 
+def collect_coverage(
+    workspace_root: Path,
+    output_root: Path,
+    refs: dict[str, str],
+    case_runs: list[dict[str, Any]],
+    environment: dict[str, Any],
+) -> dict[str, Any]:
+    summary = {
+        "artifact_type": "coverage_summary",
+        "status": "disabled",
+        "scope": _as_list(environment.get("coverage_scope_name")) or ["cli execution"],
+        "include": _as_list(environment.get("coverage_include")),
+        "source": _as_list(environment.get("coverage_source")),
+        "omit": _as_list(environment.get("coverage_omit")),
+        "scope_origin": str(environment.get("coverage_scope_origin", "environment")),
+        "raw_data_count": 0,
+        "measured_files": 0,
+        "covered_lines": 0,
+        "num_statements": 0,
+        "missing_lines": 0,
+        "line_rate_percent": None,
+        "notes": [],
+    }
+    if not environment.get("coverage_enabled"):
+        write_json(workspace_root / refs["coverage_summary_ref"], summary)
+        write_json(workspace_root / refs["coverage_details_ref"], {"meta": summary, "files": {}})
+        write_text(workspace_root / refs["coverage_report_ref"], "# Coverage Report\n\n- status: disabled\n")
+        return summary
+
+    data_refs = [run.get("coverage_data_ref", "") for run in case_runs if run.get("coverage_status") == "collected"]
+    summary["raw_data_count"] = len(data_refs)
+    if not data_refs:
+        summary["status"] = "unavailable"
+        summary["notes"].append("coverage was enabled but no compatible Python coverage data files were produced")
+        write_json(workspace_root / refs["coverage_summary_ref"], summary)
+        write_json(workspace_root / refs["coverage_details_ref"], {"meta": summary, "files": {}})
+        write_text(workspace_root / refs["coverage_report_ref"], "# Coverage Report\n\n- status: unavailable\n- note: coverage was enabled but no compatible Python coverage data files were produced\n")
+        return summary
+
+    coverage_dir = output_root / "coverage"
+    coverage_dir.mkdir(parents=True, exist_ok=True)
+    combined_data_file = coverage_dir / ".coverage"
+    cov = Coverage(data_file=str(combined_data_file))
+    raw_paths = [str(canonical_to_path(str(ref), workspace_root)) for ref in data_refs]
+    cov.combine(data_paths=raw_paths, strict=False, keep=True)
+    cov.save()
+    include = _as_list(environment.get("coverage_include")) or None
+    omit = _as_list(environment.get("coverage_omit")) or None
+    report_buffer = io.StringIO()
+    line_rate = cov.report(file=report_buffer, ignore_errors=True, include=include, omit=omit)
+    cov.json_report(outfile=str(workspace_root / refs["coverage_details_ref"]), pretty_print=True, include=include, omit=omit)
+    details = json.loads((workspace_root / refs["coverage_details_ref"]).read_text(encoding="utf-8"))
+    totals = details.get("totals", {})
+    summary.update(
+        {
+            "status": "collected",
+            "measured_files": len(details.get("files", {})),
+            "covered_lines": totals.get("covered_lines"),
+            "num_statements": totals.get("num_statements"),
+            "missing_lines": totals.get("missing_lines"),
+            "line_rate_percent": round(float(line_rate), 2),
+        }
+    )
+    report_lines = [
+        "# Coverage Report",
+        "",
+        f"- status: {summary['status']}",
+        f"- line_rate_percent: {summary['line_rate_percent']}",
+        f"- covered_lines: {summary['covered_lines']}",
+        f"- num_statements: {summary['num_statements']}",
+        f"- measured_files: {summary['measured_files']}",
+        f"- scope: {', '.join(summary['scope'])}",
+    ]
+    if summary["include"]:
+        report_lines.append(f"- include: {', '.join(summary['include'])}")
+    if summary["source"]:
+        report_lines.append(f"- source: {', '.join(summary['source'])}")
+    report_lines.extend(["", "## coverage report", "", report_buffer.getvalue().strip()])
+    write_json(workspace_root / refs["coverage_summary_ref"], summary)
+    write_text(workspace_root / refs["coverage_report_ref"], "\n".join(report_lines).strip() + "\n")
+    return summary
+
+
 def _build_execution_refs(output_root: Path, workspace_root: Path) -> dict[str, str]:
     return {
         "resolved_ssot_context_ref": to_canonical_path(output_root / "resolved-ssot-context.yaml", workspace_root),
@@ -345,6 +518,9 @@ def _build_execution_refs(output_root: Path, workspace_root: Path) -> dict[str, 
         "results_summary_ref": to_canonical_path(output_root / "results-summary.json", workspace_root),
         "evidence_bundle_ref": to_canonical_path(output_root / "evidence" / "index.json", workspace_root),
         "test_report_ref": to_canonical_path(output_root / "test-report.md", workspace_root),
+        "coverage_summary_ref": to_canonical_path(output_root / "coverage-summary.json", workspace_root),
+        "coverage_details_ref": to_canonical_path(output_root / "coverage-details.json", workspace_root),
+        "coverage_report_ref": to_canonical_path(output_root / "coverage-report.md", workspace_root),
         "output_validation_ref": to_canonical_path(output_root / "output-validation.json", workspace_root),
         "tse_ref": to_canonical_path(output_root / "tse.json", workspace_root),
     }
@@ -387,15 +563,18 @@ def _finalize_execution_outputs(
     compliance = evaluate_compliance(case_pack, str(environment.get("execution_modality", "")), case_runs, workspace_root)
     write_json(workspace_root / refs["compliance_result_ref"], compliance)
     case_results = judge_case_results(case_pack, case_runs, compliance)
+    for item, run in zip(case_results, case_runs):
+        item["actual"] = _derive_actual_message(workspace_root, run, item["status"])
     write_json(workspace_root / refs["case_results_ref"], {"trace": trace, "results": case_results})
     write_json(workspace_root / refs["evidence_bundle_ref"], {"trace": trace, "cases": case_runs, "compliance_status": compliance["status"]})
     refs["bug_bundle_ref"] = build_bug_bundle(case_results, output_root, workspace_root)
-    provisional = build_results_summary(case_results, compliance, output_ok=True)
+    coverage_summary = collect_coverage(workspace_root, output_root, refs, case_runs, environment)
+    provisional = build_results_summary(case_results, compliance, output_ok=True, coverage_summary=coverage_summary)
     write_json(workspace_root / refs["results_summary_ref"], provisional)
     write_text(workspace_root / refs["test_report_ref"], render_report(provisional, compliance, case_results))
     output_validation = validate_outputs(workspace_root, case_pack, case_results, refs)
     write_json(workspace_root / refs["output_validation_ref"], output_validation)
-    summary = build_results_summary(case_results, compliance, output_ok=output_validation["status"] == "pass")
+    summary = build_results_summary(case_results, compliance, output_ok=output_validation["status"] == "pass", coverage_summary=coverage_summary)
     write_json(workspace_root / refs["results_summary_ref"], summary)
     write_text(workspace_root / refs["test_report_ref"], render_report(summary, compliance, case_results))
     write_json(workspace_root / refs["tse_ref"], _build_tse_payload(trace, refs, summary["run_status"]))
@@ -419,6 +598,9 @@ def _build_tse_payload(trace: dict[str, Any], refs: dict[str, str], run_status: 
         "evidence_bundle_ref": refs["evidence_bundle_ref"],
         "bug_bundle_ref": refs["bug_bundle_ref"],
         "test_report_ref": refs["test_report_ref"],
+        "coverage_summary_ref": refs["coverage_summary_ref"],
+        "coverage_details_ref": refs["coverage_details_ref"],
+        "coverage_report_ref": refs["coverage_report_ref"],
         "output_validation_ref": refs["output_validation_ref"],
     }
 
