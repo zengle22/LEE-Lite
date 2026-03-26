@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import json
 import re
+import sys
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -135,6 +136,41 @@ def guess_repo_root_from_input(input_path: Path) -> Path:
     return input_path.parent
 
 
+def resolve_input_artifacts_dir(input_value: str | Path, repo_root: Path) -> tuple[Path, dict[str, Any]]:
+    candidate_path = Path(str(input_value))
+    if candidate_path.exists() and candidate_path.is_dir():
+        return candidate_path.resolve(), {"input_mode": "package_dir", "requested_ref": str(candidate_path.resolve())}
+
+    implementation_root = Path(__file__).resolve().parents[3]
+    if str(implementation_root) not in sys.path:
+        sys.path.insert(0, str(implementation_root))
+    from cli.lib.admission import validate_admission
+    from cli.lib.fs import canonical_to_path
+    from cli.lib.registry_store import resolve_registry_record
+
+    requested_ref = str(input_value)
+    admission = validate_admission(
+        repo_root,
+        consumer_ref="qa.feat-to-testset",
+        requested_ref=requested_ref,
+    )
+    record = resolve_registry_record(repo_root, requested_ref)
+    metadata = record.get("metadata", {}) if isinstance(record.get("metadata"), dict) else {}
+    source_package_ref = str(metadata.get("source_package_ref") or "").strip()
+    if not source_package_ref:
+        raise ValueError("formal feat record is missing metadata.source_package_ref")
+    artifacts_dir = canonical_to_path(source_package_ref, repo_root)
+    if not artifacts_dir.exists() or not artifacts_dir.is_dir():
+        raise FileNotFoundError(f"resolved feat package directory not found: {artifacts_dir}")
+    return artifacts_dir.resolve(), {
+        "input_mode": "formal_admission",
+        "requested_ref": requested_ref,
+        "resolved_formal_ref": admission["resolved_formal_ref"],
+        "managed_artifact_ref": record.get("managed_artifact_ref", ""),
+        "resolved_feat_ref": str(metadata.get("feat_ref") or metadata.get("assigned_id") or "").strip(),
+    }
+
+
 def derive_test_set_ref(feat_ref: str) -> str:
     feat_ref = feat_ref.strip()
     if feat_ref.startswith("FEAT-"):
@@ -202,7 +238,8 @@ def find_feature(package: FeatPackage, feat_ref: str) -> dict[str, Any] | None:
     return None
 
 
-def validate_input_package(artifacts_dir: Path, feat_ref: str) -> tuple[list[str], dict[str, Any]]:
+def validate_input_package(input_value: str | Path, feat_ref: str, repo_root: Path) -> tuple[list[str], dict[str, Any]]:
+    artifacts_dir, input_resolution = resolve_input_artifacts_dir(input_value, repo_root)
     errors: list[str] = []
     if not artifacts_dir.exists() or not artifacts_dir.is_dir():
         return [f"Input package not found: {artifacts_dir}"], {"valid": False}
@@ -211,7 +248,8 @@ def validate_input_package(artifacts_dir: Path, feat_ref: str) -> tuple[list[str
         if not (artifacts_dir / required_file).exists():
             errors.append(f"Missing required input artifact: {required_file}")
 
-    if not feat_ref.strip():
+    effective_feat_ref = feat_ref.strip() or str(input_resolution.get("resolved_feat_ref") or "").strip()
+    if not effective_feat_ref:
         errors.append("feat_ref is required.")
 
     if errors:
@@ -236,15 +274,15 @@ def validate_input_package(artifacts_dir: Path, feat_ref: str) -> tuple[list[str
     if package.gate.get("freeze_ready") is not True:
         errors.append("feat-freeze-gate.json must mark the package as freeze_ready.")
 
-    feature = find_feature(package, feat_ref)
+    feature = find_feature(package, effective_feat_ref)
     if feature is None:
-        errors.append(f"Selected feat_ref not found in feat-freeze-bundle.json: {feat_ref}")
+        errors.append(f"Selected feat_ref not found in feat-freeze-bundle.json: {effective_feat_ref}")
     else:
         for field in ["feat_ref", "title", "goal", "scope", "constraints", "acceptance_checks", "source_refs"]:
             if feature.get(field) in (None, "", []):
                 errors.append(f"Selected feature is missing required field: {field}")
         if len(feature.get("acceptance_checks") or []) < 3:
-            errors.append(f"{feat_ref} must include at least three acceptance checks.")
+            errors.append(f"{effective_feat_ref} must include at least three acceptance checks.")
 
     source_refs = ensure_list(package.feat_json.get("source_refs"))
     if not any(ref.startswith("EPIC-") for ref in source_refs):
@@ -261,9 +299,10 @@ def validate_input_package(artifacts_dir: Path, feat_ref: str) -> tuple[list[str
         "run_id": package.run_id,
         "workflow_key": workflow_key,
         "status": status,
-        "feat_ref": feat_ref,
+        "input_mode": input_resolution.get("input_mode", "package_dir"),
+        "feat_ref": effective_feat_ref,
         "feat_title": str((feature or {}).get("title") or ""),
-        "derived_slug": slugify(str((feature or {}).get("title") or feat_ref)),
+        "derived_slug": slugify(str((feature or {}).get("title") or effective_feat_ref)),
         "epic_freeze_ref": package.feat_json.get("epic_freeze_ref"),
         "src_root_id": package.feat_json.get("src_root_id"),
         "source_refs": source_refs,

@@ -1,0 +1,1771 @@
+{
+  "projection_generation": {
+    "architecture_topics": [
+      "Boundary to Machine SSOT: 输入只读取冻结后的 SSOT authoritative fields，不改写 SSOT 本体。",
+      "Boundary to reviewer: 本 FEAT 只生成 Human Review Projection，不负责 gate decision issuance 或 formal publication。",
+      "Dedicated renderer placement is required so template rendering、derived-only marker 与 traceability stay in one implementation surface."
+    ],
+    "responsibility_splits": [
+      "Projection renderer owns template rendering and derived-only markers.",
+      "SSOT owner owns authoritative source updates and field stability.",
+      "Reviewer consumes the projection but does not treat it as an inheritable source."
+    ],
+    "api_surfaces": [],
+    "api_cli_commands": [
+      "`ll gate submit-handoff --request <gate_submit_handoff.request.json> --response-out <gate_submit_handoff.response.json>` via `cli/commands/gate/command.py`",
+      "`ll gate show-pending --request <gate_show_pending.request.json> --response-out <gate_show_pending.response.json>` via `cli/commands/gate/command.py`"
+    ],
+    "api_command_specs": [],
+    "implementation_architecture": [
+      "Machine SSOT remains the only authority; renderer reads frozen SSOT fields and produces a Human Review Projection as a derived-only artifact.",
+      "Projection template、derived-only markers and traceability metadata are produced in one rendering surface so reviewer-facing output stays stable across runs.",
+      "No handoff runtime, gate-decision engine, formal publication, or governed IO platform is introduced in this FEAT."
+    ],
+    "implementation_modules": [
+      "Projection template resolver：负责选择稳定模板块并绑定 SSOT trace refs。",
+      "Projection renderer：负责把 Product Summary / Roles / Main Flow / Deliverables 等块渲染为 reviewer-facing view。",
+      "Projection marker guard：负责注入 derived-only / non-authoritative / non-inheritable markers。"
+    ],
+    "state_model": [
+      "`ssot_ready` -> `projection_requested` -> `projection_rendered` -> `review_visible`",
+      "`projection_rendered` must always retain `derived_only_marked` and `traceable_to_ssot` invariants."
+    ],
+    "architecture_diagram": "```text\n[Machine SSOT] -> [Template Resolver] -> [Projection Renderer] -> [Human Review Projection]\n                                      |\n                                      +--> [Derived-only / Trace Markers]\n```",
+    "tech_runtime_view": "```text\n[review_projection/template.py]\n              |\n              v\n[review_projection/renderer.py] --> [review_projection/markers.py]\n```",
+    "flow_diagram": "```text\nMachine SSOT     -> Template Resolver   : load frozen authoritative fields\nTemplate Resolver-> Projection Renderer : render stable review template\nProjection Renderer -> Marker Guard     : attach derived-only markers\nMarker Guard     -> Reviewer            : publish Human Review Projection\n```",
+    "implementation_strategy": [
+      "先冻结 Projection 模板块和 traceability 字段，再实现渲染器本体。",
+      "把 derived-only / non-authoritative / non-inheritable markers 作为硬约束统一注入，避免视图误被当成新真相源。",
+      "最后用同类 SSOT 输入重复渲染，验证模板稳定性和 reviewer 可读性。"
+    ],
+    "implementation_unit_mapping": [
+      "`review_projection/template.py` (`new`): 定义 Projection 固定模板块与字段绑定。",
+      "`review_projection/renderer.py` (`new`): 从 Machine SSOT 渲染 Human Review Projection。",
+      "`review_projection/markers.py` (`new`): 注入 derived-only / non-authoritative / non-inheritable markers 与 trace refs。"
+    ],
+    "main_sequence": [
+      "1. resolve freeze-ready Machine SSOT",
+      "2. resolve Projection template version",
+      "3. render Product Summary / Roles / Main Flow / Deliverables blocks",
+      "4. attach derived-only markers and source trace refs",
+      "5. publish Human Review Projection to gate reviewer"
+    ],
+    "exception_compensation": [
+      "SSOT 可读但模板缺失：拒绝自由发挥 narrative，返回 `template_missing` 并保留 review request。",
+      "Projection rendered 但 markers 缺失：阻止发布给 reviewer，要求补齐 derived-only markers。",
+      "trace refs persist fail：允许暂存 Projection，但标记 `traceability_pending`，不得进入正式 reviewer gate。"
+    ],
+    "integration_points": [
+      "调用方：gate review surface 在进入审核前调用 Projection renderer，输入只能是 Machine SSOT ref。",
+      "挂接点：Projection 在 gate 审核阶段生成，不进入下游 TECH/TASK/TESTSET 继承入口。",
+      "旧系统兼容：缺少 Projection 时 reviewer 可回看 SSOT，但不得把自由 narrative 当成正式 Projection。"
+    ],
+    "minimal_code_skeleton": {
+      "happy_path": "```python\ndef render_projection(request: ProjectionRenderRequest) -> ProjectionRenderResult:\n    ssot = load_machine_ssot(request.ssot_ref)\n    template = load_projection_template(request.template_version)\n    blocks = render_review_blocks(ssot, template)\n    markers = attach_projection_markers(ssot.ref, template.version)\n    return ProjectionRenderResult(blocks=blocks, markers=markers)\n```",
+      "failure_path": "```python\ndef render_projection_or_fail(request: ProjectionRenderRequest) -> ProjectionRenderResult:\n    template = load_projection_template(request.template_version)\n    if template is None:\n        raise ProjectionRenderError('template_missing')\n    return render_projection(request)\n```"
+    }
+  },
+  "authoritative_snapshot": {
+    "architecture_topics": [
+      "Boundary to Projection narrative: 只提取 completed state、authoritative output、frozen boundary、open technical decisions，不扩张 narrative。",
+      "Boundary to SSOT authority: Snapshot 只能解释 SSOT 已有约束，不能新增 authoritative semantics。",
+      "Dedicated snapshot extractor placement is required so authoritative fields remain short, stable, and traceable."
+    ],
+    "responsibility_splits": [
+      "Snapshot extractor owns authoritative field selection and short-form rendering.",
+      "SSOT owner owns the underlying completed state / output / boundary truth.",
+      "Reviewer uses Snapshot for hard-constraint checks without redefining authority."
+    ],
+    "api_surfaces": [],
+    "api_cli_commands": [
+      "`ll gate submit-handoff --request <gate_submit_handoff.request.json> --response-out <gate_submit_handoff.response.json>` via `cli/commands/gate/command.py`",
+      "`ll gate show-pending --request <gate_show_pending.request.json> --response-out <gate_show_pending.response.json>` via `cli/commands/gate/command.py`"
+    ],
+    "api_command_specs": [],
+    "implementation_architecture": [
+      "Snapshot extractor reads authoritative SSOT fields and emits a short Authoritative Snapshot inside the Projection.",
+      "Snapshot rendering stays separate from narrative rendering so hard constraints remain compact, explicit, and traceable.",
+      "The extractor never adds new authority; it only reorders and shortens fields already frozen by SSOT."
+    ],
+    "implementation_modules": [
+      "Authoritative field selector：负责选择 completed state、authoritative output、frozen boundary、open technical decisions。",
+      "Snapshot formatter：负责把 authoritative fields 压缩成 reviewer 可快速核对的短摘要。",
+      "Traceability binder：负责把 Snapshot 字段回链到对应 SSOT refs。"
+    ],
+    "state_model": [
+      "`projection_rendered` -> `snapshot_extracted` -> `snapshot_attached` -> `constraint_check_visible`",
+      "`snapshot_extracted` only succeeds when authoritative SSOT fields remain resolvable."
+    ],
+    "architecture_diagram": "```text\n[Machine SSOT] -> [Authoritative Field Selector] -> [Snapshot Formatter] -> [Authoritative Snapshot]\n                                                                        |\n                                                                        +--> [Projection]\n```",
+    "tech_runtime_view": "```text\n[review_projection/snapshot.py]\n              |\n              v\n[review_projection/field_selector.py] --> [review_projection/traceability.py]\n```",
+    "flow_diagram": "```text\nMachine SSOT       -> Field Selector      : select authoritative fields\nField Selector     -> Snapshot Formatter  : compress into short authoritative view\nSnapshot Formatter -> Projection          : attach Snapshot block\nProjection         -> Reviewer            : expose hard constraints\n```",
+    "implementation_strategy": [
+      "先冻结 Snapshot 必含字段集合，再实现 authoritative field selector。",
+      "把 Snapshot 与 narrative rendering 解耦，避免 hard constraints 被 narrative 噪音淹没。",
+      "最后验证 Snapshot 只引用 SSOT 已有字段，不引入新的权威定义。"
+    ],
+    "implementation_unit_mapping": [
+      "`review_projection/field_selector.py` (`new`): 选择 completed state、authoritative output、frozen boundary、open technical decisions。",
+      "`review_projection/snapshot.py` (`new`): 生成 Authoritative Snapshot 短摘要。",
+      "`review_projection/traceability.py` (`new`): 绑定 Snapshot 字段到对应 SSOT refs。"
+    ],
+    "main_sequence": [
+      "1. resolve authoritative SSOT fields",
+      "2. extract completed state / authoritative output / frozen boundary / open technical decisions",
+      "3. compress fields into Authoritative Snapshot",
+      "4. attach Snapshot to Projection with trace refs"
+    ],
+    "exception_compensation": [
+      "authoritative fields 缺失：返回 `authoritative_field_missing`，Projection 必须显示约束缺失提示而不是捏造内容。",
+      "Snapshot build 成功但 trace bind fail：标记 `snapshot_trace_pending`，不得把该 Snapshot 视为可审核完成态。"
+    ],
+    "integration_points": [
+      "调用方：Projection renderer 在生成 reviewer view 时同步调用 Snapshot extractor。",
+      "挂接点：Snapshot 固定出现在 Projection 的 authoritative check 区块，不单独成为下游 authority object。",
+      "旧系统兼容：若 Snapshot 暂不可得，必须显式标记字段缺失，不允许 silent omission。"
+    ],
+    "minimal_code_skeleton": {
+      "happy_path": "```python\ndef build_authoritative_snapshot(ssot_ref: str) -> AuthoritativeSnapshot:\n    ssot = load_machine_ssot(ssot_ref)\n    fields = select_authoritative_fields(ssot)\n    return format_authoritative_snapshot(fields)\n```",
+      "failure_path": "```python\ndef build_authoritative_snapshot_or_flag(ssot_ref: str) -> AuthoritativeSnapshot:\n    fields = select_authoritative_fields(load_machine_ssot(ssot_ref))\n    if not fields:\n        raise SnapshotError('authoritative_field_missing')\n    return format_authoritative_snapshot(fields)\n```"
+    }
+  },
+  "review_focus_risk": {
+    "architecture_topics": [
+      "Boundary to human narrative: 本 FEAT 生成 Review Focus / Risks / Ambiguities，帮助 reviewer 聚焦判断，不替代 SSOT 或 Snapshot。",
+      "Boundary to adjacent runtime/governance: 不定义 handoff orchestration、formal publication、governed IO、queue 或 registry。",
+      "Dedicated analysis placement is required so risk extraction、ambiguity highlighting and review prompts stay deterministic."
+    ],
+    "responsibility_splits": [
+      "Risk analyzer owns focus prompts, ambiguity detection, and reviewer-facing issue highlighting.",
+      "Projection renderer owns placement of Review Focus / Risks blocks in the review view.",
+      "Reviewer decides based on highlighted focus areas, but SSOT remains the only authoritative source."
+    ],
+    "api_surfaces": [],
+    "api_cli_commands": [
+      "`ll gate submit-handoff --request <gate_submit_handoff.request.json> --response-out <gate_submit_handoff.response.json>` via `cli/commands/gate/command.py`",
+      "`ll gate show-pending --request <gate_show_pending.request.json> --response-out <gate_show_pending.response.json>` via `cli/commands/gate/command.py`"
+    ],
+    "api_command_specs": [],
+    "implementation_architecture": [
+      "Review Focus / Risks generation analyzes SSOT content and existing projection blocks to surface what the human reviewer should inspect next.",
+      "Risk prompts and ambiguity hints are derived artifacts for reviewer attention management, not new runtime or governance objects.",
+      "The analyzer must remain deterministic enough that the same SSOT yields the same review emphasis under the same template version."
+    ],
+    "implementation_modules": [
+      "Review focus extractor：负责从 SSOT / Projection 中提取 reviewer 应优先关注的产品判断点。",
+      "Risk and ambiguity analyzer：负责识别术语歧义、边界遗漏、异常流缺失等风险提示。",
+      "Review prompt composer：负责把 focus/risk 输出成稳定的 reviewer-facing blocks。"
+    ],
+    "state_model": [
+      "`projection_rendered` -> `focus_extracted` -> `risk_flags_attached` -> `review_guidance_visible`",
+      "`risk_flags_attached` must remain derived-only and traceable to source SSOT content."
+    ],
+    "architecture_diagram": "```text\n[Machine SSOT / Projection] -> [Focus Extractor] -> [Risk Analyzer] -> [Review Focus / Risks Block]\n```",
+    "tech_runtime_view": "```text\n[review_projection/focus.py]\n              |\n              v\n[review_projection/risk_analyzer.py] --> [review_projection/prompt_blocks.py]\n```",
+    "flow_diagram": "```text\nMachine SSOT / Projection -> Focus Extractor : gather review anchors\nFocus Extractor           -> Risk Analyzer   : detect ambiguity / omission / risk\nRisk Analyzer             -> Reviewer        : expose Review Focus / Risks / Ambiguities\n```",
+    "implementation_strategy": [
+      "先冻结 Review Focus / Risks / Ambiguities 的输出模板和优先级规则。",
+      "把风险与歧义提取限制在 SSOT 已有内容和边界推断，不引入新的执行语义。",
+      "最后用多组同类 SSOT 样本验证 focus/risk 输出稳定且可复现。"
+    ],
+    "implementation_unit_mapping": [
+      "`review_projection/focus.py` (`new`): 生成 Review Focus 提示项。",
+      "`review_projection/risk_analyzer.py` (`new`): 提取风险、遗漏和歧义点。",
+      "`review_projection/prompt_blocks.py` (`new`): 把 focus/risk 输出编排进 Projection 模板。"
+    ],
+    "main_sequence": [
+      "1. collect SSOT and Projection context relevant to review",
+      "2. extract review focus items",
+      "3. detect risk / ambiguity / omission signals",
+      "4. render Review Focus / Risks / Ambiguities blocks into Projection"
+    ],
+    "exception_compensation": [
+      "focus extraction context 不足：返回 `insufficient_context`，保留空模板位并提示 reviewer 直接查看 SSOT。",
+      "risk signal 无法回链到 SSOT：丢弃该 signal，不允许把不可追溯提示写入 Projection。"
+    ],
+    "integration_points": [
+      "调用方：review projection flow 在 Projection 渲染后调用 focus/risk analyzer。",
+      "挂接点：Review Focus / Risks / Ambiguities 块只服务 reviewer 决策，不输出给下游继承。",
+      "旧系统兼容：analysis 结果不可用时退化为空块和缺失提示，不得退化到 runtime governance 语义。"
+    ],
+    "minimal_code_skeleton": {
+      "happy_path": "```python\ndef build_review_focus(ssot_ref: str, projection_ref: str) -> ReviewFocusResult:\n    context = load_review_context(ssot_ref, projection_ref)\n    focus_items = extract_review_focus(context)\n    risk_items = detect_risk_signals(context)\n    return ReviewFocusResult(focus_items=focus_items, risk_items=risk_items)\n```",
+      "failure_path": "```python\ndef build_review_focus_or_empty(ssot_ref: str, projection_ref: str) -> ReviewFocusResult:\n    context = load_review_context(ssot_ref, projection_ref)\n    if not context:\n        return ReviewFocusResult.empty(reason='insufficient_context')\n    return build_review_focus(ssot_ref, projection_ref)\n```"
+    }
+  },
+  "feedback_writeback": {
+    "architecture_topics": [
+      "Boundary to reviewer comments: Projection comments 只是修订输入，不是新的真相源。",
+      "Boundary to SSOT authority: 所有修订必须回写 Machine SSOT，再重新生成 Projection，不允许直接 patch Projection。",
+      "Dedicated writeback placement is required so comment mapping、SSOT revision request 与 regeneration stay traceable."
+    ],
+    "responsibility_splits": [
+      "Reviewer owns comments and revision intent only.",
+      "Writeback mapper owns mapping comments back to SSOT fields and creating revision requests.",
+      "SSOT owner owns authoritative updates and projection regeneration."
+    ],
+    "api_surfaces": [],
+    "api_cli_commands": [
+      "`ll gate submit-handoff --request <gate_submit_handoff.request.json> --response-out <gate_submit_handoff.response.json>` via `cli/commands/gate/command.py`",
+      "`ll gate show-pending --request <gate_show_pending.request.json> --response-out <gate_show_pending.response.json>` via `cli/commands/gate/command.py`"
+    ],
+    "api_command_specs": [],
+    "implementation_architecture": [
+      "Reviewer comments map back to SSOT-owned fields through a writeback mapper; Projection is regenerated only after SSOT changes land.",
+      "Writeback flow freezes traceability between comment, revision request, updated SSOT, and regenerated Projection.",
+      "Direct Projection patching is forbidden; the writeback path protects SSOT as the only authoritative source."
+    ],
+    "implementation_modules": [
+      "Comment mapper：负责把 reviewer comment 映射回 SSOT field / section / boundary。",
+      "Revision request builder：负责生成可追踪的 SSOT revision request，并保留 comment provenance。",
+      "Projection regeneration trigger：负责在 SSOT 更新后触发 Projection 重新生成。"
+    ],
+    "state_model": [
+      "`review_comment_captured` -> `writeback_mapped` -> `ssot_revision_requested` -> `ssot_updated` -> `projection_regenerated`",
+      "`writeback_mapped(fail)` -> `comment_mapping_pending`, and Projection must not be edited in place."
+    ],
+    "architecture_diagram": "```text\n[Reviewer Comment] -> [Comment Mapper] -> [SSOT Revision Request] -> [Machine SSOT Update] -> [Projection Regeneration]\n```",
+    "tech_runtime_view": "```text\n[review_projection/writeback.py]\n              |\n              v\n[review_projection/revision_request.py] --> [review_projection/regeneration.py]\n```",
+    "flow_diagram": "```text\nReviewer          -> Comment Mapper        : submit revision intent\nComment Mapper    -> Revision Request      : map comment to SSOT-owned fields\nRevision Request  -> Machine SSOT          : apply authoritative update\nMachine SSOT      -> Projection Regeneration : render updated Projection\n```",
+    "implementation_strategy": [
+      "先冻结 comment -> SSOT field 的映射规则，再实现 revision request 生成。",
+      "确保所有 Projection comment 都通过 SSOT writeback 闭环，不允许直接 patch Projection。",
+      "最后验证 SSOT 更新后 Projection 必须重生成，并保留 comment provenance。"
+    ],
+    "implementation_unit_mapping": [
+      "`review_projection/writeback.py` (`new`): 将 reviewer comments 映射回 SSOT-owned fields。",
+      "`review_projection/revision_request.py` (`new`): 生成可追踪的 SSOT revision request。",
+      "`review_projection/regeneration.py` (`new`): 在 SSOT 更新后触发 Projection 重生成。"
+    ],
+    "main_sequence": [
+      "1. capture reviewer comment against Projection",
+      "2. map comment to SSOT-owned field or boundary",
+      "3. create SSOT revision request and preserve provenance",
+      "4. update Machine SSOT",
+      "5. regenerate Projection from updated SSOT"
+    ],
+    "exception_compensation": [
+      "comment mapping fail：保留 comment，标记 `comment_mapping_pending`，禁止直接编辑 Projection。",
+      "SSOT 更新成功但 regeneration fail：保留 revision request completed 状态，标记 `projection_regeneration_pending` 并阻止旧 Projection 继续作为当前审核视图。"
+    ],
+    "integration_points": [
+      "调用方：reviewer 在 Projection 上提出 comment，writeback mapper 将其回写到 SSOT revision request。",
+      "挂接点：Projection regeneration 发生在 SSOT authoritative update 之后，而不是 comment capture 当下。",
+      "旧系统兼容：历史 Projection 批注只能作为 comment provenance，不能直接视为 authoritative patch。"
+    ],
+    "minimal_code_skeleton": {
+      "happy_path": "```python\ndef writeback_projection_comment(comment: ProjectionComment) -> ProjectionRegenerationRequest:\n    mapped = map_comment_to_ssot_fields(comment)\n    revision = create_revision_request(mapped)\n    updated_ssot = apply_ssot_revision(revision)\n    return request_projection_regeneration(revision.ref, updated_ssot.ref)\n```",
+      "failure_path": "```python\ndef writeback_projection_comment_or_hold(comment: ProjectionComment) -> ProjectionRegenerationRequest:\n    mapped = map_comment_to_ssot_fields(comment)\n    if not mapped:\n        raise WritebackError('mapping_failed')\n    return writeback_projection_comment(comment)\n```"
+    }
+  },
+  "runner_ready_job": {
+    "architecture_topics": [
+      "Boundary to gate decision: 本 FEAT 消费 approve decision 并物化 ready execution job，不重写 decision vocabulary。",
+      "Boundary to runner entry/control: 本 FEAT 只负责 ready job emission，不承担 runner 的用户入口、控制面或运行 ownership。",
+      "Dedicated dispatch placement is required so approve-to-job lineage、ready queue write 和 next skill target stay authoritative."
+    ],
+    "responsibility_splits": [],
+    "api_surfaces": [
+      "ready execution job materialization contract",
+      "approve-to-job lineage contract"
+    ],
+    "api_cli_commands": [
+      "`ll gate dispatch --request <gate_dispatch.request.json> --response-out <gate_dispatch.response.json>` via `cli/commands/gate/command.py`"
+    ],
+    "api_command_specs": [
+      {
+        "command": "ll gate dispatch",
+        "surface": "`ll gate dispatch --request <gate_dispatch.request.json> --response-out <gate_dispatch.response.json>` via `cli/commands/gate/command.py`",
+        "request_schema": [
+          "`decision_ref: string`",
+          "`dispatch_target: string`",
+          "`next_skill_ref: string`",
+          "`authoritative_input_ref: string`"
+        ],
+        "response_schema": [
+          "success envelope=`{ ok: true, command_ref, trace_ref, result }`",
+          "result fields=`ready_job_ref`, `ready_queue_path`, `approve_to_job_lineage_ref`, `next_skill_ref`",
+          "error envelope=`{ ok: false, command_ref, trace_ref, error }`"
+        ],
+        "field_semantics": [
+          "`ready_job_ref` is the authoritative job emitted for runner consumption after approve.",
+          "`approve_to_job_lineage_ref` binds the gate approve decision to the emitted ready execution job."
+        ],
+        "enum_domain": [
+          "`dispatch_target ∈ {ready_execution_queue}`"
+        ],
+        "invariants": [
+          "one approve decision emits at most one authoritative ready execution job",
+          "non-approve decisions must not allocate a ready queue record"
+        ],
+        "canonical_refs": [
+          "`ready_job_ref`",
+          "`approve_to_job_lineage_ref`",
+          "`ready_queue_path`"
+        ],
+        "errors": [
+          "`decision_not_dispatchable`",
+          "`next_skill_missing`",
+          "`job_materialization_failed`"
+        ],
+        "idempotency": "`decision_ref + next_skill_ref + authoritative_input_ref`",
+        "preconditions": [
+          "`decision_ref` already resolves to an approve decision",
+          "`authoritative_input_ref` is readable by the runner pipeline"
+        ]
+      }
+    ],
+    "implementation_architecture": [
+      "Execution loop、gate loop、human review 通过文件化 handoff runtime 协作；authoritative handoff submission、pending visibility、decision-return intake 都以结构化对象驱动。",
+      "Runtime 在收到 gate decision object 后，只负责可见性回写与 revise/retry re-entry routing；decision vocabulary 仍由 gate decision FEAT authoritative freeze。",
+      "Formal publication、approve/handoff 的最终发布语义不在本 FEAT 内实现，本 FEAT 只保留对相邻 publication FEAT 的 authoritative boundary handoff。"
+    ],
+    "implementation_modules": [
+      "Approve dispatch resolver：负责从 approve decision 解析 next skill target、authoritative input 和 dispatch target。",
+      "Ready job materializer：负责生成 ready execution job 与 approve-to-job lineage。",
+      "Ready queue writer：负责把 ready job 写入 artifacts/jobs/ready 并发布 queue record。"
+    ],
+    "state_model": [
+      "`decision_approved` -> `dispatch_resolved` -> `ready_job_materialized` -> `ready_queue_published`",
+      "`decision_not_approved` must never transition into `ready_queue_published`."
+    ],
+    "architecture_diagram": "```text\n[Gate Decision] -> [Approve Dispatch Resolver] -> [Ready Job Materializer] -> [artifacts/jobs/ready]\n                                                           |\n                                                           +--> [Approve-to-Job Lineage]\n```",
+    "tech_runtime_view": "```text\n[cli/commands/gate/command.py]\n              |\n              v\n[cli/lib/ready_job_dispatch.py] --> [cli/lib/job_queue.py]\n              |\n              +--> [cli/lib/protocol.py]\n```",
+    "flow_diagram": "```text\nGate Decision        -> Dispatch Resolver : resolve approve target\nDispatch Resolver    -> Job Materializer  : build ready execution job\nJob Materializer     -> Job Queue         : write artifacts/jobs/ready\nJob Queue            -> Lineage Store     : persist approve-to-job lineage\n```",
+    "implementation_strategy": [
+      "先冻结 approve -> ready job 的 authoritative object 和 lineage 字段，再实现 queue write。",
+      "把 non-approve path 明确挡在 ready queue 之外，避免 ready job 语义被 formal publication 替代。",
+      "最后用真实 approve decision 验证 ready execution job 和 approve-to-job lineage。"
+    ],
+    "implementation_unit_mapping": [
+      "`cli/lib/protocol.py` (`extend`): 定义 `ReadyExecutionJob`、`ApproveToJobLineage` 结构。",
+      "`cli/lib/ready_job_dispatch.py` (`new`): 解析 approve decision 并物化 ready execution job。",
+      "`cli/lib/job_queue.py` (`new`): 写入 artifacts/jobs/ready 并返回 queue receipt。",
+      "`cli/commands/gate/command.py` (`extend`): 在 dispatch 路径发出 ready execution job，而不是停在 formal publication trigger。"
+    ],
+    "main_sequence": [
+      "1. resolve approve decision and next-skill target",
+      "2. materialize ready execution job and approve-to-job lineage",
+      "3. write job into artifacts/jobs/ready",
+      "4. publish ready queue receipt"
+    ],
+    "exception_compensation": [
+      "authoritative handoff 已提交但 pending visibility build fail：不得重复创建 handoff；保留 handoff object，标记 `visibility_pending` 并要求补写 receipt。",
+      "decision return consumed 但 re-entry directive write fail：返回 `reentry_pending`，要求修复写入后重放，不允许业务 skill 绕回。",
+      "boundary handoff record persist fail：不得偷跑 formalization；保持 decision visible but `downstream_handoff_pending`，等待 runtime repair。"
+    ],
+    "integration_points": [
+      "调用方：producer skill 通过 `cli/commands/gate/command.py` / `cli/lib/mainline_runtime.py` 写入 authoritative handoff；gate loop 和 human review 在返回 decision object 时仍沿现有 mainline loop 挂接。",
+      "挂接点：file-handoff 发生在 producer 提交之后；external gate 作为现有 loop 的独立阶段消费 proposal 并返回 structured decision object。",
+      "旧系统兼容：旧 skill 若未接入统一 re-entry routing，只能以 compat mode 观察 pending visibility，不允许自定义 revise/retry 回流规则。"
+    ],
+    "minimal_code_skeleton": {
+      "happy_path": "```python\ndef advance_mainline(handoff: HandoffEnvelope) -> RuntimeTransition:\n    slot = persist_handoff(handoff)\n    decision = request_gate_decision(slot.handoff_ref)\n    next_state = apply_runtime_transition(slot, decision)\n    record_transition_evidence(slot.handoff_ref, next_state)\n    return next_state\n```",
+      "failure_path": "```python\ndef advance_mainline_with_reentry(handoff: HandoffEnvelope) -> RuntimeTransition:\n    slot = persist_handoff(handoff)\n    decision = request_gate_decision(slot.handoff_ref)\n    if decision.kind in {'revise', 'retry'}:\n        return write_reentry_command(slot.handoff_ref, decision)\n    return advance_mainline(handoff)\n```"
+    }
+  },
+  "runner_operator_entry": {
+    "architecture_topics": [
+      "Boundary to ready-job emission: 本 FEAT 不生成 ready job，只提供 operator 可见的 runner 启动/恢复入口。",
+      "Boundary to control surface: 本 FEAT 只冻结 runner skill entry 与 run context bootstrap，不定义 job claim/run/complete/fail verbs。",
+      "Dedicated runner entry placement is required so Claude/Codex CLI entry, run context bootstrap, and invocation receipt stay in one authoritative surface."
+    ],
+    "responsibility_splits": [],
+    "api_surfaces": [
+      "runner skill entry contract",
+      "runner start/resume contract"
+    ],
+    "api_cli_commands": [
+      "`ll loop run-execution --request <loop_run_execution.request.json> --response-out <loop_run_execution.response.json>` via `cli/commands/loop/command.py`"
+    ],
+    "api_command_specs": [
+      {
+        "command": "ll loop run-execution",
+        "surface": "`ll loop run-execution --request <loop_run_execution.request.json> --response-out <loop_run_execution.response.json>` via `cli/commands/loop/command.py`",
+        "request_schema": [
+          "`runner_scope_ref: string`",
+          "`entry_mode: enum<start|resume>`",
+          "`queue_ref: string?`"
+        ],
+        "response_schema": [
+          "success envelope=`{ ok: true, command_ref, trace_ref, result }`",
+          "result fields=`runner_run_ref`, `runner_context_ref`, `entry_receipt_ref`, `entry_mode`",
+          "error envelope=`{ ok: false, command_ref, trace_ref, error }`"
+        ],
+        "field_semantics": [
+          "`runner_run_ref` identifies one authoritative execution-loop run owned by the runner skill entry.",
+          "`runner_context_ref` binds subsequent control and observability commands to the same governed run context."
+        ],
+        "enum_domain": [
+          "`entry_mode ∈ {start, resume}`"
+        ],
+        "invariants": [
+          "one run-execution command must create or resume exactly one runner context",
+          "entry must not directly invoke downstream skills outside the runner lifecycle"
+        ],
+        "canonical_refs": [
+          "`runner_run_ref`",
+          "`runner_context_ref`",
+          "`entry_receipt_ref`"
+        ],
+        "errors": [
+          "`runner_scope_missing`",
+          "`runner_context_conflict`",
+          "`resume_target_not_found`"
+        ],
+        "idempotency": "`runner_scope_ref + entry_mode`",
+        "preconditions": [
+          "`runner_scope_ref` resolves to a governed execution-runner scope"
+        ]
+      }
+    ],
+    "implementation_architecture": [
+      "Execution loop、gate loop、human review 通过文件化 handoff runtime 协作；authoritative handoff submission、pending visibility、decision-return intake 都以结构化对象驱动。",
+      "Runtime 在收到 gate decision object 后，只负责可见性回写与 revise/retry re-entry routing；decision vocabulary 仍由 gate decision FEAT authoritative freeze。",
+      "Formal publication、approve/handoff 的最终发布语义不在本 FEAT 内实现，本 FEAT 只保留对相邻 publication FEAT 的 authoritative boundary handoff。"
+    ],
+    "implementation_modules": [
+      "Runner skill entry adapter：负责提供 Claude/Codex CLI 可见的 Execution Loop Job Runner 入口。",
+      "Runner context bootstrapper：负责初始化或恢复 authoritative runner context。",
+      "Entry receipt publisher：负责记录 runner invocation receipt 与 run ref。"
+    ],
+    "state_model": [
+      "`runner_entry_requested` -> `runner_context_initialized` -> `runner_entry_published`",
+      "`runner_entry_requested(resume)` -> `runner_context_restored` -> `runner_entry_published`"
+    ],
+    "architecture_diagram": "```text\n[Claude/Codex CLI] -> [Runner Skill Entry] -> [Runner Context Bootstrapper] -> [Runner Run Context]\n```",
+    "tech_runtime_view": "```text\n[cli/commands/loop/command.py]\n              |\n              v\n[cli/lib/runner_entry.py] --> [cli/lib/execution_runner.py]\n              |\n              +--> [cli/lib/protocol.py]\n```",
+    "flow_diagram": "```text\nOperator             -> Runner Skill Entry  : request start or resume\nRunner Skill Entry   -> Context Bootstrapper: initialize governed run context\nContext Bootstrapper -> Entry Receipt       : publish runner invocation receipt\n```",
+    "implementation_strategy": [
+      "先冻结独立 runner skill 入口和 start/resume 语义，再实现 run context bootstrap。",
+      "把 operator-facing entry 和后台 queue consumption 解耦，避免入口逻辑吞掉运行时边界。",
+      "最后验证 Claude/Codex CLI 能通过单一 skill 入口启动或恢复 runner。"
+    ],
+    "implementation_unit_mapping": [
+      "`cli/lib/protocol.py` (`extend`): 定义 `ExecutionRunnerStartRequest`、`ExecutionRunnerRunRef`、`RunnerEntryReceipt` 结构。",
+      "`cli/lib/runner_entry.py` (`new`): 提供 runner skill start/resume 的入口适配层。",
+      "`cli/lib/execution_runner.py` (`new`): 管理 runner context bootstrap 与恢复逻辑。",
+      "`cli/commands/loop/command.py` (`new`): 暴露 `run-execution` / `resume-execution` 入口。"
+    ],
+    "main_sequence": [
+      "1. accept start/resume request from Claude/Codex CLI",
+      "2. bootstrap or restore runner context",
+      "3. publish runner invocation receipt",
+      "4. hand off to queue consumption lifecycle"
+    ],
+    "exception_compensation": [
+      "authoritative handoff 已提交但 pending visibility build fail：不得重复创建 handoff；保留 handoff object，标记 `visibility_pending` 并要求补写 receipt。",
+      "decision return consumed 但 re-entry directive write fail：返回 `reentry_pending`，要求修复写入后重放，不允许业务 skill 绕回。",
+      "boundary handoff record persist fail：不得偷跑 formalization；保持 decision visible but `downstream_handoff_pending`，等待 runtime repair。"
+    ],
+    "integration_points": [
+      "调用方：producer skill 通过 `cli/commands/gate/command.py` / `cli/lib/mainline_runtime.py` 写入 authoritative handoff；gate loop 和 human review 在返回 decision object 时仍沿现有 mainline loop 挂接。",
+      "挂接点：file-handoff 发生在 producer 提交之后；external gate 作为现有 loop 的独立阶段消费 proposal 并返回 structured decision object。",
+      "旧系统兼容：旧 skill 若未接入统一 re-entry routing，只能以 compat mode 观察 pending visibility，不允许自定义 revise/retry 回流规则。"
+    ],
+    "minimal_code_skeleton": {
+      "happy_path": "```python\ndef advance_mainline(handoff: HandoffEnvelope) -> RuntimeTransition:\n    slot = persist_handoff(handoff)\n    decision = request_gate_decision(slot.handoff_ref)\n    next_state = apply_runtime_transition(slot, decision)\n    record_transition_evidence(slot.handoff_ref, next_state)\n    return next_state\n```",
+      "failure_path": "```python\ndef advance_mainline_with_reentry(handoff: HandoffEnvelope) -> RuntimeTransition:\n    slot = persist_handoff(handoff)\n    decision = request_gate_decision(slot.handoff_ref)\n    if decision.kind in {'revise', 'retry'}:\n        return write_reentry_command(slot.handoff_ref, decision)\n    return advance_mainline(handoff)\n```"
+    }
+  },
+  "runner_control_surface": {
+    "architecture_topics": [
+      "Boundary to operator entry: 本 FEAT 依赖 runner skill entry，但不重新定义 start/resume 入口本身。",
+      "Boundary to dispatch/outcome: 本 FEAT 冻结 runner 的控制面和 state transition，不直接拥有 next-skill invocation 或 final outcome semantics。",
+      "Dedicated runner control placement is required so lifecycle commands, ownership guards, and control evidence share one authoritative carrier."
+    ],
+    "responsibility_splits": [],
+    "api_surfaces": [
+      "runner CLI control contract",
+      "runner lifecycle command contract"
+    ],
+    "api_cli_commands": [
+      "`ll job claim --request <job_claim.request.json> --response-out <job_claim.response.json>` via `cli/commands/job/command.py`",
+      "`ll job run --request <job_run.request.json> --response-out <job_run.response.json>` via `cli/commands/job/command.py`",
+      "`ll job complete --request <job_complete.request.json> --response-out <job_complete.response.json>` via `cli/commands/job/command.py`",
+      "`ll job fail --request <job_fail.request.json> --response-out <job_fail.response.json>` via `cli/commands/job/command.py`"
+    ],
+    "api_command_specs": [
+      {
+        "command": "ll job claim",
+        "surface": "`ll job claim --request <job_claim.request.json> --response-out <job_claim.response.json>` via `cli/commands/job/command.py`",
+        "request_schema": [
+          "`runner_context_ref: string`",
+          "`ready_job_ref: string`"
+        ],
+        "response_schema": [
+          "success envelope=`{ ok: true, command_ref, trace_ref, result }`",
+          "result fields=`claimed_job_ref`, `ownership_ref`, `claim_receipt_ref`",
+          "error envelope=`{ ok: false, command_ref, trace_ref, error }`"
+        ],
+        "field_semantics": [
+          "`ownership_ref` records the single-owner runtime claim for this job."
+        ],
+        "enum_domain": [],
+        "invariants": [
+          "a ready job can only be claimed by one active runner context"
+        ],
+        "canonical_refs": [
+          "`claimed_job_ref`",
+          "`ownership_ref`",
+          "`claim_receipt_ref`"
+        ],
+        "errors": [
+          "`job_not_ready`",
+          "`ownership_conflict`"
+        ],
+        "idempotency": "`runner_context_ref + ready_job_ref`",
+        "preconditions": [
+          "`runner_context_ref` is active",
+          "`ready_job_ref` resolves inside artifacts/jobs/ready"
+        ]
+      },
+      {
+        "command": "ll job run / complete / fail",
+        "surface": "`ll job run|complete|fail --request <job_*.request.json> --response-out <job_*.response.json>` via `cli/commands/job/command.py`",
+        "request_schema": [
+          "`runner_context_ref: string`",
+          "`claimed_job_ref: string`",
+          "`execution_attempt_ref?: string`"
+        ],
+        "response_schema": [
+          "success envelope=`{ ok: true, command_ref, trace_ref, result }`",
+          "result fields=`runner_state_ref`, `control_action_ref`, `execution_outcome_ref?`",
+          "error envelope=`{ ok: false, command_ref, trace_ref, error }`"
+        ],
+        "field_semantics": [
+          "`control_action_ref` records the authoritative control-plane action taken against one runner job."
+        ],
+        "enum_domain": [
+          "`command ∈ {run, complete, fail}`"
+        ],
+        "invariants": [
+          "control actions must preserve existing run context and job ownership"
+        ],
+        "canonical_refs": [
+          "`control_action_ref`",
+          "`runner_state_ref`",
+          "`execution_outcome_ref`"
+        ],
+        "errors": [
+          "`runner_context_missing`",
+          "`claimed_job_missing`",
+          "`invalid_transition`"
+        ],
+        "idempotency": "`runner_context_ref + claimed_job_ref + command`",
+        "preconditions": [
+          "`claimed_job_ref` is already owned by `runner_context_ref`"
+        ]
+      }
+    ],
+    "implementation_architecture": [
+      "Execution loop、gate loop、human review 通过文件化 handoff runtime 协作；authoritative handoff submission、pending visibility、decision-return intake 都以结构化对象驱动。",
+      "Runtime 在收到 gate decision object 后，只负责可见性回写与 revise/retry re-entry routing；decision vocabulary 仍由 gate decision FEAT authoritative freeze。",
+      "Formal publication、approve/handoff 的最终发布语义不在本 FEAT 内实现，本 FEAT 只保留对相邻 publication FEAT 的 authoritative boundary handoff。"
+    ],
+    "implementation_modules": [
+      "Runner command router：负责解析 start/claim/run/complete/fail/resume 等 control verbs。",
+      "Ownership guard：负责校验 runner context 与 claimed job ownership。",
+      "Control evidence writer：负责记录 control action、state update 与 operator-facing receipt。"
+    ],
+    "state_model": [
+      "`control_requested` -> `ownership_validated` -> `control_action_recorded` -> `runner_state_updated`",
+      "`ownership_validated(fail)` -> `control_rejected`"
+    ],
+    "architecture_diagram": "```text\n[CLI Control Command] -> [Runner Command Router] -> [Ownership Guard] -> [Control Evidence Writer]\n```",
+    "tech_runtime_view": "```text\n[cli/commands/job/command.py]\n              |\n              v\n[cli/lib/runner_control.py] --> [cli/lib/execution_runner.py]\n              |\n              +--> [cli/lib/job_state.py]\n```",
+    "flow_diagram": "```text\nOperator         -> Runner Command Router : issue control verb\nCommand Router   -> Ownership Guard       : validate run context and job ownership\nOwnership Guard  -> Control Evidence      : record control action and state transition\n```",
+    "implementation_strategy": [
+      "先冻结 runner CLI verbs 与状态边界，再实现 ownership guard 和 control evidence。",
+      "把 control plane 与 dispatch/outcome plane 分开，避免 CLI 命令直接越权改写业务结果。",
+      "最后验证 claim/run/complete/fail 都能留下 authoritative control records。"
+    ],
+    "implementation_unit_mapping": [
+      "`cli/lib/protocol.py` (`extend`): 定义 `RunnerControlAction`、`RunnerStateRecord`、`JobOwnershipRef` 结构。",
+      "`cli/lib/runner_control.py` (`new`): 解析并执行 runner lifecycle CLI verbs。",
+      "`cli/lib/job_state.py` (`new`): 管理 claimed/running/completed/failed 状态与 ownership guard。",
+      "`cli/commands/job/command.py` (`new`): 暴露 `claim` / `run` / `complete` / `fail` 命令。"
+    ],
+    "main_sequence": [
+      "1. accept runner lifecycle command",
+      "2. validate runner context and ownership",
+      "3. apply control-plane state transition",
+      "4. publish control action record"
+    ],
+    "exception_compensation": [
+      "authoritative handoff 已提交但 pending visibility build fail：不得重复创建 handoff；保留 handoff object，标记 `visibility_pending` 并要求补写 receipt。",
+      "decision return consumed 但 re-entry directive write fail：返回 `reentry_pending`，要求修复写入后重放，不允许业务 skill 绕回。",
+      "boundary handoff record persist fail：不得偷跑 formalization；保持 decision visible but `downstream_handoff_pending`，等待 runtime repair。"
+    ],
+    "integration_points": [
+      "调用方：producer skill 通过 `cli/commands/gate/command.py` / `cli/lib/mainline_runtime.py` 写入 authoritative handoff；gate loop 和 human review 在返回 decision object 时仍沿现有 mainline loop 挂接。",
+      "挂接点：file-handoff 发生在 producer 提交之后；external gate 作为现有 loop 的独立阶段消费 proposal 并返回 structured decision object。",
+      "旧系统兼容：旧 skill 若未接入统一 re-entry routing，只能以 compat mode 观察 pending visibility，不允许自定义 revise/retry 回流规则。"
+    ],
+    "minimal_code_skeleton": {
+      "happy_path": "```python\ndef advance_mainline(handoff: HandoffEnvelope) -> RuntimeTransition:\n    slot = persist_handoff(handoff)\n    decision = request_gate_decision(slot.handoff_ref)\n    next_state = apply_runtime_transition(slot, decision)\n    record_transition_evidence(slot.handoff_ref, next_state)\n    return next_state\n```",
+      "failure_path": "```python\ndef advance_mainline_with_reentry(handoff: HandoffEnvelope) -> RuntimeTransition:\n    slot = persist_handoff(handoff)\n    decision = request_gate_decision(slot.handoff_ref)\n    if decision.kind in {'revise', 'retry'}:\n        return write_reentry_command(slot.handoff_ref, decision)\n    return advance_mainline(handoff)\n```"
+    }
+  },
+  "runner_intake": {
+    "architecture_topics": [
+      "Boundary to ready-job emission: intake 只消费 authoritative ready jobs，不重写 approve-to-job materialization。",
+      "Boundary to operator/control surfaces: intake 负责 queue claim 和 running ownership，不承担 CLI entry 或 broad control-plane 设计。",
+      "Dedicated queue-intake placement is required so ready queue scan, single-owner claim, and running ownership are authoritative and replay-safe."
+    ],
+    "responsibility_splits": [],
+    "api_surfaces": [
+      "ready queue claim contract",
+      "running ownership contract"
+    ],
+    "api_cli_commands": [
+      "`ll job claim --request <job_claim.request.json> --response-out <job_claim.response.json>` via `cli/commands/job/command.py`"
+    ],
+    "api_command_specs": [
+      {
+        "command": "ll job claim",
+        "surface": "`ll job claim --request <job_claim.request.json> --response-out <job_claim.response.json>` via `cli/commands/job/command.py`",
+        "request_schema": [
+          "`runner_context_ref: string`",
+          "`ready_job_ref: string`"
+        ],
+        "response_schema": [
+          "success envelope=`{ ok: true, command_ref, trace_ref, result }`",
+          "result fields=`claimed_job_ref`, `ownership_ref`, `running_state_ref`",
+          "error envelope=`{ ok: false, command_ref, trace_ref, error }`"
+        ],
+        "field_semantics": [
+          "`running_state_ref` marks the job as claimed and owned by a single runner."
+        ],
+        "enum_domain": [],
+        "invariants": [
+          "claim success implies a single running owner"
+        ],
+        "canonical_refs": [
+          "`claimed_job_ref`",
+          "`ownership_ref`",
+          "`running_state_ref`"
+        ],
+        "errors": [
+          "`job_not_ready`",
+          "`already_claimed`"
+        ],
+        "idempotency": "`runner_context_ref + ready_job_ref`",
+        "preconditions": [
+          "`ready_job_ref` exists in ready queue"
+        ]
+      }
+    ],
+    "implementation_architecture": [
+      "Execution loop、gate loop、human review 通过文件化 handoff runtime 协作；authoritative handoff submission、pending visibility、decision-return intake 都以结构化对象驱动。",
+      "Runtime 在收到 gate decision object 后，只负责可见性回写与 revise/retry re-entry routing；decision vocabulary 仍由 gate decision FEAT authoritative freeze。",
+      "Formal publication、approve/handoff 的最终发布语义不在本 FEAT 内实现，本 FEAT 只保留对相邻 publication FEAT 的 authoritative boundary handoff。"
+    ],
+    "implementation_modules": [
+      "Ready queue scanner：负责发现可消费的 ready execution job。",
+      "Single-owner claimer：负责 claim ready job 并生成 running ownership record。",
+      "Running state publisher：负责把 claimed job 暴露给后续 dispatch flow。"
+    ],
+    "state_model": [
+      "`ready_job_visible` -> `job_claimed` -> `running_ownership_recorded`",
+      "`job_claimed(conflict)` -> `claim_rejected`"
+    ],
+    "architecture_diagram": "```text\n[artifacts/jobs/ready] -> [Ready Queue Scanner] -> [Single-owner Claimer] -> [Running Ownership Record]\n```",
+    "tech_runtime_view": "```text\n[cli/commands/job/command.py]\n              |\n              v\n[cli/lib/job_queue.py] --> [cli/lib/job_state.py] --> [Claimed Job]\n              |\n              +--> [cli/lib/protocol.py]\n```",
+    "flow_diagram": "```text\nJob Queue        -> Queue Scanner         : find ready execution jobs\nQueue Scanner    -> Single-owner Claimer  : attempt claim\nClaimer          -> Job State             : publish running ownership record\n```",
+    "implementation_strategy": [
+      "先实现 ready queue scan 和 single-owner claim，再补 running ownership publication。",
+      "把 claim 冲突和 replay guard 放在同一条队列消费路径上，避免多 runner 并发漂移。",
+      "最后用真实 ready queue 样例验证 claim 只会成功一次。"
+    ],
+    "implementation_unit_mapping": [
+      "`cli/lib/protocol.py` (`extend`): 定义 `JobClaimRequest`、`ClaimedExecutionJob`、`RunningOwnershipRecord` 结构。",
+      "`cli/lib/job_queue.py` (`new`): 扫描 ready queue 并 claim ready execution job。",
+      "`cli/lib/job_state.py` (`new`): 写入 single-owner running ownership。",
+      "`cli/commands/job/command.py` (`new`): 暴露 `claim` 命令并返回 claimed job receipt。"
+    ],
+    "main_sequence": [
+      "1. scan ready queue for visible jobs",
+      "2. claim one ready execution job",
+      "3. record running ownership",
+      "4. publish claimed job to dispatch stage"
+    ],
+    "exception_compensation": [
+      "authoritative handoff 已提交但 pending visibility build fail：不得重复创建 handoff；保留 handoff object，标记 `visibility_pending` 并要求补写 receipt。",
+      "decision return consumed 但 re-entry directive write fail：返回 `reentry_pending`，要求修复写入后重放，不允许业务 skill 绕回。",
+      "boundary handoff record persist fail：不得偷跑 formalization；保持 decision visible but `downstream_handoff_pending`，等待 runtime repair。"
+    ],
+    "integration_points": [
+      "调用方：producer skill 通过 `cli/commands/gate/command.py` / `cli/lib/mainline_runtime.py` 写入 authoritative handoff；gate loop 和 human review 在返回 decision object 时仍沿现有 mainline loop 挂接。",
+      "挂接点：file-handoff 发生在 producer 提交之后；external gate 作为现有 loop 的独立阶段消费 proposal 并返回 structured decision object。",
+      "旧系统兼容：旧 skill 若未接入统一 re-entry routing，只能以 compat mode 观察 pending visibility，不允许自定义 revise/retry 回流规则。"
+    ],
+    "minimal_code_skeleton": {
+      "happy_path": "```python\ndef advance_mainline(handoff: HandoffEnvelope) -> RuntimeTransition:\n    slot = persist_handoff(handoff)\n    decision = request_gate_decision(slot.handoff_ref)\n    next_state = apply_runtime_transition(slot, decision)\n    record_transition_evidence(slot.handoff_ref, next_state)\n    return next_state\n```",
+      "failure_path": "```python\ndef advance_mainline_with_reentry(handoff: HandoffEnvelope) -> RuntimeTransition:\n    slot = persist_handoff(handoff)\n    decision = request_gate_decision(slot.handoff_ref)\n    if decision.kind in {'revise', 'retry'}:\n        return write_reentry_command(slot.handoff_ref, decision)\n    return advance_mainline(handoff)\n```"
+    }
+  },
+  "runner_dispatch": {
+    "architecture_topics": [
+      "Boundary to intake: dispatch 只在 claimed job 进入 running ownership 后启动，不重新定义 claim semantics。",
+      "Boundary to feedback: 本 FEAT 负责 next-skill invocation 与 execution attempt record，不直接决定 done/failed/retry outcome。",
+      "Dedicated dispatch placement is required so target skill resolution, authoritative input binding, and invocation lineage stay authoritative."
+    ],
+    "responsibility_splits": [],
+    "api_surfaces": [
+      "next-skill invocation contract",
+      "execution attempt contract"
+    ],
+    "api_cli_commands": [
+      "`ll job run --request <job_run.request.json> --response-out <job_run.response.json>` via `cli/commands/job/command.py`"
+    ],
+    "api_command_specs": [
+      {
+        "command": "ll job run",
+        "surface": "`ll job run --request <job_run.request.json> --response-out <job_run.response.json>` via `cli/commands/job/command.py`",
+        "request_schema": [
+          "`claimed_job_ref: string`",
+          "`target_skill_ref: string`",
+          "`authoritative_input_ref: string`"
+        ],
+        "response_schema": [
+          "success envelope=`{ ok: true, command_ref, trace_ref, result }`",
+          "result fields=`invocation_ref`, `execution_attempt_ref`, `dispatch_lineage_ref`",
+          "error envelope=`{ ok: false, command_ref, trace_ref, error }`"
+        ],
+        "field_semantics": [
+          "`invocation_ref` is the authoritative downstream skill invocation record emitted by the runner."
+        ],
+        "enum_domain": [],
+        "invariants": [
+          "dispatch must use the declared target skill and authoritative input from the claimed job"
+        ],
+        "canonical_refs": [
+          "`invocation_ref`",
+          "`execution_attempt_ref`",
+          "`dispatch_lineage_ref`"
+        ],
+        "errors": [
+          "`target_skill_missing`",
+          "`authoritative_input_missing`",
+          "`dispatch_failed`"
+        ],
+        "idempotency": "`claimed_job_ref + target_skill_ref + authoritative_input_ref`",
+        "preconditions": [
+          "`claimed_job_ref` is already in running ownership state"
+        ]
+      }
+    ],
+    "implementation_architecture": [
+      "Execution loop、gate loop、human review 通过文件化 handoff runtime 协作；authoritative handoff submission、pending visibility、decision-return intake 都以结构化对象驱动。",
+      "Runtime 在收到 gate decision object 后，只负责可见性回写与 revise/retry re-entry routing；decision vocabulary 仍由 gate decision FEAT authoritative freeze。",
+      "Formal publication、approve/handoff 的最终发布语义不在本 FEAT 内实现，本 FEAT 只保留对相邻 publication FEAT 的 authoritative boundary handoff。"
+    ],
+    "implementation_modules": [
+      "Target skill resolver：负责从 claimed job 解析 next skill ref 与 authoritative input。",
+      "Invocation adapter：负责调用目标 governed skill 并生成 invocation record。",
+      "Execution attempt writer：负责记录 dispatch lineage 与 execution attempt。"
+    ],
+    "state_model": [
+      "`claimed_job_ready` -> `target_skill_resolved` -> `invocation_recorded` -> `execution_attempt_open`",
+      "`target_skill_resolved(fail)` -> `dispatch_failed_pending_feedback`"
+    ],
+    "architecture_diagram": "```text\n[Claimed Job] -> [Target Skill Resolver] -> [Invocation Adapter] -> [Governed Skill Invocation]\n                                                  |\n                                                  +--> [Execution Attempt Record]\n```",
+    "tech_runtime_view": "```text\n[cli/commands/job/command.py]\n              |\n              v\n[cli/lib/execution_runner.py] --> [cli/lib/skill_invoker.py] --> [Invocation Record]\n              |\n              +--> [cli/lib/protocol.py]\n```",
+    "flow_diagram": "```text\nClaimed Job      -> Target Skill Resolver : resolve skill + authoritative input\nResolver         -> Skill Invoker         : invoke downstream governed skill\nSkill Invoker    -> Attempt Writer        : publish invocation and execution attempt\n```",
+    "implementation_strategy": [
+      "先冻结 claimed job 到 target skill / authoritative input 的解析规则，再实现 skill invocation adapter。",
+      "保持 dispatch 只做 invocation 与 attempt record，不越界承担最终 outcome ownership。",
+      "最后验证 claimed job 能稳定派发到声明的 governed skill。"
+    ],
+    "implementation_unit_mapping": [
+      "`cli/lib/protocol.py` (`extend`): 定义 `NextSkillInvocation`、`ExecutionAttemptRecord` 结构。",
+      "`cli/lib/skill_invoker.py` (`new`): 解析 target skill 并执行 governed invocation。",
+      "`cli/lib/execution_runner.py` (`new`): 把 claimed job 绑定到 invocation 与 execution attempt。",
+      "`cli/commands/job/command.py` (`new`): 暴露 `run` 命令并返回 invocation receipt。"
+    ],
+    "main_sequence": [
+      "1. resolve target skill and authoritative input",
+      "2. invoke downstream governed skill",
+      "3. record invocation and execution attempt",
+      "4. expose dispatch lineage to feedback stage"
+    ],
+    "exception_compensation": [
+      "authoritative handoff 已提交但 pending visibility build fail：不得重复创建 handoff；保留 handoff object，标记 `visibility_pending` 并要求补写 receipt。",
+      "decision return consumed 但 re-entry directive write fail：返回 `reentry_pending`，要求修复写入后重放，不允许业务 skill 绕回。",
+      "boundary handoff record persist fail：不得偷跑 formalization；保持 decision visible but `downstream_handoff_pending`，等待 runtime repair。"
+    ],
+    "integration_points": [
+      "调用方：producer skill 通过 `cli/commands/gate/command.py` / `cli/lib/mainline_runtime.py` 写入 authoritative handoff；gate loop 和 human review 在返回 decision object 时仍沿现有 mainline loop 挂接。",
+      "挂接点：file-handoff 发生在 producer 提交之后；external gate 作为现有 loop 的独立阶段消费 proposal 并返回 structured decision object。",
+      "旧系统兼容：旧 skill 若未接入统一 re-entry routing，只能以 compat mode 观察 pending visibility，不允许自定义 revise/retry 回流规则。"
+    ],
+    "minimal_code_skeleton": {
+      "happy_path": "```python\ndef advance_mainline(handoff: HandoffEnvelope) -> RuntimeTransition:\n    slot = persist_handoff(handoff)\n    decision = request_gate_decision(slot.handoff_ref)\n    next_state = apply_runtime_transition(slot, decision)\n    record_transition_evidence(slot.handoff_ref, next_state)\n    return next_state\n```",
+      "failure_path": "```python\ndef advance_mainline_with_reentry(handoff: HandoffEnvelope) -> RuntimeTransition:\n    slot = persist_handoff(handoff)\n    decision = request_gate_decision(slot.handoff_ref)\n    if decision.kind in {'revise', 'retry'}:\n        return write_reentry_command(slot.handoff_ref, decision)\n    return advance_mainline(handoff)\n```"
+    }
+  },
+  "runner_feedback": {
+    "architecture_topics": [
+      "Boundary to dispatch: feedback 只消费 execution attempt 结果，不重写 next-skill invocation 本身。",
+      "Boundary to control/observability: 本 FEAT 冻结 outcome 与 retry-reentry 语义，监控面只读取这些结果而不重新定义它们。",
+      "Dedicated feedback placement is required so execution outcome, retry-reentry directive, and failure evidence stay authoritative."
+    ],
+    "responsibility_splits": [],
+    "api_surfaces": [
+      "execution outcome contract",
+      "retry-reentry contract"
+    ],
+    "api_cli_commands": [
+      "`ll job complete --request <job_complete.request.json> --response-out <job_complete.response.json>` via `cli/commands/job/command.py`",
+      "`ll job fail --request <job_fail.request.json> --response-out <job_fail.response.json>` via `cli/commands/job/command.py`"
+    ],
+    "api_command_specs": [
+      {
+        "command": "ll job complete / fail",
+        "surface": "`ll job complete|fail --request <job_complete.request.json|job_fail.request.json> --response-out <...response.json>` via `cli/commands/job/command.py`",
+        "request_schema": [
+          "`execution_attempt_ref: string`",
+          "`outcome: enum<done|failed|retry_reentry>`",
+          "`failure_evidence_ref?: string`"
+        ],
+        "response_schema": [
+          "success envelope=`{ ok: true, command_ref, trace_ref, result }`",
+          "result fields=`execution_outcome_ref`, `retry_reentry_ref?`, `failure_evidence_ref?`",
+          "error envelope=`{ ok: false, command_ref, trace_ref, error }`"
+        ],
+        "field_semantics": [
+          "`execution_outcome_ref` freezes the authoritative post-dispatch result for one execution attempt."
+        ],
+        "enum_domain": [
+          "`outcome ∈ {done, failed, retry_reentry}`"
+        ],
+        "invariants": [
+          "every finished execution attempt must emit exactly one authoritative outcome"
+        ],
+        "canonical_refs": [
+          "`execution_outcome_ref`",
+          "`retry_reentry_ref`",
+          "`failure_evidence_ref`"
+        ],
+        "errors": [
+          "`attempt_missing`",
+          "`invalid_outcome_transition`"
+        ],
+        "idempotency": "`execution_attempt_ref + outcome`",
+        "preconditions": [
+          "`execution_attempt_ref` exists and belongs to a runner-owned dispatch"
+        ]
+      }
+    ],
+    "implementation_architecture": [
+      "Execution loop、gate loop、human review 通过文件化 handoff runtime 协作；authoritative handoff submission、pending visibility、decision-return intake 都以结构化对象驱动。",
+      "Runtime 在收到 gate decision object 后，只负责可见性回写与 revise/retry re-entry routing；decision vocabulary 仍由 gate decision FEAT authoritative freeze。",
+      "Formal publication、approve/handoff 的最终发布语义不在本 FEAT 内实现，本 FEAT 只保留对相邻 publication FEAT 的 authoritative boundary handoff。"
+    ],
+    "implementation_modules": [
+      "Outcome collector：负责收集 downstream skill result 与 runner state。",
+      "Outcome writer：负责写出 done/failed/retry-reentry 的 authoritative outcome。",
+      "Failure evidence binder：负责把失败证据与 execution attempt/outcome 绑定。"
+    ],
+    "state_model": [
+      "`execution_attempt_open` -> `outcome_recorded` -> `done|failed|retry_reentry`",
+      "`failed` must retain `failure_evidence_bound` before it becomes externally visible."
+    ],
+    "architecture_diagram": "```text\n[Execution Attempt] -> [Outcome Collector] -> [Outcome Writer] -> [Execution Outcome]\n                                               |\n                                               +--> [Failure Evidence Binder]\n```",
+    "tech_runtime_view": "```text\n[cli/commands/job/command.py]\n              |\n              v\n[cli/lib/job_outcome.py] --> [cli/lib/execution_runner.py]\n              |\n              +--> [cli/lib/protocol.py]\n```",
+    "flow_diagram": "```text\nExecution Attempt -> Outcome Collector    : collect downstream result\nOutcome Collector -> Outcome Writer       : emit done / failed / retry-reentry\nOutcome Writer    -> Evidence Binder      : attach failure evidence when needed\n```",
+    "implementation_strategy": [
+      "先冻结 done/failed/retry-reentry outcome schema，再实现 outcome writer 和 evidence binder。",
+      "把 failure evidence 与 execution attempt 强绑定，避免失败状态只留日志不留 authoritative outcome。",
+      "最后验证 success/fail/retry 三条反馈路径都能回写主链。"
+    ],
+    "implementation_unit_mapping": [
+      "`cli/lib/protocol.py` (`extend`): 定义 `ExecutionOutcomeRecord`、`RetryReentryDirective`、`FailureEvidenceRef` 结构。",
+      "`cli/lib/job_outcome.py` (`new`): 写出 done/failed/retry-reentry authoritative outcome。",
+      "`cli/lib/execution_runner.py` (`new`): 将 execution attempt 结果绑定回 runner lifecycle。",
+      "`cli/commands/job/command.py` (`new`): 暴露 `complete` / `fail` 命令并返回 outcome receipt。"
+    ],
+    "main_sequence": [
+      "1. collect downstream execution result",
+      "2. emit authoritative execution outcome",
+      "3. bind failure evidence or retry-reentry directive",
+      "4. expose post-dispatch result to orchestration and monitoring"
+    ],
+    "exception_compensation": [
+      "authoritative handoff 已提交但 pending visibility build fail：不得重复创建 handoff；保留 handoff object，标记 `visibility_pending` 并要求补写 receipt。",
+      "decision return consumed 但 re-entry directive write fail：返回 `reentry_pending`，要求修复写入后重放，不允许业务 skill 绕回。",
+      "boundary handoff record persist fail：不得偷跑 formalization；保持 decision visible but `downstream_handoff_pending`，等待 runtime repair。"
+    ],
+    "integration_points": [
+      "调用方：producer skill 通过 `cli/commands/gate/command.py` / `cli/lib/mainline_runtime.py` 写入 authoritative handoff；gate loop 和 human review 在返回 decision object 时仍沿现有 mainline loop 挂接。",
+      "挂接点：file-handoff 发生在 producer 提交之后；external gate 作为现有 loop 的独立阶段消费 proposal 并返回 structured decision object。",
+      "旧系统兼容：旧 skill 若未接入统一 re-entry routing，只能以 compat mode 观察 pending visibility，不允许自定义 revise/retry 回流规则。"
+    ],
+    "minimal_code_skeleton": {
+      "happy_path": "```python\ndef advance_mainline(handoff: HandoffEnvelope) -> RuntimeTransition:\n    slot = persist_handoff(handoff)\n    decision = request_gate_decision(slot.handoff_ref)\n    next_state = apply_runtime_transition(slot, decision)\n    record_transition_evidence(slot.handoff_ref, next_state)\n    return next_state\n```",
+      "failure_path": "```python\ndef advance_mainline_with_reentry(handoff: HandoffEnvelope) -> RuntimeTransition:\n    slot = persist_handoff(handoff)\n    decision = request_gate_decision(slot.handoff_ref)\n    if decision.kind in {'revise', 'retry'}:\n        return write_reentry_command(slot.handoff_ref, decision)\n    return advance_mainline(handoff)\n```"
+    }
+  },
+  "runner_observability": {
+    "architecture_topics": [
+      "Boundary to runner control: 监控面只读取 ready/running/failed/waiting-human 状态，不直接执行控制动作。",
+      "Boundary to queue/runtime records: 监控面必须聚合 authoritative ready queue、running ownership、dispatch 和 outcome records，而不是扫目录猜测状态。",
+      "Dedicated observability placement is required so backlog、running、failed、deadletter、waiting-human views share one authoritative query surface."
+    ],
+    "responsibility_splits": [],
+    "api_surfaces": [
+      "runner observability snapshot contract",
+      "runner status query contract"
+    ],
+    "api_cli_commands": [
+      "`ll loop show-status --request <loop_show_status.request.json> --response-out <loop_show_status.response.json>` via `cli/commands/loop/command.py`",
+      "`ll loop show-backlog --request <loop_show_backlog.request.json> --response-out <loop_show_backlog.response.json>` via `cli/commands/loop/command.py`"
+    ],
+    "api_command_specs": [
+      {
+        "command": "ll loop show-status / show-backlog",
+        "surface": "`ll loop show-status|show-backlog --request <loop_show_*.request.json> --response-out <...response.json>` via `cli/commands/loop/command.py`",
+        "request_schema": [
+          "`runner_scope_ref: string`",
+          "`status_filter?: enum<ready|running|failed|deadletter|waiting_human>`"
+        ],
+        "response_schema": [
+          "success envelope=`{ ok: true, command_ref, trace_ref, result }`",
+          "result fields=`observability_snapshot_ref`, `ready_backlog`, `running_items`, `failed_items`, `waiting_human_items`",
+          "error envelope=`{ ok: false, command_ref, trace_ref, error }`"
+        ],
+        "field_semantics": [
+          "`observability_snapshot_ref` points to one authoritative snapshot of runner state across queue, running ownership, and outcomes."
+        ],
+        "enum_domain": [
+          "`status_filter ∈ {ready, running, failed, deadletter, waiting_human}`"
+        ],
+        "invariants": [
+          "observability must read authoritative runner records instead of directory guessing"
+        ],
+        "canonical_refs": [
+          "`observability_snapshot_ref`"
+        ],
+        "errors": [
+          "`runner_scope_missing`",
+          "`status_projection_failed`"
+        ],
+        "idempotency": "`runner_scope_ref + status_filter`",
+        "preconditions": [
+          "`runner_scope_ref` resolves to an existing execution runner scope"
+        ]
+      }
+    ],
+    "implementation_architecture": [
+      "Execution loop、gate loop、human review 通过文件化 handoff runtime 协作；authoritative handoff submission、pending visibility、decision-return intake 都以结构化对象驱动。",
+      "Runtime 在收到 gate decision object 后，只负责可见性回写与 revise/retry re-entry routing；decision vocabulary 仍由 gate decision FEAT authoritative freeze。",
+      "Formal publication、approve/handoff 的最终发布语义不在本 FEAT 内实现，本 FEAT 只保留对相邻 publication FEAT 的 authoritative boundary handoff。"
+    ],
+    "implementation_modules": [
+      "Runner status projector：负责聚合 ready backlog、running、failed、deadletters 和 waiting-human 状态。",
+      "Snapshot query service：负责按 runner scope 生成 authoritative observability snapshot。",
+      "Operator monitor presenter：负责输出 CLI 可读的 runner status/backlog view。"
+    ],
+    "state_model": [
+      "`runner_state_requested` -> `snapshot_projected` -> `status_view_published`",
+      "`snapshot_projected(fail)` -> `observability_unavailable`"
+    ],
+    "architecture_diagram": "```text\n[Ready Queue / Running / Outcome Records] -> [Runner Status Projector] -> [Observability Snapshot] -> [Operator View]\n```",
+    "tech_runtime_view": "```text\n[cli/commands/loop/command.py]\n              |\n              v\n[cli/lib/runner_monitor.py] --> [cli/lib/job_queue.py] --> [Observability Snapshot]\n              |\n              +--> [cli/lib/job_outcome.py]\n```",
+    "flow_diagram": "```text\nQueue / Runtime Records -> Status Projector : aggregate ready/running/failed states\nStatus Projector        -> Snapshot View   : publish runner observability snapshot\nSnapshot View           -> Operator        : expose backlog and health view\n```",
+    "implementation_strategy": [
+      "先冻结 ready/running/failed/deadletter/waiting-human 状态词表，再实现 status projector。",
+      "监控面只消费 authoritative runner records，不允许从目录结构推断状态。",
+      "最后验证 operator 能通过统一视图观察 backlog、运行态和异常态。"
+    ],
+    "implementation_unit_mapping": [
+      "`cli/lib/protocol.py` (`extend`): 定义 `RunnerObservabilitySnapshot`、`RunnerStatusItem` 结构。",
+      "`cli/lib/runner_monitor.py` (`new`): 聚合 ready/running/failed/waiting-human 状态。",
+      "`cli/lib/job_queue.py` (`extend`): 提供 backlog/status 查询接口。",
+      "`cli/commands/loop/command.py` (`new`): 暴露 `show-status` / `show-backlog` 监控命令。"
+    ],
+    "main_sequence": [
+      "1. collect ready/running/failed/deadletter/waiting-human states",
+      "2. project authoritative observability snapshot",
+      "3. render operator-facing backlog / status view",
+      "4. expose lineage refs for diagnostics and recovery"
+    ],
+    "exception_compensation": [
+      "authoritative handoff 已提交但 pending visibility build fail：不得重复创建 handoff；保留 handoff object，标记 `visibility_pending` 并要求补写 receipt。",
+      "decision return consumed 但 re-entry directive write fail：返回 `reentry_pending`，要求修复写入后重放，不允许业务 skill 绕回。",
+      "boundary handoff record persist fail：不得偷跑 formalization；保持 decision visible but `downstream_handoff_pending`，等待 runtime repair。"
+    ],
+    "integration_points": [
+      "调用方：producer skill 通过 `cli/commands/gate/command.py` / `cli/lib/mainline_runtime.py` 写入 authoritative handoff；gate loop 和 human review 在返回 decision object 时仍沿现有 mainline loop 挂接。",
+      "挂接点：file-handoff 发生在 producer 提交之后；external gate 作为现有 loop 的独立阶段消费 proposal 并返回 structured decision object。",
+      "旧系统兼容：旧 skill 若未接入统一 re-entry routing，只能以 compat mode 观察 pending visibility，不允许自定义 revise/retry 回流规则。"
+    ],
+    "minimal_code_skeleton": {
+      "happy_path": "```python\ndef advance_mainline(handoff: HandoffEnvelope) -> RuntimeTransition:\n    slot = persist_handoff(handoff)\n    decision = request_gate_decision(slot.handoff_ref)\n    next_state = apply_runtime_transition(slot, decision)\n    record_transition_evidence(slot.handoff_ref, next_state)\n    return next_state\n```",
+      "failure_path": "```python\ndef advance_mainline_with_reentry(handoff: HandoffEnvelope) -> RuntimeTransition:\n    slot = persist_handoff(handoff)\n    decision = request_gate_decision(slot.handoff_ref)\n    if decision.kind in {'revise', 'retry'}:\n        return write_reentry_command(slot.handoff_ref, decision)\n    return advance_mainline(handoff)\n```"
+    }
+  },
+  "collaboration": {
+    "architecture_topics": [
+      "Boundary to gate decision / publication: 本 FEAT 负责 authoritative handoff submission、gate-pending visibility 与 decision-driven runtime re-entry routing，不负责 decision vocabulary、decision issuance 与 formal publication trigger semantics。",
+      "Boundary to admission/layering: 本 FEAT 可以提交 candidate / proposal / evidence，但 formal admission、formal refs 与 downstream read eligibility 由对象分层 FEAT 决定。",
+      "Dedicated runtime placement is required so submission receipt、pending visibility 和 re-entry routing 由同一 authoritative carrier 负责，而不是散落在 producer skill 或 gate worker 中。"
+    ],
+    "responsibility_splits": [
+      "Execution loop owns candidate/proposal/evidence preparation and authoritative submission initiation.",
+      "Gate loop and human review own decision semantics; this FEAT only consumes returned decision objects as structured inputs for visibility and routing.",
+      "Runtime owns gate-pending visibility and revise/retry re-entry routing after decision return, but does not own formal publication or final approval semantics."
+    ],
+    "api_surfaces": [
+      "handoff submission contract",
+      "gate pending visibility contract"
+    ],
+    "api_cli_commands": [
+      "`ll gate submit-handoff --request <gate_submit_handoff.request.json> --response-out <gate_submit_handoff.response.json>` via `cli/commands/gate/command.py`",
+      "`ll gate show-pending --request <gate_show_pending.request.json> --response-out <gate_show_pending.response.json>` via `cli/commands/gate/command.py`"
+    ],
+    "api_command_specs": [
+      {
+        "command": "ll gate submit-handoff",
+        "surface": "`ll gate submit-handoff --request <gate_submit_handoff.request.json> --response-out <gate_submit_handoff.response.json>` via `cli/commands/gate/command.py`",
+        "request_schema": [
+          "`producer_ref: string`",
+          "`proposal_ref: string`",
+          "`payload_ref: string`",
+          "`pending_state: enum<gate_pending|human_review_pending|reentry_pending|retry_pending>`",
+          "`trace_context_ref: string?`"
+        ],
+        "response_schema": [
+          "success envelope=`{ ok: true, command_ref, trace_ref, result }`",
+          "result fields=`handoff_ref`, `queue_slot`, `gate_pending_ref`, `canonical_payload_path`, `pending_state`",
+          "error envelope=`{ ok: false, command_ref, trace_ref, error }`",
+          "error fields=`code`, `message`, `retryable`, `idempotent_replay`"
+        ],
+        "field_semantics": [
+          "`pending_state` freezes only pending-visibility states; it must not encode final gate decisions.",
+          "`gate_pending_ref` is the canonical ref of the pending-intake record created by this submission.",
+          "`queue_slot` identifies the current gate queue slot responsible for the handoff.",
+          "`canonical_payload_path` must point to the normalized runtime-visible payload location used for traceability."
+        ],
+        "enum_domain": [
+          "`pending_state ∈ {gate_pending, human_review_pending, reentry_pending, retry_pending}`"
+        ],
+        "invariants": [
+          "one accepted submission creates exactly one authoritative `handoff_ref`",
+          "the same idempotency key must not allocate a second queue slot",
+          "`gate_pending_ref` and `trace_ref` must be returned on every successful submission"
+        ],
+        "canonical_refs": [
+          "`handoff_ref`",
+          "`gate_pending_ref`",
+          "`trace_ref`",
+          "`canonical_payload_path`"
+        ],
+        "errors": [
+          "`missing_payload`",
+          "`invalid_state`",
+          "`duplicate_submission`"
+        ],
+        "idempotency": "`producer_ref + proposal_ref + payload_digest`",
+        "preconditions": [
+          "`payload_ref` is already readable from the governed runtime carrier",
+          "`proposal_ref` resolves to the same submission intent as the payload"
+        ]
+      },
+      {
+        "command": "ll gate show-pending",
+        "surface": "`ll gate show-pending --request <gate_show_pending.request.json> --response-out <gate_show_pending.response.json>` via `cli/commands/gate/command.py`",
+        "request_schema": [
+          "`handoff_ref: string`"
+        ],
+        "response_schema": [
+          "success envelope=`{ ok: true, command_ref, trace_ref, result }`",
+          "result fields=`handoff_ref`, `pending_state`, `assigned_gate_queue`, `gate_pending_ref`, `trace_ref`",
+          "error envelope=`{ ok: false, command_ref, trace_ref, error }`",
+          "error fields=`code`, `message`, `retryable`"
+        ],
+        "field_semantics": [
+          "`assigned_gate_queue` is the queue currently responsible for the pending handoff, not a downstream execution queue.",
+          "`pending_state` must stay inside the frozen pending-state enum and must not leak approve/reject semantics."
+        ],
+        "enum_domain": [
+          "`pending_state ∈ {gate_pending, human_review_pending, reentry_pending, retry_pending}`"
+        ],
+        "invariants": [
+          "the command returns the current pending-intake view for exactly one `handoff_ref`",
+          "successful lookups must echo the same `handoff_ref` and `gate_pending_ref` pair created during submission"
+        ],
+        "canonical_refs": [
+          "`handoff_ref`",
+          "`gate_pending_ref`",
+          "`trace_ref`"
+        ],
+        "errors": [
+          "`handoff_missing`",
+          "`pending_state_unavailable`"
+        ],
+        "idempotency": "`handoff_ref`",
+        "preconditions": [
+          "`handoff_ref` has been submitted into the mainline runtime"
+        ]
+      }
+    ],
+    "implementation_architecture": [
+      "Execution loop、gate loop、human review 通过文件化 handoff runtime 协作；authoritative handoff submission、pending visibility、decision-return intake 都以结构化对象驱动。",
+      "Runtime 在收到 gate decision object 后，只负责可见性回写与 revise/retry re-entry routing；decision vocabulary 仍由 gate decision FEAT authoritative freeze。",
+      "Formal publication、approve/handoff 的最终发布语义不在本 FEAT 内实现，本 FEAT 只保留对相邻 publication FEAT 的 authoritative boundary handoff。"
+    ],
+    "implementation_modules": [
+      "Handoff runtime adapter：负责把受治理对象写入/读取主链 runtime，并维持 traceability。",
+      "Decision boundary adapter：负责把上游 FEAT 约束映射成 runtime 可执行边界，不把实现责任散落到业务 skill。",
+      "Submission coordinator：定义 candidate/proposal/evidence 进入 authoritative handoff 的入口、receipt 与 pending visibility。",
+      "Decision return adapter：消费 gate decision object，并把 revise/retry 映射成 runtime re-entry directive，而不重写 decision semantics。"
+    ],
+    "state_model": [
+      "`handoff_prepared` -> `handoff_submitted` -> `gate_pending_visible` -> `decision_returned`",
+      "`decision_returned(revise|retry)` -> `runtime_reentry_directive_written` -> `handoff_prepared`",
+      "`decision_returned(approve|handoff|reject)` -> `boundary_handoff_recorded`，由 formalization / downstream runtime 消费后续推进"
+    ],
+    "architecture_diagram": "```text\n[Execution Loop] --> [Handoff Runtime] --> [Gate Loop] --> [Human Review]\n       ^                    |                     |\n       |                    +--> pending visibility --> [Producer / Upstream]\n       |                                          |\n       +---- revise/retry routing <---------------+\n                            decision object -----> [Handoff Runtime]\n```",
+    "tech_runtime_view": "```text\n[cli/commands/gate/command.py]\n              |\n              v\n[cli/lib/mainline_runtime.py] --> [Gate Pending Receipt / Visibility]\n              |\n              +--> [cli/lib/protocol.py]\n              |\n              +--> [cli/lib/reentry.py] (revise/retry routing only)\n```",
+    "flow_diagram": "```text\nExecution Loop -> Runtime      : submit candidate / proposal / evidence\nRuntime        -> Gate Loop    : persist authoritative handoff and publish pending visibility\nGate Loop      -> Human Review : escalate when required\nHuman Review   -> Gate Loop    : return decision object\nGate Loop      -> Runtime      : return decision object\nRuntime        -> Execution Loop: write revise/retry re-entry directive when applicable\nRuntime        -> Downstream   : expose boundary handoff record for approve/handoff/reject outcomes\n```",
+    "implementation_strategy": [
+      "先冻结 authoritative handoff、pending visibility 和 decision return intake，再接入 human review escalation。",
+      "把 revise / retry 收敛为 runtime-owned re-entry routing，不允许 business skill 或 gate worker 私下拼接回流路径。",
+      "最后用至少一条真实 submit -> pending -> decision-return -> re-entry pilot 验证协作闭环成立，同时证明 gate decision issuance / formal publication 仍在本 FEAT 外。"
+    ],
+    "implementation_unit_mapping": [
+      "`cli/lib/protocol.py` (`extend`): 定义 `HandoffEnvelope`、`PendingVisibilityRecord`、`DecisionReturnEnvelope`、`ReentryDirective` 结构。",
+      "`cli/lib/mainline_runtime.py` (`new`): 管理 authoritative submission、pending visibility、decision-return intake 与 boundary handoff record。",
+      "`cli/lib/reentry.py` (`new`): 只处理 revise / retry 的 runtime routing、directive 写回与 replay guard，不拥有 decision semantics。",
+      "`cli/commands/gate/command.py` (`extend`): 接入 submit-handoff / show-pending 路径，并把 returned decision 交给 `cli/lib/mainline_runtime.py` 消费。",
+      "`cli/commands/audit/command.py` (`extend`): 作为 human review escalation 的旁路消费方，回写 structured review context 而非 formalization result。"
+    ],
+    "main_sequence": [
+      "1. normalize candidate/proposal/evidence submission and producer state",
+      "2. persist authoritative handoff object and emit gate-pending visibility",
+      "3. route proposal into gate loop and escalate to human review when required",
+      "4. consume structured decision object when it returns to runtime",
+      "5. if decision in {revise, retry}, write re-entry directive and replay guard",
+      "6. if decision in {approve, handoff, reject}, persist boundary handoff record without materializing formal output here"
+    ],
+    "exception_compensation": [
+      "authoritative handoff 已提交但 pending visibility build fail：不得重复创建 handoff；保留 handoff object，标记 `visibility_pending` 并要求补写 receipt。",
+      "decision return consumed 但 re-entry directive write fail：返回 `reentry_pending`，要求修复写入后重放，不允许业务 skill 绕回。",
+      "boundary handoff record persist fail：不得偷跑 formalization；保持 decision visible but `downstream_handoff_pending`，等待 runtime repair。"
+    ],
+    "integration_points": [
+      "调用方：producer skill 通过 `cli/commands/gate/command.py` / `cli/lib/mainline_runtime.py` 写入 authoritative handoff；gate loop 和 human review 在返回 decision object 时仍沿现有 mainline loop 挂接。",
+      "挂接点：file-handoff 发生在 producer 提交之后；external gate 作为现有 loop 的独立阶段消费 proposal 并返回 structured decision object。",
+      "旧系统兼容：旧 skill 若未接入统一 re-entry routing，只能以 compat mode 观察 pending visibility，不允许自定义 revise/retry 回流规则。"
+    ],
+    "minimal_code_skeleton": {
+      "happy_path": "```python\ndef advance_mainline(handoff: HandoffEnvelope) -> RuntimeTransition:\n    slot = persist_handoff(handoff)\n    decision = request_gate_decision(slot.handoff_ref)\n    next_state = apply_runtime_transition(slot, decision)\n    record_transition_evidence(slot.handoff_ref, next_state)\n    return next_state\n```",
+      "failure_path": "```python\ndef advance_mainline_with_reentry(handoff: HandoffEnvelope) -> RuntimeTransition:\n    slot = persist_handoff(handoff)\n    decision = request_gate_decision(slot.handoff_ref)\n    if decision.kind in {'revise', 'retry'}:\n        return write_reentry_command(slot.handoff_ref, decision)\n    return advance_mainline(handoff)\n```"
+    }
+  },
+  "formalization": {
+    "architecture_topics": [
+      "Boundary to collaboration runtime: formalization FEAT 消费 authoritative handoff 与 proposal，不重新定义 submission receipt 或 pending visibility。",
+      "Boundary to downstream publication/admission: 本 FEAT 负责 gate brief、pending human decision、authoritative decision object 与 dispatch trigger，不负责 formal publish / consumer admission policy 本身。",
+      "Dedicated gate placement is required so brief、pending、decision、dispatch 使用同一 authoritative path，而不是散落在 gate worker 或 business skill 中。"
+    ],
+    "responsibility_splits": [
+      "External gate owns gate brief build and approve / revise / retry / handoff / reject decision semantics, and emits the only authoritative decision object.",
+      "Dispatch router owns execution / delegate / publication-trigger routing after decision issuance, but does not own formal publish itself or downstream admission policy.",
+      "Business skills do not bypass gate by issuing decision objects or writing formal publication triggers directly."
+    ],
+    "api_surfaces": [
+      "gate decision contract",
+      "formal publication contract"
+    ],
+    "api_cli_commands": [
+      "`ll gate evaluate --request <gate_evaluate.request.json> --response-out <gate_evaluate.response.json>` via `cli/commands/gate/command.py`",
+      "`ll gate dispatch --request <gate_dispatch.request.json> --response-out <gate_dispatch.response.json>` via `cli/commands/gate/command.py`"
+    ],
+    "api_command_specs": [
+      {
+        "command": "ll gate evaluate",
+        "surface": "`ll gate evaluate --request <gate_evaluate.request.json> --response-out <gate_evaluate.response.json>` via `cli/commands/gate/command.py`",
+        "request_schema": [
+          "`handoff_ref: string`",
+          "`proposal_ref: string`",
+          "`evidence_refs: string[]`",
+          "`brief_round: integer`",
+          "`priority_hint: enum<P0|P1|P2>?`",
+          "`merge_group_hint: string?`"
+        ],
+        "response_schema": [
+          "success envelope=`{ ok: true, command_ref, trace_ref, result }`",
+          "result fields=`brief_record_ref`, `pending_human_decision_ref`, `decision_ref`, `decision`, `decision_target`, `decision_basis_refs`, `dispatch_target`, `trace_ref`",
+          "error envelope=`{ ok: false, command_ref, trace_ref, error }`"
+        ],
+        "field_semantics": [
+          "`brief_record_ref` is the authoritative gate-brief record built from the handoff submission and evidence set.",
+          "`pending_human_decision_ref` identifies the uniquely claimed pending-human record consumed by the decision round.",
+          "`decision_ref` is the only authoritative gate result for downstream execution, delegation, or publication-trigger consumers.",
+          "`decision_basis_refs` must point back to the exact brief/evidence set used for this decision round."
+        ],
+        "enum_domain": [
+          "`priority_hint ∈ {P0, P1, P2}`",
+          "`decision ∈ {approve, revise, retry, handoff, reject}`"
+        ],
+        "invariants": [
+          "one brief round yields at most one authoritative `brief_record_ref` and one active `pending_human_decision_ref`",
+          "one decision round yields at most one authoritative `decision_ref`",
+          "`decision_target` and `decision_basis_refs` must be present before the decision is accepted"
+        ],
+        "canonical_refs": [
+          "`brief_record_ref`",
+          "`pending_human_decision_ref`",
+          "`decision_ref`",
+          "`handoff_ref`",
+          "`trace_ref`"
+        ],
+        "errors": [
+          "`handoff_missing`",
+          "`invalid_state`",
+          "`decision_conflict`",
+          "`missing_basis_refs`"
+        ],
+        "idempotency": "`pending_human_decision_ref + decision_round`",
+        "preconditions": [
+          "`handoff_ref` is already in gate-pending state",
+          "the pending human decision is active and uniquely claimed"
+        ]
+      },
+      {
+        "command": "ll gate dispatch",
+        "surface": "`ll gate dispatch --request <gate_dispatch.request.json> --response-out <gate_dispatch.response.json>` via `cli/commands/gate/command.py`",
+        "request_schema": [
+          "`decision_ref: string`",
+          "`dispatch_target: enum<execution_return|delegated_handler|formal_publication_trigger|reject_terminal>`",
+          "`decision_target: string`",
+          "`decision_basis_refs: string[]`"
+        ],
+        "response_schema": [
+          "success envelope=`{ ok: true, command_ref, trace_ref, result }`",
+          "result fields=`dispatch_receipt_ref`, `dispatch_status`, `materialized_job_ref`, `materialized_handoff_ref`",
+          "error envelope=`{ ok: false, command_ref, trace_ref, error }`"
+        ],
+        "field_semantics": [
+          "`dispatch_target` is derived from the authoritative decision object and is not an independently chosen runtime state.",
+          "`dispatch_receipt_ref` records the exact downstream handoff or execution return initiated by this command."
+        ],
+        "enum_domain": [
+          "`dispatch_target ∈ {execution_return, delegated_handler, formal_publication_trigger, reject_terminal}`"
+        ],
+        "invariants": [
+          "dispatch must not succeed without an authoritative decision object",
+          "`formal_publication_trigger` may only be selected for `approve` or `handoff` decisions"
+        ],
+        "canonical_refs": [
+          "`decision_ref`",
+          "`dispatch_receipt_ref`",
+          "`materialized_job_ref`",
+          "`materialized_handoff_ref`"
+        ],
+        "errors": [
+          "`decision_not_dispatchable`",
+          "`dispatch_failed`",
+          "`unknown_dispatch_target`"
+        ],
+        "idempotency": "`decision_ref + dispatch_target`",
+        "preconditions": [
+          "`decision_ref` resolves to one authoritative decision object",
+          "`decision_target` and `decision_basis_refs` are already present on the decision object"
+        ]
+      }
+    ],
+    "implementation_architecture": [
+      "Business skill 只产出 candidate package / proposal / evidence，由 handoff runtime 承接进入 external gate。",
+      "External gate 先把 handoff 压缩成 `gate-brief-record` 与 `gate-pending-human-decision`，再由 reviewer 给出 approve / revise / retry / handoff / reject 决策。",
+      "本 FEAT 只负责 decision issuance、trace persistence 与 downstream dispatch trigger；formal publication 由相邻 FEAT 消费 decision object 后继续完成。"
+    ],
+    "implementation_modules": [
+      "Handoff runtime adapter：负责把受治理对象写入/读取主链 runtime，并维持 traceability。",
+      "Decision boundary adapter：负责把上游 FEAT 约束映射成 runtime 可执行边界，不把实现责任散落到业务 skill。",
+      "Gate brief builder：负责把 handoff submission 压缩成 `gate-brief-record` 与 `gate-pending-human-decision`。",
+      "Gate decision processor：解析 approve / revise / retry / handoff / reject，并产出带 `decision_target` 与 `decision_basis_refs` 的唯一 authoritative decision object。",
+      "Dispatch router：负责把 decision object 回交给 execution、delegated handler 或 formal publication trigger，而不是直接执行 formal publish。"
+    ],
+    "state_model": [
+      "`candidate_prepared` -> `submitted_to_gate` -> `brief_prepared` -> `pending_human_decision` -> `decision_issued` -> `execution_returned|delegated|publication_triggered|rejected`",
+      "`decision_issued(revise)` -> `returned_for_revision` -> `candidate_prepared`",
+      "`decision_issued(retry)` -> `retry_pending` -> `submitted_to_gate`"
+    ],
+    "architecture_diagram": "```text\n[Business Skill]\n      |\n      v\n[Candidate Package] --> [Handoff Runtime] --> [External Gate] --> [Gate Brief Record]\n                                                              |\n                                                              +--> [Pending Human Decision] --> [Decision Object]\n                                                                                                  |\n                                                                                                  +--> revise/retry/reject --> [Execution / Runtime Return]\n                                                                                                  |\n                                                                                                  +--> approve/handoff --> [Dispatch Trigger]\n```",
+    "tech_runtime_view": "```text\n[cli/commands/gate/command.py]\n              |\n              +--> [cli/lib/protocol.py]\n              |\n              +--> [cli/lib/registry_store.py]\n              |\n              +--> [Gate Brief Record / Pending Human Decision / Gate Decision]\n```",
+    "flow_diagram": "```text\nBusiness Skill -> Runtime         : submit candidate + proposal\nRuntime        -> External Gate   : enqueue handoff for decision\nExternal Gate  -> Runtime         : build gate brief + pending human decision\nReviewer       -> External Gate   : approve / revise / retry / handoff / reject\nExternal Gate  -> Runtime         : persist decision object with target/basis\nRuntime        -> Execution Loop  : return structured decision on revise/retry/reject\nRuntime        -> Delegate/Publish Trigger : dispatch handoff or approve trigger\n```",
+    "implementation_strategy": [
+      "先固化 candidate -> brief -> pending human -> decision 的对象链与 decision vocabulary。",
+      "实现 revise / retry / handoff 回流时，必须先打通 structured decision 回写，并确保 `decision_target` 与 `decision_basis_refs` 完整。",
+      "最后把 approve decision 只作为 dispatch trigger 暴露给相邻 formal publication FEAT，不在本 FEAT 内直接 publish。"
+    ],
+    "implementation_unit_mapping": [
+      "`cli/lib/protocol.py` (`extend`): 定义 `GateBriefRecord`、`GatePendingHumanDecision`、`GateDecision` 结构。",
+      "`cli/lib/registry_store.py` (`extend`): 写入 brief/decision trace、`decision_target`、`decision_basis_refs` 与 dispatch receipt。",
+      "`cli/commands/gate/command.py` (`extend`): 接入 `evaluate` / `dispatch` 语义，生成 brief record、decision object 与回交流水。"
+    ],
+    "main_sequence": [
+      "1. normalize handoff and proposal refs",
+      "2. validate gate-pending state and build `gate-brief-record`",
+      "3. persist `gate-pending-human-decision` and human-facing projection",
+      "4. capture human decision action and persist authoritative decision object",
+      "5. validate `decision_target` and `decision_basis_refs`",
+      "6. dispatch structured result to execution, delegated handler, or formal publication trigger"
+    ],
+    "exception_compensation": [
+      "brief persisted 但 pending human decision 未建立：保留 `brief_record_ref`，阻止 decision issuance，并记录 `pending_build_failed`。",
+      "decision capture 缺少 `decision_target` 或 `decision_basis_refs`：拒绝落 decision object，保留 active pending human decision，要求补充依据后重试。",
+      "dispatch fail：保留 authoritative decision object，不伪造下游 publish 完成态，并记录 `dispatch_pending` 供后续 repair。"
+    ],
+    "integration_points": [
+      "调用方：现有 governed skill 通过 handoff runtime 提交 candidate package，由 `cli/commands/gate/command.py` 负责 evaluate / dispatch。",
+      "挂接点：file-handoff 发生在 candidate package 写入 runtime 之后；本 FEAT 只把 approve 决策交接为 formal publication trigger，不直接 materialize formal object。",
+      "旧系统兼容：business skill 保持只产出 candidate/proposal/evidence，不新增直接 formal write 路径。"
+    ],
+    "minimal_code_skeleton": {
+      "happy_path": "```python\ndef evaluate_gate_decision(handoff_ref: str) -> GateDecision:\n    envelope = load_handoff_envelope(handoff_ref)\n    brief = build_gate_brief_record(envelope)\n    pending = persist_pending_human_decision(brief)\n    action = capture_human_action(pending)\n    decision = persist_gate_decision(\n        pending_ref=pending.ref,\n        human_action=action.kind,\n        decision_target=action.target,\n        decision_basis_refs=action.basis_refs,\n    )\n    dispatch_decision(decision)\n    return decision\n```",
+      "failure_path": "```python\ndef evaluate_gate_decision_with_repair(handoff_ref: str) -> RepairOutcome:\n    envelope = load_handoff_envelope(handoff_ref)\n    brief = build_gate_brief_record(envelope)\n    pending = persist_pending_human_decision(brief)\n    action = capture_human_action(pending)\n    if not action.target or not action.basis_refs:\n        mark_pending_repair_required(pending.ref)\n        return request_basis_completion(pending.ref)\n    decision = persist_gate_decision(\n        pending_ref=pending.ref,\n        human_action=action.kind,\n        decision_target=action.target,\n        decision_basis_refs=action.basis_refs,\n    )\n    return dispatch_with_repair(decision)\n```"
+    }
+  },
+  "layering": {
+    "architecture_topics": [
+      "Boundary to collaboration/formalization: 本 FEAT 消费已有 candidate/formal objects，但不定义 handoff submission 或 materialization dispatch。",
+      "Boundary to IO governance: 本 FEAT 冻结 authoritative refs 与 admission policy，不重写 path / mode / overwrite 规则。",
+      "Dedicated lineage/admission placement is required so formal refs、layer policy 与 downstream eligibility stay authoritative."
+    ],
+    "responsibility_splits": [
+      "Lineage resolver owns candidate/formal/downstream object identity mapping and authoritative refs.",
+      "Admission checker owns consumer allow/deny decisions based on formal refs and layer eligibility.",
+      "Business skills and consumers do not infer eligibility from paths, filenames, or adjacency."
+    ],
+    "api_surfaces": [
+      "formal ref resolution contract",
+      "admission validation contract"
+    ],
+    "api_cli_commands": [
+      "`ll registry resolve-formal-ref --request <registry_resolve_formal_ref.request.json> --response-out <registry_resolve_formal_ref.response.json>` via `cli/commands/registry/command.py`",
+      "`ll registry validate-admission --request <registry_validate_admission.request.json> --response-out <registry_validate_admission.response.json>` via `cli/commands/registry/command.py`"
+    ],
+    "api_command_specs": [
+      {
+        "command": "ll registry resolve-formal-ref",
+        "surface": "`ll registry resolve-formal-ref --request <registry_resolve_formal_ref.request.json> --response-out <registry_resolve_formal_ref.response.json>` via `cli/commands/registry/command.py`",
+        "request_schema": [
+          "`requested_ref: string`"
+        ],
+        "response_schema": [
+          "success envelope=`{ ok: true, command_ref, trace_ref, result }`",
+          "result fields=`authoritative_ref`, `layer`, `lineage_ref`, `upstream_refs`, `downstream_refs`",
+          "error envelope=`{ ok: false, command_ref, trace_ref, error }`"
+        ],
+        "field_semantics": [
+          "`authoritative_ref` must point to the formal-layer object when one exists.",
+          "`layer` is the authoritative object-layer classification consumed by admission logic."
+        ],
+        "enum_domain": [
+          "`layer ∈ {candidate, formal, downstream}`"
+        ],
+        "invariants": [
+          "formal-layer resolution must not fall back to path guessing"
+        ],
+        "canonical_refs": [
+          "`authoritative_ref`",
+          "`lineage_ref`"
+        ],
+        "errors": [
+          "`unknown_ref`",
+          "`ambiguous_lineage`"
+        ],
+        "idempotency": "`requested_ref`",
+        "preconditions": [
+          "`requested_ref` exists in registry or lineage storage"
+        ]
+      },
+      {
+        "command": "ll registry validate-admission",
+        "surface": "`ll registry validate-admission --request <registry_validate_admission.request.json> --response-out <registry_validate_admission.response.json>` via `cli/commands/registry/command.py`",
+        "request_schema": [
+          "`consumer_ref: string`",
+          "`requested_ref: string`",
+          "`lineage_ref: string?`"
+        ],
+        "response_schema": [
+          "success envelope=`{ ok: true, command_ref, trace_ref, result }`",
+          "result fields=`allow`, `resolved_formal_ref`, `reason_code`, `evidence_ref`",
+          "error envelope=`{ ok: false, command_ref, trace_ref, error }`"
+        ],
+        "field_semantics": [
+          "`allow=false` is still a successful admission verdict, not a transport error.",
+          "`resolved_formal_ref` must be present whenever `allow=true`."
+        ],
+        "enum_domain": [
+          "`allow ∈ {true, false}`"
+        ],
+        "invariants": [
+          "consumers may only read formal-layer objects after an allow verdict"
+        ],
+        "canonical_refs": [
+          "`resolved_formal_ref`",
+          "`evidence_ref`"
+        ],
+        "errors": [
+          "`formal_ref_missing`",
+          "`lineage_missing`",
+          "`layer_violation`"
+        ],
+        "idempotency": "`consumer_ref + requested_ref`",
+        "preconditions": [
+          "`requested_ref` resolves through lineage or registry"
+        ]
+      }
+    ],
+    "implementation_architecture": [
+      "Business skill、gate、consumer 分别围绕 candidate layer、formal layer、downstream consumption layer 协作，不共享隐式旁路对象。",
+      "Admission checker 只根据 formal refs 与 lineage 放行 downstream 读取，不根据路径邻近关系或目录猜测放行。",
+      "Layering policy 与 IO/path policy 分离：本 FEAT 只定义对象资格和引用方向，底层落盘仍消费外部治理基础。"
+    ],
+    "implementation_modules": [
+      "Handoff runtime adapter：负责把受治理对象写入/读取主链 runtime，并维持 traceability。",
+      "Decision boundary adapter：负责把上游 FEAT 约束映射成 runtime 可执行边界，不把实现责任散落到业务 skill。",
+      "Object lineage resolver：为 candidate/formal/downstream object 建立 lineage 与 authoritative refs。",
+      "Admission checker：在 consumer 读取前验证 formal refs、lineage 与 layer eligibility。"
+    ],
+    "state_model": [
+      "`candidate_only`：仅允许 gate/runtime 消费，不允许 downstream 直接读取。",
+      "`formal_authorized`：已具备 formal refs 与 lineage，可成为正式输入。",
+      "`consumer_admitted`：consumer 通过 admission checker 后可读取 formal layer。"
+    ],
+    "architecture_diagram": "```text\n[Business Skill] --> [Candidate Layer] --> [Gate / Runtime] --> [Formal Layer] --> [Admission Checker] --> [Consumer Read]\n                                |\n                                +--> candidate-only objects\n                                      x blocked from direct consumer read\n```",
+    "tech_runtime_view": "```text\n[cli/commands/registry/command.py]\n              |\n              v\n[cli/lib/lineage.py] --> [cli/lib/admission.py] --> [Admission Verdict]\n              |\n              +--> [cli/lib/protocol.py]\n```",
+    "flow_diagram": "```text\nBusiness Skill   -> Gate / Runtime    : write candidate package\nGate / Runtime   -> Lineage Resolver  : resolve formal refs and lineage\nLineage Resolver -> Gate / Runtime    : return formal object metadata\nConsumer         -> Admission Checker : request read\nAdmission Checker-> Consumer          : allow only with formal refs\n```",
+    "implementation_strategy": [
+      "先定义 candidate/formal/downstream 三层对象与 authoritative refs，再补 admission checker。",
+      "把 consumer read path 全部切到 formal refs 校验后，再清理路径猜测或旁路读取。",
+      "最后用至少一条真实 consumer consumption 验证 layer boundary 是否成立。"
+    ],
+    "implementation_unit_mapping": [
+      "`cli/lib/protocol.py` (`extend`): 定义 `CandidateRef`、`FormalRef`、`AdmissionRequest`、`AdmissionVerdict` 结构。",
+      "`cli/lib/lineage.py` (`new`): 维护 candidate/formal/downstream object 的 lineage 与 authoritative refs。",
+      "`cli/lib/admission.py` (`new`): 基于 formal refs、lineage 与 layer eligibility 做准入判断。",
+      "`cli/lib/registry_store.py` (`extend`): 提供 lineage 查询和 formal ref 解析能力。",
+      "`cli/commands/registry/command.py` (`extend`): 暴露 resolve-formal-ref / validate-admission 操作，依赖 `cli/lib/lineage.py` 和 `cli/lib/admission.py`。"
+    ],
+    "main_sequence": [
+      "1. normalize requested ref and consumer identity",
+      "2. resolve lineage and authoritative formal ref",
+      "3. verify requested layer and consumer eligibility",
+      "4. emit admission verdict and resolved formal ref",
+      "5. record read evidence for audit / gate traceability"
+    ],
+    "exception_compensation": [
+      "lineage resolve fail：直接 deny admission，不允许退化为路径猜测。",
+      "formal ref 存在但 layer mismatch：返回 `layer_violation`，consumer 不得继续读 candidate layer。",
+      "admission evidence persist fail：允许 verdict 返回，但把 read 标记为 `audit_pending`，后续 gate 需感知缺失 evidence。"
+    ],
+    "integration_points": [
+      "调用方：downstream consumer 在正式读取前调用 admission checker；registry 负责提供 formal refs 与 lineage。",
+      "挂接点：file-handoff 完成后先 resolve formal refs，再决定 consumer admission。",
+      "旧系统兼容：现有路径猜测读取必须逐步迁移到 formal-ref based access，兼容模式只允许只读告警，不允许默认放行。"
+    ],
+    "minimal_code_skeleton": {
+      "happy_path": "```python\ndef validate_admission(request: AdmissionRequest) -> AdmissionVerdict:\n    lineage = resolve_lineage(request.requested_ref)\n    formal_ref = require_formal_ref(lineage)\n    check_consumer_policy(request.consumer_ref, formal_ref)\n    record_read_evidence(request.consumer_ref, formal_ref)\n    return AdmissionVerdict.allow(formal_ref=formal_ref, lineage_ref=lineage.lineage_ref)\n```",
+      "failure_path": "```python\ndef validate_admission_or_deny(request: AdmissionRequest) -> AdmissionVerdict:\n    lineage = resolve_lineage(request.requested_ref)\n    if lineage is None:\n        return AdmissionVerdict.deny(reason_code='lineage_missing')\n    if lineage.layer != 'formal':\n        return AdmissionVerdict.deny(reason_code='layer_violation')\n    return validate_admission(request)\n```"
+    }
+  },
+  "io_governance": {
+    "architecture_topics": [
+      "Boundary to object layering: 本 FEAT 冻结受治理 IO/path 边界，但不决定对象层级与 admission policy。",
+      "Boundary to gate decision / publication: 本 FEAT 约束 write/read carrier 与 receipt/registry 行为，不定义 approve/reject 等 decision semantics。",
+      "Dedicated gateway placement is required so policy、IO execution、registry bind 与 receipt publication use one governed carrier."
+    ],
+    "responsibility_splits": [
+      "Path policy owns allow/deny and mode decisions before any governed read/write executes.",
+      "Gateway owns write/read orchestration, registry prerequisite checks, receipt generation, and managed ref publication.",
+      "Callers do not bypass Gateway with direct filesystem writes once the operation is declared governed."
+    ],
+    "api_surfaces": [
+      "governed write contract",
+      "governed read contract"
+    ],
+    "api_cli_commands": [
+      "`ll artifact commit --request <artifact_commit.request.json> --response-out <artifact_commit.response.json>` via `cli/commands/artifact/command.py`",
+      "`ll artifact read --request <artifact_read.request.json> --response-out <artifact_read.response.json>` via `cli/commands/artifact/command.py`"
+    ],
+    "api_command_specs": [
+      {
+        "command": "ll artifact commit",
+        "surface": "`ll artifact commit --request <artifact_commit.request.json> --response-out <artifact_commit.response.json>` via `cli/commands/artifact/command.py`",
+        "request_schema": [
+          "`logical_path: string`",
+          "`path_class: string`",
+          "`mode: enum<read|write>`",
+          "`payload_ref: string`",
+          "`overwrite: bool`"
+        ],
+        "response_schema": [
+          "success envelope=`{ ok: true, command_ref, trace_ref, result }`",
+          "result fields=`managed_ref`, `registry_record_ref`, `write_receipt_ref`, `mode_decision`",
+          "error envelope=`{ ok: false, command_ref, trace_ref, error }`"
+        ],
+        "field_semantics": [
+          "`mode_decision` is the normalized governed mode actually applied after policy evaluation.",
+          "`managed_ref` is the canonical downstream-consumable artifact reference."
+        ],
+        "enum_domain": [
+          "`mode ∈ {read, write}`"
+        ],
+        "invariants": [
+          "a successful governed write must return both `managed_ref` and `write_receipt_ref`"
+        ],
+        "canonical_refs": [
+          "`managed_ref`",
+          "`registry_record_ref`",
+          "`write_receipt_ref`"
+        ],
+        "errors": [
+          "`policy_deny`",
+          "`registry_prerequisite_failed`",
+          "`write_failed`"
+        ],
+        "idempotency": "`logical_path + payload_digest + mode`",
+        "preconditions": [
+          "request is normalized and payload is readable"
+        ]
+      },
+      {
+        "command": "ll artifact read",
+        "surface": "`ll artifact read --request <artifact_read.request.json> --response-out <artifact_read.response.json>` via `cli/commands/artifact/command.py`",
+        "request_schema": [
+          "`managed_ref: string`"
+        ],
+        "response_schema": [
+          "success envelope=`{ ok: true, command_ref, trace_ref, result }`",
+          "result fields=`payload_ref`, `resolved_path`, `registry_record_ref`, `read_receipt_ref`",
+          "error envelope=`{ ok: false, command_ref, trace_ref, error }`"
+        ],
+        "field_semantics": [
+          "`resolved_path` is the policy-approved physical path behind the managed ref."
+        ],
+        "enum_domain": [],
+        "invariants": [
+          "managed reads do not bypass registry-record resolution"
+        ],
+        "canonical_refs": [
+          "`managed_ref`",
+          "`registry_record_ref`",
+          "`read_receipt_ref`"
+        ],
+        "errors": [
+          "`managed_ref_missing`",
+          "`registry_record_missing`",
+          "`read_forbidden`"
+        ],
+        "idempotency": "`managed_ref`",
+        "preconditions": [
+          "`managed_ref` is already registered"
+        ]
+      }
+    ],
+    "implementation_architecture": [
+      "Governed skill、handoff runtime、formal publication 相关写入都通过 ADR-005 提供的 Gateway / Path Policy / Registry 接入受治理 IO。",
+      "Mainline handoff 与 formal writes 共享同一套 path / mode 约束，不允许局部目录策略绕过受治理写入。",
+      "全局文件治理、仓库级目录重构与非 governed skill 自由写入不进入本实现范围。"
+    ],
+    "implementation_modules": [
+      "Handoff runtime adapter：负责把受治理对象写入/读取主链 runtime，并维持 traceability。",
+      "Decision boundary adapter：负责把上游 FEAT 约束映射成 runtime 可执行边界，不把实现责任散落到业务 skill。",
+      "Gateway integration adapter：把 handoff/materialization 写入重定向到 ADR-005 Gateway。",
+      "Path governance guard：在写入前校验 path / mode / overwrite 规则，并拒绝自由写入 fallback。"
+    ],
+    "state_model": [
+      "`write_requested` -> `path_validated` -> `gateway_committed` -> `registry_recorded` -> `consumable_ref_published`",
+      "`path_validated(fail)` -> `write_rejected`，不得 silent fallback 到自由写入。"
+    ],
+    "architecture_diagram": "```text\n[Governed Skill / Runtime]\n          |\n          v\n[Gateway Integration Adapter] --> [Path Policy] --> [Artifact IO Gateway] --> [Artifact Registry] --> [Managed Artifact Ref] --> [Gate / Consumer]\n```",
+    "tech_runtime_view": "```text\n[cli/commands/artifact/command.py]\n              |\n              v\n[cli/lib/managed_gateway.py] --> [cli/lib/policy.py]\n              |\n              +--> [cli/lib/fs.py] --> [cli/lib/registry_store.py]\n```",
+    "flow_diagram": "```text\nRuntime / Skill     -> Gateway Adapter : request governed write\nGateway Adapter     -> Path Policy     : validate path / mode\nPath Policy         -> Gateway Adapter : allow or reject\nGateway Adapter     -> IO Gateway      : commit artifact when allowed\nIO Gateway          -> Registry        : register managed ref\nRegistry            -> Runtime / Skill : publish consumable ref\nGateway Adapter     -> Runtime / Skill : return governed rejection when blocked\n```",
+    "implementation_strategy": [
+      "先接通 runtime 到 ADR-005 Gateway / Path Policy / Registry 的调用路径，再禁止自由写入 fallback。",
+      "把 mainline handoff 与 formal publication 相关写入都切到同一条受治理 IO 链路，避免双轨写盘。",
+      "最后用真实 handoff write + formal write 两条样例验证 path / mode / registry 行为。"
+    ],
+    "implementation_unit_mapping": [
+      "`cli/lib/policy.py` (`extend`): 定义 path / mode / overwrite 的 preflight verdict 规则。",
+      "`cli/lib/fs.py` (`extend`): 实现 governed read/write 的底层文件访问与 receipt 落盘。",
+      "`cli/lib/managed_gateway.py` (`new`): 编排 preflight、gateway commit、registry bind、receipt build。",
+      "`cli/lib/registry_store.py` (`extend`): 记录 managed artifact ref、registry prerequisite 和 publish 状态。",
+      "`cli/commands/artifact/command.py` (`extend`): 暴露 governed artifact commit / read 入口，依赖 `cli/lib/managed_gateway.py`。"
+    ],
+    "main_sequence": [
+      "1. normalize request",
+      "2. preflight policy check",
+      "3. registry prerequisite check",
+      "4. execute governed handler",
+      "5. build receipt and managed ref",
+      "6. persist staging / evidence / registry record",
+      "7. return result"
+    ],
+    "exception_compensation": [
+      "policy pass 但 registry prerequisite fail：拒绝写入，返回 `registry_prerequisite_failed`，不得绕过 registry 直接落盘。",
+      "write success 但 receipt build fail：保留 staged artifact，标记 `receipt_pending`，禁止发布 managed ref 给 consumer。",
+      "staging retention fail：允许主写入成功，但必须追加 degraded evidence，并要求后续 cleanup job 补偿。"
+    ],
+    "integration_points": [
+      "调用方：runtime、formal publication 相关写入、governed skill 的正式写入都通过 `cli/commands/artifact/command.py` 进入 Gateway。",
+      "挂接点：file-handoff 写入发生在 policy preflight 之后、registry bind 之前；external gate 读取 formal refs 时只消费 managed artifact ref。",
+      "旧系统兼容：compat mode 仅允许受控 read fallback；正式 write 不允许 bypass Gateway。"
+    ],
+    "minimal_code_skeleton": {
+      "happy_path": "```python\ndef governed_write(request: GatewayWriteRequest) -> GatewayWriteResult:\n    normalized = normalize_write_request(request)\n    verdict = preflight_policy_check(normalized)\n    require(verdict.allow, verdict.reason_code)\n    ensure_registry_prerequisite(normalized)\n    artifact_ref = commit_via_gateway(normalized, verdict.resolved_path)\n    receipt = build_write_receipt(artifact_ref, verdict)\n    persist_gateway_evidence(receipt)\n    return GatewayWriteResult(artifact_ref=artifact_ref, receipt_ref=receipt.receipt_ref)\n```",
+      "failure_path": "```python\ndef governed_write_with_compensation(request: GatewayWriteRequest) -> GatewayWriteResult:\n    normalized = normalize_write_request(request)\n    verdict = preflight_policy_check(normalized)\n    if not verdict.allow:\n        return GatewayWriteResult.reject(reason_code=verdict.reason_code)\n    artifact_ref = commit_via_gateway(normalized, verdict.resolved_path)\n    try:\n        receipt = build_write_receipt(artifact_ref, verdict)\n    except ReceiptBuildError:\n        mark_receipt_pending(artifact_ref)\n        return GatewayWriteResult.partial_success(artifact_ref=artifact_ref)\n    return GatewayWriteResult(artifact_ref=artifact_ref, receipt_ref=receipt.receipt_ref)\n```"
+    }
+  },
+  "adoption_e2e": {
+    "architecture_topics": [
+      "Boundary to foundation FEATs: 本 FEAT 只定义 onboarding/pilot/cutover 挂接边界，不重写 collaboration、gate decision/publication、IO foundation internals。",
+      "Boundary to audit/gate consumption: 本 FEAT 组织 pilot evidence 与 cutover routing，不新建平行 decision 体系。",
+      "Dedicated rollout placement is required so wave state、compat mode 与 fallback remain authoritative across skill adoption."
+    ],
+    "responsibility_splits": [
+      "Rollout controller owns onboarding wave、compat mode 与 cutover/fallback routing.",
+      "Pilot verifier owns end-to-end evidence completeness checks across producer / consumer / audit / gate.",
+      "Foundation FEATs keep ownership of their technical semantics; onboarding does not rewrite them."
+    ],
+    "api_surfaces": [
+      "skill onboarding contract",
+      "pilot evidence submission contract"
+    ],
+    "api_cli_commands": [
+      "`ll rollout onboard-skill --request <rollout_onboard_skill.request.json> --response-out <rollout_onboard_skill.response.json>` via `cli/commands/rollout/command.py`",
+      "`ll audit submit-pilot-evidence --request <audit_submit_pilot_evidence.request.json> --response-out <audit_submit_pilot_evidence.response.json>` via `cli/commands/audit/command.py`"
+    ],
+    "api_command_specs": [
+      {
+        "command": "ll rollout onboard-skill",
+        "surface": "`ll rollout onboard-skill --request <rollout_onboard_skill.request.json> --response-out <rollout_onboard_skill.response.json>` via `cli/commands/rollout/command.py`",
+        "request_schema": [
+          "`skill_ref: string`",
+          "`wave_id: string`",
+          "`scope: string`",
+          "`compat_mode: string`"
+        ],
+        "response_schema": [
+          "success envelope=`{ ok: true, command_ref, trace_ref, result }`",
+          "result fields=`status`, `runtime_binding_ref`, `cutover_guard_ref`",
+          "error envelope=`{ ok: false, command_ref, trace_ref, error }`"
+        ],
+        "field_semantics": [
+          "`compat_mode` freezes the transition mode used before full cutover."
+        ],
+        "enum_domain": [],
+        "invariants": [
+          "onboarding must keep a cutover guard ref for every accepted wave"
+        ],
+        "canonical_refs": [
+          "`runtime_binding_ref`",
+          "`cutover_guard_ref`"
+        ],
+        "errors": [
+          "`unknown_skill`",
+          "`scope_invalid`",
+          "`foundation_missing`"
+        ],
+        "idempotency": "`skill_ref + wave_id`",
+        "preconditions": [
+          "foundation features are freeze-ready"
+        ]
+      },
+      {
+        "command": "ll audit submit-pilot-evidence",
+        "surface": "`ll audit submit-pilot-evidence --request <audit_submit_pilot_evidence.request.json> --response-out <audit_submit_pilot_evidence.response.json>` via `cli/commands/audit/command.py`",
+        "request_schema": [
+          "`pilot_chain_ref: string`",
+          "`producer_ref: string`",
+          "`consumer_ref: string`",
+          "`audit_ref: string`",
+          "`gate_ref: string`"
+        ],
+        "response_schema": [
+          "success envelope=`{ ok: true, command_ref, trace_ref, result }`",
+          "result fields=`evidence_status`, `cutover_recommendation`, `evidence_ref`",
+          "error envelope=`{ ok: false, command_ref, trace_ref, error }`"
+        ],
+        "field_semantics": [
+          "`cutover_recommendation` is a rollout recommendation, not a foundation design rewrite."
+        ],
+        "enum_domain": [],
+        "invariants": [
+          "pilot evidence must trace one complete producer -> consumer -> audit -> gate path"
+        ],
+        "canonical_refs": [
+          "`pilot_chain_ref`",
+          "`evidence_ref`"
+        ],
+        "errors": [
+          "`missing_chain_step`",
+          "`audit_not_traceable`"
+        ],
+        "idempotency": "`pilot_chain_ref`",
+        "preconditions": [
+          "pilot chain has executed at least once"
+        ]
+      }
+    ],
+    "implementation_architecture": [
+      "Foundation 能力先稳定，再把 governed skill 按 onboarding matrix 与 migration wave 接入主链。",
+      "Pilot chain 必须覆盖 producer -> gate -> formal object -> consumer -> audit 的真实闭环，而不是组件内局部验证。",
+      "Cutover controller 只负责切换与回退边界，不重写 foundation FEAT 或 ADR-005 的实现模块。"
+    ],
+    "implementation_modules": [
+      "Handoff runtime adapter：负责把受治理对象写入/读取主链 runtime，并维持 traceability。",
+      "Decision boundary adapter：负责把上游 FEAT 约束映射成 runtime 可执行边界，不把实现责任散落到业务 skill。",
+      "Onboarding registry：记录 governed skill 接入矩阵、scope 与 migration wave。",
+      "Pilot orchestration verifier：收集 producer -> consumer -> audit -> gate 的真实闭环证据并支撑 cutover/fallback。"
+    ],
+    "state_model": [
+      "`skill_registered` -> `pilot_enabled` -> `cutover_guarded` -> `e2e_verified` -> `wave_accepted`",
+      "`cutover_guarded(fail)` -> `fallback_triggered` -> `pilot_enabled`"
+    ],
+    "architecture_diagram": "```text\n[Producer Skill] --> [Mainline Runtime] --> [Gate / Formalization] --> [Consumer Skill] --> [Audit Evidence] --> [Cutover Decision]\n                                                                                                              |\n                                                                                                              +--> fallback --> [Producer Skill]\n```",
+    "tech_runtime_view": "```text\n[cli/commands/rollout/command.py]\n              |\n              v\n[cli/lib/rollout_state.py] --> [cli/lib/pilot_chain.py] --> [Pilot / Cutover Evidence]\n              |\n              +--> [cli/commands/audit/command.py]\n```",
+    "flow_diagram": "```text\nProducer -> Runtime : emit governed object\nRuntime  -> Gate    : route through mainline gate\nGate     -> Consumer: publish formal refs\nConsumer -> Audit   : produce audit evidence\nAudit    -> Gate    : confirm pilot readiness or fallback\n```",
+    "implementation_strategy": [
+      "先冻结 onboarding matrix、pilot chain 和 cutover guard，再按 wave 接入 governed skill。",
+      "先跑最小真实 producer -> consumer -> audit -> gate pilot，稳定后再扩大接入波次。",
+      "每个 wave 都必须保留 fallback 条件与 rollback evidence，不能一次性全量切换。"
+    ],
+    "implementation_unit_mapping": [
+      "`cli/lib/protocol.py` (`extend`): 定义 `OnboardingMatrix`、`CutoverDirective`、`PilotEvidenceRef` 结构。",
+      "`cli/lib/rollout_state.py` (`new`): 保存 onboarding wave、cutover state 和 fallback marker。",
+      "`cli/lib/pilot_chain.py` (`new`): 校验 producer -> consumer -> audit -> gate 的真实闭环证据。",
+      "`cli/commands/rollout/command.py` (`extend`): 提供 onboarding wave、cutover、fallback 操作，依赖 `cli/lib/rollout_state.py`。",
+      "`cli/commands/audit/command.py` (`extend`): 消费 pilot evidence 并把 findings 回交给 cutover decision。"
+    ],
+    "main_sequence": [
+      "1. resolve onboarding directive and targeted wave",
+      "2. verify foundation readiness and compat mode",
+      "3. bind selected skill to mainline runtime / gate hooks",
+      "4. run pilot chain and capture producer -> consumer -> audit -> gate evidence",
+      "5. evaluate cutover guard and emit fallback recommendation when needed",
+      "6. persist wave status and rollout evidence"
+    ],
+    "exception_compensation": [
+      "pilot chain 中任一步 evidence 缺失：cutover 直接 fail closed，维持 compat mode。",
+      "cutover success 但 audit handoff fail：允许 partial success，但 wave 状态标记 `audit_pending`，禁止扩大 rollout。",
+      "fallback trigger fail：保留 current wave 冻结，要求人工介入，不允许自动继续下一波次。"
+    ],
+    "integration_points": [
+      "调用方：现有 governed skill 的 onboarding/cutover 由 `cli/commands/rollout/command.py` 发起，audit findings 由 `cli/commands/audit/command.py` 消费。",
+      "挂接点：compat mode 在 skill 接入 wave 前打开；file-handoff 和 gate/repair 路径必须进入 pilot evidence 链。",
+      "旧系统兼容：先接入选定 pilot skill，再按 wave 扩大；未在 onboarding matrix 内的旧 skill 保持现状不切换。"
+    ],
+    "minimal_code_skeleton": {
+      "happy_path": "```python\ndef run_pilot_wave(directive: OnboardingDirective) -> PilotWaveResult:\n    binding = bind_skill_to_mainline(directive.skill_ref, directive.compat_mode)\n    evidence = execute_pilot_chain(binding, directive.scope)\n    verdict = evaluate_cutover_guard(evidence)\n    persist_wave_state(directive.wave_id, verdict, evidence)\n    return PilotWaveResult(binding_ref=binding.binding_ref, cutover_verdict=verdict)\n```",
+      "failure_path": "```python\ndef run_pilot_wave_with_fallback(directive: OnboardingDirective) -> PilotWaveResult:\n    binding = bind_skill_to_mainline(directive.skill_ref, directive.compat_mode)\n    evidence = execute_pilot_chain(binding, directive.scope)\n    if not evidence.is_complete:\n        keep_compat_mode(binding.binding_ref)\n        return PilotWaveResult.fail(reason='pilot_evidence_incomplete')\n    return run_pilot_wave(directive)\n```"
+    }
+  }
+}

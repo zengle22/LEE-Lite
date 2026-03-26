@@ -214,8 +214,11 @@ class EpicToFeatWorkflowTests(unittest.TestCase):
             input_dir = self.make_epic_package(repo_root, "epic-basic", epic)
             result = self.run_cmd("run", "--input", str(input_dir), "--repo-root", str(repo_root), "--run-id", "feat-basic")
             self.assertEqual(result.returncode, 0, result.stderr)
-            artifacts_dir = Path(json.loads(result.stdout)["artifacts_dir"])
+            payload = json.loads(result.stdout)
+            artifacts_dir = Path(payload["artifacts_dir"])
             bundle = json.loads((artifacts_dir / "feat-freeze-bundle.json").read_text(encoding="utf-8"))
+            gate_ready_package = json.loads((artifacts_dir / "input" / "gate-ready-package.json").read_text(encoding="utf-8"))
+            package_manifest = json.loads((artifacts_dir / "package-manifest.json").read_text(encoding="utf-8"))
             axis_ids = {feature["axis_id"] for feature in bundle["features"]}
 
             self.assertEqual(len(bundle["feat_refs"]), 4)
@@ -253,9 +256,105 @@ class EpicToFeatWorkflowTests(unittest.TestCase):
             self.assertNotIn("retry path", first_feat["acceptance_and_testability"]["test_dimensions"])
             self.assertNotIn("adoption/E2E landing work", bundle["bundle_intent"])
             self.assertTrue((artifacts_dir / "_cli" / "feat-freeze-executor-commit.response.json").exists())
+            self.assertTrue((artifacts_dir / "_cli" / "gate-submit-handoff.response.json").exists())
             self.assertTrue((repo_root / "artifacts" / "registry" / "epic-to-feat-feat-basic-feat-freeze-bundle.json").exists())
+            self.assertEqual(payload["gate_ready_package_ref"], "artifacts/epic-to-feat/feat-basic/input/gate-ready-package.json")
+            self.assertTrue(payload["authoritative_handoff_ref"].startswith("artifacts/active/gates/handoffs/"))
+            self.assertTrue(payload["gate_pending_ref"].startswith("artifacts/active/gates/pending/"))
+            self.assertEqual(gate_ready_package["payload"]["candidate_ref"], "epic-to-feat.feat-basic.feat-freeze-bundle")
+            self.assertEqual(gate_ready_package["payload"]["machine_ssot_ref"], "artifacts/epic-to-feat/feat-basic/feat-freeze-bundle.json")
+            self.assertEqual(package_manifest["gate_ready_package_ref"], payload["gate_ready_package_ref"])
+            self.assertEqual(package_manifest["gate_pending_ref"], payload["gate_pending_ref"])
+            self.assertTrue((repo_root / payload["authoritative_handoff_ref"]).exists())
+            self.assertTrue((repo_root / payload["gate_pending_ref"]).exists())
 
             validate = self.run_cmd("validate-output", "--artifacts-dir", str(artifacts_dir))
+            self.assertEqual(validate.returncode, 0, validate.stderr)
+
+    def test_formal_epic_ref_is_admissible_input_for_epic_to_feat(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            repo_root = Path(temp_dir)
+            epic = self.base_epic_json()
+            run_id = "epic-formal-input"
+            input_dir = self.make_epic_package(repo_root, run_id, epic)
+
+            formal_epic_path = repo_root / "ssot" / "epic" / "EPIC-SRC001__managed-artifact-io-governance-foundation.md"
+            formal_epic_path.parent.mkdir(parents=True, exist_ok=True)
+            formal_epic_path.write_text(
+                "\n".join(
+                    [
+                        "---",
+                        "id: EPIC-SRC001",
+                        "ssot_type: EPIC",
+                        "src_ref: SRC-001",
+                        "title: Managed Artifact IO Governance Foundation",
+                        "goal: 把受治理的 artifact IO 主链收敛成统一底座，并能通过真实 skill 接入验证闭环成立。",
+                        "status: frozen",
+                        "---",
+                        "",
+                        "# Managed Artifact IO Governance Foundation",
+                        "",
+                        "Formal EPIC body.",
+                    ]
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+
+            registry_dir = repo_root / "artifacts" / "registry"
+            registry_dir.mkdir(parents=True, exist_ok=True)
+            (registry_dir / "formal-epic-epic-formal-input.json").write_text(
+                json.dumps(
+                    {
+                        "artifact_ref": "formal.epic.epic-formal-input",
+                        "managed_artifact_ref": "ssot/epic/EPIC-SRC001__managed-artifact-io-governance-foundation.md",
+                        "status": "materialized",
+                        "trace": {"run_ref": run_id, "workflow_key": "product.src-to-epic"},
+                        "metadata": {
+                            "layer": "formal",
+                            "source_package_ref": f"artifacts/src-to-epic/{run_id}",
+                            "assigned_id": "EPIC-SRC001",
+                            "ssot_type": "EPIC",
+                        },
+                        "lineage": [f"src-to-epic.{run_id}.epic-freeze", "artifacts/active/gates/decisions/gate-decision.json"],
+                    },
+                    ensure_ascii=False,
+                    indent=2,
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+
+            result = self.run_cmd(
+                "run",
+                "--input",
+                "formal.epic.epic-formal-input",
+                "--repo-root",
+                str(repo_root),
+                "--run-id",
+                "feat-from-formal",
+            )
+            self.assertEqual(result.returncode, 0, result.stderr)
+            payload = json.loads(result.stdout)
+            self.assertEqual(payload["input_mode"], "formal_admission")
+            artifacts_dir = Path(payload["artifacts_dir"])
+            bundle = json.loads((artifacts_dir / "feat-freeze-bundle.json").read_text(encoding="utf-8"))
+            manifest = json.loads((artifacts_dir / "package-manifest.json").read_text(encoding="utf-8"))
+
+            self.assertEqual(bundle["epic_freeze_ref"], "EPIC-SRC001")
+            self.assertTrue(any(ref == "EPIC-SRC001" for ref in bundle["source_refs"]))
+            self.assertEqual(
+                manifest["input_artifacts_dir"],
+                str((repo_root / "artifacts" / "src-to-epic" / run_id).resolve()),
+            )
+
+            validate = self.run_cmd(
+                "validate-input",
+                "--input",
+                "formal.epic.epic-formal-input",
+                "--repo-root",
+                str(repo_root),
+            )
             self.assertEqual(validate.returncode, 0, validate.stderr)
 
     def test_rollout_required_epic_generates_adoption_e2e_feat(self) -> None:
@@ -595,18 +694,21 @@ class EpicToFeatWorkflowTests(unittest.TestCase):
                 "scope": [
                     "统一上位产品能力：形成一条 gate approve 后自动推进到下一 skill 的运行时产品线。",
                     "产品行为切片：批准后 Ready Job 生成流。",
+                    "产品行为切片：Runner 用户入口流。",
+                    "产品行为切片：Runner 控制面流。",
                     "产品行为切片：Execution Runner 自动取件流。",
                     "产品行为切片：下游 Skill 自动派发流。",
                     "产品行为切片：执行结果回写与重试边界流。",
+                    "产品行为切片：Runner 运行监控流。",
                 ],
-                "upstream_and_downstream": ["Upstream：关于 gate approve 后自动推进缺口的 bridge SRC。", "Downstream：拆成 ready job、runner intake、dispatch、feedback 四个 FEAT。"],
+                "upstream_and_downstream": ["Upstream：关于 gate approve 后自动推进缺口的 bridge SRC。", "Downstream：拆成 ready job、runner entry、runner control、runner intake、dispatch、feedback、observability 七个 FEAT。"],
                 "epic_success_criteria": [
                     "至少一条 gate approve -> ready execution job -> runner claim -> next skill invocation 的真实链路可被验证。",
                     "approve 后链路不再被改写成 formal publication / admission。",
                 ],
                 "non_goals": ["本 EPIC 不把 approve 重写成 formal publication。", "本 EPIC 不要求第三会话人工接力作为正常路径。"],
                 "decomposition_rules": [
-                    "FEAT 的 primary decomposition unit 是 approve 后 ready job 生成、runner intake、next-skill dispatch 与 execution result feedback。",
+                    "FEAT 的 primary decomposition unit 是 approve 后 ready job 生成、runner 用户入口、runner 控制面、runner intake、next-skill dispatch、execution result feedback 与 runner observability。",
                     "任何 FEAT 都不得把 approve 后链路重写成 formal publication、admission 或人工第三会话接力。",
                 ],
                 "product_behavior_slices": [
@@ -624,6 +726,38 @@ class EpicToFeatWorkflowTests(unittest.TestCase):
                             {"id": "rj-1", "scenario": "Approve emits ready job", "given": "gate approves", "when": "dispatch ends", "then": "one ready execution job must be emitted.", "trace_hints": ["ready execution job"]},
                             {"id": "rj-2", "scenario": "Approve is not formal publication", "given": "approve path is reviewed", "when": "next step is described", "then": "the path must continue into runner-ready execution.", "trace_hints": ["not formal publication"]},
                             {"id": "rj-3", "scenario": "Non-approve stays out of queue", "given": "gate returns revise/retry/reject/handoff", "when": "dispatch evaluates", "then": "no next-skill ready job may be emitted.", "trace_hints": ["queue boundary"]},
+                        ],
+                    },
+                    {
+                        "id": "runner-operator-entry",
+                        "name": "Runner 用户入口流",
+                        "track": "foundation",
+                        "goal": "冻结 Claude/Codex CLI 用户如何通过独立 runner skill 启动或恢复 Execution Loop Job Runner。",
+                        "scope": ["定义 runner 独立 skill 入口。", "定义 start / resume 语义。", "定义入口调用如何把运行权交给 runner。"],
+                        "product_surface": "Runner 用户入口流：Claude/Codex CLI 用户通过独立 runner skill 启动或恢复自动推进运行时",
+                        "completed_state": "用户已经可以通过独立 runner skill 显式启动或恢复 Execution Loop Job Runner，并形成可追踪的 invocation record。",
+                        "business_deliverable": "给 operator 使用的 runner skill entry 与启动回执。",
+                        "capability_axes": ["Runner 用户入口能力"],
+                        "acceptance_checks": [
+                            {"id": "re-1", "scenario": "Operator can start runner through skill entry", "given": "operator is in Claude/Codex CLI", "when": "runner skill is invoked", "then": "the system must create one authoritative runner invocation record.", "trace_hints": ["skill entry"]},
+                            {"id": "re-2", "scenario": "Operator can resume runner", "given": "a runner context already exists", "when": "resume is requested", "then": "the runner must restore authoritative context instead of starting from guesswork.", "trace_hints": ["resume"]},
+                            {"id": "re-3", "scenario": "Skill entry is not manual relay", "given": "post-approve flow is inspected", "when": "runner entry is described", "then": "the entry must not collapse into manual downstream skill relay.", "trace_hints": ["no manual relay"]},
+                        ],
+                    },
+                    {
+                        "id": "runner-control-surface",
+                        "name": "Runner 控制面流",
+                        "track": "foundation",
+                        "goal": "冻结 runner 的统一 CLI control surface。",
+                        "scope": ["定义 start / claim / run / complete / fail / resume 等控制动作。", "定义控制动作如何校验 run context。", "定义控制记录如何可追踪。"],
+                        "product_surface": "Runner 控制面流：operator 通过统一 CLI verbs 控制 Execution Loop Job Runner 的运行动作",
+                        "completed_state": "runner 的启动、恢复、控制和收口动作都可以通过统一 CLI control surface 完成，并留下审计记录。",
+                        "business_deliverable": "给 operator 使用的 runner CLI control surface 与控制动作记录。",
+                        "capability_axes": ["Runner 控制面能力"],
+                        "acceptance_checks": [
+                            {"id": "rc-1", "scenario": "Control verbs are available", "given": "operator uses the runner CLI surface", "when": "commands are listed", "then": "start, claim, run, complete, fail, and resume verbs must exist.", "trace_hints": ["control verbs"]},
+                            {"id": "rc-2", "scenario": "Control action records state change", "given": "operator issues a runner command", "when": "the control action completes", "then": "one authoritative control action record must be written.", "trace_hints": ["control action record"]},
+                            {"id": "rc-3", "scenario": "Control surface preserves governance", "given": "runner state is under governance", "when": "a control action runs", "then": "the action must honor authoritative run context and ownership boundaries.", "trace_hints": ["ownership"]},
                         ],
                     },
                     {
@@ -674,6 +808,22 @@ class EpicToFeatWorkflowTests(unittest.TestCase):
                             {"id": "ef-3", "scenario": "Approve is not terminal", "given": "overall chain is reviewed", "when": "post-approve flow is inspected", "then": "the chain must continue through runner execution and feedback.", "trace_hints": ["approve", "runner", "feedback"]},
                         ],
                     },
+                    {
+                        "id": "runner-observability-surface",
+                        "name": "Runner 运行监控流",
+                        "track": "foundation",
+                        "goal": "冻结 operator 如何观察 runner backlog、running、failed、deadletters 与 waiting-human。",
+                        "scope": ["定义 runner 观测面。", "定义关键状态词表。", "定义 observability snapshot 与 operator 决策边界。"],
+                        "product_surface": "Runner 运行监控流：operator 观察 ready backlog、running、failed、deadletters 与 waiting-human 状态",
+                        "completed_state": "operator 已可通过统一监控面观察 runner 关键状态，并据此决定恢复、排障或人工介入。",
+                        "business_deliverable": "给 operator 使用的 runner observability surface 与状态快照。",
+                        "capability_axes": ["Runner 运行监控能力"],
+                        "acceptance_checks": [
+                            {"id": "ro-1", "scenario": "Ready backlog is visible", "given": "runner has queued jobs", "when": "operator opens the monitor surface", "then": "ready backlog must be visible.", "trace_hints": ["ready backlog"]},
+                            {"id": "ro-2", "scenario": "Failure and waiting-human states are visible", "given": "runner has failed or waiting-human work", "when": "monitoring is inspected", "then": "those states must be visible without directory guessing.", "trace_hints": ["failed", "waiting-human"]},
+                            {"id": "ro-3", "scenario": "Observability stays traceable", "given": "operator inspects one monitored item", "when": "lineage is followed", "then": "the view must resolve back to authoritative runner records.", "trace_hints": ["lineage"]},
+                        ],
+                    },
                 ],
                 "constraints_and_dependencies": [
                     "approve 必须落成 ready execution job。",
@@ -682,9 +832,12 @@ class EpicToFeatWorkflowTests(unittest.TestCase):
                 ],
                 "capability_axes": [
                     {"id": "ready-job-emission", "name": "批准后 Ready Job 生成能力", "scope": "approve 后生成 ready job", "feat_axis": "approve 后 ready job 生成流"},
+                    {"id": "runner-operator-entry", "name": "Runner 用户入口能力", "scope": "通过独立 skill 启动或恢复 runner", "feat_axis": "runner 用户入口流"},
+                    {"id": "runner-control-surface", "name": "Runner 控制面能力", "scope": "通过统一 CLI 控制 runner", "feat_axis": "runner 控制面流"},
                     {"id": "execution-runner-intake", "name": "Execution Runner 取件能力", "scope": "runner 自动 claim jobs/ready", "feat_axis": "ready job 自动取件流"},
                     {"id": "next-skill-dispatch", "name": "下游 Skill 自动派发能力", "scope": "runner 派发到下一个 skill", "feat_axis": "next skill 自动派发流"},
                     {"id": "execution-result-feedback", "name": "执行结果回写与重试边界能力", "scope": "runner 记录 done/failed/retry", "feat_axis": "执行结果回写流"},
+                    {"id": "runner-observability-surface", "name": "Runner 运行监控能力", "scope": "观察 backlog/running/failed/waiting-human", "feat_axis": "runner 运行监控流"},
                 ],
                 "rollout_requirement": {"required": False},
                 "rollout_plan": {"required_feat_tracks": ["foundation"], "required_feat_families": []},
@@ -697,12 +850,29 @@ class EpicToFeatWorkflowTests(unittest.TestCase):
             drift = json.loads((artifacts_dir / "semantic-drift-check.json").read_text(encoding="utf-8"))
             axis_ids = [feature["axis_id"] for feature in bundle["features"]]
 
-            self.assertEqual(axis_ids, ["ready-job-emission", "execution-runner-intake", "next-skill-dispatch", "execution-result-feedback"])
+            self.assertEqual(
+                axis_ids,
+                [
+                    "ready-job-emission",
+                    "runner-operator-entry",
+                    "runner-control-surface",
+                    "execution-runner-intake",
+                    "next-skill-dispatch",
+                    "execution-result-feedback",
+                    "runner-observability-surface",
+                ],
+            )
             self.assertEqual(drift["verdict"], "pass")
             self.assertTrue(drift["semantic_lock_preserved"])
             self.assertEqual(bundle["glossary"][0]["term"], "ready execution job")
             self.assertEqual(bundle["glossary"][0]["must_not_be_confused_with"], "formal publication package")
+            self.assertIn("runner skill entry", [item["term"] for item in bundle["glossary"]])
+            self.assertIn("runner CLI control surface", [item["term"] for item in bundle["glossary"]])
+            self.assertIn("runner observability surface", [item["term"] for item in bundle["glossary"]])
             self.assertEqual(bundle["features"][0]["authoritative_artifact"], "ready execution job")
-            self.assertEqual(bundle["features"][1]["authoritative_artifact"], "claimed execution job")
-            self.assertEqual(bundle["features"][2]["authoritative_artifact"], "next-skill invocation record")
-            self.assertEqual(bundle["features"][3]["authoritative_artifact"], "execution outcome record")
+            self.assertEqual(bundle["features"][1]["authoritative_artifact"], "runner skill entry invocation record")
+            self.assertEqual(bundle["features"][2]["authoritative_artifact"], "runner control action record")
+            self.assertEqual(bundle["features"][3]["authoritative_artifact"], "claimed execution job")
+            self.assertEqual(bundle["features"][4]["authoritative_artifact"], "next-skill invocation record")
+            self.assertEqual(bundle["features"][5]["authoritative_artifact"], "execution outcome record")
+            self.assertEqual(bundle["features"][6]["authoritative_artifact"], "runner observability snapshot")

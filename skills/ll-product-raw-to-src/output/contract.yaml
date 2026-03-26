@@ -6,6 +6,11 @@ required_runtime_artifacts:
   - package-manifest.json
   - src-candidate.md
   - src-candidate.json
+  - semantic-inventory.json
+  - source-provenance-map.json
+  - contradiction-register.json
+  - normalization-decisions.json
+  - omission-and-compression-report.json
   - normalized-input.json
   - input-validation.json
   - structural-report.json
@@ -64,4 +69,5 @@ notes:
   - If the recommended action is not `blocked`, `handoff-proposal.json` must exist.
   - `source-semantic-findings.json` and `acceptance-report.json` must remain distinct artifacts and may not be collapsed into a single review object.
   - For `governance_bridge_src`, the candidate must include a governance summary section and a non-generic Bridge Context.
+  - The package must include high-fidelity source artifacts for semantic inventory, provenance, contradiction capture, normalization decisions, and omission/compression reporting.
   - ADR-derived key sections must not remain at placeholder density or title-rewrite density when the package is marked freeze-ready.

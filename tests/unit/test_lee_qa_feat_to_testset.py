@@ -66,6 +66,7 @@ class FeatToTestSetWorkflowTests(FeatToTestSetWorkflowHarness):
 
             bundle_json = json.loads((artifacts_dir / "test-set-bundle.json").read_text(encoding="utf-8"))
             manifest = json.loads((artifacts_dir / "package-manifest.json").read_text(encoding="utf-8"))
+            gate_ready_package = json.loads((artifacts_dir / "input" / "gate-ready-package.json").read_text(encoding="utf-8"))
             freeze_gate = json.loads((artifacts_dir / "test-set-freeze-gate.json").read_text(encoding="utf-8"))
             handoff = json.loads((artifacts_dir / "handoff-to-test-execution.json").read_text(encoding="utf-8"))
             test_set = yaml.safe_load((artifacts_dir / "test-set.yaml").read_text(encoding="utf-8"))
@@ -115,6 +116,13 @@ class FeatToTestSetWorkflowTests(FeatToTestSetWorkflowHarness):
             self.assertIn("acceptance_traceability", bundle_markdown)
             self.assertIn("input_preconditions:", bundle_markdown)
             self.assertIn("required_evidence:", bundle_markdown)
+            self.assertEqual(manifest["gate_ready_package_ref"], "artifacts/feat-to-testset/feat-to-testset-output/input/gate-ready-package.json")
+            self.assertTrue(manifest["authoritative_handoff_ref"].startswith("artifacts/active/gates/handoffs/"))
+            self.assertTrue(manifest["gate_pending_ref"].startswith("artifacts/active/gates/pending/"))
+            self.assertEqual(gate_ready_package["payload"]["candidate_ref"], "feat-to-testset.feat-to-testset-output.test-set-bundle")
+            self.assertEqual(gate_ready_package["payload"]["machine_ssot_ref"], "artifacts/feat-to-testset/feat-to-testset-output/test-set-bundle.json")
+            self.assertTrue((repo_root / manifest["authoritative_handoff_ref"]).exists())
+            self.assertTrue((repo_root / manifest["gate_pending_ref"]).exists())
 
             validate = self.run_cmd("validate-output", "--artifacts-dir", str(artifacts_dir))
             self.assertEqual(validate.returncode, 0, validate.stderr)
@@ -518,6 +526,119 @@ class FeatToTestSetWorkflowTests(FeatToTestSetWorkflowHarness):
             mapped_units = pilot_trace["AC-03"]["unit_refs"] if "AC-03" in pilot_trace else pilot_trace["FEAT-SRC-001-PILOT-AC-03"]["unit_refs"]
             self.assertEqual(len(mapped_units), 1)
 
+    def test_execution_runner_operator_entry_feat_emits_runner_specific_testset(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            repo_root = Path(temp_dir)
+            semantic_lock = {
+                "domain_type": "execution_runner_rule",
+                "one_sentence_truth": "gate approve 后写入 ready execution job，由 runner 自动消费并推进到下一 skill，同时保留显式的 operator entry / control / monitor surface。",
+                "primary_object": "execution_loop_job_runner",
+                "lifecycle_stage": "governed_runtime",
+                "allowed_capabilities": [
+                    "ready_job_emission",
+                    "runner_operator_entry",
+                    "runner_control_surface",
+                    "ready_queue_consumption",
+                    "next_skill_dispatch",
+                    "execution_result_feedback",
+                    "runner_observability",
+                ],
+                "forbidden_capabilities": [
+                    "formal_publication_only",
+                    "manual_downstream_relay",
+                    "directory_guessing_monitor",
+                ],
+                "inheritance_rule": "Preserve runner operator surfaces and authoritative queue lineage across downstream derivation.",
+            }
+            feature = {
+                "feat_ref": "FEAT-SRC-ADR018-ENTRY-002",
+                "title": "Execution Runner 用户入口流",
+                "goal": "为 Claude/Codex CLI 提供显式的 runner skill 入口，用于启动、恢复与观察 execution loop。", 
+                "axis_id": "runner-operator-entry",
+                "scope": [
+                    "定义独立 runner skill entry 与 CLI control surface 的入口名。",
+                    "定义 start / resume 所需的 run context 与 receipt。",
+                    "明确入口职责只负责启动或恢复 runner，而不是人工 relay 下游 skill。",
+                ],
+                "constraints": [
+                    "必须是显式的 Claude/Codex CLI 用户入口。",
+                    "start / resume 必须保留 authoritative runner context。",
+                    "不得把入口逻辑退化成 manual relay。",
+                ],
+                "dependencies": [
+                    "operator_surface_inventory 已声明 skill_entry 与 cli_control_surface。",
+                    "runner context bootstrapper 可创建或恢复 run context。",
+                ],
+                "acceptance_checks": [
+                    {
+                        "id": "AC-01",
+                        "scenario": "runner skill entry is explicit",
+                        "given": "operator surface inventory includes a runner skill entry",
+                        "when": "derive the TESTSET",
+                        "then": "the testset preserves the named runner skill entry and CLI surface",
+                    },
+                    {
+                        "id": "AC-02",
+                        "scenario": "start and resume preserve authoritative context",
+                        "given": "runner start or resume request is issued",
+                        "when": "the runner entry is executed",
+                        "then": "runner_run_ref and runner context remain authoritative and traceable",
+                    },
+                    {
+                        "id": "AC-03",
+                        "scenario": "manual relay is not required",
+                        "given": "runner entry is available",
+                        "when": "the operator starts the runner",
+                        "then": "normal flow does not require manually relaying the next skill invocation",
+                    },
+                ],
+                "semantic_lock": semantic_lock,
+                "source_refs": ["FEAT-SRC-ADR018-ENTRY-002", "EPIC-SRC-ADR018", "SRC-ADR018", "ADR-018"],
+            }
+            bundle = self.make_bundle_json(feature, run_id="feat-to-testset-runner-entry")
+            bundle["semantic_lock"] = semantic_lock
+            input_dir = self.make_feat_package(repo_root, "feat-to-testset-runner-entry", bundle)
+
+            artifacts_dir = self.run_testset_flow(
+                repo_root,
+                input_dir,
+                "FEAT-SRC-ADR018-ENTRY-002",
+                "feat-to-testset-runner-entry-out",
+            )
+            test_set = yaml.safe_load((artifacts_dir / "test-set.yaml").read_text(encoding="utf-8"))
+            handoff = json.loads((artifacts_dir / "handoff-to-test-execution.json").read_text(encoding="utf-8"))
+
+            self.assertEqual(test_set["recommended_coverage_scope_name"], ["execution runner operator-entry feature"])
+            self.assertEqual(
+                test_set["feature_owned_code_paths"],
+                [
+                    "cli/lib/runner_entry.py",
+                    "cli/lib/execution_runner.py",
+                    "cli/commands/loop/command.py",
+                ],
+            )
+            self.assertEqual(handoff["target_skill"], "skill.qa.test_exec_cli")
+            self.assertTrue(
+                any("runner scope fixture" in item for item in handoff["required_environment_inputs"]["data"])
+            )
+            self.assertTrue(
+                any("runner skill entry" in item.lower() or "run-execution" in item.lower() for item in handoff["required_environment_inputs"]["services"] + handoff["required_environment_inputs"]["ui_or_integration_context"])
+            )
+            self.assertTrue(
+                any("runner invocation receipt" in item.lower() or "runner context ref" in item.lower() for unit in test_set["test_units"] for item in unit["required_evidence"] + unit["supporting_refs"])
+            )
+            self.assertIn(
+                "runner skill 入口作为显式 Claude/Codex CLI 用户入口存在",
+                [unit["title"] for unit in test_set["test_units"]],
+            )
+            self.assertIn(
+                "start 与 resume 保留 authoritative runner context",
+                [unit["title"] for unit in test_set["test_units"]],
+            )
+            trace = {row["acceptance_ref"]: row for row in test_set["acceptance_traceability"]}
+            self.assertIn("人工 relay", trace["AC-03"]["then"])
+            self.assertTrue(all(row["coverage_status"] == "covered" for row in test_set["acceptance_traceability"]))
+
     def test_gate_handoff_requires_machine_identity(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             repo_root = Path(temp_dir)
@@ -582,6 +703,86 @@ class FeatToTestSetWorkflowTests(FeatToTestSetWorkflowHarness):
             gate_handoff = json.loads((gate_artifacts_dir / "handoff-to-test-execution.json").read_text(encoding="utf-8"))
             gate_access = gate_handoff["required_environment_inputs"]["access"]
             self.assertTrue(any("service account" in item.lower() or "token" in item.lower() or "credential" in item.lower() for item in gate_access))
+
+    def test_formal_feat_ref_is_admissible_input_for_feat_to_testset(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            repo_root = Path(temp_dir)
+            feature = {
+                "feat_ref": "FEAT-SRC-001-202",
+                "title": "配置中心测试集主链",
+                "goal": "验证 formal FEAT 能反查回 bundle package 并驱动 TESTSET 派生。",
+                "scope": ["保留 acceptance 边界。", "保留测试执行 handoff。", "允许 formal admission 进入 TESTSET。"],
+                "constraints": ["不得跳过 FEAT。", "不得丢失 source refs。", "TESTSET 仍从 feat_freeze_package 派生。"],
+                "acceptance_checks": [
+                    {"id": "AC-01", "scenario": "formal ref resolves package", "given": "formal FEAT", "when": "run feat-to-testset", "then": "source package dir 被正确反查"},
+                    {"id": "AC-02", "scenario": "selected feat remains explicit", "given": "formal FEAT", "when": "derive TESTSET", "then": "feat_ref 与 title 不丢失"},
+                    {"id": "AC-03", "scenario": "input mode is formal admission", "given": "formal FEAT", "when": "validate input", "then": "input_mode=formal_admission"},
+                ],
+                "source_refs": ["FEAT-SRC-001-202", "EPIC-SRC-001", "SRC-001"],
+            }
+            bundle = self.make_bundle_json(feature, run_id="feat-formal-testset")
+            self.make_feat_package(repo_root, "feat-formal-testset", bundle)
+            formal_feat_path = repo_root / "ssot" / "feat" / "FEAT-SRC-001-202__configuration-testset-mainline.md"
+            formal_feat_path.parent.mkdir(parents=True, exist_ok=True)
+            formal_feat_path.write_text(
+                "---\nid: FEAT-SRC-001-202\nssot_type: FEAT\ntitle: 配置中心测试集主链\nstatus: frozen\n---\n\n# 配置中心测试集主链\n\nFormal FEAT body.\n",
+                encoding="utf-8",
+            )
+            registry_dir = repo_root / "artifacts" / "registry"
+            registry_dir.mkdir(parents=True, exist_ok=True)
+            (registry_dir / "formal-feat-feat-src-001-202.json").write_text(
+                json.dumps(
+                    {
+                        "artifact_ref": "formal.feat.feat-src-001-202",
+                        "managed_artifact_ref": "ssot/feat/FEAT-SRC-001-202__configuration-testset-mainline.md",
+                        "status": "materialized",
+                        "trace": {"run_ref": "feat-formal-testset", "workflow_key": "product.epic-to-feat"},
+                        "metadata": {
+                            "layer": "formal",
+                            "source_package_ref": "artifacts/epic-to-feat/feat-formal-testset",
+                            "assigned_id": "FEAT-SRC-001-202",
+                            "feat_ref": "FEAT-SRC-001-202",
+                            "ssot_type": "FEAT",
+                        },
+                        "lineage": ["epic-to-feat.feat-formal-testset.feat-freeze-bundle", "artifacts/active/gates/decisions/gate-decision.json"],
+                    },
+                    ensure_ascii=False,
+                    indent=2,
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+
+            result = self.run_cmd(
+                "run",
+                "--input",
+                "formal.feat.feat-src-001-202",
+                "--feat-ref",
+                "FEAT-SRC-001-202",
+                "--repo-root",
+                str(repo_root),
+                "--run-id",
+                "testset-from-formal",
+            )
+            self.assertEqual(result.returncode, 0, result.stderr)
+            payload = json.loads(result.stdout)
+            self.assertEqual(payload["input_mode"], "formal_admission")
+            manifest = json.loads((Path(payload["artifacts_dir"]) / "package-manifest.json").read_text(encoding="utf-8"))
+            self.assertEqual(
+                manifest["input_artifacts_dir"],
+                str((repo_root / "artifacts" / "epic-to-feat" / "feat-formal-testset").resolve()),
+            )
+
+            validate = self.run_cmd(
+                "validate-input",
+                "--input",
+                "formal.feat.feat-src-001-202",
+                "--feat-ref",
+                "FEAT-SRC-001-202",
+                "--repo-root",
+                str(repo_root),
+            )
+            self.assertEqual(validate.returncode, 0, validate.stderr)
 
 
 if __name__ == "__main__":

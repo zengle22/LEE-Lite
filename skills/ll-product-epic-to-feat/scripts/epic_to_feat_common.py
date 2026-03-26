@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import json
 import re
+import sys
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -129,6 +130,40 @@ def guess_repo_root_from_input(input_path: Path) -> Path:
     return input_path.parent
 
 
+def resolve_input_artifacts_dir(input_value: str | Path, repo_root: Path) -> tuple[Path, dict[str, Any]]:
+    candidate_path = Path(str(input_value))
+    if candidate_path.exists() and candidate_path.is_dir():
+        return candidate_path.resolve(), {"input_mode": "package_dir", "requested_ref": str(candidate_path.resolve())}
+
+    implementation_root = Path(__file__).resolve().parents[3]
+    if str(implementation_root) not in sys.path:
+        sys.path.insert(0, str(implementation_root))
+    from cli.lib.admission import validate_admission
+    from cli.lib.fs import canonical_to_path
+    from cli.lib.registry_store import resolve_registry_record
+
+    requested_ref = str(input_value)
+    admission = validate_admission(
+        repo_root,
+        consumer_ref="product.epic-to-feat",
+        requested_ref=requested_ref,
+    )
+    record = resolve_registry_record(repo_root, requested_ref)
+    metadata = record.get("metadata", {}) if isinstance(record.get("metadata"), dict) else {}
+    source_package_ref = str(metadata.get("source_package_ref") or "").strip()
+    if not source_package_ref:
+        raise ValueError("formal epic record is missing metadata.source_package_ref")
+    artifacts_dir = canonical_to_path(source_package_ref, repo_root)
+    if not artifacts_dir.exists() or not artifacts_dir.is_dir():
+        raise FileNotFoundError(f"resolved epic package directory not found: {artifacts_dir}")
+    return artifacts_dir.resolve(), {
+        "input_mode": "formal_admission",
+        "requested_ref": requested_ref,
+        "resolved_formal_ref": admission["resolved_formal_ref"],
+        "managed_artifact_ref": record.get("managed_artifact_ref", ""),
+    }
+
+
 def extract_src_ref(values: list[str], fallback: str = "") -> str:
     for value in values:
         normalized = str(value).strip().upper()
@@ -188,7 +223,8 @@ def load_epic_package(artifacts_dir: Path) -> EpicPackage:
     )
 
 
-def validate_input_package(artifacts_dir: Path) -> tuple[list[str], dict[str, Any]]:
+def validate_input_package(input_value: str | Path, repo_root: Path) -> tuple[list[str], dict[str, Any]]:
+    artifacts_dir, input_resolution = resolve_input_artifacts_dir(input_value, repo_root)
     errors: list[str] = []
     if not artifacts_dir.exists() or not artifacts_dir.is_dir():
         return [f"Input package not found: {artifacts_dir}"], {"valid": False}
@@ -267,6 +303,9 @@ def validate_input_package(artifacts_dir: Path) -> tuple[list[str], dict[str, An
 
     result = {
         "valid": not errors,
+        "input_mode": input_resolution["input_mode"],
+        "requested_ref": input_resolution["requested_ref"],
+        "resolved_formal_ref": input_resolution.get("resolved_formal_ref", ""),
         "workflow_key": workflow_key,
         "run_id": package.run_id,
         "status": status,

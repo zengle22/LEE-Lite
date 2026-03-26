@@ -56,6 +56,11 @@ from src_to_epic_cli_integration import (
     update_supervisor_outputs,
     write_executor_outputs,
 )
+from src_to_epic_gate_integration import (
+    create_gate_ready_package,
+    create_handoff_proposal,
+    submit_gate_pending,
+)
 REQUIRED_OUTPUT_FILES = (
     "epic-freeze.md", "epic-freeze.json", "epic-review-report.json", "epic-acceptance-report.json",
     "epic-defect-list.json", "epic-freeze-gate.json", "handoff-to-epic-to-feat.json", "semantic-drift-check.json",
@@ -81,6 +86,10 @@ def repo_root_from(repo_root: str | None, input_path: Path | None = None) -> Pat
 
 def output_dir_for(repo_root: Path, run_id: str) -> Path:
     return repo_root / "artifacts" / "src-to-epic" / run_id
+
+
+def repo_relative(repo_root: Path, path: Path) -> str:
+    return path.resolve().relative_to(repo_root.resolve()).as_posix()
 
 
 @dataclass
@@ -612,6 +621,37 @@ def supervisor_review(artifacts_dir: Path, repo_root: Path, run_id: str, allow_u
     gate = build_gate_result(generated, supervision)
 
     update_supervisor_outputs(artifacts_dir, repo_root, package, generated, supervision, gate)
+    candidate_ref = f"src-to-epic.{input_run_id}.epic-freeze"
+    proposal_path = create_handoff_proposal(
+        repo_root=repo_root,
+        artifacts_dir=artifacts_dir,
+        run_id=input_run_id,
+        epic_freeze_ref=generated.frontmatter["epic_freeze_ref"],
+        src_root_id=generated.frontmatter["src_root_id"],
+    )
+    gate_ready_package = create_gate_ready_package(
+        artifacts_dir=artifacts_dir,
+        run_id=input_run_id,
+        candidate_ref=candidate_ref,
+        machine_ssot_ref=repo_relative(repo_root, artifacts_dir / "epic-freeze.json"),
+        acceptance_ref=repo_relative(repo_root, artifacts_dir / "epic-acceptance-report.json"),
+        evidence_bundle_ref=repo_relative(repo_root, artifacts_dir / "supervision-evidence.json"),
+    )
+    gate_submit = submit_gate_pending(
+        repo_root=repo_root,
+        artifacts_dir=artifacts_dir,
+        run_id=input_run_id,
+        proposal_ref=repo_relative(repo_root, proposal_path),
+        payload_path=gate_ready_package,
+        trace_context_ref=repo_relative(repo_root, artifacts_dir / "supervision-evidence.json"),
+    )
+    gate_submit_data = gate_submit["response"]["data"]
+    package_manifest["handoff_proposal_ref"] = repo_relative(repo_root, proposal_path)
+    package_manifest["gate_ready_package_ref"] = repo_relative(repo_root, gate_ready_package)
+    package_manifest["authoritative_handoff_ref"] = str(gate_submit_data.get("handoff_ref", ""))
+    package_manifest["gate_pending_ref"] = str(gate_submit_data.get("gate_pending_ref", ""))
+    package_manifest["gate_submit_cli_ref"] = repo_relative(repo_root, gate_submit["response_path"])
+    dump_json(artifacts_dir / "package-manifest.json", package_manifest)
 
     return {
         "ok": True,
@@ -619,6 +659,10 @@ def supervisor_review(artifacts_dir: Path, repo_root: Path, run_id: str, allow_u
         "artifacts_dir": str(artifacts_dir),
         "decision": supervision["decision"],
         "freeze_ready": gate["freeze_ready"],
+        "handoff_proposal_ref": repo_relative(repo_root, proposal_path),
+        "gate_ready_package_ref": repo_relative(repo_root, gate_ready_package),
+        "authoritative_handoff_ref": str(gate_submit_data.get("handoff_ref", "")),
+        "gate_pending_ref": str(gate_submit_data.get("gate_pending_ref", "")),
     }
 
 
@@ -648,6 +692,10 @@ def run_workflow(input_path: Path, repo_root: Path, run_id: str, allow_update: b
         "epic_freeze_ref": executor_result["epic_freeze_ref"],
         "src_root_id": executor_result["src_root_id"],
         "supervision": supervisor_result,
+        "handoff_proposal_ref": supervisor_result.get("handoff_proposal_ref", ""),
+        "gate_ready_package_ref": supervisor_result.get("gate_ready_package_ref", ""),
+        "authoritative_handoff_ref": supervisor_result.get("authoritative_handoff_ref", ""),
+        "gate_pending_ref": supervisor_result.get("gate_pending_ref", ""),
         "output_validation": output_result,
         "readiness_errors": readiness_errors,
         "evidence_report": str(report_path),

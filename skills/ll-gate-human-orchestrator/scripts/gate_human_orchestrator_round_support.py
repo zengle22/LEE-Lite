@@ -47,20 +47,22 @@ def load_ssot_brief(repo_root: Path, machine_ssot_ref: str) -> dict[str, Any]:
         title = payload.get("title")
         if isinstance(title, str) and title.strip():
             excerpt.append(f"标题: {title.strip()}")
+        for line in _artifact_specific_excerpt(payload):
+            _append_unique_line(excerpt, line)
         problem_statement = payload.get("problem_statement")
         if isinstance(problem_statement, str) and problem_statement.strip():
-            excerpt.append(f"问题: {problem_statement.strip()[:160]}")
+            _append_unique_line(excerpt, f"问题: {problem_statement.strip()[:160]}")
         bridge_summary = payload.get("bridge_summary")
         if isinstance(bridge_summary, list):
             for item in bridge_summary:
                 if isinstance(item, str) and item.strip():
-                    excerpt.append(f"摘要: {item.strip()}")
+                    _append_unique_line(excerpt, f"摘要: {item.strip()}")
                     break
         key_constraints = payload.get("key_constraints")
         if isinstance(key_constraints, list):
             for item in key_constraints[:2]:
                 if isinstance(item, str) and item.strip():
-                    excerpt.append(f"约束: {item.strip()}")
+                    _append_unique_line(excerpt, f"约束: {item.strip()}")
         for label, field in (
             ("驱动", "business_drivers"),
             ("结果", "expected_outcomes"),
@@ -77,7 +79,7 @@ def load_ssot_brief(repo_root: Path, machine_ssot_ref: str) -> dict[str, Any]:
         ):
             value = payload.get(field)
             if isinstance(value, str) and value.strip():
-                excerpt.append(f"{label}: {value.strip()}")
+                _append_unique_line(excerpt, f"{label}: {value.strip()}")
         return {
             "excerpt": excerpt[:6],
             "outline": outline[:8],
@@ -135,13 +137,125 @@ def _append_labeled_items(target: list[str], raw_value: object, label: str, *, l
             break
 
 
+def _append_unique_line(target: list[str], line: str) -> None:
+    text = str(line or "").strip()
+    if text and text not in target:
+        target.append(text)
+
+
 def _count_list(payload: dict[str, Any], field: str) -> int:
     value = payload.get(field)
     return len(value) if isinstance(value, list) else 0
 
 
+def _first_dict_items(raw_value: object, *, limit: int) -> list[dict[str, Any]]:
+    if not isinstance(raw_value, list):
+        return []
+    items: list[dict[str, Any]] = []
+    for entry in raw_value:
+        if not isinstance(entry, dict):
+            continue
+        items.append(entry)
+        if len(items) >= limit:
+            break
+    return items
+
+
+def _dict_field_text(entry: dict[str, Any], *keys: str) -> str:
+    for key in keys:
+        value = entry.get(key)
+        if isinstance(value, str) and value.strip():
+            return value.strip()
+    return ""
+
+
+def _role_summaries(raw_value: object, *, limit: int) -> list[str]:
+    summaries: list[str] = []
+    for entry in _first_dict_items(raw_value, limit=limit):
+        role = _dict_field_text(entry, "role", "name", "actor")
+        responsibility = _dict_field_text(entry, "responsibility", "summary", "goal")
+        if role and responsibility:
+            summaries.append(f"{role}：{responsibility}")
+        elif role:
+            summaries.append(role)
+    return summaries
+
+
+def _slice_summaries(raw_value: object, *, limit: int) -> list[str]:
+    summaries: list[str] = []
+    for entry in _first_dict_items(raw_value, limit=limit):
+        name = _dict_field_text(entry, "name", "title", "id")
+        goal = _dict_field_text(entry, "goal", "summary")
+        track = _dict_field_text(entry, "track")
+        if name and goal and track:
+            summaries.append(f"{name}（{track}）: {goal}")
+        elif name and goal:
+            summaries.append(f"{name}: {goal}")
+        elif name:
+            summaries.append(name)
+    return summaries
+
+
+def _feature_summaries(raw_value: object, *, limit: int) -> list[str]:
+    summaries: list[str] = []
+    for entry in _first_dict_items(raw_value, limit=limit):
+        title = _dict_field_text(entry, "title", "name", "slice_id")
+        goal = _dict_field_text(entry, "goal")
+        track = _dict_field_text(entry, "track")
+        if title and goal and track:
+            summaries.append(f"{title}（{track}）: {goal}")
+        elif title and goal:
+            summaries.append(f"{title}: {goal}")
+        elif title:
+            summaries.append(title)
+    return summaries
+
+
+def _artifact_specific_excerpt(payload: dict[str, Any]) -> list[str]:
+    artifact_type = str(payload.get("artifact_type", "")).strip()
+    excerpt: list[str] = []
+    if artifact_type == "epic_freeze_package":
+        business_goal = str(payload.get("business_goal", "")).strip()
+        if business_goal:
+            excerpt.append(f"业务目标: {business_goal}")
+        slices = _slice_summaries(payload.get("product_behavior_slices"), limit=4)
+        if slices:
+            excerpt.append(f"产品切片: 共 {_count_list(payload, 'product_behavior_slices')} 个，重点是 {_join_items(slices)}")
+        roles = _role_summaries(payload.get("actors_and_roles"), limit=3)
+        if roles:
+            excerpt.append(f"关键角色: {_join_items(roles)}")
+        success = _first_items(payload, "epic_success_criteria", limit=2)
+        if success:
+            excerpt.append(f"成功标准: {_join_items(success)}")
+        downstream = str(payload.get("downstream_workflow", "")).strip()
+        if downstream:
+            excerpt.append(f"下游交接: {downstream}")
+        return excerpt
+    if artifact_type == "feat_freeze_package":
+        bundle_intent = str(payload.get("bundle_intent", "")).strip()
+        if bundle_intent:
+            excerpt.append(f"Bundle 意图: {bundle_intent}")
+        epic_context = payload.get("epic_context")
+        if isinstance(epic_context, dict):
+            business_goal = str(epic_context.get("business_goal", "")).strip()
+            if business_goal:
+                excerpt.append(f"业务目标: {business_goal}")
+            positioning = str(epic_context.get("product_positioning", "")).strip()
+            if positioning:
+                excerpt.append(f"产品定位: {positioning}")
+        features = _feature_summaries(payload.get("features"), limit=4)
+        if features:
+            excerpt.append(f"拆分结果: 共 {_count_list(payload, 'features')} 个 FEAT，重点是 {_join_items(features)}")
+        downstream_workflows = _first_items(payload, "downstream_workflows", limit=3)
+        if downstream_workflows:
+            excerpt.append(f"下游工作流: {_join_items(downstream_workflows)}")
+        return excerpt
+    return excerpt
+
+
 def ssot_outline(payload: dict[str, Any]) -> list[str]:
     outline: list[str] = []
+    artifact_type = str(payload.get("artifact_type", "")).strip()
     header = []
     for field in ("artifact_type", "workflow_key", "workflow_run_id", "status", "input_type", "source_kind"):
         value = payload.get(field)
@@ -149,6 +263,41 @@ def ssot_outline(payload: dict[str, Any]) -> list[str]:
             header.append(f"{field}={value}")
     if header:
         outline.append("标识: " + "; ".join(header))
+    if artifact_type == "epic_freeze_package":
+        epic_sections = [
+            ("actors_and_roles", _count_list(payload, "actors_and_roles")),
+            ("product_behavior_slices", _count_list(payload, "product_behavior_slices")),
+            ("decomposition_rules", _count_list(payload, "decomposition_rules")),
+            ("epic_success_criteria", _count_list(payload, "epic_success_criteria")),
+            ("source_refs", _count_list(payload, "source_refs")),
+        ]
+        outline.append("EPIC 主体块: " + ", ".join(f"{name}[{count}]" for name, count in epic_sections if count))
+        downstream_workflow = str(payload.get("downstream_workflow", "")).strip()
+        if downstream_workflow:
+            outline.append("下游工作流: " + downstream_workflow)
+        return outline
+    if artifact_type == "feat_freeze_package":
+        feat_sections = [
+            ("feat_refs", _count_list(payload, "feat_refs")),
+            ("features", _count_list(payload, "features")),
+            ("downstream_workflows", _count_list(payload, "downstream_workflows")),
+            ("bundle_shared_non_goals", _count_list(payload, "bundle_shared_non_goals")),
+            ("source_refs", _count_list(payload, "source_refs")),
+        ]
+        outline.append("FEAT Bundle 主体块: " + ", ".join(f"{name}[{count}]" for name, count in feat_sections if count))
+        epic_context = payload.get("epic_context")
+        if isinstance(epic_context, dict):
+            nested = [
+                ("actors_and_roles", len(epic_context.get("actors_and_roles", [])) if isinstance(epic_context.get("actors_and_roles"), list) else 0),
+                ("product_behavior_slices", len(epic_context.get("product_behavior_slices", [])) if isinstance(epic_context.get("product_behavior_slices"), list) else 0),
+                ("decomposition_rules", len(epic_context.get("decomposition_rules", [])) if isinstance(epic_context.get("decomposition_rules"), list) else 0),
+                ("epic_success_criteria", len(epic_context.get("epic_success_criteria", [])) if isinstance(epic_context.get("epic_success_criteria"), list) else 0),
+            ]
+            outline.append("epic_context 子块: " + ", ".join(f"{name}[{count}]" for name, count in nested if count))
+        feature_titles = [item.split(":", 1)[0] for item in _feature_summaries(payload.get("features"), limit=5)]
+        if feature_titles:
+            outline.append("主要 FEAT: " + "；".join(feature_titles))
+        return outline
     top_sections = [
         ("target_users", _count_list(payload, "target_users")),
         ("trigger_scenarios", _count_list(payload, "trigger_scenarios")),
@@ -201,6 +350,32 @@ def ssot_outline(payload: dict[str, Any]) -> list[str]:
 
 def ssot_review_points(payload: dict[str, Any]) -> list[str]:
     points: list[str] = []
+    artifact_type = str(payload.get("artifact_type", "")).strip()
+    if artifact_type == "epic_freeze_package":
+        if _count_list(payload, "product_behavior_slices"):
+            points.append("核对 product_behavior_slices 是否完整覆盖用户入口、控制面、取件、派发、回写、监控等产品切片，而不是只剩抽象 runtime 结论。")
+        if _count_list(payload, "actors_and_roles"):
+            points.append("核对 actors_and_roles 是否把 gate owner、runner owner、CLI operator、workflow operator 的责任边界讲清楚。")
+        if _count_list(payload, "decomposition_rules"):
+            points.append("核对 decomposition_rules 是否明确要求下游按独立验收 FEAT 切片拆分，而不是回退成技术轴或实现顺序。")
+        if _count_list(payload, "epic_success_criteria"):
+            points.append("核对 epic_success_criteria 是否仍然锚定 approve -> ready job -> runner claim -> next skill invocation 这条主链。")
+        if _count_list(payload, "source_refs"):
+            points.append("核对 source_refs 是否仍完整覆盖 ADR-018 及其依赖 ADR，避免下游继承时丢来源。")
+        return points
+    if artifact_type == "feat_freeze_package":
+        if str(payload.get("bundle_intent", "")).strip():
+            points.append("核对 bundle_intent 是否准确解释了为什么要拆成当前这组 FEAT，而不是更少或更多。")
+        if _count_list(payload, "features"):
+            points.append("核对 features 是否把 Runner 用户入口流、控制面流、运行监控流等用户可见模块完整拆出，而不是重新压回后台 runtime。")
+        epic_context = payload.get("epic_context")
+        if isinstance(epic_context, dict) and isinstance(epic_context.get("decomposition_rules"), list) and epic_context.get("decomposition_rules"):
+            points.append("核对 epic_context.decomposition_rules 是否被当前 FEAT bundle 正确继承，没有把产品行为切片漂移成 TECH/TASK 粒度。")
+        if isinstance(epic_context, dict) and isinstance(epic_context.get("epic_success_criteria"), list) and epic_context.get("epic_success_criteria"):
+            points.append("核对当前 FEAT 组合能否支撑至少一条 gate approve -> ready job -> runner claim -> next skill invocation 的真实链路。")
+        if _count_list(payload, "downstream_workflows") or _count_list(payload, "source_refs"):
+            points.append("核对 downstream_workflows 与 source_refs 是否完整，确保后续 feat-to-tech / feat-to-testset 不会丢失权威继承链。")
+        return points
     if str(payload.get("problem_statement", "")).strip():
         points.append("核对 problem_statement 是否同时说明当前失控行为、为什么必须现在收敛、以及不收敛的后果。")
     if _count_list(payload, "key_constraints") or _count_list(payload, "governance_change_summary"):
@@ -252,6 +427,15 @@ def _join_items(items: list[str]) -> str:
 
 
 def ssot_fulltext_markdown(payload: dict[str, Any]) -> str:
+    artifact_type = str(payload.get("artifact_type", "")).strip()
+    if artifact_type == "epic_freeze_package":
+        markdown = _epic_freeze_fulltext_markdown(payload)
+        if markdown:
+            return markdown
+    if artifact_type == "feat_freeze_package":
+        markdown = _feat_freeze_fulltext_markdown(payload)
+        if markdown:
+            return markdown
     paragraphs: list[str] = []
     title = str(payload.get("title", "")).strip()
     artifact_type = str(payload.get("artifact_type", "")).strip()
@@ -339,6 +523,100 @@ def ssot_fulltext_markdown(payload: dict[str, Any]) -> str:
     lines = ["## Machine SSOT 人类友好全文", ""]
     lines.extend(paragraphs)
     return "\n\n".join(lines) + "\n"
+
+
+def _epic_freeze_fulltext_markdown(payload: dict[str, Any]) -> str:
+    title = str(payload.get("title", "")).strip()
+    workflow_run_id = str(payload.get("workflow_run_id", "")).strip()
+    downstream_workflow = str(payload.get("downstream_workflow", "")).strip()
+    lines = ["## Machine SSOT 人类友好全文", ""]
+    intro = "这是一份 `epic_freeze_package` 候选稿"
+    if title:
+        intro += f"，标题是“{title}”"
+    if workflow_run_id:
+        intro += f"，本次 run 是 `{workflow_run_id}`"
+    lines.append(intro + "。")
+    business_goal = str(payload.get("business_goal", "")).strip()
+    if business_goal:
+        lines.extend(["", business_goal])
+    positioning = str(payload.get("product_positioning", "")).strip()
+    if positioning:
+        lines.extend(["", "它在产品链路里的定位是：" + positioning])
+    roles = _role_summaries(payload.get("actors_and_roles"), limit=6)
+    if roles:
+        lines.extend(["", "### 关键角色与责任", ""])
+        lines.extend(f"- {item}" for item in roles)
+    slices = _slice_summaries(payload.get("product_behavior_slices"), limit=8)
+    if slices:
+        lines.extend(["", "### 本轮冻结的产品切片", ""])
+        lines.extend(f"- {item}" for item in slices)
+    success = _first_items(payload, "epic_success_criteria", limit=5)
+    if success:
+        lines.extend(["", "### 通过这轮审批后，应该能看到什么", ""])
+        lines.extend(f"- {item}" for item in success)
+    rules = _first_items(payload, "decomposition_rules", limit=4)
+    if rules:
+        lines.extend(["", "### 对下游 FEAT 派生的硬约束", ""])
+        lines.extend(f"- {item}" for item in rules)
+    non_goals = _first_items(payload, "non_goals", limit=4)
+    if non_goals:
+        lines.extend(["", "### 本轮明确不做什么", ""])
+        lines.extend(f"- {item}" for item in non_goals)
+    if downstream_workflow:
+        lines.extend(["", f"下游会继续交接给 `{downstream_workflow}`。"])
+    return "\n".join(lines) + "\n"
+
+
+def _feat_freeze_fulltext_markdown(payload: dict[str, Any]) -> str:
+    title = str(payload.get("title", "")).strip()
+    workflow_run_id = str(payload.get("workflow_run_id", "")).strip()
+    feat_count = _count_list(payload, "features") or _count_list(payload, "feat_refs")
+    lines = ["## Machine SSOT 人类友好全文", ""]
+    intro = "这是一份 `feat_freeze_package` 候选稿"
+    if title:
+        intro += f"，标题是“{title}”"
+    if workflow_run_id:
+        intro += f"，本次 run 是 `{workflow_run_id}`"
+    if feat_count:
+        intro += f"，当前共拆出 {feat_count} 个 FEAT"
+    lines.append(intro + "。")
+    bundle_intent = str(payload.get("bundle_intent", "")).strip()
+    if bundle_intent:
+        lines.extend(["", "这份 FEAT bundle 的拆分意图是：" + bundle_intent])
+    epic_context = payload.get("epic_context")
+    if isinstance(epic_context, dict):
+        business_goal = str(epic_context.get("business_goal", "")).strip()
+        if business_goal:
+            lines.extend(["", "它继承的上位业务目标是：" + business_goal])
+        positioning = str(epic_context.get("product_positioning", "")).strip()
+        if positioning:
+            lines.extend(["", "从产品定位上看：" + positioning])
+        roles = _role_summaries(epic_context.get("actors_and_roles"), limit=6)
+        if roles:
+            lines.extend(["", "### 这轮 FEAT 面向的关键角色", ""])
+            lines.extend(f"- {item}" for item in roles)
+    features = _feature_summaries(payload.get("features"), limit=10)
+    if features:
+        lines.extend(["", "### 本轮实际拆出的 FEAT", ""])
+        lines.extend(f"- {item}" for item in features)
+    downstream_workflows = _first_items(payload, "downstream_workflows", limit=4)
+    if downstream_workflows:
+        lines.extend(["", "### 这些 FEAT 接下来会交给哪些下游工作流", ""])
+        lines.extend(f"- {item}" for item in downstream_workflows)
+    if isinstance(epic_context, dict):
+        success = _first_items(epic_context, "epic_success_criteria", limit=4)
+        if success:
+            lines.extend(["", "### Reviewer 本轮最该确认的成功标准", ""])
+            lines.extend(f"- {item}" for item in success)
+        rules = _first_items(epic_context, "decomposition_rules", limit=4)
+        if rules:
+            lines.extend(["", "### 这组 FEAT 必须继承的拆分规则", ""])
+            lines.extend(f"- {item}" for item in rules)
+    non_goals = _first_items(payload, "bundle_shared_non_goals", limit=5)
+    if non_goals:
+        lines.extend(["", "### 这组 FEAT 明确不应该漂向哪里", ""])
+        lines.extend(f"- {item}" for item in non_goals)
+    return "\n".join(lines) + "\n"
 
 
 def request_markdown(request: dict[str, Any]) -> str:

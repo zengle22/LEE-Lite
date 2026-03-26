@@ -6,44 +6,17 @@ from __future__ import annotations
 from typing import Any
 
 from feat_to_testset_collaboration import collaboration_units as collaboration_units_impl
-from feat_to_testset_common import derive_test_set_id, ensure_list, unique_strings
-
-
-def unit_payload(
-    feat_ref: str,
-    index: int,
-    acceptance_ref: str | None,
-    title: str,
-    priority: str,
-    layers: list[str],
-    input_preconditions: list[str],
-    trigger_action: str,
-    observation_points: list[str],
-    pass_conditions: list[str],
-    fail_conditions: list[str],
-    required_evidence: list[str],
-    supporting_refs: list[str],
-    derivation_basis: list[str] | None = None,
-) -> dict[str, Any]:
-    test_set_id = derive_test_set_id(feat_ref)
-    payload = {
-        "unit_ref": f"{test_set_id}-U{index:02d}",
-        "title": title,
-        "priority": priority,
-        "input_preconditions": unique_strings(input_preconditions),
-        "trigger_action": trigger_action,
-        "observation_points": unique_strings(observation_points),
-        "pass_conditions": unique_strings(pass_conditions),
-        "fail_conditions": unique_strings(fail_conditions),
-        "required_evidence": unique_strings(required_evidence),
-        "suggested_layers": layers,
-        "supporting_refs": unique_strings(supporting_refs),
-    }
-    if acceptance_ref:
-        payload["acceptance_ref"] = acceptance_ref
-    if derivation_basis:
-        payload["derivation_basis"] = unique_strings(derivation_basis)
-    return payload
+from feat_to_testset_common import ensure_list
+from feat_to_testset_runner_units import (
+    runner_control_surface_units,
+    runner_dispatch_units,
+    runner_feedback_units,
+    runner_intake_units,
+    runner_observability_units,
+    runner_operator_entry_units,
+    runner_ready_job_units,
+)
+from feat_to_testset_units_common import unit_payload
 
 
 def default_units(
@@ -172,6 +145,20 @@ def derive_test_units(
     priority: str,
     refs: list[str],
 ) -> list[dict[str, Any]]:
+    if profile == "runner_ready_job":
+        return runner_ready_job_units(feature, layers, priority, refs)
+    if profile == "runner_operator_entry":
+        return runner_operator_entry_units(feature, layers, priority, refs)
+    if profile == "runner_control_surface":
+        return runner_control_surface_units(feature, layers, priority, refs)
+    if profile == "runner_intake":
+        return runner_intake_units(feature, layers, priority, refs)
+    if profile == "runner_dispatch":
+        return runner_dispatch_units(feature, layers, priority, refs)
+    if profile == "runner_feedback":
+        return runner_feedback_units(feature, layers, priority, refs)
+    if profile == "runner_observability":
+        return runner_observability_units(feature, layers, priority, refs)
     if profile == "collaboration":
         return collaboration_units(feature, layers, priority, refs)
     if profile == "gate":
@@ -205,6 +192,10 @@ def derive_acceptance_traceability(
             then = "onboarding scope 必须保持在 governed skill onboarding / pilot / cutover 范围内，并拒绝仓库级治理扩张。"
         elif profile == "collaboration" and "approval and re-entry semantics outside this FEAT" in then:
             then = "提交完成后只暴露 authoritative handoff 与 pending visibility；decision-driven revise/retry runtime routing 可以回流，但 gate decision issuance / approval 语义仍在本 FEAT 外。"
+        elif profile == "runner_operator_entry" and "manual" in scenario.lower():
+            then = "runner entry 只负责启动或恢复 execution runner，不得把正常主链 dispatch 退化为人工 relay。"
+        elif profile == "runner_observability" and ("read-only" in scenario.lower() or "只读" in scenario):
+            then = "monitor surface 只做 authoritative 状态读取与展示，不承担 claim、dispatch 或 outcome 改写职责。"
         mapping.append(
             {
                 "acceptance_ref": acceptance_ref,

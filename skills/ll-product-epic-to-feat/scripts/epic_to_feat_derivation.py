@@ -109,6 +109,88 @@ def _execution_runner_axis_defaults(axis_id: str) -> dict[str, Any]:
             "interaction_timeline": ["1. approve", "2. materialize ready job", "3. write queue record"],
             "dependencies": ["Boundary to runner intake FEAT: 本 FEAT 只负责 ready job emission，不负责 claim/running。"],
         },
+        "runner-operator-entry": {
+            "business_value": "让 Claude/Codex CLI 用户拥有一个稳定、显式、可审计的 runner 启动入口，而不是在 approve 后靠人工记忆下一步该执行什么命令。",
+            "primary_actor": "Claude/Codex CLI operator",
+            "secondary_actors": ["execution runner owner", "workflow / orchestration owner"],
+            "user_story": "As a Claude/Codex CLI operator, I want one dedicated runner skill entry to start or resume Execution Loop Job Runner, so that自动推进链的启动不依赖隐式知识、临时脚本或人工接力。",
+            "trigger": "当 operator 需要启动、恢复或显式进入 Execution Loop Job Runner 时。",
+            "preconditions": ["approve 已能落成 ready execution job。", "runner skill entry 与其 authoritative inputs 已被冻结。"],
+            "postconditions": ["operator 可以通过单一入口启动或恢复 runner。", "runner run 的入口责任边界可被审计。"],
+            "constraints": [
+                "Execution Loop Job Runner 必须以独立 skill 入口暴露给 Claude/Codex CLI 用户。",
+                "入口必须显式声明 start / resume 语义，而不是隐式依赖后台自动进程。",
+                "入口不得把 approve 后链路退化成手工逐个调用下游 skill。",
+                "入口调用必须保留 authoritative run context 与 lineage。",
+            ],
+            "main_flow": [
+                "operator 在 Claude/Codex CLI 中调用 Execution Loop Job Runner skill。",
+                "skill 初始化或恢复 runner run context，并确认本次运行目标队列/作用域。",
+                "runner 进入 ready queue 消费流程，后续交给 intake / dispatch / feedback FEAT 继续处理。",
+            ],
+            "business_rules": [
+                "runner skill entry 是自动推进链的唯一人工起点。",
+                "入口只负责启动或恢复 runner，不直接替代 ready job emission 或 next-skill dispatch。",
+            ],
+            "business_state_transitions": ["runner_entry_requested -> runner_context_initialized -> runner_ready_to_consume"],
+            "business_sequence": "```text\n[Claude/Codex CLI Operator] -> [Runner Skill Entry] -> [Runner Context Initialized] -> [Ready Queue Consumption]\n```",
+            "loop_gate_human_involvement": ["Claude/Codex CLI operator 负责显式启动或恢复 runner。", "runner owner 定义入口边界与运行前置条件。"],
+            "test_dimensions": ["skill entry available", "start path", "resume path", "authoritative run context", "no manual downstream relay"],
+            "frozen_product_shape": ["冻结独立 runner skill 入口及其 start/resume 产品边界。"],
+            "open_technical_decisions": ["runner skill command surface", "run context bootstrap schema"],
+            "authoritative_output": "runner skill entry invocation record",
+            "input_objects": ["runner start request", "runner resume request", "authoritative run scope"],
+            "output_objects": ["runner skill invocation record", "runner context initialization result", "runner start receipt"],
+            "required_deliverables": ["runner skill entry definition", "runner invocation record", "runner start receipt"],
+            "role_responsibility_split": ["Claude/Codex CLI operator 负责调用入口。", "runner skill 负责初始化或恢复运行上下文。"],
+            "handoff_points": ["operator command -> runner skill entry", "runner skill entry -> runner intake flow"],
+            "interaction_timeline": ["1. operator invokes runner skill", "2. runner context initializes", "3. hand off to ready queue intake"],
+            "dependencies": ["Boundary to ready-job FEAT: 本 FEAT 不负责生成 ready execution job。", "Boundary to runner-control-surface FEAT: 入口启动后，后续控制语义由控制面 FEAT 承担。"],
+            "product_surface": "Runner 用户入口流：Claude/Codex CLI 用户通过独立 runner skill 启动或恢复自动推进运行时",
+            "completed_state": "用户已经可以通过独立 runner skill 显式启动或恢复 Execution Loop Job Runner，并形成可追踪的 invocation record。",
+            "business_deliverable": "给 operator 使用的 runner skill entry 与启动回执。",
+        },
+        "runner-control-surface": {
+            "business_value": "让 operator 能通过统一 CLI control surface 管理 runner 的 start、claim、run、complete、fail 等控制动作，而不是把运行控制散落在多个临时命令里。",
+            "primary_actor": "Claude/Codex CLI operator",
+            "secondary_actors": ["execution runner owner", "on-call / support operator"],
+            "user_story": "As a Claude/Codex CLI operator, I want one stable CLI control surface for Execution Loop Job Runner, so that我可以启动、续跑、诊断和收口 runner，而不是记忆一组松散脚本。",
+            "trigger": "当 operator 需要对 runner 执行启动、控制、收口或恢复动作时。",
+            "preconditions": ["runner skill entry 已存在。", "runner control verbs 与权责边界已被冻结。"],
+            "postconditions": ["operator 可以通过统一 CLI control surface 控制 runner。", "runner 控制动作的证据链可被审计。"],
+            "constraints": [
+                "runner control surface 必须提供统一的 CLI verbs，而不是分散在多个无治理脚本里。",
+                "control surface 必须与 runner skill entry 对齐，不能绕开 authoritative run context。",
+                "control verbs 不得直接替代 next-skill invocation 结果或篡改 execution outcome。",
+                "控制动作必须产生可追踪的 command / state evidence。",
+            ],
+            "main_flow": [
+                "operator 通过 runner CLI control surface 发起 start / claim / run / complete / fail / resume 等动作。",
+                "runner 校验当前 run context 和 job ownership。",
+                "系统记录控制动作与 resulting state，供观测和审计消费。",
+            ],
+            "business_rules": [
+                "CLI control surface 是 runner 的唯一正式控制面。",
+                "控制面只改变 runner control state，不重新定义 ready job、dispatch 或 feedback 业务语义。",
+            ],
+            "business_state_transitions": ["runner_control_requested -> runner_control_applied -> runner_control_recorded"],
+            "business_sequence": "```text\n[Runner Skill Entry] -> [CLI Control Surface] -> [Runner Control Action] -> [Control Evidence]\n```",
+            "loop_gate_human_involvement": ["Claude/Codex CLI operator 负责发起控制动作。", "runner owner 负责定义可用 verbs 与状态边界。"],
+            "test_dimensions": ["control verbs available", "start/resume command path", "claim/run/complete/fail command recording", "ownership guard", "control evidence traceability"],
+            "frozen_product_shape": ["冻结 runner CLI control surface 及其 command vocabulary。"],
+            "open_technical_decisions": ["CLI command naming", "control evidence schema"],
+            "authoritative_output": "runner control action record",
+            "input_objects": ["runner command request", "run context", "job ownership context"],
+            "output_objects": ["runner control action record", "runner state update", "control evidence"],
+            "required_deliverables": ["runner CLI command set", "runner control action record", "control evidence"],
+            "role_responsibility_split": ["operator 负责发起控制动作。", "runner control layer 负责校验并记录状态变化。"],
+            "handoff_points": ["runner skill entry -> CLI control surface", "CLI control surface -> runner intake / running state"],
+            "interaction_timeline": ["1. issue runner command", "2. validate run context", "3. record control outcome"],
+            "dependencies": ["Boundary to runner-operator-entry FEAT: 本 FEAT 依赖独立 skill 入口存在。", "Boundary to runner-observability-surface FEAT: 控制结果需要被监控面读取，但监控面不拥有控制权。"],
+            "product_surface": "Runner 控制面流：operator 通过统一 CLI verbs 控制 Execution Loop Job Runner 的运行动作",
+            "completed_state": "runner 的启动、恢复、控制和收口动作都可以通过统一 CLI control surface 完成，并留下审计记录。",
+            "business_deliverable": "给 operator 使用的 runner CLI control surface 与控制动作记录。",
+        },
         "execution-runner-intake": {
             "constraints": [
                 "Execution Loop Job Runner 必须自动消费 ready queue。",
@@ -186,6 +268,47 @@ def _execution_runner_axis_defaults(axis_id: str) -> dict[str, Any]:
             "handoff_points": ["next-skill result -> outcome record", "outcome record -> orchestration / audit"],
             "interaction_timeline": ["1. collect result", "2. record outcome", "3. expose retry or completion"],
             "dependencies": ["Boundary to dispatch FEAT: 本 FEAT 只负责 post-dispatch outcome，不重写 invocation 过程。"],
+        },
+        "runner-observability-surface": {
+            "business_value": "让 operator 能持续观察 ready backlog、running、failed、deadletters 和 waiting-human 等 runner 状态，而不是在故障后依赖人工排查目录。",
+            "primary_actor": "workflow / orchestration operator",
+            "secondary_actors": ["Claude/Codex CLI operator", "execution runner owner", "audit owner"],
+            "user_story": "As a workflow / orchestration operator, I want one runner observability surface, so that我可以看到 backlog、running、failed 和 waiting-human 状态，并在需要时决定恢复或介入。",
+            "trigger": "当 operator 需要查看 runner 队列、执行状态、失败结果或待人工处理状态时。",
+            "preconditions": ["runner 已有可观测的 queue / running / outcome 记录。", "监控面读取边界与状态词表已被冻结。"],
+            "postconditions": ["operator 可以看到 runner backlog、running、failed、deadletters、waiting-human。", "状态观察结果可驱动恢复、诊断或人工介入。"],
+            "constraints": [
+                "runner observability surface 必须覆盖 ready backlog、running、failed、deadletters、waiting-human 等关键状态。",
+                "监控面必须读取 authoritative runner state，而不是靠目录猜测或人工拼接。",
+                "监控面只负责观察和提示，不直接改写 runner control state。",
+                "观测结果必须能关联到 ready job、invocation 和 execution outcome lineage。",
+            ],
+            "main_flow": [
+                "operator 打开 runner observability surface 查看 backlog、running、failed 和 waiting-human 状态。",
+                "系统聚合 ready queue、claimed/running ownership、dispatch record 和 outcome evidence。",
+                "operator 基于观测结果决定是否继续运行、恢复、重试或人工介入。",
+            ],
+            "business_rules": [
+                "监控面是 runner 状态的唯一正式观察面。",
+                "观测结果必须基于 authoritative runner records，而不是临时目录扫描。",
+            ],
+            "business_state_transitions": ["runner_state_collected -> observability_snapshot_published -> operator_decision_informed"],
+            "business_sequence": "```text\n[Runner State Records] -> [Observability Surface] -> [Backlog / Running / Failed / Waiting-Human View] -> [Operator Decision]\n```",
+            "loop_gate_human_involvement": ["workflow / orchestration operator 负责查看和解释监控结果。", "Human 只在 waiting-human 或失败诊断时进一步介入。"],
+            "test_dimensions": ["ready backlog visibility", "running visibility", "failed visibility", "deadletters visibility", "waiting-human visibility", "lineage traceability"],
+            "frozen_product_shape": ["冻结 runner observability surface 及其关键状态视图。"],
+            "open_technical_decisions": ["observability query surface", "status aggregation model"],
+            "authoritative_output": "runner observability snapshot",
+            "input_objects": ["ready queue state", "running ownership record", "dispatch lineage", "execution outcome record"],
+            "output_objects": ["runner observability snapshot", "backlog view", "failed/waiting-human view"],
+            "required_deliverables": ["runner observability surface", "runner observability snapshot", "status aggregation evidence"],
+            "role_responsibility_split": ["monitor surface 负责聚合并展示状态。", "operator 负责基于观测结果做运行决策。"],
+            "handoff_points": ["runner state records -> observability surface", "observability surface -> operator recovery / escalation decision"],
+            "interaction_timeline": ["1. collect runner states", "2. publish observability snapshot", "3. operator decides next action"],
+            "dependencies": ["Boundary to intake / dispatch / feedback FEAT: 本 FEAT 消费这些 FEAT 的状态记录，但不重写它们的业务边界。"],
+            "product_surface": "Runner 运行监控流：operator 观察 ready backlog、running、failed、deadletters 与 waiting-human 状态",
+            "completed_state": "operator 已可通过统一监控面观察 runner 关键状态，并据此决定恢复、排障或人工介入。",
+            "business_deliverable": "给 operator 使用的 runner observability surface 与状态快照。",
         },
         "skill-adoption-e2e": {
             "constraints": [
@@ -1002,8 +1125,6 @@ def feat_dependencies(axis: dict[str, str], package: Any | None = None) -> list[
 
 def build_acceptance_checks(feat_ref: str, epic_ref: str, axis: dict[str, str]) -> list[dict[str, Any]]:
     explicit = axis.get("acceptance_checks")
-    if isinstance(explicit, list) and explicit:
-        return explicit
     key = axis_key(axis)
     checks = {
         "collaboration-loop": [
@@ -1110,6 +1231,58 @@ def build_acceptance_checks(feat_ref: str, epic_ref: str, axis: dict[str, str]) 
                 "trace_hints": [feat_ref, "path mode enforcement", "free write fallback", "formal write"],
             },
         ],
+        "runner-operator-entry": [
+            {
+                "id": f"{feat_ref}-AC-01",
+                "scenario": "Runner skill entry is explicit",
+                "given": f"{epic_ref} requires an operator-visible way to start automatic progression",
+                "when": f"{feat_ref} is reviewed as a standalone capability",
+                "then": "The FEAT must define one dedicated runner skill entry for Claude/Codex CLI instead of relying on implicit background behavior or manual downstream relays.",
+                "trace_hints": [feat_ref, "runner skill entry", "Claude/Codex CLI", "start", "resume"],
+            },
+            {
+                "id": f"{feat_ref}-AC-02",
+                "scenario": "Runner entry preserves authoritative context",
+                "given": "An operator starts or resumes the runner",
+                "when": "The runner accepts the request",
+                "then": "The FEAT must require authoritative run context and lineage rather than free-form command arguments or guesswork.",
+                "trace_hints": [feat_ref, "authoritative context", "lineage", "resume"],
+            },
+            {
+                "id": f"{feat_ref}-AC-03",
+                "scenario": "Runner entry is not a manual relay surface",
+                "given": "A reviewer inspects post-approve progression",
+                "when": "The operator entry is described",
+                "then": "The FEAT must keep the operator entry limited to launching or resuming runner semantics, not manual invocation of downstream skills one by one.",
+                "trace_hints": [feat_ref, "manual relay forbidden", "runner launch", "downstream skill"],
+            },
+        ],
+        "runner-control-surface": [
+            {
+                "id": f"{feat_ref}-AC-01",
+                "scenario": "Runner control verbs are unified",
+                "given": f"{epic_ref} needs a usable operator control surface",
+                "when": f"{feat_ref} is reviewed for product completeness",
+                "then": "The FEAT must define one unified runner CLI control surface instead of scattering control verbs across ad-hoc scripts or undocumented commands.",
+                "trace_hints": [feat_ref, "runner CLI", "control verbs", "unified surface"],
+            },
+            {
+                "id": f"{feat_ref}-AC-02",
+                "scenario": "Control actions preserve ownership and context",
+                "given": "A runner command is issued",
+                "when": "That command changes runner state",
+                "then": "The FEAT must require authoritative run context and ownership guards before recording the control action result.",
+                "trace_hints": [feat_ref, "ownership", "run context", "control action record"],
+            },
+            {
+                "id": f"{feat_ref}-AC-03",
+                "scenario": "Control surface does not replace execution semantics",
+                "given": "A reviewer compares control commands with dispatch and outcome flows",
+                "when": "Responsibilities are checked",
+                "then": "The FEAT must keep control actions separate from ready-job emission, next-skill invocation, and execution outcome ownership.",
+                "trace_hints": [feat_ref, "control surface", "dispatch boundary", "outcome boundary"],
+            },
+        ],
         "skill-adoption-e2e": [
             {
                 "id": f"{feat_ref}-AC-01",
@@ -1136,7 +1309,37 @@ def build_acceptance_checks(feat_ref: str, epic_ref: str, axis: dict[str, str]) 
                 "trace_hints": [feat_ref, "governed skill onboarding", "scope control", "no global governance expansion"],
             },
         ],
+        "runner-observability-surface": [
+            {
+                "id": f"{feat_ref}-AC-01",
+                "scenario": "Runner observability covers critical states",
+                "given": f"{epic_ref} requires operators to monitor automatic progression",
+                "when": f"{feat_ref} is reviewed as a product surface",
+                "then": "The FEAT must make ready backlog, running, failed, deadletters, and waiting-human states visible from one authoritative monitoring surface.",
+                "trace_hints": [feat_ref, "backlog", "running", "failed", "waiting-human"],
+            },
+            {
+                "id": f"{feat_ref}-AC-02",
+                "scenario": "Observability reads authoritative runner records",
+                "given": "An operator inspects a monitored item",
+                "when": "Lineage and details are resolved",
+                "then": "The FEAT must trace the view back to authoritative runner records rather than directory scans or inferred status.",
+                "trace_hints": [feat_ref, "authoritative records", "lineage", "no directory scan"],
+            },
+            {
+                "id": f"{feat_ref}-AC-03",
+                "scenario": "Observability informs but does not control",
+                "given": "Monitoring surfaces and control surfaces coexist",
+                "when": "Responsibilities are compared",
+                "then": "The FEAT must keep observability limited to status visibility and operator decision support, without silently taking over control semantics.",
+                "trace_hints": [feat_ref, "observability boundary", "control separation", "decision support"],
+            },
+        ],
     }.get(key, [])
+    if isinstance(explicit, list) and explicit:
+        if len(explicit) >= 3:
+            return explicit
+        return explicit + checks[: max(0, 3 - len(explicit))]
     return checks
 
 
@@ -1361,7 +1564,7 @@ def _feat_relations_for(axis_id: str) -> dict[str, Any]:
     mapping = {
         "ready-job-emission": {
             "upstream_axis_ids": [],
-            "downstream_axis_ids": ["execution-runner-intake"],
+            "downstream_axis_ids": ["runner-operator-entry"],
             "gate_decision_axis_ids": [],
             "admission_dependency_axis_ids": [],
             "consumes": ["approve decision", "dispatch context", "next-skill target"],
@@ -1370,9 +1573,31 @@ def _feat_relations_for(axis_id: str) -> dict[str, Any]:
             "gate_decision_dependency": "owned by this FEAT; it binds approve semantics to ready-job emission instead of formal publication",
             "admission_dependency": "none; downstream progression starts from runner intake, not admission",
         },
-        "execution-runner-intake": {
+        "runner-operator-entry": {
             "upstream_axis_ids": ["ready-job-emission"],
-            "downstream_axis_ids": ["next-skill-dispatch"],
+            "downstream_axis_ids": ["runner-control-surface"],
+            "gate_decision_axis_ids": ["ready-job-emission"],
+            "admission_dependency_axis_ids": [],
+            "consumes": ["ready execution job", "runner start request", "authoritative run scope"],
+            "produces": ["runner skill invocation record", "runner context initialization result", "runner start receipt"],
+            "authoritative_artifact": "runner skill entry invocation record",
+            "gate_decision_dependency": "depends on approve-driven ready-job emission because the runner entry exists to launch or resume consumption of authoritative ready jobs",
+            "admission_dependency": "none; runner entry belongs to execution semantics rather than formal publication or admission",
+        },
+        "runner-control-surface": {
+            "upstream_axis_ids": ["runner-operator-entry"],
+            "downstream_axis_ids": ["execution-runner-intake"],
+            "gate_decision_axis_ids": ["ready-job-emission"],
+            "admission_dependency_axis_ids": [],
+            "consumes": ["runner skill invocation record", "runner command request", "run context"],
+            "produces": ["runner control action record", "runner state update", "control evidence"],
+            "authoritative_artifact": "runner control action record",
+            "gate_decision_dependency": "control surface exists to operate approve-derived runner progression; it may not replace or bypass ready-job emission",
+            "admission_dependency": "none; runner control actions remain inside execution semantics",
+        },
+        "execution-runner-intake": {
+            "upstream_axis_ids": ["runner-control-surface"],
+            "downstream_axis_ids": ["next-skill-dispatch", "runner-observability-surface"],
             "gate_decision_axis_ids": ["ready-job-emission"],
             "admission_dependency_axis_ids": [],
             "consumes": ["ready execution job", "ready queue ownership context"],
@@ -1383,7 +1608,7 @@ def _feat_relations_for(axis_id: str) -> dict[str, Any]:
         },
         "next-skill-dispatch": {
             "upstream_axis_ids": ["execution-runner-intake"],
-            "downstream_axis_ids": ["execution-result-feedback"],
+            "downstream_axis_ids": ["execution-result-feedback", "runner-observability-surface"],
             "gate_decision_axis_ids": ["ready-job-emission"],
             "admission_dependency_axis_ids": [],
             "consumes": ["claimed execution job", "authoritative input package", "target skill ref"],
@@ -1394,7 +1619,7 @@ def _feat_relations_for(axis_id: str) -> dict[str, Any]:
         },
         "execution-result-feedback": {
             "upstream_axis_ids": ["next-skill-dispatch"],
-            "downstream_axis_ids": [],
+            "downstream_axis_ids": ["runner-observability-surface"],
             "gate_decision_axis_ids": ["ready-job-emission"],
             "admission_dependency_axis_ids": [],
             "consumes": ["execution attempt record", "downstream skill result", "runner state"],
@@ -1402,6 +1627,17 @@ def _feat_relations_for(axis_id: str) -> dict[str, Any]:
             "authoritative_artifact": "execution outcome record",
             "gate_decision_dependency": "approve starts the automatic progression chain, but this FEAT owns the post-dispatch done/failed/retry outcomes",
             "admission_dependency": "none; post-dispatch results remain execution outcomes, not admission results",
+        },
+        "runner-observability-surface": {
+            "upstream_axis_ids": ["execution-runner-intake", "next-skill-dispatch", "execution-result-feedback"],
+            "downstream_axis_ids": [],
+            "gate_decision_axis_ids": ["ready-job-emission"],
+            "admission_dependency_axis_ids": [],
+            "consumes": ["claimed execution job", "running ownership record", "dispatch lineage", "execution outcome record"],
+            "produces": ["runner observability snapshot", "backlog view", "failed/waiting-human view"],
+            "authoritative_artifact": "runner observability snapshot",
+            "gate_decision_dependency": "observability exists to show the state of approve-derived runner progression after ready-job emission",
+            "admission_dependency": "none; observability reads execution state rather than formal publication or admission state",
         },
         "collaboration-loop": {
             "upstream_axis_ids": [],
@@ -1482,11 +1718,28 @@ def apply_feature_relationships(feats: list[dict[str, Any]]) -> list[dict[str, A
         relations = _feat_relations_for(str(feat.get("axis_id") or ""))
         if execution_runner_bundle and str(feat.get("axis_id") or "") == "skill-adoption-e2e":
             relations = {
-                "upstream_axis_ids": ["ready-job-emission", "execution-runner-intake", "next-skill-dispatch", "execution-result-feedback"],
+                "upstream_axis_ids": [
+                    "ready-job-emission",
+                    "runner-operator-entry",
+                    "runner-control-surface",
+                    "execution-runner-intake",
+                    "next-skill-dispatch",
+                    "execution-result-feedback",
+                    "runner-observability-surface",
+                ],
                 "downstream_axis_ids": [],
                 "gate_decision_axis_ids": ["ready-job-emission"],
                 "admission_dependency_axis_ids": [],
-                "consumes": ["ready execution job", "claimed execution job", "next-skill invocation record", "execution outcome record", "integration scope"],
+                "consumes": [
+                    "ready execution job",
+                    "runner skill entry invocation record",
+                    "runner control action record",
+                    "claimed execution job",
+                    "next-skill invocation record",
+                    "execution outcome record",
+                    "runner observability snapshot",
+                    "integration scope",
+                ],
                 "produces": ["integration matrix", "pilot evidence package", "cutover fallback decision"],
                 "authoritative_artifact": "pilot evidence package",
                 "gate_decision_dependency": "depends on approve-driven ready-job emission being usable in a real pilot chain",
@@ -1523,6 +1776,18 @@ def canonical_glossary(feats: list[dict[str, Any]]) -> list[dict[str, str]]:
                 "must_not_be_confused_with": "formal publication package",
             },
             {
+                "term": "runner skill entry",
+                "canonical_meaning": "Dedicated Execution Loop Job Runner skill surface used by Claude/Codex CLI operators to start or resume the automatic progression runtime.",
+                "owned_by_feat": axis_to_ref.get("runner-operator-entry", ""),
+                "must_not_be_confused_with": "manual downstream skill relay",
+            },
+            {
+                "term": "runner CLI control surface",
+                "canonical_meaning": "Authoritative CLI command surface used to control runner start, resume, claim, run, complete, and fail behavior within the governed execution loop.",
+                "owned_by_feat": axis_to_ref.get("runner-control-surface", ""),
+                "must_not_be_confused_with": "ad-hoc scripts",
+            },
+            {
                 "term": "runner claim",
                 "canonical_meaning": "Single-owner intake step where Execution Loop Job Runner claims a ready job and records running ownership.",
                 "owned_by_feat": axis_to_ref.get("execution-runner-intake", ""),
@@ -1539,6 +1804,12 @@ def canonical_glossary(feats: list[dict[str, Any]]) -> list[dict[str, str]]:
                 "canonical_meaning": "Authoritative done, failed, or retry-reentry result emitted after runner dispatch completes.",
                 "owned_by_feat": axis_to_ref.get("execution-result-feedback", ""),
                 "must_not_be_confused_with": "approve terminal state",
+            },
+            {
+                "term": "runner observability surface",
+                "canonical_meaning": "Authoritative monitoring view for ready backlog, running, failed, deadletters, and waiting-human states across runner progression.",
+                "owned_by_feat": axis_to_ref.get("runner-observability-surface", ""),
+                "must_not_be_confused_with": "directory scan dashboard",
             },
         ]
     return [

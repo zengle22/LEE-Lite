@@ -73,6 +73,11 @@ class RawToSrcWorkflowTests(unittest.TestCase):
             self.assertTrue((artifacts_dir / "patch-lineage.json").exists())
             self.assertTrue((artifacts_dir / "proposed-next-actions.json").exists())
             self.assertTrue((artifacts_dir / "package-manifest.json").exists())
+            self.assertTrue((artifacts_dir / "semantic-inventory.json").exists())
+            self.assertTrue((artifacts_dir / "source-provenance-map.json").exists())
+            self.assertTrue((artifacts_dir / "contradiction-register.json").exists())
+            self.assertTrue((artifacts_dir / "normalization-decisions.json").exists())
+            self.assertTrue((artifacts_dir / "omission-and-compression-report.json").exists())
             self.assertTrue((artifacts_dir / "source-semantic-findings.json").exists())
             self.assertTrue((artifacts_dir / "handoff-proposal.json").exists())
             self.assertTrue((artifacts_dir / "job-proposal.json").exists())
@@ -100,6 +105,10 @@ class RawToSrcWorkflowTests(unittest.TestCase):
                 gate_ready_package["payload"]["machine_ssot_ref"],
                 "artifacts/raw-to-src/test-run-basic/src-candidate.json",
             )
+            semantic_inventory = json.loads((artifacts_dir / "semantic-inventory.json").read_text(encoding="utf-8"))
+            self.assertIn("runtime_objects", semantic_inventory)
+            provenance_map = json.loads((artifacts_dir / "source-provenance-map.json").read_text(encoding="utf-8"))
+            self.assertTrue(any(item["target_field"] == "problem_statement" for item in provenance_map))
 
             pending_index = json.loads((repo_root / "artifacts" / "active" / "gates" / "pending" / "index.json").read_text(encoding="utf-8"))
             self.assertEqual(len(pending_index["handoffs"]), 1)
@@ -194,7 +203,9 @@ class RawToSrcWorkflowTests(unittest.TestCase):
                         "dispatch 已经可以产出 materialized-job，但当前仍缺少一个正式 consumer 去自动消费 artifacts/jobs/ready/ 中的 job，并把它推进到下游 workflow。",
                         "",
                         "- gate approve 后会停在 formal publication trigger，不能自动跑到下一个 skill。",
-                        "- 当前仍依赖第三会话人工接力。", 
+                        "- 当前仍依赖第三会话人工接力。",
+                        "- 运行入口需要保持 CLI-first，包含 ll loop run-execution、ll job claim、ll job run、ll job complete 与 ll job fail。",
+                        "- operator 需要能看到 ready backlog、running jobs、failed jobs 与 deadletters。",
                         "",
                     ]
                 ),
@@ -210,6 +221,23 @@ class RawToSrcWorkflowTests(unittest.TestCase):
             self.assertEqual(semantic_lock["primary_object"], "execution_loop_job_runner")
             self.assertIn("ready_queue_consumption", semantic_lock["allowed_capabilities"])
             self.assertIn("formal_publication_substitution", semantic_lock["forbidden_capabilities"])
+            operator_surfaces = candidate["operator_surface_inventory"]
+            self.assertTrue(any(item["entry_kind"] == "skill_entry" for item in operator_surfaces))
+            self.assertTrue(any(item["entry_kind"] == "cli_control_surface" and item["name"] == "ll loop run-execution" for item in operator_surfaces))
+            self.assertTrue(any(item["entry_kind"] == "monitor_surface" for item in operator_surfaces))
+            semantic_inventory = candidate["semantic_inventory"]
+            self.assertIn("Execution Loop Job Runner", semantic_inventory["operator_surfaces"])
+            self.assertIn("ll loop run-execution", semantic_inventory["commands"])
+            self.assertTrue(any("ready backlog" in item for item in semantic_inventory["observability_surfaces"]))
+            provenance_entries = candidate["source_provenance_map"]
+            self.assertTrue(
+                any(
+                    item["target_field"] == "operator_surface_inventory.skill_entry.Execution Loop Job Runner"
+                    for item in provenance_entries
+                )
+            )
+            compression_report = candidate["omission_and_compression_report"]
+            self.assertFalse(compression_report["omitted_items"])
 
     def test_markdown_adr_bridge_does_not_inline_full_body(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -258,7 +286,7 @@ class RawToSrcWorkflowTests(unittest.TestCase):
             self.assertIn("文件系统读写仍然是自由能力，而不是受控能力。", content)
             self.assertNotIn("状态：Draft", content)
             self.assertNotIn("## 2.1 正式产物落点不稳定", content)
-            self.assertLess(len(content), 4000)
+            self.assertLess(len(content), 7000)
             self.assertIn("当前执行链已经出现", sections["问题陈述"])
             self.assertIn("这会直接造成", sections["问题陈述"])
             self.assertIn("正式文件读写统一纳入围绕", sections["问题陈述"])
@@ -266,6 +294,10 @@ class RawToSrcWorkflowTests(unittest.TestCase):
             self.assertIn("需要现在就把这类治理变化收敛成正式需求源", sections["业务动因"])
             self.assertIn("统一原则：", sections["治理变更摘要"])
             self.assertIn("下游必须继承的约束：", sections["治理变更摘要"])
+            self.assertIn("Operator surfaces", sections["语义清单"])
+            self.assertIn("loss_risk=", sections["标准化决策"])
+            self.assertIn("bridge_context", sections["压缩与省略说明"])
+            self.assertIn("未检测到需要冻结为独立 skill / CLI control surface 的显式用户入口", sections["用户入口与控制面"])
             self.assertIn("workflow / orchestration 设计者", sections["目标用户"])
             self.assertIn("human gate / reviewer", sections["目标用户"])
             self.assertIn("定义 skill 文件读写、artifact 输入输出边界与路径策略的统一治理边界。", sections["范围边界"])

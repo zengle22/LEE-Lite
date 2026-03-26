@@ -5,7 +5,6 @@ Lite-native runtime support for feat-to-tech.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -18,103 +17,43 @@ from feat_to_tech_cli_integration import (
     write_executor_outputs,
 )
 from feat_to_tech_common import (
+    dump_json,
     ensure_list,
     find_feature,
     guess_repo_root_from_input,
     load_feat_package,
     load_json,
     normalize_semantic_lock,
-    parse_markdown_frontmatter,
-    unique_strings,
+    resolve_input_artifacts_dir,
     validate_input_package,
 )
-from feat_to_tech_derivation import (
-    api_command_specs,
-    api_cli_commands,
-    api_compatibility_rules,
-    api_error_and_idempotency,
-    api_request_response_contracts,
-    api_surfaces,
-    architecture_topics,
-    architecture_diagram,
-    assess_optional_artifacts,
-    build_refs,
-    consistency_check,
-    design_focus,
-    explicit_axis,
-    exception_compensation,
-    flow_diagram,
-    implementation_unit_mapping,
-    integration_points,
-    interface_contracts,
-    implementation_architecture,
-    implementation_modules,
-    implementation_strategy,
-    implementation_rules,
-    main_sequence,
-    minimal_code_skeleton,
-    non_functional_requirements,
-    responsibility_splits,
-    selected_feat_snapshot,
-    state_model,
-    tech_runtime_view,
-    traceability_rows,
+from feat_to_tech_gate_integration import (
+    create_gate_ready_package,
+    create_handoff_proposal,
+    submit_gate_pending,
 )
-REQUIRED_OUTPUT_FILES = [
-    "tech-design-bundle.md",
-    "tech-design-bundle.json",
-    "tech-spec.md",
-    "tech-review-report.json",
-    "tech-acceptance-report.json",
-    "tech-defect-list.json",
-    "tech-freeze-gate.json",
-    "handoff-to-tech-impl.json",
-    "semantic-drift-check.json",
-    "execution-evidence.json",
-    "supervision-evidence.json",
-]
-REQUIRED_MARKDOWN_HEADINGS = [
-    "Selected FEAT",
-    "Need Assessment",
-    "TECH Design",
-    "Optional ARCH",
-    "Optional API",
-    "Cross-Artifact Consistency",
-    "Downstream Handoff",
-    "Traceability",
-]
-REQUIRED_TECH_SUBHEADINGS = [
-    "### Implementation Carrier View",
-    "### State Model",
-    "### Module Plan",
-    "### Implementation Strategy",
-    "### Implementation Unit Mapping",
-    "### Interface Contracts",
-    "### Main Sequence",
-    "### Exception and Compensation",
-    "### Integration Points",
-    "### Minimal Code Skeleton",
-]
-REQUIRED_API_HEADINGS = [
-    "## Contract Scope",
-    "## Response Envelope",
-    "## Command Contracts",
-    "## Compatibility and Versioning",
-]
+from feat_to_tech_package_builder import GeneratedTechPackage, build_tech_package
+from feat_to_tech_validation import validate_output_package
 DOWNSTREAM_WORKFLOW = "workflow.dev.tech_to_impl"
 
 def utc_now() -> str:
     return datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
 
-def repo_root_from(repo_root: str | None, input_path: Path | None = None) -> Path:
+def repo_root_from(repo_root: str | None, input_path: str | Path | None = None) -> Path:
     if repo_root:
         return Path(repo_root).resolve()
     if input_path is not None:
-        return guess_repo_root_from_input(input_path.resolve())
+        candidate = Path(str(input_path))
+        if candidate.exists():
+            return guess_repo_root_from_input(candidate.resolve())
     return Path.cwd().resolve()
 
 def output_dir_for(repo_root: Path, run_id: str) -> Path:
     return repo_root / "artifacts" / "feat-to-tech" / run_id
+
+
+def repo_relative(repo_root: Path, path: Path) -> str:
+    return path.resolve().relative_to(repo_root.resolve()).as_posix()
 
 
 def display_list(values: list[str]) -> str:
@@ -122,723 +61,6 @@ def display_list(values: list[str]) -> str:
     return ", ".join(items) if items else "None"
 
 
-@dataclass
-class GeneratedTechPackage:
-    run_id: str
-    frontmatter: dict[str, Any]
-    markdown_body: str
-    json_payload: dict[str, Any]
-    tech_frontmatter: dict[str, Any]
-    tech_body: str
-    arch_frontmatter: dict[str, Any] | None
-    arch_body: str | None
-    api_frontmatter: dict[str, Any] | None
-    api_body: str | None
-    review_report: dict[str, Any]
-    acceptance_report: dict[str, Any]
-    defect_list: list[dict[str, Any]]
-    handoff: dict[str, Any]
-    semantic_drift_check: dict[str, Any]
-    execution_decisions: list[str]
-    execution_uncertainties: list[str]
-
-
-def build_semantic_drift_check(feature: dict[str, Any], generated_text_parts: list[str]) -> dict[str, Any]:
-    lock = normalize_semantic_lock(feature.get("semantic_lock"))
-    if not lock:
-        return {
-            "verdict": "not_applicable",
-            "semantic_lock_present": False,
-            "semantic_lock_preserved": True,
-            "forbidden_axis_detected": [],
-            "anchor_matches": [],
-            "summary": "No semantic_lock present.",
-        }
-
-    generated_text = " ".join(part for part in generated_text_parts if str(part).strip()).lower()
-    forbidden_hits = [item for item in lock.get("forbidden_capabilities", []) if str(item).strip().lower() in generated_text]
-    anchor_matches: list[str] = []
-    token_groups = {
-        "domain_type": [str(lock.get("domain_type") or "").replace("_", " ").lower()],
-        "primary_object": [token for token in str(lock.get("primary_object") or "").replace("_", " ").lower().split() if token],
-        "lifecycle_stage": [token for token in str(lock.get("lifecycle_stage") or "").replace("_", " ").lower().split() if token],
-    }
-    for label, tokens in token_groups.items():
-        if tokens and all(token in generated_text for token in tokens):
-            anchor_matches.append(label)
-    if str(lock.get("domain_type") or "").strip().lower() == "review_projection_rule":
-        if explicit_axis(feature) in {
-            "projection_generation",
-            "authoritative_snapshot",
-            "review_focus_risk",
-            "feedback_writeback",
-        }:
-            anchor_matches.append("review_projection_axis")
-        review_projection_tokens = ["projection", "gate", "ssot"]
-        if all(token in generated_text for token in review_projection_tokens):
-            anchor_matches.append("review_projection_signature")
-    preserved = not forbidden_hits and len(anchor_matches) >= 1
-    return {
-        "verdict": "pass" if preserved else "reject",
-        "semantic_lock_present": True,
-        "semantic_lock_preserved": preserved,
-        "domain_type": lock.get("domain_type"),
-        "one_sentence_truth": lock.get("one_sentence_truth"),
-        "forbidden_axis_detected": forbidden_hits,
-        "anchor_matches": anchor_matches,
-        "summary": "semantic_lock preserved." if preserved else "semantic_lock drift detected.",
-    }
-
-def build_tech_package(package: Any, feature: dict[str, Any], feat_ref: str, run_id: str) -> GeneratedTechPackage:
-    feature = dict(feature)
-    feature["semantic_lock"] = normalize_semantic_lock(feature.get("semantic_lock") or package.semantic_lock)
-    refs = build_refs(feature, package)
-    assessment = assess_optional_artifacts(feature, package)
-    focus = design_focus(feature)
-    rules = implementation_rules(feature)
-    nfrs = non_functional_requirements(feature, package)
-    implementation_arch = implementation_architecture(feature)
-    modules = implementation_modules(feature)
-    states = state_model(feature)
-    strategy = implementation_strategy(feature)
-    arch_diagram = architecture_diagram(feature)
-    runtime_view = tech_runtime_view(feature)
-    main_flow_diagram = flow_diagram(feature)
-    unit_mapping = implementation_unit_mapping(feature)
-    contracts = interface_contracts(feature)
-    sequence_steps = main_sequence(feature)
-    exception_rules = exception_compensation(feature)
-    integrations = integration_points(feature)
-    skeleton = minimal_code_skeleton(feature)
-    api_specs = api_command_specs(feature)
-    traceability = traceability_rows(feature, package, refs)
-    consistency = consistency_check(feature, assessment)
-    source_refs = unique_strings(
-        [f"product.epic-to-feat::{package.run_id}", refs["feat_ref"], refs["tech_ref"], refs["epic_ref"], refs["src_ref"]]
-        + ensure_list(feature.get("source_refs"))
-        + ensure_list(package.feat_json.get("source_refs"))
-    )
-    semantic_drift_check = build_semantic_drift_check(
-        feature,
-        [
-            str(feature.get("title") or ""),
-            str(feature.get("goal") or ""),
-            explicit_axis(feature) or "",
-            " ".join(focus),
-            " ".join(rules),
-            " ".join(implementation_arch),
-            " ".join(modules),
-            " ".join(contracts),
-            " ".join(integrations),
-        ],
-    )
-
-    artifact_refs = {
-        "tech_spec": "tech-spec.md",
-        "arch_spec": "arch-design.md" if assessment["arch_required"] else None,
-        "api_spec": "api-contract.md" if assessment["api_required"] else None,
-    }
-
-    defects: list[dict[str, Any]] = []
-    if len(focus) < 3:
-        defects.append(
-            {
-                "severity": "P1",
-                "title": "TECH design focus is too thin",
-                "detail": "The selected FEAT does not expose enough scope or constraint detail to support a robust TECH design.",
-            }
-        )
-    if not consistency["passed"]:
-        defects.append(
-            {
-                "severity": "P1",
-                "title": "Cross-artifact consistency failed",
-                "detail": "; ".join(consistency["issues"]),
-            }
-        )
-    if semantic_drift_check["verdict"] == "reject":
-        defects.append(
-            {
-                "severity": "P1",
-                "title": "semantic_lock drift detected",
-                "detail": semantic_drift_check["summary"],
-            }
-        )
-
-    review_decision = "pass" if not defects else "revise"
-    acceptance_decision = "approve" if not defects else "revise"
-
-    handoff = {
-        "handoff_id": f"handoff-{run_id}-to-tech-impl",
-        "from_skill": "ll-dev-feat-to-tech",
-        "source_run_id": run_id,
-        "target_workflow": DOWNSTREAM_WORKFLOW,
-        "feat_ref": refs["feat_ref"],
-        "tech_ref": refs["tech_ref"],
-        "arch_ref": refs["arch_ref"] if assessment["arch_required"] else None,
-        "api_ref": refs["api_ref"] if assessment["api_required"] else None,
-        "primary_artifact_ref": "tech-design-bundle.md",
-        "supporting_artifact_refs": [
-            "tech-design-bundle.json",
-            "tech-spec.md",
-            *(['arch-design.md'] if assessment["arch_required"] else []),
-            *(['api-contract.md'] if assessment["api_required"] else []),
-            "tech-review-report.json",
-            "tech-acceptance-report.json",
-            "tech-defect-list.json",
-        ],
-        "created_at": utc_now(),
-    }
-
-    json_payload = {
-        "artifact_type": "tech_design_package",
-        "workflow_key": "dev.feat-to-tech",
-        "workflow_run_id": run_id,
-        "title": f"{feature.get('title') or feat_ref} Technical Design Package",
-        "status": "accepted" if not defects else "revised",
-        "schema_version": "1.0.0",
-        "feat_ref": refs["feat_ref"],
-        "tech_ref": refs["tech_ref"],
-        "arch_ref": refs["arch_ref"] if assessment["arch_required"] else None,
-        "api_ref": refs["api_ref"] if assessment["api_required"] else None,
-        "epic_freeze_ref": refs["epic_ref"],
-        "src_root_id": refs["src_ref"],
-        "source_refs": source_refs,
-        "semantic_lock": feature["semantic_lock"],
-        "arch_required": assessment["arch_required"],
-        "api_required": assessment["api_required"],
-        "need_assessment": assessment,
-        "selected_feat": {
-            **selected_feat_snapshot(feature),
-            "resolved_axis": explicit_axis(feature) or "derived",
-        },
-        "tech_design": {
-            "design_focus": focus,
-            "implementation_rules": rules,
-            "non_functional_requirements": nfrs,
-            "implementation_carrier_view": {
-                "summary": implementation_arch,
-                "diagram": runtime_view,
-            },
-            "implementation_architecture": implementation_arch,
-            "state_model": states,
-            "module_plan": modules,
-            "implementation_strategy": strategy,
-            "implementation_unit_mapping": unit_mapping,
-            "interface_contracts": contracts,
-            "main_sequence": sequence_steps,
-            "flow_diagram": main_flow_diagram,
-            "exception_and_compensation": exception_rules,
-            "integration_points": integrations,
-            "minimal_code_skeleton": skeleton,
-        },
-        "optional_arch": {
-            "arch_ref": refs["arch_ref"],
-            "topics": architecture_topics(feature),
-            "rationale": assessment["arch_rationale"],
-        }
-        if assessment["arch_required"]
-        else None,
-        "optional_api": {
-            "api_ref": refs["api_ref"],
-            "surfaces": api_surfaces(feature),
-            "command_refs": [spec["command"] for spec in api_specs],
-            "response_envelope": {
-                "success": "{ ok: true, command_ref, trace_ref, result }",
-                "error": "{ ok: false, command_ref, trace_ref, error }",
-            },
-            "compatibility_rules": api_compatibility_rules(feature),
-            "rationale": assessment["api_rationale"],
-        }
-        if assessment["api_required"]
-        else None,
-        "artifact_refs": artifact_refs,
-        "design_consistency_check": consistency,
-        "downstream_handoff": handoff,
-        "traceability": traceability,
-        "semantic_drift_check": semantic_drift_check,
-    }
-
-    frontmatter = {
-        "artifact_type": "tech_design_package",
-        "workflow_key": "dev.feat-to-tech",
-        "workflow_run_id": run_id,
-        "status": json_payload["status"],
-        "schema_version": "1.0.0",
-        "feat_ref": refs["feat_ref"],
-        "tech_ref": refs["tech_ref"],
-        "arch_required": assessment["arch_required"],
-        "api_required": assessment["api_required"],
-        "source_refs": source_refs,
-        "semantic_lock": feature["semantic_lock"],
-    }
-
-    markdown_body = "\n\n".join(
-        [
-            f"# {json_payload['title']}",
-            "## Selected FEAT\n\n"
-            + "\n".join(
-                [
-                    f"- feat_ref: `{refs['feat_ref']}`",
-                    f"- title: {feature.get('title')}",
-                    f"- axis_id: {feature.get('axis_id')}",
-                    f"- resolved_axis: {explicit_axis(feature) or 'derived'}",
-                    f"- epic_freeze_ref: `{refs['epic_ref']}`",
-                    f"- src_root_id: `{refs['src_ref']}`",
-                    f"- goal: {feature.get('goal')}",
-                    f"- authoritative_artifact: {feature.get('authoritative_artifact')}",
-                    f"- upstream_feat: {display_list(ensure_list(feature.get('upstream_feat')))}",
-                    f"- downstream_feat: {display_list(ensure_list(feature.get('downstream_feat')))}",
-                    f"- gate_decision_dependency_feat_refs: {display_list(ensure_list(feature.get('gate_decision_dependency_feat_refs')))}",
-                    f"- admission_dependency_feat_refs: {display_list(ensure_list(feature.get('admission_dependency_feat_refs')))}",
-                ]
-            ),
-            "## Need Assessment\n\n"
-            + "\n".join(
-                [
-                    f"- arch_required: {assessment['arch_required']}",
-                    *[f"  - {item}" for item in assessment["arch_rationale"]],
-                    f"- api_required: {assessment['api_required']}",
-                    *[f"  - {item}" for item in assessment["api_rationale"]],
-                ]
-            ),
-            "## TECH Design\n\n"
-            + "\n".join(
-                [
-                    "- Design focus:",
-                    *[f"  - {item}" for item in focus],
-                    "- Implementation rules:",
-                    *[f"  - {item}" for item in rules],
-                    "- Non-functional requirements:",
-                    *[f"  - {item}" for item in nfrs],
-                    "",
-                    "### Implementation Carrier View",
-                    *[f"- {item}" for item in implementation_arch],
-                    "",
-                    runtime_view,
-                    "",
-                    "### State Model",
-                    *[f"- {item}" for item in states],
-                    "",
-                    "### Module Plan",
-                    *[f"- {item}" for item in modules],
-                    "",
-                    "### Implementation Strategy",
-                    *[f"- {item}" for item in strategy],
-                    "",
-                    "### Implementation Unit Mapping",
-                    *[f"- {item}" for item in unit_mapping],
-                    "",
-                    "### Interface Contracts",
-                    *[f"- {item}" for item in contracts],
-                    "",
-                    "### Main Sequence",
-                    *[f"- {item}" for item in sequence_steps],
-                    "",
-                    main_flow_diagram,
-                    "",
-                    "### Exception and Compensation",
-                    *[f"- {item}" for item in exception_rules],
-                    "",
-                    "### Integration Points",
-                    *[f"- {item}" for item in integrations],
-                    "",
-                    "### Minimal Code Skeleton",
-                    "- Happy path:",
-                    skeleton["happy_path"],
-                    "",
-                    "- Failure path:",
-                    skeleton["failure_path"],
-                ]
-            ),
-            "## Optional ARCH\n\n"
-            + (
-                "\n".join(
-                    [
-                        f"- arch_ref: `{refs['arch_ref']}`",
-                        "- summary_topics:",
-                        *[f"  - {item}" for item in architecture_topics(feature)],
-                        "- see: `arch-design.md`",
-                    ]
-                )
-                if assessment["arch_required"]
-                else "- ARCH not required for this FEAT."
-            ),
-            "## Optional API\n\n"
-            + (
-                "\n".join(
-                    [
-                        f"- api_ref: `{refs['api_ref']}`",
-                        "- contract_surfaces:",
-                        *[f"  - {item}" for item in api_surfaces(feature)],
-                        "- command_refs:",
-                        *[f"  - `{spec['command']}`" for spec in api_specs],
-                        "- response_envelope:",
-                        "  - success: `{ ok: true, command_ref, trace_ref, result }`",
-                        "  - error: `{ ok: false, command_ref, trace_ref, error }`",
-                        "- see: `api-contract.md`",
-                    ]
-                )
-                if assessment["api_required"]
-                else "- API not required for this FEAT."
-            ),
-            "## Cross-Artifact Consistency\n\n"
-            + "\n".join(
-                [
-                    f"- passed: {consistency['passed']}",
-                    f"- structural_passed: {consistency['structural_passed']}",
-                    f"- semantic_passed: {consistency['semantic_passed']}",
-                    "- checks:",
-                    *[
-                        f"  - [{item['category']}] {item['name']}: {item['passed']} ({item['detail']})"
-                        for item in consistency["checks"]
-                    ],
-                    "- issues:",
-                    *([f"  - {item}" for item in consistency["issues"]] or ["  - None"]),
-                    "- minor_open_items:",
-                    *([f"  - {item}" for item in consistency["minor_open_items"]] or ["  - None"]),
-                ]
-            ),
-            "## Downstream Handoff\n\n"
-            + "\n".join(
-                [
-                    f"- target_workflow: {DOWNSTREAM_WORKFLOW}",
-                    f"- tech_ref: `{refs['tech_ref']}`",
-                    f"- arch_ref: `{refs['arch_ref']}`" if assessment["arch_required"] else "- arch_ref: not emitted",
-                    f"- api_ref: `{refs['api_ref']}`" if assessment["api_required"] else "- api_ref: not emitted",
-                ]
-            ),
-            "## Traceability\n\n"
-            + "\n".join(
-                f"- {item['design_section']}: {', '.join(item['feat_fields'])} <- {', '.join(item['source_refs'])}"
-                for item in traceability
-            ),
-        ]
-    )
-
-    tech_frontmatter = {
-        "artifact_type": "TECH",
-        "status": json_payload["status"],
-        "schema_version": "1.0.0",
-        "tech_ref": refs["tech_ref"],
-        "feat_ref": refs["feat_ref"],
-        "source_refs": source_refs,
-    }
-    tech_body = "\n\n".join(
-        [
-            f"# {refs['tech_ref']}",
-            "## Overview\n\n" + str(feature.get("goal") or ""),
-            "## Design Focus\n\n" + "\n".join(f"- {item}" for item in focus),
-            "## Implementation Rules\n\n" + "\n".join(f"- {item}" for item in rules),
-            "## Non-Functional Requirements\n\n" + "\n".join(f"- {item}" for item in nfrs),
-            "## Implementation Carrier View\n\n" + "\n".join(f"- {item}" for item in implementation_arch) + "\n\n" + runtime_view,
-            "## State Model\n\n" + "\n".join(f"- {item}" for item in states),
-            "## Module Plan\n\n" + "\n".join(f"- {item}" for item in modules),
-            "## Implementation Strategy\n\n" + "\n".join(f"- {item}" for item in strategy),
-            "## Implementation Unit Mapping\n\n" + "\n".join(f"- {item}" for item in unit_mapping),
-            "## Interface Contracts\n\n" + "\n".join(f"- {item}" for item in contracts),
-            "## Main Sequence\n\n" + "\n".join(f"- {item}" for item in sequence_steps) + "\n\n" + main_flow_diagram,
-            "## Exception and Compensation\n\n" + "\n".join(f"- {item}" for item in exception_rules),
-            "## Integration Points\n\n" + "\n".join(f"- {item}" for item in integrations),
-            "## Minimal Code Skeleton\n\n- Happy path:\n\n" + skeleton["happy_path"] + "\n\n- Failure path:\n\n" + skeleton["failure_path"],
-            "## Traceability\n\n" + "\n".join(f"- {item['design_section']}: {', '.join(item['source_refs'])}" for item in traceability),
-        ]
-    )
-    arch_frontmatter = None
-    arch_body = None
-    if assessment["arch_required"]:
-        arch_out_of_scope = ensure_list(feature.get("non_goals"))
-        arch_out_of_scope.extend(
-            item
-            for item in ensure_list(feature.get("constraints"))
-            if any(marker in item.lower() for marker in ["不得", "不", "only", "must not", "do not", "not "])
-        )
-        acceptance = feature.get("acceptance_and_testability") or {}
-        if isinstance(acceptance, dict):
-            arch_out_of_scope.extend(ensure_list(acceptance.get("out_of_scope")))
-        if not arch_out_of_scope:
-            axis = explicit_axis(feature) or "derived"
-            default_out_of_scope = {
-                "collaboration": [
-                    "Do not define decision vocabulary or final formalization semantics here.",
-                    "Do not publish formal objects or downstream admission results here.",
-                ],
-                "formalization": [
-                    "Do not redefine authoritative submission or pending visibility here.",
-                    "Do not decide downstream consumer admission policy here.",
-                ],
-                "layering": [
-                    "Do not redefine handoff submission or materialization dispatch here.",
-                    "Do not rewrite path / mode governance here.",
-                ],
-                "io_governance": [
-                    "Do not redefine object layering or admission semantics here.",
-                    "Do not carry approve / reject business semantics here.",
-                ],
-                "adoption_e2e": [
-                    "Do not rewrite foundation FEAT internal semantics here.",
-                    "Do not create a parallel gate or audit decision model here.",
-                ],
-            }
-            arch_out_of_scope.extend(default_out_of_scope.get(axis, []))
-        arch_frontmatter = {
-            "artifact_type": "ARCH",
-            "status": json_payload["status"],
-            "schema_version": "1.0.0",
-            "arch_ref": refs["arch_ref"],
-            "feat_ref": refs["feat_ref"],
-            "source_refs": source_refs,
-        }
-        arch_body = "\n\n".join(
-            [
-                f"# {refs['arch_ref']}",
-                "## Boundary Placement\n\n" + "\n".join(f"- {item}" for item in architecture_topics(feature)),
-                "## System Topology\n\n" + arch_diagram,
-                "## Responsibility Split\n\n" + "\n".join(f"- {item}" for item in responsibility_splits(feature)),
-                "## Dedicated Runtime Placement\n\n" + "\n".join(f"- {item}" for item in assessment["arch_rationale"]),
-                "## Out of Scope\n\n" + "\n".join(f"- {item}" for item in unique_strings(arch_out_of_scope)[:4]),
-            ]
-        )
-
-    api_frontmatter = None
-    api_body = None
-    if assessment["api_required"]:
-        api_frontmatter = {
-            "artifact_type": "API",
-            "status": json_payload["status"],
-            "schema_version": "1.0.0",
-            "api_ref": refs["api_ref"],
-            "feat_ref": refs["feat_ref"],
-            "source_refs": source_refs,
-        }
-        api_body = "\n\n".join(
-            [
-                f"# {refs['api_ref']}",
-                "## Contract Scope\n\n" + "\n".join(f"- {item}" for item in api_surfaces(feature)),
-                "## Response Envelope\n\n"
-                + "\n".join(
-                    [
-                        "- Success envelope: `{ ok: true, command_ref, trace_ref, result }`",
-                        "- Error envelope: `{ ok: false, command_ref, trace_ref, error }`",
-                    ]
-                ),
-                "## Command Contracts\n\n"
-                + "\n\n".join(
-                    "\n".join(
-                        [
-                            f"### `{spec['command']}`",
-                            f"- Surface: {spec['surface']}",
-                            "- Request schema:",
-                            *[f"  - {item}" for item in spec["request_schema"]],
-                            "- Response schema:",
-                            *[f"  - {item}" for item in spec["response_schema"]],
-                            "- Field semantics:",
-                            *[f"  - {item}" for item in spec["field_semantics"]],
-                            "- Enum / domain:",
-                            *([f"  - {item}" for item in spec["enum_domain"]] or ["  - None"]),
-                            "- Invariants:",
-                            *[f"  - {item}" for item in spec["invariants"]],
-                            "- Canonical refs:",
-                            *[f"  - {item}" for item in spec["canonical_refs"]],
-                            "- Errors:",
-                            *[f"  - {item}" for item in spec["errors"]],
-                            f"- Idempotency key: {spec['idempotency']}",
-                            "- Preconditions:",
-                            *[f"  - {item}" for item in spec["preconditions"]],
-                        ]
-                    )
-                    for spec in api_specs
-                ),
-                "## Compatibility and Versioning\n\n"
-                + "\n".join(
-                    [f"- {item}" for item in api_compatibility_rules(feature)]
-                ),
-            ]
-        )
-
-    review_report = {
-        "review_id": f"tech-review-{run_id}",
-        "review_type": "tech_design_review",
-        "subject_refs": [refs["feat_ref"], refs["tech_ref"]],
-        "summary": "TECH package preserves FEAT traceability and downstream implementation readiness.",
-        "findings": [
-            "TECH is present and aligned to the selected FEAT.",
-            "Optional companions were emitted only when need assessment required them.",
-            "A final cross-artifact consistency check was recorded before freeze.",
-        ],
-        "decision": review_decision,
-        "risks": [defect["detail"] for defect in defects],
-        "created_at": utc_now(),
-    }
-
-    acceptance_report = {
-        "stage_id": "tech_acceptance_review",
-        "created_by_role": "supervisor",
-        "decision": acceptance_decision,
-        "dimensions": {
-            "tech_presence": {"status": "pass", "note": "TECH is mandatory and present."},
-            "optional_outputs_match_assessment": {
-                "status": "pass" if not defects else "fail",
-                "note": "Optional ARCH/API outputs align with the need assessment." if not defects else "Optional outputs need revision.",
-            },
-            "cross_artifact_consistency": {
-                "status": "pass" if consistency["passed"] else "fail",
-                "note": "ARCH, TECH, and API remain aligned." if consistency["passed"] else "Consistency issues remain open.",
-            },
-            "downstream_readiness": {
-                "status": "pass" if not defects else "fail",
-                "note": "Output remains actionable for workflow.dev.tech_to_impl." if not defects else "Output is not freeze-ready for downstream implementation planning.",
-            },
-        },
-        "summary": "TECH acceptance review passed." if not defects else "TECH acceptance review requires revision.",
-        "acceptance_findings": defects,
-        "created_at": utc_now(),
-    }
-
-    execution_decisions = [
-        f"Selected FEAT {refs['feat_ref']} from upstream run {package.run_id}.",
-        f"ARCH required: {assessment['arch_required']}.",
-        f"API required: {assessment['api_required']}.",
-        f"Prepared downstream handoff to {DOWNSTREAM_WORKFLOW}.",
-    ]
-    execution_uncertainties = consistency["issues"][:]
-
-    return GeneratedTechPackage(
-        run_id=run_id,
-        frontmatter=frontmatter,
-        markdown_body=markdown_body,
-        json_payload=json_payload,
-        tech_frontmatter=tech_frontmatter,
-        tech_body=tech_body,
-        arch_frontmatter=arch_frontmatter,
-        arch_body=arch_body,
-        api_frontmatter=api_frontmatter,
-        api_body=api_body,
-        review_report=review_report,
-        acceptance_report=acceptance_report,
-        defect_list=defects,
-        handoff=handoff,
-        semantic_drift_check=semantic_drift_check,
-        execution_decisions=execution_decisions,
-        execution_uncertainties=execution_uncertainties,
-    )
-
-def validate_output_package(artifacts_dir: Path) -> tuple[list[str], dict[str, Any]]:
-    errors: list[str] = []
-    if not artifacts_dir.exists() or not artifacts_dir.is_dir():
-        return [f"Output package not found: {artifacts_dir}"], {"valid": False}
-
-    for required_file in REQUIRED_OUTPUT_FILES:
-        if not (artifacts_dir / required_file).exists():
-            errors.append(f"Missing required output artifact: {required_file}")
-    if errors:
-        return errors, {"valid": False}
-
-    bundle_json = load_json(artifacts_dir / "tech-design-bundle.json")
-    if bundle_json.get("artifact_type") != "tech_design_package":
-        errors.append("tech-design-bundle.json artifact_type must be tech_design_package.")
-    if bundle_json.get("workflow_key") != "dev.feat-to-tech":
-        errors.append("tech-design-bundle.json workflow_key must be dev.feat-to-tech.")
-
-    feat_ref = str(bundle_json.get("feat_ref") or "")
-    tech_ref = str(bundle_json.get("tech_ref") or "")
-    source_refs = ensure_list(bundle_json.get("source_refs"))
-    if not feat_ref:
-        errors.append("tech-design-bundle.json must include feat_ref.")
-    if not tech_ref:
-        errors.append("tech-design-bundle.json must include tech_ref.")
-    if not any(ref.startswith("product.epic-to-feat::") for ref in source_refs):
-        errors.append("tech-design-bundle.json source_refs must include product.epic-to-feat::<run_id>.")
-    if not any(ref.startswith("FEAT-") for ref in source_refs):
-        errors.append("tech-design-bundle.json source_refs must include FEAT-*.")
-    if not any(ref.startswith("TECH-") for ref in source_refs):
-        errors.append("tech-design-bundle.json source_refs must include TECH-*.")
-    if not any(ref.startswith("EPIC-") for ref in source_refs):
-        errors.append("tech-design-bundle.json source_refs must include EPIC-*.")
-    if not any(ref.startswith("SRC-") for ref in source_refs):
-        errors.append("tech-design-bundle.json source_refs must include SRC-*.")
-
-    artifact_refs = bundle_json.get("artifact_refs") or {}
-    if artifact_refs.get("tech_spec") != "tech-spec.md":
-        errors.append("artifact_refs.tech_spec must point to tech-spec.md.")
-    unexpected_artifact_refs = [key for key in artifact_refs if key not in {"tech_spec", "arch_spec", "api_spec"}]
-    if unexpected_artifact_refs:
-        errors.append(
-            "artifact_refs may only contain tech_spec/arch_spec/api_spec; unexpected keys: "
-            + ", ".join(sorted(unexpected_artifact_refs))
-        )
-
-    arch_required = bool(bundle_json.get("arch_required"))
-    api_required = bool(bundle_json.get("api_required"))
-    if arch_required and not (artifacts_dir / "arch-design.md").exists():
-        errors.append("arch-design.md must exist when arch_required is true.")
-    if not arch_required and (artifacts_dir / "arch-design.md").exists():
-        errors.append("arch-design.md must not exist when arch_required is false.")
-    if api_required and not (artifacts_dir / "api-contract.md").exists():
-        errors.append("api-contract.md must exist when api_required is true.")
-    if not api_required and (artifacts_dir / "api-contract.md").exists():
-        errors.append("api-contract.md must not exist when api_required is false.")
-    if api_required:
-        api_body = (artifacts_dir / "api-contract.md").read_text(encoding="utf-8")
-        for heading in REQUIRED_API_HEADINGS:
-            if heading not in api_body:
-                errors.append(f"api-contract.md must contain heading: {heading}")
-
-    consistency = bundle_json.get("design_consistency_check")
-    if not isinstance(consistency, dict):
-        errors.append("tech-design-bundle.json must include design_consistency_check.")
-    else:
-        required_keys = {"passed", "structural_passed", "semantic_passed", "checks", "issues", "minor_open_items"}
-        if not required_keys.issubset(set(consistency.keys())):
-            errors.append("design_consistency_check must include passed/structural_passed/semantic_passed/checks/issues/minor_open_items.")
-    semantic_drift_check = load_json(artifacts_dir / "semantic-drift-check.json")
-    if bundle_json.get("semantic_lock") and semantic_drift_check.get("semantic_lock_preserved") is not True:
-        errors.append("semantic-drift-check.json must preserve semantic_lock when semantic_lock is present.")
-
-    markdown_text = (artifacts_dir / "tech-design-bundle.md").read_text(encoding="utf-8")
-    _, markdown_body = parse_markdown_frontmatter(markdown_text)
-    for heading in REQUIRED_MARKDOWN_HEADINGS:
-        if f"## {heading}" not in markdown_body:
-            errors.append(f"tech-design-bundle.md is missing section: {heading}")
-    for subheading in REQUIRED_TECH_SUBHEADINGS:
-        if subheading not in markdown_body:
-            errors.append(f"tech-design-bundle.md is missing TECH subsection: {subheading.replace('### ', '')}")
-    if markdown_body.count("```text") < 2:
-        errors.append("tech-design-bundle.md must include at least two ASCII diagrams for architecture and flow.")
-
-    handoff = load_json(artifacts_dir / "handoff-to-tech-impl.json")
-    if handoff.get("target_workflow") != DOWNSTREAM_WORKFLOW:
-        errors.append(f"handoff-to-tech-impl.json must target {DOWNSTREAM_WORKFLOW}.")
-
-    selected_feat = bundle_json.get("selected_feat") or {}
-    selected_source_refs = ensure_list(selected_feat.get("source_refs"))
-    selected_axis_markers = {
-        str(selected_feat.get("resolved_axis") or "").strip().lower(),
-        str(selected_feat.get("axis_id") or "").strip().lower(),
-        str(selected_feat.get("track") or "").strip().lower(),
-    }
-    if "ADR-007" in selected_source_refs and any(marker in {"adoption_e2e", "skill-adoption-e2e"} for marker in selected_axis_markers if marker):
-        implementation_rules = ensure_list((bundle_json.get("tech_design") or {}).get("implementation_rules"))
-        joined_rules = "\n".join(implementation_rules)
-        for marker in [
-            "skill.qa.test_exec_web_e2e",
-            "skill.qa.test_exec_cli",
-            "skill.runner.test_e2e",
-            "skill.runner.test_cli",
-        ]:
-            if marker not in joined_rules:
-                errors.append(
-                    "ADR-007 adoption_e2e TECH must preserve inherited family marker: " + marker
-                )
-
-    return errors, {
-        "valid": not errors,
-        "feat_ref": feat_ref,
-        "tech_ref": tech_ref,
-        "arch_required": arch_required,
-        "api_required": api_required,
-        "semantic_lock_preserved": semantic_drift_check.get("semantic_lock_preserved", True),
-    }
 
 def validate_package_readiness(artifacts_dir: Path) -> tuple[bool, list[str]]:
     errors, _ = validate_output_package(artifacts_dir)
@@ -849,31 +71,34 @@ def validate_package_readiness(artifacts_dir: Path) -> tuple[bool, list[str]]:
     readiness_errors = [name for name, status in checks.items() if status is not True]
     return not readiness_errors, readiness_errors
 
-def executor_run(input_path: Path, feat_ref: str, repo_root: Path, run_id: str, allow_update: bool = False) -> dict[str, Any]:
-    errors, validation = validate_input_package(input_path, feat_ref)
+def executor_run(input_path: str | Path, feat_ref: str, repo_root: Path, run_id: str, allow_update: bool = False) -> dict[str, Any]:
+    errors, validation = validate_input_package(input_path, feat_ref, repo_root)
     if errors:
         raise ValueError("; ".join(errors))
 
-    package = load_feat_package(input_path)
-    feature = find_feature(package, feat_ref)
+    resolved_input_dir, _ = resolve_input_artifacts_dir(input_path, repo_root)
+    package = load_feat_package(resolved_input_dir)
+    effective_feat_ref = str(validation.get("feat_ref") or feat_ref).strip()
+    feature = find_feature(package, effective_feat_ref)
     if feature is None:
-        raise ValueError(f"Selected feat_ref not found: {feat_ref}")
+        raise ValueError(f"Selected feat_ref not found: {effective_feat_ref}")
     feature = dict(feature)
     feature["semantic_lock"] = normalize_semantic_lock(feature.get("semantic_lock") or package.semantic_lock)
 
-    effective_run_id = run_id or f"{package.run_id}--{feat_ref.lower()}"
-    generated = build_tech_package(package, feature, feat_ref, effective_run_id)
+    effective_run_id = run_id or f"{package.run_id}--{effective_feat_ref.lower()}"
+    generated = build_tech_package(package, feature, effective_feat_ref, effective_run_id, utc_now)
     output_dir = output_dir_for(repo_root, effective_run_id)
     if output_dir.exists() and not allow_update:
         raise FileExistsError(f"Output directory already exists: {output_dir}")
 
-    write_executor_outputs(output_dir, repo_root, package, generated, f"python scripts/feat_to_tech.py executor-run --input {input_path} --feat-ref {feat_ref}")
+    write_executor_outputs(output_dir, repo_root, package, generated, f"python scripts/feat_to_tech.py executor-run --input {input_path} --feat-ref {effective_feat_ref}")
     return {
         "ok": True,
         "run_id": effective_run_id,
         "artifacts_dir": str(output_dir),
         "input_validation": validation,
-        "feat_ref": feat_ref,
+        "input_mode": validation.get("input_mode", "package_dir"),
+        "feat_ref": effective_feat_ref,
         "tech_ref": generated.json_payload["tech_ref"],
     }
 
@@ -897,10 +122,51 @@ def supervisor_review(artifacts_dir: Path, repo_root: Path, run_id: str, allow_u
     feature = dict(feature)
     feature["semantic_lock"] = normalize_semantic_lock(feature.get("semantic_lock") or package.semantic_lock)
     effective_run_id = run_id or artifacts_dir.name
-    generated = build_tech_package(package, feature, feat_ref, effective_run_id)
+    generated = build_tech_package(package, feature, feat_ref, effective_run_id, utc_now)
     supervision = build_supervision_evidence(artifacts_dir, generated)
     gate = build_gate_result(generated, supervision)
     update_supervisor_outputs(artifacts_dir, repo_root, generated, supervision, gate)
+
+    proposal_ref = ""
+    gate_ready_package_ref = ""
+    authoritative_handoff_ref = ""
+    gate_pending_ref = ""
+    if gate["freeze_ready"]:
+        proposal_path = create_handoff_proposal(
+            repo_root=repo_root,
+            artifacts_dir=artifacts_dir,
+            run_id=effective_run_id,
+            feat_ref=feat_ref,
+            tech_ref=str(generated.json_payload["tech_ref"]),
+        )
+        gate_ready_package = create_gate_ready_package(
+            artifacts_dir=artifacts_dir,
+            run_id=effective_run_id,
+            candidate_ref=f"feat-to-tech.{effective_run_id}.tech-design-bundle",
+            machine_ssot_ref=repo_relative(repo_root, artifacts_dir / "tech-design-bundle.json"),
+            acceptance_ref=repo_relative(repo_root, artifacts_dir / "tech-acceptance-report.json"),
+            evidence_bundle_ref=repo_relative(repo_root, artifacts_dir / "supervision-evidence.json"),
+        )
+        gate_submit = submit_gate_pending(
+            repo_root=repo_root,
+            artifacts_dir=artifacts_dir,
+            run_id=effective_run_id,
+            proposal_ref=repo_relative(repo_root, proposal_path),
+            payload_path=gate_ready_package,
+            trace_context_ref=repo_relative(repo_root, artifacts_dir / "execution-evidence.json"),
+        )
+        gate_submit_data = gate_submit["response"]["data"]
+        manifest = load_json(artifacts_dir / "package-manifest.json")
+        manifest["handoff_proposal_ref"] = repo_relative(repo_root, proposal_path)
+        manifest["gate_ready_package_ref"] = repo_relative(repo_root, gate_ready_package)
+        manifest["authoritative_handoff_ref"] = str(gate_submit_data.get("handoff_ref", ""))
+        manifest["gate_pending_ref"] = str(gate_submit_data.get("gate_pending_ref", ""))
+        manifest["gate_submit_cli_ref"] = repo_relative(repo_root, gate_submit["response_path"])
+        dump_json(artifacts_dir / "package-manifest.json", manifest)
+        proposal_ref = manifest["handoff_proposal_ref"]
+        gate_ready_package_ref = manifest["gate_ready_package_ref"]
+        authoritative_handoff_ref = manifest["authoritative_handoff_ref"]
+        gate_pending_ref = manifest["gate_pending_ref"]
 
     return {
         "ok": True,
@@ -908,9 +174,13 @@ def supervisor_review(artifacts_dir: Path, repo_root: Path, run_id: str, allow_u
         "artifacts_dir": str(artifacts_dir),
         "decision": supervision["decision"],
         "freeze_ready": gate["freeze_ready"],
+        "handoff_proposal_ref": proposal_ref,
+        "gate_ready_package_ref": gate_ready_package_ref,
+        "authoritative_handoff_ref": authoritative_handoff_ref,
+        "gate_pending_ref": gate_pending_ref,
     }
 
-def run_workflow(input_path: Path, feat_ref: str, repo_root: Path, run_id: str, allow_update: bool = False) -> dict[str, Any]:
+def run_workflow(input_path: str | Path, feat_ref: str, repo_root: Path, run_id: str, allow_update: bool = False) -> dict[str, Any]:
     executor_result = executor_run(
         input_path=input_path,
         feat_ref=feat_ref,
@@ -929,9 +199,14 @@ def run_workflow(input_path: Path, feat_ref: str, repo_root: Path, run_id: str, 
         "ok": readiness_ok,
         "run_id": executor_result["run_id"],
         "artifacts_dir": str(artifacts_dir),
-        "feat_ref": feat_ref,
+        "input_mode": executor_result.get("input_mode", "package_dir"),
+        "feat_ref": executor_result["feat_ref"],
         "tech_ref": executor_result["tech_ref"],
         "supervision": supervisor_result,
+        "handoff_proposal_ref": supervisor_result.get("handoff_proposal_ref", ""),
+        "gate_ready_package_ref": supervisor_result.get("gate_ready_package_ref", ""),
+        "authoritative_handoff_ref": supervisor_result.get("authoritative_handoff_ref", ""),
+        "gate_pending_ref": supervisor_result.get("gate_pending_ref", ""),
         "output_validation": output_result,
         "readiness_errors": readiness_errors,
         "evidence_report": str(report_path),

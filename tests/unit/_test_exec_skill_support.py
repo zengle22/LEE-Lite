@@ -140,6 +140,38 @@ class SkillRuntimeHarness(unittest.TestCase):
         )
         return npm_script, playwright_script
 
+    def write_fake_runtime_probe_script(self) -> Path:
+        tools_root = self.workspace / "tools"
+        probe_script = tools_root / "fake_runtime_probe.py"
+        write_yaml(
+            probe_script,
+            "import json, sys\n"
+            "from pathlib import Path\n"
+            "input_path = Path(sys.argv[1])\n"
+            "output_path = Path(sys.argv[2])\n"
+            "payload = json.loads(input_path.read_text(encoding='utf-8'))\n"
+            "output = {\n"
+            "  'probe_status': 'ok',\n"
+            "  'probe_mode': 'fake_runtime_probe',\n"
+            "  'final_url': payload.get('url', ''),\n"
+            "  'title': 'Fake runtime page',\n"
+            "  'html': '<body></body>',\n"
+            "  'dom_catalog': {\n"
+            "    'testids': [{'kind': 'testid', 'value': 'login-email', 'selector': \"[data-testid='login-email']\", 'source_kind': 'runtime_dom'}],\n"
+            "    'ids': [],\n"
+            "    'inputs': [\n"
+            "      {'kind': 'name', 'value': 'user-email', 'selector': '#user-email', 'label': 'Email address', 'source_kind': 'runtime_dom'},\n"
+            "      {'kind': 'name', 'value': 'user-password', 'selector': '#user-password', 'label': 'Password', 'source_kind': 'runtime_dom'}\n"
+            "    ],\n"
+            "    'buttons': [{'kind': 'button', 'value': 'Sign in', 'role': 'button', 'name': 'Sign in', 'source_kind': 'runtime_dom'}],\n"
+            "    'interactive': [{'tag': 'input', 'id': 'user-email', 'name': 'user-email', 'testid': 'login-email', 'text': '', 'role': ''}],\n"
+            "  },\n"
+            "  'accessibility_catalog': [{'role': 'button', 'name': 'Sign in'}],\n"
+            "}\n"
+            "output_path.write_text(json.dumps(output, ensure_ascii=False, indent=2), encoding='utf-8')\n",
+        )
+        return probe_script
+
     def resolve_ref(self, ref_value: str) -> Path:
         path = Path(ref_value)
         return path if path.is_absolute() else self.workspace / path
@@ -151,6 +183,7 @@ class SkillRuntimeHarness(unittest.TestCase):
             "ui_intent_ref",
             "ui_source_context_ref",
             "ui_binding_map_ref",
+            "ui_flow_plan_ref",
             "test_case_pack_ref",
             "test_case_pack_meta_ref",
             "script_pack_ref",
@@ -176,8 +209,10 @@ class SkillRuntimeHarness(unittest.TestCase):
         ui_intent = read_json(self.resolve_ref(payload["ui_intent_ref"]))
         ui_source_context = read_json(self.resolve_ref(payload["ui_source_context_ref"]))
         ui_binding_map = read_json(self.resolve_ref(payload["ui_binding_map_ref"]))
+        ui_flow_plan = read_json(self.resolve_ref(payload["ui_flow_plan_ref"]))
         self.assertEqual(len(ui_intent["cases"]), expected_cases)
         self.assertEqual(len(ui_binding_map["cases"]), expected_cases)
+        self.assertEqual(len(ui_flow_plan["cases"]), expected_cases)
         output_validation = read_json(self.resolve_ref(payload["output_validation_ref"]))
         self.assertEqual(output_validation["status"], "pass")
         coverage_summary = read_json(self.resolve_ref(payload["coverage_summary_ref"]))

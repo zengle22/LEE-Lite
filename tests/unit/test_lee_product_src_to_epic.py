@@ -94,6 +94,8 @@ class SrcToEpicWorkflowTests(unittest.TestCase):
             payload = json.loads(result.stdout)
             artifacts_dir = Path(payload["artifacts_dir"])
             epic = json.loads((artifacts_dir / "epic-freeze.json").read_text(encoding="utf-8"))
+            gate_ready_package = json.loads((artifacts_dir / "input" / "gate-ready-package.json").read_text(encoding="utf-8"))
+            package_manifest = json.loads((artifacts_dir / "package-manifest.json").read_text(encoding="utf-8"))
             self.assertFalse(epic["rollout_requirement"]["required"])
             self.assertEqual(epic["rollout_plan"]["required_feat_tracks"], ["foundation"])
             self.assertTrue(epic["business_value_problem"])
@@ -103,7 +105,17 @@ class SrcToEpicWorkflowTests(unittest.TestCase):
             self.assertTrue(epic["product_behavior_slices"])
             self.assertFalse((artifacts_dir / "companion-epic-proposals.json").exists())
             self.assertTrue((artifacts_dir / "_cli" / "epic-freeze-executor-commit.response.json").exists())
+            self.assertTrue((artifacts_dir / "_cli" / "gate-submit-handoff.response.json").exists())
             self.assertTrue((repo_root / "artifacts" / "registry" / "src-to-epic-epic-basic-epic-freeze.json").exists())
+            self.assertEqual(payload["gate_ready_package_ref"], "artifacts/src-to-epic/epic-basic/input/gate-ready-package.json")
+            self.assertTrue(payload["authoritative_handoff_ref"].startswith("artifacts/active/gates/handoffs/"))
+            self.assertTrue(payload["gate_pending_ref"].startswith("artifacts/active/gates/pending/"))
+            self.assertEqual(gate_ready_package["payload"]["candidate_ref"], "src-to-epic.epic-basic.epic-freeze")
+            self.assertEqual(gate_ready_package["payload"]["machine_ssot_ref"], "artifacts/src-to-epic/epic-basic/epic-freeze.json")
+            self.assertEqual(package_manifest["gate_ready_package_ref"], payload["gate_ready_package_ref"])
+            self.assertEqual(package_manifest["gate_pending_ref"], payload["gate_pending_ref"])
+            self.assertTrue((repo_root / payload["authoritative_handoff_ref"]).exists())
+            self.assertTrue((repo_root / payload["gate_pending_ref"]).exists())
 
             validate = self.run_cmd("validate-output", "--artifacts-dir", str(artifacts_dir))
             self.assertEqual(validate.returncode, 0, validate.stderr)
@@ -336,6 +348,12 @@ class SrcToEpicWorkflowTests(unittest.TestCase):
                     "acceptance_impact": ["至少一条 approve -> ready job -> runner -> next skill 链路可被验证。"],
                     "non_goals": ["formal publication / admission 产品线"],
                 },
+                "operator_surface_inventory": [
+                    {"entry_kind": "skill_entry", "name": "Execution Loop Job Runner", "lifecycle_phase": "start", "user_actor": "workflow / orchestration operator"},
+                    {"entry_kind": "cli_control_surface", "name": "ll loop run-execution", "lifecycle_phase": "start", "user_actor": "Claude/Codex CLI operator"},
+                    {"entry_kind": "cli_control_surface", "name": "ll job claim", "lifecycle_phase": "init", "user_actor": "Claude/Codex CLI operator"},
+                    {"entry_kind": "monitor_surface", "name": "runner observability surface", "lifecycle_phase": "monitor", "user_actor": "workflow / orchestration operator"},
+                ],
             }
             input_dir = self.make_src_package(repo_root, "src-adr018", candidate)
             result = self.run_cmd("run", "--input", str(input_dir), "--repo-root", str(repo_root), "--run-id", "epic-adr018")
@@ -349,13 +367,36 @@ class SrcToEpicWorkflowTests(unittest.TestCase):
             self.assertEqual(epic["title"], "Gate 审批后自动推进 Execution Runner 统一能力")
             self.assertEqual(
                 [item["id"] for item in epic["product_behavior_slices"]],
-                ["ready-job-emission", "execution-runner-intake", "next-skill-dispatch", "execution-result-feedback"],
+                [
+                    "ready-job-emission",
+                    "runner-operator-entry",
+                    "runner-control-surface",
+                    "execution-runner-intake",
+                    "next-skill-dispatch",
+                    "execution-result-feedback",
+                    "runner-observability-surface",
+                ],
+            )
+            self.assertEqual(
+                [item["id"] for item in epic["capability_axes"]],
+                [
+                    "ready-job-emission",
+                    "runner-operator-entry",
+                    "runner-control-surface",
+                    "execution-runner-intake",
+                    "next-skill-dispatch",
+                    "execution-result-feedback",
+                    "runner-observability-surface",
+                ],
             )
             self.assertEqual(drift["verdict"], "pass")
             self.assertTrue(drift["semantic_lock_preserved"])
             self.assertNotIn("formal 发布与下游准入流", markdown)
             self.assertIn("批准后 Ready Job 生成流", markdown)
+            self.assertIn("Runner 用户入口流", markdown)
+            self.assertIn("Runner 控制面流", markdown)
             self.assertIn("Execution Runner 自动取件流", markdown)
+            self.assertIn("Runner 运行监控流", markdown)
 
             validate = self.run_cmd("validate-output", "--artifacts-dir", str(artifacts_dir))
             self.assertEqual(validate.returncode, 0, validate.stderr)

@@ -294,6 +294,7 @@ def build_execution_refs(output_root: Path, workspace_root: Path) -> dict[str, s
         "ui_intent_ref": to_canonical_path(output_root / "ui-intent.json", workspace_root),
         "ui_source_context_ref": to_canonical_path(output_root / "ui-source-context.json", workspace_root),
         "ui_binding_map_ref": to_canonical_path(output_root / "ui-binding-map.json", workspace_root),
+        "ui_flow_plan_ref": to_canonical_path(output_root / "ui-flow-plan.json", workspace_root),
         "test_case_pack_ref": to_canonical_path(output_root / "test-case-pack.yaml", workspace_root),
         "test_case_pack_meta_ref": to_canonical_path(output_root / "test-case-pack.meta.json", workspace_root),
         "script_pack_ref": to_canonical_path(output_root / "script-pack.json", workspace_root),
@@ -320,6 +321,7 @@ def write_pre_execution_artifacts(
     ui_intent: dict[str, Any],
     ui_source_context: dict[str, Any],
     ui_binding_map: dict[str, Any],
+    ui_flow_plan: dict[str, Any],
     case_pack: dict[str, Any],
     case_meta: dict[str, Any],
 ) -> None:
@@ -328,6 +330,7 @@ def write_pre_execution_artifacts(
     write_json(workspace_root / refs["ui_intent_ref"], ui_intent)
     write_json(workspace_root / refs["ui_source_context_ref"], ui_source_context)
     write_json(workspace_root / refs["ui_binding_map_ref"], ui_binding_map)
+    write_json(workspace_root / refs["ui_flow_plan_ref"], ui_flow_plan)
     write_yaml_fn(workspace_root / refs["test_case_pack_ref"], case_pack)
     write_json(workspace_root / refs["test_case_pack_meta_ref"], case_meta)
 
@@ -341,6 +344,7 @@ def build_tse_payload(trace: dict[str, Any], refs: dict[str, str], run_status: s
         "ui_intent_ref": refs["ui_intent_ref"],
         "ui_source_context_ref": refs["ui_source_context_ref"],
         "ui_binding_map_ref": refs["ui_binding_map_ref"],
+        "ui_flow_plan_ref": refs["ui_flow_plan_ref"],
         "test_case_pack_ref": refs["test_case_pack_ref"],
         "script_pack_ref": refs["script_pack_ref"],
         "compliance_result_ref": refs["compliance_result_ref"],

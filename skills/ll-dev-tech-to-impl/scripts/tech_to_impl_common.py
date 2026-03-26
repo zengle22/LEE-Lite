@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import json
 import re
+import sys
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -125,6 +126,42 @@ def guess_repo_root_from_input(input_path: Path) -> Path:
     return input_path.parent
 
 
+def resolve_input_artifacts_dir(input_value: str | Path, repo_root: Path) -> tuple[Path, dict[str, Any]]:
+    candidate_path = Path(str(input_value))
+    if candidate_path.exists() and candidate_path.is_dir():
+        return candidate_path.resolve(), {"input_mode": "package_dir", "requested_ref": str(candidate_path.resolve())}
+
+    implementation_root = Path(__file__).resolve().parents[3]
+    if str(implementation_root) not in sys.path:
+        sys.path.insert(0, str(implementation_root))
+    from cli.lib.admission import validate_admission
+    from cli.lib.fs import canonical_to_path
+    from cli.lib.registry_store import resolve_registry_record
+
+    requested_ref = str(input_value)
+    admission = validate_admission(
+        repo_root,
+        consumer_ref="dev.tech-to-impl",
+        requested_ref=requested_ref,
+    )
+    record = resolve_registry_record(repo_root, requested_ref)
+    metadata = record.get("metadata", {}) if isinstance(record.get("metadata"), dict) else {}
+    source_package_ref = str(metadata.get("source_package_ref") or "").strip()
+    if not source_package_ref:
+        raise ValueError("formal tech record is missing metadata.source_package_ref")
+    artifacts_dir = canonical_to_path(source_package_ref, repo_root)
+    if not artifacts_dir.exists() or not artifacts_dir.is_dir():
+        raise FileNotFoundError(f"resolved tech package directory not found: {artifacts_dir}")
+    return artifacts_dir.resolve(), {
+        "input_mode": "formal_admission",
+        "requested_ref": requested_ref,
+        "resolved_formal_ref": admission["resolved_formal_ref"],
+        "managed_artifact_ref": record.get("managed_artifact_ref", ""),
+        "resolved_feat_ref": str(metadata.get("feat_ref") or "").strip(),
+        "resolved_tech_ref": str(metadata.get("tech_ref") or metadata.get("assigned_id") or "").strip(),
+    }
+
+
 @dataclass
 class TechPackage:
     artifacts_dir: Path
@@ -189,112 +226,8 @@ def load_tech_package(artifacts_dir: Path) -> TechPackage:
     )
 
 
-def validate_input_package(artifacts_dir: Path, feat_ref: str, tech_ref: str) -> tuple[list[str], dict[str, Any]]:
-    errors: list[str] = []
-    if not artifacts_dir.exists() or not artifacts_dir.is_dir():
-        return [f"Input package not found: {artifacts_dir}"], {"valid": False}
+def validate_input_package(input_value: str | Path, feat_ref: str, tech_ref: str, repo_root: Path) -> tuple[list[str], dict[str, Any]]:
+    from tech_to_impl_validation import validate_input_package as _validate_input_package
 
-    for required_file in REQUIRED_INPUT_FILES:
-        if not (artifacts_dir / required_file).exists():
-            errors.append(f"Missing required input artifact: {required_file}")
-
-    if not feat_ref.strip():
-        errors.append("feat_ref is required.")
-    if not tech_ref.strip():
-        errors.append("tech_ref is required.")
-    if errors:
-        return errors, {"valid": False, "missing_files": errors}
-
-    package = load_tech_package(artifacts_dir)
-    bundle = package.tech_json
-    errors.extend(semantic_lock_errors(bundle.get("semantic_lock")))
-    selected_feat = package.selected_feat
-
-    artifact_type = str(bundle.get("artifact_type") or "")
-    if artifact_type != "tech_design_package":
-        errors.append(f"tech-design-bundle.json artifact_type must be tech_design_package, got: {artifact_type or '<missing>'}")
-
-    workflow_key = str(bundle.get("workflow_key") or package.gate.get("workflow_key") or "")
-    if workflow_key != "dev.feat-to-tech":
-        errors.append(f"Upstream workflow must be dev.feat-to-tech, got: {workflow_key or '<missing>'}")
-
-    status = str(bundle.get("status") or package.manifest.get("status") or "")
-    if status not in {"accepted", "frozen"}:
-        errors.append(f"tech-design status must be accepted or frozen, got: {status or '<missing>'}")
-
-    if package.gate.get("freeze_ready") is not True:
-        errors.append("tech-freeze-gate.json must mark the package as freeze_ready.")
-
-    if package.feat_ref != feat_ref.strip():
-        errors.append(f"Selected feat_ref does not match tech-design-bundle.json: {feat_ref}")
-    if package.tech_ref != tech_ref.strip():
-        errors.append(f"Selected tech_ref does not match tech-design-bundle.json: {tech_ref}")
-
-    selected_feat_ref = str(selected_feat.get("feat_ref") or "").strip()
-    if selected_feat_ref and selected_feat_ref != feat_ref.strip():
-        errors.append("selected_feat.feat_ref must match the selected feat_ref.")
-    for field in ["title", "goal", "scope", "constraints"]:
-        if selected_feat.get(field) in (None, "", []):
-            errors.append(f"selected_feat is missing required field: {field}")
-
-    source_refs = ensure_list(bundle.get("source_refs"))
-    for prefix in ["FEAT-", "EPIC-", "SRC-"]:
-        if not any(ref.startswith(prefix) for ref in source_refs):
-            errors.append(f"tech-design-bundle.json source_refs must include {prefix}.")
-    if tech_ref.strip() not in source_refs and package.tech_ref not in source_refs:
-        errors.append("tech-design-bundle.json source_refs must retain the selected TECH ref.")
-
-    if bool(bundle.get("arch_required")):
-        if not package.arch_ref:
-            errors.append("arch_required is true but arch_ref is missing.")
-        if not (artifacts_dir / "arch-design.md").exists():
-            errors.append("arch_required is true but arch-design.md is missing.")
-    if bool(bundle.get("api_required")):
-        if not package.api_ref:
-            errors.append("api_required is true but api_ref is missing.")
-        if not (artifacts_dir / "api-contract.md").exists():
-            errors.append("api_required is true but api-contract.md is missing.")
-
-    if str(package.handoff.get("target_workflow") or "") != "workflow.dev.tech_to_impl":
-        errors.append("handoff-to-tech-impl.json must preserve workflow.dev.tech_to_impl lineage.")
-
-    axis_markers = [
-        str(selected_feat.get("resolved_axis") or "").strip().lower(),
-        str(selected_feat.get("axis_id") or "").strip().lower(),
-        str(selected_feat.get("track") or "").strip().lower(),
-    ]
-    is_adr007_adoption = "ADR-007" in source_refs and any(
-        marker in {"adoption_e2e", "skill-adoption-e2e"} for marker in axis_markers if marker
-    )
-    if is_adr007_adoption:
-        tech_design = bundle.get("tech_design") or {}
-        implementation_rules = ensure_list(tech_design.get("implementation_rules")) if isinstance(tech_design, dict) else []
-        inherited_text = "\n".join(implementation_rules + ensure_list(selected_feat.get("constraints")))
-        required_family_markers = [
-            "skill.qa.test_exec_web_e2e",
-            "skill.qa.test_exec_cli",
-            "skill.runner.test_e2e",
-            "skill.runner.test_cli",
-        ]
-        missing_family_markers = [marker for marker in required_family_markers if marker not in inherited_text]
-        if missing_family_markers:
-            errors.append(
-                "ADR-007 adoption_e2e TECH must preserve the full test execution family markers: "
-                + ", ".join(missing_family_markers)
-            )
-
-    result = {
-        "valid": not errors,
-        "run_id": package.run_id,
-        "workflow_key": workflow_key,
-        "status": status,
-        "feat_ref": feat_ref,
-        "tech_ref": tech_ref,
-        "arch_ref": package.arch_ref,
-        "api_ref": package.api_ref,
-        "feat_title": str(selected_feat.get("title") or ""),
-        "source_refs": source_refs,
-        "semantic_lock": package.semantic_lock,
-    }
-    return errors, result
+    return _validate_input_package(input_value, feat_ref, tech_ref, repo_root)
 

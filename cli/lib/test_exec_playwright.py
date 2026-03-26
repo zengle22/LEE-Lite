@@ -93,6 +93,7 @@ def _playwright_case_payload(case: dict[str, Any]) -> dict[str, Any]:
         "preconditions": case.get("preconditions", []),
         "selectors": case.get("selectors", {}),
         "uiSteps": case.get("ui_steps", []),
+        "uiFlowPlan": case.get("ui_flow_plan", {}),
         "pagePath": case.get("page_path", ""),
         "expectedUrl": case.get("expected_url", ""),
         "expectedText": case.get("expected_text", ""),
@@ -100,7 +101,7 @@ def _playwright_case_payload(case: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-def _playwright_runtime_helpers() -> str:
+def _playwright_locator_helpers() -> str:
     return """function locatorFor(page, step) {
   if (step.selector) return page.locator(String(step.selector));
   if (step.testid || step.data_testid) return page.getByTestId(String(step.testid || step.data_testid));
@@ -110,6 +111,11 @@ def _playwright_runtime_helpers() -> str:
   return null;
 }
 
+function locatorCandidates(step) {
+  if (Array.isArray(step.candidates) && step.candidates.length > 0) return step.candidates;
+  return [step];
+}
+
 function resolveUrl(baseUrl, step, item) {
   const candidate = step.url || step.path || item.pagePath || '';
   if (!candidate) return baseUrl;
@@ -117,14 +123,26 @@ function resolveUrl(baseUrl, step, item) {
   return new URL(String(candidate), String(baseUrl)).toString();
 }
 
-function requireLocator(locator, action) {
-  if (locator) return locator;
+async function requireLocator(page, step, action) {
+  let fallback = null;
+  for (const candidate of locatorCandidates(step)) {
+    const locator = locatorFor(page, candidate);
+    if (!locator) continue;
+    fallback = fallback || locator;
+    try {
+      const count = await locator.count();
+      if (count > 0) return locator;
+    } catch (_) {}
+  }
+  if (fallback) return fallback;
   throw new Error(`ui step ${action} requires selector/testid/role/text`);
 }
+"""
 
-async function runUiStep(page, step, item) {
+
+def _playwright_step_helpers() -> str:
+    return """async function runUiStep(page, step, item) {
   const action = String(step.action || '').toLowerCase();
-  const locator = locatorFor(page, step);
   switch (action) {
     case 'goto':
     case 'visit':
@@ -132,32 +150,32 @@ async function runUiStep(page, step, item) {
       await page.goto(resolveUrl(baseUrl, step, item), { waitUntil: 'domcontentloaded' });
       return;
     case 'click':
-      await requireLocator(locator, action).click();
+      await (await requireLocator(page, step, action)).click();
       return;
     case 'fill':
-      await requireLocator(locator, action).fill(String(step.value || ''));
+      await (await requireLocator(page, step, action)).fill(String(step.value || ''));
       return;
     case 'press':
-      await requireLocator(locator, action).press(String(step.key || step.value || 'Enter'));
+      await (await requireLocator(page, step, action)).press(String(step.key || step.value || 'Enter'));
       return;
     case 'check':
-      await requireLocator(locator, action).check();
+      await (await requireLocator(page, step, action)).check();
       return;
     case 'uncheck':
-      await requireLocator(locator, action).uncheck();
+      await (await requireLocator(page, step, action)).uncheck();
       return;
     case 'select':
-      await requireLocator(locator, action).selectOption(String(step.value || ''));
+      await (await requireLocator(page, step, action)).selectOption(String(step.value || ''));
       return;
     case 'assert_visible':
-      await expect(requireLocator(locator, action)).toBeVisible();
+      await expect(await requireLocator(page, step, action)).toBeVisible();
       return;
     case 'assert_hidden':
-      await expect(requireLocator(locator, action)).toBeHidden();
+      await expect(await requireLocator(page, step, action)).toBeHidden();
       return;
     case 'assert_text':
-      if (locator) {
-        await expect(locator).toContainText(String(step.value || step.text || ''));
+      if (locatorFor(page, step) || (Array.isArray(step.candidates) && step.candidates.length > 0)) {
+        await expect(await requireLocator(page, step, action)).toContainText(String(step.value || step.text || ''));
         return;
       }
       await expect(page.getByText(String(step.text || step.value || ''))).toBeVisible();
@@ -177,8 +195,35 @@ async function runUiStep(page, step, item) {
       throw new Error(`unsupported ui step action: ${action || 'empty'}`);
   }
 }
+"""
+
+
+def _playwright_flow_helpers() -> str:
+    return """async function runFlowPages(page, item) {
+  const flowPages = Array.isArray(item.uiFlowPlan?.pages) ? item.uiFlowPlan.pages : [];
+  if (flowPages.length === 0) return false;
+  for (const segment of flowPages) {
+    const path = String(segment.path || '');
+    if (path) {
+      await page.goto(resolveUrl(baseUrl, { path }, item), { waitUntil: 'domcontentloaded' });
+    }
+    const segmentSteps = Array.isArray(segment.steps) ? segment.steps : [];
+    for (const step of segmentSteps) await runUiStep(page, step, item);
+    const exitAssertions = Array.isArray(segment.exit_assertions) ? segment.exit_assertions : [];
+    for (const assertion of exitAssertions) {
+      if (assertion.type === 'url_contains' && assertion.value) expect(page.url()).toContain(String(assertion.value));
+      if (assertion.type === 'text_visible' && assertion.value) await expect(page.getByText(String(assertion.value))).toBeVisible();
+    }
+  }
+  return true;
+}
+
+async function runUiStep(page, step, item) {
+  throw new Error('placeholder');
+}
 
 async function runCase(page, item) {
+  if (await runFlowPages(page, item)) return;
   const steps = Array.isArray(item.uiSteps) ? item.uiSteps : [];
   if (steps.length === 0) {
     await page.goto(resolveUrl(baseUrl, {}, item), { waitUntil: 'domcontentloaded' });
@@ -197,11 +242,18 @@ def render_spec(case_pack: dict[str, Any], environment: dict[str, Any]) -> str:
     base_url = json.dumps(str(environment.get("base_url", "")), ensure_ascii=False)
     cases = [_playwright_case_payload(case) for case in case_pack["cases"]]
     cases_json = json.dumps(cases, ensure_ascii=False, indent=2)
+    helpers = "\n".join(
+        [
+            _playwright_locator_helpers().strip(),
+            _playwright_step_helpers().strip(),
+            _playwright_flow_helpers().strip(),
+        ]
+    )
     return f"""import {{ test, expect }} from '@playwright/test';
 
 const baseUrl = {base_url};
 const cases = {cases_json};
-{_playwright_runtime_helpers()}
+{helpers}
 
 test.describe({suite_name}, () => {{
   for (const item of cases) {{

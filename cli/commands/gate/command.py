@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from argparse import Namespace
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
@@ -11,6 +12,7 @@ from cli.lib.fs import canonical_to_path, load_json, to_canonical_path, write_js
 from cli.lib.formalization import materialize_formal
 from cli.lib.gate_collaboration_actions import collaboration_handlers
 from cli.lib.protocol import CommandContext, run_with_protocol
+from cli.lib.registry_store import resolve_registry_record, slugify
 from cli.lib.review_projection.renderer import build_gate_human_projection
 
 GATE_DECISIONS = {"approve", "revise", "retry", "handoff", "reject"}
@@ -18,6 +20,10 @@ GATE_DECISIONS = {"approve", "revise", "retry", "handoff", "reject"}
 
 def _artifact_path(ctx: CommandContext, relative: str):
     return ctx.workspace_root / relative
+
+
+def _utc_now() -> str:
+    return datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
 
 
 def _decision_type(findings: list[dict[str, object]]) -> str:
@@ -175,8 +181,9 @@ def _materialize_decision(
         trace=ctx.trace,
         candidate_ref=candidate_ref,
         decision_ref=decision_ref,
-        target_formal_kind=str(payload.get("target_formal_kind", "handoff")),
+        target_formal_kind=str(payload["target_formal_kind"]).strip() if payload.get("target_formal_kind") else None,
         formal_artifact_ref=str(payload["formal_artifact_ref"]) if payload.get("formal_artifact_ref") else None,
+        materialized_by=str(ctx.request.get("actor_ref", "gate.runtime")),
     )
     handoff_ref = "artifacts/active/handoffs/materialized-handoff.json"
     write_json(
@@ -188,6 +195,8 @@ def _materialize_decision(
             "input_refs": [decision_ref, candidate_ref],
             "formal_ref": result["formal_ref"],
             "published_ref": result["published_ref"],
+            "materialized_ssot_ref": result.get("materialized_ssot_ref", ""),
+            "assigned_id": result.get("assigned_id", ""),
         },
     )
     return {
@@ -195,7 +204,213 @@ def _materialize_decision(
         "formal_ref": result["formal_ref"],
         "published_ref": result["published_ref"],
         "formalization_receipt_ref": result["receipt_ref"],
+        "materialized_ssot_ref": result.get("materialized_ssot_ref", ""),
+        "assigned_id": result.get("assigned_id", ""),
+        "materialized_formal_refs": result.get("materialized_formal_refs", []),
+        "published_refs": result.get("published_refs", []),
+        "assigned_ids": result.get("assigned_ids", []),
     }
+
+
+def _build_feat_downstream_dispatch(ctx: CommandContext, decision_ref: str, decision: dict[str, Any]) -> tuple[list[str], list[str]]:
+    group_formal_ref = str(decision.get("formal_ref") or "").strip()
+    ensure(group_formal_ref, "PRECONDITION_FAILED", "formal_ref is required for FEAT dispatch")
+    group_record = resolve_registry_record(ctx.workspace_root, group_formal_ref)
+    group_metadata = group_record.get("metadata", {}) if isinstance(group_record.get("metadata"), dict) else {}
+    child_formal_refs = [
+        str(item).strip()
+        for item in (decision.get("materialized_formal_refs") or group_metadata.get("materialized_formal_refs") or [])
+        if str(item).strip()
+    ]
+    ensure(child_formal_refs, "PRECONDITION_FAILED", "formal FEAT dispatch requires materialized_formal_refs")
+    handoff_refs: list[str] = []
+    job_refs: list[str] = []
+    dispatch_targets = [
+        ("workflow.dev.feat_to_tech", "TECH"),
+        ("workflow.qa.feat_to_testset", "TESTSET"),
+    ]
+    decision_stem = Path(decision_ref).stem
+    for child_formal_ref in child_formal_refs:
+        child_record = resolve_registry_record(ctx.workspace_root, child_formal_ref)
+        metadata = child_record.get("metadata", {}) if isinstance(child_record.get("metadata"), dict) else {}
+        feat_ref = str(metadata.get("feat_ref") or metadata.get("assigned_id") or "").strip()
+        ensure(feat_ref, "PRECONDITION_FAILED", f"formal FEAT record missing feat_ref: {child_formal_ref}")
+        published_ref = str(child_record.get("managed_artifact_ref") or "").strip()
+        source_package_ref = str(metadata.get("source_package_ref") or "").strip()
+        for target_skill, target_kind in dispatch_targets:
+            slug = f"{slugify(feat_ref)}-{slugify(target_skill)}"
+            handoff_ref = f"artifacts/active/handoffs/{decision_stem}-{slug}.json"
+            write_json(
+                _artifact_path(ctx, handoff_ref),
+                {
+                    "trace": ctx.trace,
+                    "gate_decision_ref": decision_ref,
+                    "handoff_type": "downstream",
+                    "input_refs": [decision_ref, child_formal_ref],
+                    "formal_ref": child_formal_ref,
+                    "published_ref": published_ref,
+                    "target_skill": target_skill,
+                    "target_kind": target_kind,
+                    "feat_ref": feat_ref,
+                    "source_package_ref": source_package_ref,
+                    "authoritative_input_ref": child_formal_ref,
+                    "created_at": _utc_now(),
+                },
+            )
+            job_ref = f"artifacts/jobs/ready/{decision_stem}-{slug}.json"
+            write_json(
+                _artifact_path(ctx, job_ref),
+                {
+                    "trace": ctx.trace,
+                    "job_id": f"job-{decision_stem}-{slug}",
+                    "job_type": "next_skill",
+                    "from_skill": "governance.gate-human-orchestrator",
+                    "target_skill": target_skill,
+                    "handoff_ref": handoff_ref,
+                    "source_run_id": str(ctx.trace.get("run_ref", "")),
+                    "source_artifacts": [decision_ref, child_formal_ref, published_ref],
+                    "gate_decision_ref": decision_ref,
+                    "reason": f"Approved FEAT {feat_ref} is ready for downstream {target_kind} derivation.",
+                    "priority": "normal",
+                    "status": "proposed",
+                    "created_at": _utc_now(),
+                    "queue_path": job_ref,
+                    "consumer_type": "skill_loop",
+                    "retry_count": 0,
+                    "retry_budget": 0,
+                    "formal_ref": child_formal_ref,
+                    "published_ref": published_ref,
+                    "feat_ref": feat_ref,
+                    "source_package_ref": source_package_ref,
+                },
+            )
+            handoff_refs.append(handoff_ref)
+            job_refs.append(job_ref)
+    return handoff_refs, job_refs
+
+
+def _build_tech_downstream_dispatch(ctx: CommandContext, decision_ref: str, decision: dict[str, Any]) -> tuple[list[str], list[str]]:
+    formal_ref = str(decision.get("formal_ref") or "").strip()
+    ensure(formal_ref, "PRECONDITION_FAILED", "formal_ref is required for TECH dispatch")
+    record = resolve_registry_record(ctx.workspace_root, formal_ref)
+    metadata = record.get("metadata", {}) if isinstance(record.get("metadata"), dict) else {}
+    tech_ref = str(metadata.get("tech_ref") or metadata.get("assigned_id") or "").strip()
+    feat_ref = str(metadata.get("feat_ref") or "").strip()
+    published_ref = str(record.get("managed_artifact_ref") or "").strip()
+    source_package_ref = str(metadata.get("source_package_ref") or "").strip()
+    slug = slugify(tech_ref or formal_ref)
+    decision_stem = Path(decision_ref).stem
+    handoff_ref = f"artifacts/active/handoffs/{decision_stem}-{slug}-tech-to-impl.json"
+    write_json(
+        _artifact_path(ctx, handoff_ref),
+        {
+            "trace": ctx.trace,
+            "gate_decision_ref": decision_ref,
+            "handoff_type": "downstream",
+            "input_refs": [decision_ref, formal_ref],
+            "formal_ref": formal_ref,
+            "published_ref": published_ref,
+            "target_skill": "workflow.dev.tech_to_impl",
+            "target_kind": "IMPL",
+            "feat_ref": feat_ref,
+            "tech_ref": tech_ref,
+            "source_package_ref": source_package_ref,
+            "authoritative_input_ref": formal_ref,
+            "created_at": _utc_now(),
+        },
+    )
+    job_ref = f"artifacts/jobs/ready/{decision_stem}-{slug}-tech-to-impl.json"
+    write_json(
+        _artifact_path(ctx, job_ref),
+        {
+            "trace": ctx.trace,
+            "job_id": f"job-{decision_stem}-{slug}-tech-to-impl",
+            "job_type": "next_skill",
+            "from_skill": "governance.gate-human-orchestrator",
+            "target_skill": "workflow.dev.tech_to_impl",
+            "handoff_ref": handoff_ref,
+            "source_run_id": str(ctx.trace.get("run_ref", "")),
+            "source_artifacts": [decision_ref, formal_ref, published_ref],
+            "gate_decision_ref": decision_ref,
+            "reason": f"Approved TECH {tech_ref or formal_ref} is ready for downstream IMPL derivation.",
+            "priority": "normal",
+            "status": "proposed",
+            "created_at": _utc_now(),
+            "queue_path": job_ref,
+            "consumer_type": "skill_loop",
+            "retry_count": 0,
+            "retry_budget": 0,
+            "formal_ref": formal_ref,
+            "published_ref": published_ref,
+            "feat_ref": feat_ref,
+            "tech_ref": tech_ref,
+            "source_package_ref": source_package_ref,
+        },
+    )
+    return [handoff_ref], [job_ref]
+
+
+def _build_testset_downstream_dispatch(ctx: CommandContext, decision_ref: str, decision: dict[str, Any]) -> tuple[list[str], list[str]]:
+    formal_ref = str(decision.get("formal_ref") or "").strip()
+    ensure(formal_ref, "PRECONDITION_FAILED", "formal_ref is required for TESTSET dispatch")
+    record = resolve_registry_record(ctx.workspace_root, formal_ref)
+    metadata = record.get("metadata", {}) if isinstance(record.get("metadata"), dict) else {}
+    test_set_ref = str(metadata.get("test_set_ref") or metadata.get("assigned_id") or "").strip()
+    feat_ref = str(metadata.get("feat_ref") or "").strip()
+    target_skill = str(metadata.get("target_skill") or "").strip()
+    ensure(target_skill, "PRECONDITION_FAILED", "formal TESTSET record missing target_skill")
+    published_ref = str(record.get("managed_artifact_ref") or "").strip()
+    source_package_ref = str(metadata.get("source_package_ref") or "").strip()
+    slug = slugify(test_set_ref or formal_ref)
+    decision_stem = Path(decision_ref).stem
+    handoff_ref = f"artifacts/active/handoffs/{decision_stem}-{slug}-test-exec.json"
+    write_json(
+        _artifact_path(ctx, handoff_ref),
+        {
+            "trace": ctx.trace,
+            "gate_decision_ref": decision_ref,
+            "handoff_type": "downstream",
+            "input_refs": [decision_ref, formal_ref],
+            "formal_ref": formal_ref,
+            "published_ref": published_ref,
+            "target_skill": target_skill,
+            "target_kind": "TEST_EXEC",
+            "feat_ref": feat_ref,
+            "test_set_ref": test_set_ref,
+            "source_package_ref": source_package_ref,
+            "authoritative_input_ref": formal_ref,
+            "created_at": _utc_now(),
+        },
+    )
+    job_ref = f"artifacts/jobs/ready/{decision_stem}-{slug}-test-exec.json"
+    write_json(
+        _artifact_path(ctx, job_ref),
+        {
+            "trace": ctx.trace,
+            "job_id": f"job-{decision_stem}-{slug}-test-exec",
+            "job_type": "next_skill",
+            "from_skill": "governance.gate-human-orchestrator",
+            "target_skill": target_skill,
+            "handoff_ref": handoff_ref,
+            "source_run_id": str(ctx.trace.get("run_ref", "")),
+            "source_artifacts": [decision_ref, formal_ref, published_ref],
+            "gate_decision_ref": decision_ref,
+            "reason": f"Approved TESTSET {test_set_ref or formal_ref} is ready for downstream execution.",
+            "priority": "normal",
+            "status": "proposed",
+            "created_at": _utc_now(),
+            "queue_path": job_ref,
+            "consumer_type": "skill_loop",
+            "retry_count": 0,
+            "retry_budget": 0,
+            "formal_ref": formal_ref,
+            "published_ref": published_ref,
+            "feat_ref": feat_ref,
+            "test_set_ref": test_set_ref,
+            "source_package_ref": source_package_ref,
+        },
+    )
+    return [handoff_ref], [job_ref]
 
 
 def _package_action(ctx: CommandContext):
@@ -289,6 +504,13 @@ def _evaluate_action(ctx: CommandContext):
         "dispatch_target": dispatch_target,
         "materialized_handoff_ref": decision.get("materialized_handoff_ref", ""),
         "formal_ref": decision.get("formal_ref", ""),
+        "published_ref": decision.get("published_ref", ""),
+        "formalization_receipt_ref": decision.get("formalization_receipt_ref", ""),
+        "materialized_ssot_ref": decision.get("materialized_ssot_ref", ""),
+        "assigned_id": decision.get("assigned_id", ""),
+        "materialized_formal_refs": decision.get("materialized_formal_refs", []),
+        "published_refs": decision.get("published_refs", []),
+        "assigned_ids": decision.get("assigned_ids", []),
         "enablement_scope": "guarded-only" if payload.get("guarded_enablement_ref") else "core",
     }, [], created_refs
 
@@ -312,6 +534,12 @@ def _materialize_action(ctx: CommandContext):
         "run_closure_ref": "",
         "enablement_scope": "guarded-only" if payload.get("guarded_only") else "core",
         "formal_ref": materialized["formal_ref"],
+        "published_ref": materialized["published_ref"],
+        "materialized_ssot_ref": materialized.get("materialized_ssot_ref", ""),
+        "assigned_id": materialized.get("assigned_id", ""),
+        "materialized_formal_refs": materialized.get("materialized_formal_refs", []),
+        "published_refs": materialized.get("published_refs", []),
+        "assigned_ids": materialized.get("assigned_ids", []),
     }, [], [materialized["materialized_handoff_ref"], materialized["formalization_receipt_ref"]]
 
 
@@ -325,6 +553,8 @@ def _dispatch_action(ctx: CommandContext):
     dispatch_ref = _gate_paths(decision)["dispatch"]
     materialized_job_ref = ""
     materialized_handoff_ref = ""
+    materialized_job_refs: list[str] = []
+    materialized_handoff_refs: list[str] = []
     if dispatch_target == "formal_publication_trigger":
         ensure(decision_type == "approve", "PRECONDITION_FAILED", "formal_publication_trigger requires approve")
         if decision.get("materialized_handoff_ref"):
@@ -334,6 +564,18 @@ def _dispatch_action(ctx: CommandContext):
             decision.update(materialized)
             write_json(_artifact_path(ctx, decision_ref), decision)
             materialized_handoff_ref = materialized["materialized_handoff_ref"]
+        if str(decision.get("formal_ref") or "").startswith("formal.feat."):
+            materialized_handoff_refs, materialized_job_refs = _build_feat_downstream_dispatch(ctx, decision_ref, decision)
+            materialized_handoff_ref = materialized_handoff_refs[0] if materialized_handoff_refs else materialized_handoff_ref
+            materialized_job_ref = materialized_job_refs[0] if materialized_job_refs else ""
+        elif str(decision.get("formal_ref") or "").startswith("formal.tech."):
+            materialized_handoff_refs, materialized_job_refs = _build_tech_downstream_dispatch(ctx, decision_ref, decision)
+            materialized_handoff_ref = materialized_handoff_refs[0] if materialized_handoff_refs else materialized_handoff_ref
+            materialized_job_ref = materialized_job_refs[0] if materialized_job_refs else ""
+        elif str(decision.get("formal_ref") or "").startswith("formal.testset."):
+            materialized_handoff_refs, materialized_job_refs = _build_testset_downstream_dispatch(ctx, decision_ref, decision)
+            materialized_handoff_ref = materialized_handoff_refs[0] if materialized_handoff_refs else materialized_handoff_ref
+            materialized_job_ref = materialized_job_refs[0] if materialized_job_refs else ""
     elif dispatch_target == "delegated_handler":
         materialized_handoff_ref = f"artifacts/active/handoffs/{Path(decision_ref).stem}-delegated.json"
         write_json(
@@ -367,7 +609,9 @@ def _dispatch_action(ctx: CommandContext):
             "gate_decision_ref": decision_ref,
             "dispatch_target": dispatch_target,
             "materialized_job_ref": materialized_job_ref,
+            "materialized_job_refs": materialized_job_refs,
             "materialized_handoff_ref": materialized_handoff_ref,
+            "materialized_handoff_refs": materialized_handoff_refs,
         },
     )
     return "OK", "gate decision dispatched", {
@@ -376,10 +620,12 @@ def _dispatch_action(ctx: CommandContext):
         "dispatch_receipt_ref": dispatch_ref,
         "dispatch_status": "dispatched",
         "materialized_handoff_ref": materialized_handoff_ref,
+        "materialized_handoff_refs": materialized_handoff_refs,
         "materialized_job_ref": materialized_job_ref,
+        "materialized_job_refs": materialized_job_refs,
         "run_closure_ref": "",
         "enablement_scope": "core",
-    }, [], [dispatch_ref, materialized_handoff_ref, materialized_job_ref]
+    }, [], [dispatch_ref, materialized_handoff_ref, materialized_job_ref, *materialized_handoff_refs, *materialized_job_refs]
 
 
 def _close_action(ctx: CommandContext):

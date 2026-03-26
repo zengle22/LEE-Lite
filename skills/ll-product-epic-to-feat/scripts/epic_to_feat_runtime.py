@@ -20,6 +20,7 @@ from epic_to_feat_common import (
     parse_markdown_frontmatter,
     render_markdown,
     unique_strings,
+    resolve_input_artifacts_dir,
     validate_input_package,
 )
 from epic_to_feat_cli_integration import (
@@ -28,6 +29,11 @@ from epic_to_feat_cli_integration import (
     collect_evidence_report,
     update_supervisor_outputs,
     write_executor_outputs,
+)
+from epic_to_feat_gate_integration import (
+    create_gate_ready_package,
+    create_handoff_proposal,
+    submit_gate_pending,
 )
 from epic_to_feat_derivation import (
     apply_feature_relationships,
@@ -63,11 +69,13 @@ def utc_now() -> str:
     return datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
 
 
-def repo_root_from(repo_root: str | None, input_path: Path | None = None) -> Path:
+def repo_root_from(repo_root: str | None, input_path: str | Path | None = None) -> Path:
     if repo_root:
         return Path(repo_root).resolve()
     if input_path is not None:
-        return guess_repo_root_from_input(input_path.resolve())
+        candidate = Path(str(input_path))
+        if candidate.exists():
+            return guess_repo_root_from_input(candidate.resolve())
     return Path.cwd().resolve()
 
 
@@ -817,12 +825,13 @@ def validate_package_readiness(artifacts_dir: Path) -> tuple[bool, list[str]]:
     return not readiness_errors, readiness_errors
 
 
-def executor_run(input_path: Path, repo_root: Path, run_id: str, allow_update: bool = False) -> dict[str, Any]:
-    errors, validation = validate_input_package(input_path)
+def executor_run(input_path: str | Path, repo_root: Path, run_id: str, allow_update: bool = False) -> dict[str, Any]:
+    errors, validation = validate_input_package(input_path, repo_root)
     if errors:
         raise ValueError("; ".join(errors))
 
-    package = load_epic_package(input_path)
+    resolved_input_dir, _ = resolve_input_artifacts_dir(input_path, repo_root)
+    package = load_epic_package(resolved_input_dir)
     effective_run_id = run_id or package.run_id
     generated = build_feat_bundle(package, workflow_run_id=effective_run_id)
     output_dir = output_dir_for(repo_root, effective_run_id)
@@ -841,6 +850,7 @@ def executor_run(input_path: Path, repo_root: Path, run_id: str, allow_update: b
         "run_id": effective_run_id,
         "artifacts_dir": str(output_dir),
         "input_validation": validation,
+        "input_mode": validation.get("input_mode", "package_dir"),
         "epic_freeze_ref": generated.frontmatter["epic_freeze_ref"],
         "feat_refs": generated.frontmatter["feat_refs"],
     }
@@ -863,16 +873,62 @@ def supervisor_review(artifacts_dir: Path, repo_root: Path, run_id: str, allow_u
 
     update_supervisor_outputs(artifacts_dir, repo_root, generated, supervision, gate)
 
+    proposal_ref = ""
+    gate_ready_package_ref = ""
+    authoritative_handoff_ref = ""
+    gate_pending_ref = ""
+    if gate["freeze_ready"]:
+        active_run_id = run_id or str(generated.frontmatter.get("workflow_run_id") or artifacts_dir.name)
+        proposal_path = create_handoff_proposal(
+            repo_root=repo_root,
+            artifacts_dir=artifacts_dir,
+            run_id=active_run_id,
+            epic_freeze_ref=str(generated.frontmatter["epic_freeze_ref"]),
+            src_root_id=str(generated.frontmatter["src_root_id"]),
+            feat_refs=[str(item) for item in generated.frontmatter["feat_refs"]],
+        )
+        gate_ready_package = create_gate_ready_package(
+            artifacts_dir=artifacts_dir,
+            run_id=active_run_id,
+            candidate_ref=f"epic-to-feat.{active_run_id}.feat-freeze-bundle",
+            machine_ssot_ref=(artifacts_dir / "feat-freeze-bundle.json").resolve().relative_to(repo_root.resolve()).as_posix(),
+            acceptance_ref=(artifacts_dir / "feat-acceptance-report.json").resolve().relative_to(repo_root.resolve()).as_posix(),
+            evidence_bundle_ref=(artifacts_dir / "supervision-evidence.json").resolve().relative_to(repo_root.resolve()).as_posix(),
+        )
+        gate_submit = submit_gate_pending(
+            repo_root=repo_root,
+            artifacts_dir=artifacts_dir,
+            run_id=active_run_id,
+            proposal_ref=proposal_path.resolve().relative_to(repo_root.resolve()).as_posix(),
+            payload_path=gate_ready_package,
+            trace_context_ref=(artifacts_dir / "execution-evidence.json").resolve().relative_to(repo_root.resolve()).as_posix(),
+        )
+        gate_submit_data = gate_submit["response"]["data"]
+        package_manifest["handoff_proposal_ref"] = proposal_path.resolve().relative_to(repo_root.resolve()).as_posix()
+        package_manifest["gate_ready_package_ref"] = gate_ready_package.resolve().relative_to(repo_root.resolve()).as_posix()
+        package_manifest["authoritative_handoff_ref"] = str(gate_submit_data.get("handoff_ref", ""))
+        package_manifest["gate_pending_ref"] = str(gate_submit_data.get("gate_pending_ref", ""))
+        package_manifest["gate_submit_cli_ref"] = gate_submit["response_path"].resolve().relative_to(repo_root.resolve()).as_posix()
+        dump_json(artifacts_dir / "package-manifest.json", package_manifest)
+        proposal_ref = package_manifest["handoff_proposal_ref"]
+        gate_ready_package_ref = package_manifest["gate_ready_package_ref"]
+        authoritative_handoff_ref = package_manifest["authoritative_handoff_ref"]
+        gate_pending_ref = package_manifest["gate_pending_ref"]
+
     return {
         "ok": True,
         "run_id": run_id or str(generated.frontmatter.get("workflow_run_id") or artifacts_dir.name),
         "artifacts_dir": str(artifacts_dir),
         "decision": supervision["decision"],
         "freeze_ready": gate["freeze_ready"],
+        "handoff_proposal_ref": proposal_ref,
+        "gate_ready_package_ref": gate_ready_package_ref,
+        "authoritative_handoff_ref": authoritative_handoff_ref,
+        "gate_pending_ref": gate_pending_ref,
     }
 
 
-def run_workflow(input_path: Path, repo_root: Path, run_id: str, allow_update: bool = False) -> dict[str, Any]:
+def run_workflow(input_path: str | Path, repo_root: Path, run_id: str, allow_update: bool = False) -> dict[str, Any]:
     executor_result = executor_run(
         input_path=input_path,
         repo_root=repo_root,
@@ -895,9 +951,14 @@ def run_workflow(input_path: Path, repo_root: Path, run_id: str, allow_update: b
         "ok": readiness_ok,
         "run_id": executor_result["run_id"],
         "artifacts_dir": str(artifacts_dir),
+        "input_mode": executor_result.get("input_mode", "package_dir"),
         "epic_freeze_ref": executor_result["epic_freeze_ref"],
         "feat_refs": executor_result["feat_refs"],
         "supervision": supervisor_result,
+        "handoff_proposal_ref": supervisor_result.get("handoff_proposal_ref", ""),
+        "gate_ready_package_ref": supervisor_result.get("gate_ready_package_ref", ""),
+        "authoritative_handoff_ref": supervisor_result.get("authoritative_handoff_ref", ""),
+        "gate_pending_ref": supervisor_result.get("gate_pending_ref", ""),
         "output_validation": output_result,
         "readiness_errors": readiness_errors,
         "evidence_report": str(report_path),

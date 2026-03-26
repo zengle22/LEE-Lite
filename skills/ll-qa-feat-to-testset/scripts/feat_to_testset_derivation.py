@@ -15,6 +15,14 @@ from feat_to_testset_common import (
     unique_strings,
 )
 from feat_to_testset_environment import derive_required_environment_inputs as derive_required_environment_inputs_impl
+from feat_to_testset_profiles import (
+    derive_feature_owned_code_paths,
+    derive_priority,
+    derive_recommended_coverage_scope_name,
+    derive_test_layers,
+    feature_profile,
+    is_explicit_web_feature,
+)
 from feat_to_testset_support import (
     derive_coverage_exclusions as derive_coverage_exclusions_impl,
     derive_environment_assumptions as derive_environment_assumptions_impl,
@@ -31,142 +39,6 @@ def governing_adrs(feature: dict[str, Any], package_json: dict[str, Any]) -> lis
     refs = ensure_list(feature.get("source_refs")) + ensure_list(package_json.get("source_refs"))
     return unique_strings([ref for ref in refs if ref.startswith("ADR-")])
 
-
-def feature_profile(feature: dict[str, Any]) -> str:
-    lock = normalize_semantic_lock(feature.get("semantic_lock"))
-    axis_id = str(feature.get("axis_id") or "").strip().lower()
-    if axis_id == "projection-generation":
-        return "projection_generation"
-    if axis_id == "authoritative-snapshot":
-        return "authoritative_snapshot"
-    if axis_id == "review-focus-risk":
-        return "review_focus_risk"
-    if axis_id == "feedback-writeback":
-        return "feedback_writeback"
-    if str(lock.get("domain_type") or "").strip().lower() == "review_projection_rule":
-        title = str(feature.get("title") or "").lower()
-        if "snapshot" in title:
-            return "authoritative_snapshot"
-        if "review focus" in title or "风险" in title or "ambigu" in title:
-            return "review_focus_risk"
-        if "writeback" in title or "回写" in title or "批注" in title:
-            return "feedback_writeback"
-        return "projection_generation"
-    title_text = " ".join(
-        [
-            str(feature.get("title") or ""),
-            str(feature.get("authoritative_artifact") or ""),
-            str(feature.get("axis_id") or ""),
-            str(feature.get("derived_axis") or ""),
-        ]
-    ).lower()
-    related_text = " ".join(ensure_list(feature.get("consumes")) + ensure_list(feature.get("produces"))).lower()
-    fallback_text = " ".join(
-        ensure_list(feature.get("scope"))
-        + ensure_list(feature.get("constraints"))
-        + ensure_list(feature.get("dependencies"))
-        + [str(feature.get("gate_decision_dependency") or ""), str(feature.get("admission_dependency") or "")]
-    ).lower()
-    buckets = [
-        ("io", ["governed write-read receipt", "managed ref", "receipt", "registry", "artifact-io-governance", "governed io", "落盘与读取流"]),
-        ("formal", ["formal publication", "formal ref", "lineage", "admission", "formal object", "formal 发布", "准入流"]),
-        ("gate", ["gate", "decision object", "gate-decision", "handoff-formalization", "审核与裁决流"]),
-        ("collaboration", ["candidate", "handoff submission", "collaboration-loop", "候选提交与交接流"]),
-        ("pilot", ["pilot", "onboarding", "cutover", "fallback", "wave", "compat mode", "skill-adoption-e2e", "接入与 pilot 验证流"]),
-    ]
-    for text in (title_text, related_text, f"{title_text} {related_text} {fallback_text}"):
-        for profile, markers in buckets:
-            if any(marker in text for marker in markers):
-                return profile
-    return "default"
-
-
-def derive_priority(feature: dict[str, Any]) -> str:
-    track = str(feature.get("track") or "").lower()
-    profile = feature_profile(feature)
-    text = " ".join(ensure_list(feature.get("scope")) + ensure_list(feature.get("constraints")) + [str(feature.get("title") or "")]).lower()
-    if profile == "pilot" or "adoption" in track or "e2e" in track or "pilot" in text:
-        return "P1"
-    return "P0"
-
-
-def derive_test_layers(feature: dict[str, Any]) -> list[str]:
-    layers = ["integration"]
-    joined_text = " ".join(ensure_list(feature.get("scope")) + [str(feature.get("axis_id") or ""), str(feature.get("track") or ""), feature_profile(feature)]).lower()
-    if any(marker in joined_text for marker in ["e2e", "pilot", "ui", "cross skill", "cross-skill"]):
-        layers.append("e2e")
-    return layers
-
-
-def derive_recommended_coverage_scope_name(feature: dict[str, Any]) -> list[str]:
-    profile = feature_profile(feature)
-    title = str(feature.get("title") or "").strip()
-    mapping = {
-        "collaboration": "mainline collaboration feature",
-        "gate": "gate decision feature",
-        "formal": "formal publication feature",
-        "io": "governed io feature",
-        "pilot": "pilot rollout feature",
-    }
-    return [mapping.get(profile, f"{title or 'feature'} coverage")]
-
-
-def derive_feature_owned_code_paths(feature: dict[str, Any]) -> list[str]:
-    mapping = {
-        "collaboration": [
-            "cli/lib/mainline_runtime.py",
-            "cli/lib/reentry.py",
-            "cli/lib/gate_collaboration_actions.py",
-        ],
-        "gate": ["cli/commands/gate/command.py"],
-        "formal": [
-            "cli/lib/formalization.py",
-            "cli/lib/lineage.py",
-            "cli/lib/admission.py",
-            "cli/commands/registry/command.py",
-        ],
-        "io": [
-            "cli/lib/managed_gateway.py",
-            "cli/commands/artifact/command.py",
-        ],
-        "pilot": [
-            "cli/lib/rollout_state.py",
-            "cli/lib/pilot_chain.py",
-            "cli/commands/rollout/command.py",
-            "cli/commands/audit/command.py",
-        ],
-    }
-    return mapping.get(feature_profile(feature), [])
-
-
-def is_explicit_web_feature(feature: dict[str, Any]) -> bool:
-    text_parts = [
-        str(feature.get("title") or ""),
-        str(feature.get("goal") or ""),
-        str(feature.get("axis_id") or ""),
-        str(feature.get("track") or ""),
-    ]
-    for key in ["scope", "constraints", "dependencies", "non_goals", "source_refs", "consumes", "produces"]:
-        text_parts.extend(str(item) for item in ensure_list(feature.get(key)))
-    for check in ensure_list(feature.get("acceptance_checks")):
-        if isinstance(check, dict):
-            text_parts.extend([str(check.get("scenario") or ""), str(check.get("given") or ""), str(check.get("when") or ""), str(check.get("then") or "")])
-    joined = " ".join(text_parts).lower()
-    latin_web_markers = ["web", "browser", "playwright", "page", "dom", "locator", "selector", "base_url", "base url", "frontend", "screen", "route", "url", "click", "form", "input field"]
-    chinese_web_markers = ["页面", "浏览器", "定位器", "选择器", "前端", "路由", "按钮", "输入框", "表单", "页面跳转", "截图"]
-    if any(re.search(rf"\b{re.escape(marker)}\b", joined) for marker in latin_web_markers):
-        return True
-    return any(marker in joined for marker in chinese_web_markers)
-
-
-def derive_downstream_target_skill(feature: dict[str, Any], layers: list[str] | None = None) -> str:
-    resolved_layers = layers or derive_test_layers(feature)
-    if is_explicit_web_feature(feature):
-        return "skill.qa.test_exec_web_e2e"
-    e2e_context = " ".join([str(feature.get("title") or ""), str(feature.get("goal") or ""), " ".join(str(item) for item in ensure_list(feature.get("scope")))]).lower()
-    if "e2e" in resolved_layers and any(marker in e2e_context for marker in ["browser", "playwright", "page", "dom", "locator", "selector", "ui", "页面", "浏览器", "定位器"]):
-        return "skill.qa.test_exec_web_e2e"
-    return "skill.qa.test_exec_cli"
 
 
 def supporting_contract_refs(feature: dict[str, Any]) -> list[str]:
@@ -207,6 +79,13 @@ def derive_preconditions(feature: dict[str, Any]) -> list[str]:
         preconditions = ["selected FEAT 及其上游 source refs 可被稳定解析。"]
     profile = feature_profile(feature)
     extras = {
+        "runner_ready_job": ["approve decision 已存在且 dispatchable。", "ready queue writer 可写入 artifacts/jobs/ready。"],
+        "runner_operator_entry": ["Claude/Codex CLI 可调用 runner skill entry。", "runner context bootstrapper 可创建或恢复 run context。"],
+        "runner_control_surface": ["runner control surface 已暴露 lifecycle commands。", "runner context 与 ownership record 可被解析。"],
+        "runner_intake": ["ready execution job 已进入 artifacts/jobs/ready。", "single-owner claim guard 可输出 authoritative verdict。"],
+        "runner_dispatch": ["claimed execution job 已形成 running ownership。", "target skill ref 与 authoritative input 可被解析。"],
+        "runner_feedback": ["execution attempt record 已存在。", "downstream skill result 与 failure evidence 可回链到 runner。"],
+        "runner_observability": ["ready queue、running ownership 与 outcome records 可被读取。", "status projector 可聚合 runner state。"],
         "projection_generation": ["Machine SSOT 已 freeze-ready。", "Projection template 已发布且可解析。"],
         "authoritative_snapshot": ["SSOT authoritative fields 已冻结。", "Snapshot extractor 可读取对应 source refs。"],
         "review_focus_risk": ["Projection 已渲染。", "review focus / risk analyzer 可读取 SSOT 与 projection context。"],
@@ -228,6 +107,34 @@ def derive_pass_criteria(feature: dict[str, Any]) -> list[str]:
     if derive_priority(feature) == "P1":
         criteria.append("高风险或 adoption/E2E 路径需要明确的环境、数据与 pilot execution 前提。")
     extras = {
+        "runner_ready_job": [
+            "approve 后必须产出 ready execution job，并保留 approve-to-job lineage。",
+            "non-approve 路径不得生成 ready queue item。",
+        ],
+        "runner_operator_entry": [
+            "runner skill entry 必须是显式的 Claude/Codex CLI 用户入口。",
+            "start / resume 必须保留 authoritative run context，不得退化成 manual relay。",
+        ],
+        "runner_control_surface": [
+            "runner CLI control surface 必须统一暴露 claim/run/complete/fail 等控制语义。",
+            "control plane 不得越权改写 dispatch 或 outcome 业务边界。",
+        ],
+        "runner_intake": [
+            "ready queue consumption 必须保持 single-owner claim 语义。",
+            "claim conflict、job_not_ready 等失败路径必须可追溯且 fail closed。",
+        ],
+        "runner_dispatch": [
+            "claimed job 必须派发到声明的 target skill，并保留 authoritative input lineage。",
+            "dispatch 不得退化成第三会话人工接力。",
+        ],
+        "runner_feedback": [
+            "done / failed / retry-reentry 必须形成单一 authoritative outcome。",
+            "failure evidence 与 retry-reentry directive 必须可追溯。",
+        ],
+        "runner_observability": [
+            "监控面必须覆盖 ready backlog、running、failed、deadletters、waiting-human 状态。",
+            "监控面只能读取 authoritative runner records，不得扫目录猜状态。",
+        ],
         "projection_generation": [
             "Projection blocks 必须从 Machine SSOT 派生，且保留 derived-only / traceability 标记。",
             "Projection 不得被下游继承为 authoritative source。",
@@ -273,6 +180,13 @@ def derive_evidence_required(feature: dict[str, Any], layers: list[str]) -> list
     if "e2e" in layers:
         evidence.append("若进入 e2e 层，需补充 pilot 链路或 UI/integration context 的执行前提证据")
     extras = {
+        "runner_ready_job": ["ready execution job evidence", "approve-to-job lineage evidence", "ready queue receipt"],
+        "runner_operator_entry": ["runner invocation receipt", "runner context bootstrap evidence", "runner skill entry trace"],
+        "runner_control_surface": ["runner control action record", "job ownership evidence", "control-plane state transition evidence"],
+        "runner_intake": ["ready queue scan evidence", "claim receipt", "running ownership record"],
+        "runner_dispatch": ["next-skill invocation evidence", "execution attempt record", "dispatch lineage trace"],
+        "runner_feedback": ["execution outcome evidence", "retry-reentry directive evidence", "failure evidence binding"],
+        "runner_observability": ["runner observability snapshot", "backlog / running / failed status evidence", "waiting-human / deadletter view evidence"],
         "projection_generation": ["projection render evidence", "derived-only marker evidence", "projection trace refs"],
         "authoritative_snapshot": ["authoritative snapshot evidence", "authoritative field trace evidence"],
         "review_focus_risk": ["review focus extraction evidence", "risk / ambiguity trace evidence"],
@@ -283,6 +197,11 @@ def derive_evidence_required(feature: dict[str, Any], layers: list[str]) -> list
         "gate": ["decision object evidence", "approve / revise / retry / handoff / reject routing evidence"],
     }
     return unique_strings(evidence + extras.get(feature_profile(feature), []))
+
+
+def derive_downstream_target_skill(feature: dict[str, Any], layers: list[str]) -> str:
+    del layers
+    return "skill.qa.test_exec_web_e2e" if is_explicit_web_feature(feature) else "skill.qa.test_exec_cli"
 
 
 def derive_analysis_markdown(feature: dict[str, Any], package_json: dict[str, Any], derived_slug: str) -> str:
@@ -408,3 +327,4 @@ def build_test_set_yaml(feature: dict[str, Any], package_json: dict[str, Any]) -
         "semantic_lock": normalize_semantic_lock(feature.get("semantic_lock")),
         "status": "draft",
     }
+

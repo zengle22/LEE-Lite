@@ -67,6 +67,140 @@ class GateHumanOrchestratorTestSupport(unittest.TestCase):
         )
         return package_dir
 
+    def make_raw_to_src_gate_ready_package(self, root: Path, *, run_id: str = "raw-src-run") -> Path:
+        artifacts_dir = root / "artifacts" / "raw-to-src" / run_id
+        artifacts_dir.mkdir(parents=True, exist_ok=True)
+        (artifacts_dir / "src-candidate.md").write_text("# SRC Candidate\n\nApproved content.\n", encoding="utf-8")
+        self.write_json(
+            artifacts_dir / "src-candidate.json",
+            {
+                "artifact_type": "src_candidate",
+                "workflow_key": "product.raw-to-src",
+                "workflow_run_id": run_id,
+                "title": "SRC Candidate",
+                "status": "needs_review",
+                "problem_statement": "Need a formal SRC artifact after approval.",
+            },
+        )
+        self.write_json(
+            root / "artifacts" / "registry" / f"raw-to-src-{run_id}-src-candidate.json",
+            {
+                "artifact_ref": f"raw-to-src.{run_id}.src-candidate",
+                "managed_artifact_ref": f"artifacts/raw-to-src/{run_id}/src-candidate.md",
+                "status": "committed",
+                "trace": {"run_ref": run_id, "workflow_key": "product.raw-to-src"},
+                "metadata": {"layer": "formal"},
+                "lineage": [],
+            },
+        )
+        self.write_json(artifacts_dir / "acceptance-report.json", {"decision": "approve"})
+        self.write_json(artifacts_dir / "supervision-evidence.json", {"decision": "pass"})
+        package_dir = artifacts_dir / "input"
+        self.write_json(
+            package_dir / "gate-ready-package.json",
+            {
+                "trace": {"run_ref": run_id, "workflow_key": "product.raw-to-src"},
+                "payload": {
+                    "candidate_ref": f"raw-to-src.{run_id}.src-candidate",
+                    "machine_ssot_ref": f"artifacts/raw-to-src/{run_id}/src-candidate.json",
+                    "acceptance_ref": f"artifacts/raw-to-src/{run_id}/acceptance-report.json",
+                    "evidence_bundle_ref": f"artifacts/raw-to-src/{run_id}/supervision-evidence.json",
+                },
+            },
+        )
+        return package_dir
+
+    def make_feat_freeze_gate_ready_package(self, root: Path, *, run_id: str = "feat-freeze-run") -> Path:
+        artifacts_dir = root / "artifacts" / "epic-to-feat" / run_id
+        artifacts_dir.mkdir(parents=True, exist_ok=True)
+        self.write_json(
+            artifacts_dir / "feat-freeze-bundle.json",
+            {
+                "artifact_type": "feat_freeze_package",
+                "workflow_key": "product.epic-to-feat",
+                "workflow_run_id": run_id,
+                "title": "Execution Runner FEAT Bundle",
+                "status": "accepted",
+                "epic_freeze_ref": "EPIC-GATE-EXECUTION-RUNNER",
+                "feat_refs": [
+                    "FEAT-001",
+                    "FEAT-002",
+                    "FEAT-003",
+                ],
+                "downstream_workflows": [
+                    "workflow.dev.feat_to_tech",
+                    "workflow.qa.feat_to_testset",
+                ],
+                "bundle_intent": "Split the execution runner epic into user-visible FEAT slices so reviewer can approve user entry, control surface, and observability independently.",
+                "bundle_shared_non_goals": [
+                    "Do not collapse the FEAT bundle back into abstract runtime only wording.",
+                    "Do not drift into TECH or implementation sequencing.",
+                ],
+                "epic_context": {
+                    "business_goal": "Freeze approve -> ready job -> runner claim -> next skill invocation as a user-visible product line.",
+                    "product_positioning": "This FEAT bundle sits between the approved EPIC and downstream TECH / TESTSET workflows.",
+                    "actors_and_roles": [
+                        {
+                            "role": "Claude/Codex CLI operator",
+                            "responsibility": "Start or resume the runner through the dedicated skill entry.",
+                        },
+                        {
+                            "role": "workflow / orchestration operator",
+                            "responsibility": "Observe backlog, running, failed, and waiting-human states.",
+                        },
+                    ],
+                    "epic_success_criteria": [
+                        "At least one approve -> ready job -> runner claim -> next skill invocation path is testable.",
+                        "Runner entry, control surface, and observability stay explicit and user-facing.",
+                    ],
+                    "decomposition_rules": [
+                        "Split by independently reviewable product behavior slices.",
+                        "Do not rewrite approve into formal publication or publish-only state.",
+                    ],
+                },
+                "features": [
+                    {
+                        "feat_ref": "FEAT-001",
+                        "title": "Runner 用户入口流",
+                        "goal": "Freeze a dedicated user-invokable runner skill entry.",
+                        "track": "foundation",
+                    },
+                    {
+                        "feat_ref": "FEAT-002",
+                        "title": "Runner 控制面流",
+                        "goal": "Freeze the CLI control surface for claim, run, complete, and fail.",
+                        "track": "foundation",
+                    },
+                    {
+                        "feat_ref": "FEAT-003",
+                        "title": "Runner 运行监控流",
+                        "goal": "Freeze the observability surface for backlog, running, failed, and waiting-human states.",
+                        "track": "foundation",
+                    },
+                ],
+                "source_refs": [
+                    "ADR-018",
+                    "EPIC-GATE-EXECUTION-RUNNER",
+                ],
+            },
+        )
+        self.write_json(artifacts_dir / "acceptance-report.json", {"decision": "approve"})
+        self.write_json(artifacts_dir / "supervision-evidence.json", {"decision": "pass"})
+        package_dir = artifacts_dir / "input"
+        self.write_json(
+            package_dir / "gate-ready-package.json",
+            {
+                "trace": {"run_ref": run_id, "workflow_key": "product.epic-to-feat"},
+                "payload": {
+                    "candidate_ref": f"epic-to-feat.{run_id}.feat-freeze-bundle",
+                    "machine_ssot_ref": f"artifacts/epic-to-feat/{run_id}/feat-freeze-bundle.json",
+                    "acceptance_ref": f"artifacts/epic-to-feat/{run_id}/acceptance-report.json",
+                    "evidence_bundle_ref": f"artifacts/epic-to-feat/{run_id}/supervision-evidence.json",
+                },
+            },
+        )
+        return package_dir
+
     def make_runtime_pending_item(self, root: Path, *, key: str = "gate-job-001") -> None:
         handoff_ref = f"artifacts/active/gates/handoffs/{key}.json"
         pending_ref = f"artifacts/active/gates/pending/{key}.json"

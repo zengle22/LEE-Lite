@@ -46,6 +46,7 @@ class FeatToTechWorkflowTests(FeatToTechWorkflowHarness):
             artifacts_dir = self.run_tech_flow(repo_root, input_dir, "FEAT-SRC-001-001", "tech-required")
             design = json.loads((artifacts_dir / "tech-design-bundle.json").read_text(encoding="utf-8"))
             manifest = json.loads((artifacts_dir / "package-manifest.json").read_text(encoding="utf-8"))
+            gate_ready_package = json.loads((artifacts_dir / "input" / "gate-ready-package.json").read_text(encoding="utf-8"))
             bundle_md = (artifacts_dir / "tech-design-bundle.md").read_text(encoding="utf-8")
             tech_md = (artifacts_dir / "tech-spec.md").read_text(encoding="utf-8")
             arch_md = (artifacts_dir / "arch-design.md").read_text(encoding="utf-8")
@@ -117,6 +118,13 @@ class FeatToTechWorkflowTests(FeatToTechWorkflowHarness):
             self.assertEqual(manifest["cli_supervisor_commit_ref"], str(artifacts_dir / "_cli" / "tech-design-bundle-supervisor-commit.response.json"))
             self.assertEqual(manifest["tech_spec_ref"], str(artifacts_dir / "tech-spec.md"))
             self.assertNotIn("tech_impl_ref", manifest)
+            self.assertEqual(manifest["gate_ready_package_ref"], "artifacts/feat-to-tech/tech-required/input/gate-ready-package.json")
+            self.assertTrue(manifest["authoritative_handoff_ref"].startswith("artifacts/active/gates/handoffs/"))
+            self.assertTrue(manifest["gate_pending_ref"].startswith("artifacts/active/gates/pending/"))
+            self.assertEqual(gate_ready_package["payload"]["candidate_ref"], "feat-to-tech.tech-required.tech-design-bundle")
+            self.assertEqual(gate_ready_package["payload"]["machine_ssot_ref"], "artifacts/feat-to-tech/tech-required/tech-design-bundle.json")
+            self.assertTrue((repo_root / manifest["authoritative_handoff_ref"]).exists())
+            self.assertTrue((repo_root / manifest["gate_pending_ref"]).exists())
 
             validate = self.run_cmd("validate-output", "--artifacts-dir", str(artifacts_dir))
             self.assertEqual(validate.returncode, 0, validate.stderr)
@@ -474,6 +482,68 @@ class FeatToTechWorkflowTests(FeatToTechWorkflowHarness):
             self.assertIn("cutover_recommendation", api_md)
             self.assertIn("Canonical refs:", api_md)
 
+    def test_execution_runner_operator_entry_feat_emits_runner_entry_tech(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            repo_root = Path(temp_dir)
+            feature = {
+                "feat_ref": "FEAT-SRC-ADR018-002",
+                "title": "Runner 用户入口流",
+                "axis_id": "runner-operator-entry",
+                "goal": "让 Claude/Codex CLI 用户通过独立 runner skill 启动或恢复 Execution Loop Job Runner。",
+                "scope": [
+                    "定义 runner 独立 skill 入口。",
+                    "定义 start / resume 语义。",
+                    "定义入口调用如何把运行权交给 runner。",
+                ],
+                "constraints": [
+                    "Execution Loop Job Runner 必须以独立 skill 入口暴露给 Claude/Codex CLI 用户。",
+                    "入口必须显式声明 start / resume 语义。",
+                    "入口不得退化成手工逐个调用下游 skill。",
+                ],
+                "dependencies": [
+                    "Boundary to ready-job FEAT: 本 FEAT 不负责生成 ready execution job。",
+                    "Boundary to runner-control-surface FEAT: 入口启动后，后续控制语义由控制面 FEAT 承担。",
+                ],
+                "outputs": ["runner skill entry definition", "runner invocation record", "runner start receipt"],
+                "acceptance_checks": [
+                    {"scenario": "Runner skill entry is explicit", "given": "Claude/Codex CLI operator", "when": "runner is started", "then": "存在一个明确的 runner skill entry"},
+                    {"scenario": "Runner entry preserves authoritative context", "given": "resume path", "when": "runner resumes", "then": "保留 authoritative run context"},
+                    {"scenario": "Runner entry is not manual relay", "given": "post-approve flow", "when": "reviewed", "then": "不会退化成 manual downstream relay"},
+                ],
+                "source_refs": ["FEAT-SRC-ADR018-002", "EPIC-ADR018", "SRC-ADR018", "ADR-018"],
+            }
+            bundle = self.make_bundle_json(feature, run_id="feat-runner-entry")
+            bundle["source_refs"] = ["product.epic-to-feat::feat-runner-entry", feature["feat_ref"], "EPIC-ADR018", "SRC-ADR018", "ADR-018"]
+            input_dir = self.make_feat_package(repo_root, "feat-runner-entry", bundle)
+
+            result = self.run_cmd(
+                "run",
+                "--input",
+                str(input_dir),
+                "--feat-ref",
+                feature["feat_ref"],
+                "--repo-root",
+                str(repo_root),
+                "--run-id",
+                "tech-runner-entry",
+            )
+            self.assertEqual(result.returncode, 0, result.stderr)
+            artifacts_dir = Path(json.loads(result.stdout)["artifacts_dir"])
+            design = json.loads((artifacts_dir / "tech-design-bundle.json").read_text(encoding="utf-8"))
+            tech_md = (artifacts_dir / "tech-spec.md").read_text(encoding="utf-8")
+            arch_md = (artifacts_dir / "arch-design.md").read_text(encoding="utf-8")
+            api_md = (artifacts_dir / "api-contract.md").read_text(encoding="utf-8")
+
+            self.assertTrue(design["arch_required"])
+            self.assertTrue(design["api_required"])
+            self.assertIn("cli/lib/runner_entry.py", tech_md)
+            self.assertIn("cli/lib/execution_runner.py", tech_md)
+            self.assertIn("ExecutionRunnerStartRequest", tech_md)
+            self.assertIn("Dedicated runner entry placement", arch_md)
+            self.assertIn("ll loop run-execution", api_md)
+            self.assertIn("entry_mode ∈ {start, resume}", api_md)
+            self.assertNotIn("ll gate submit-handoff", api_md)
+
     def test_adr007_adoption_e2e_feat_preserves_web_and_cli_skill_family(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             repo_root = Path(temp_dir)
@@ -680,6 +750,88 @@ class FeatToTechWorkflowTests(FeatToTechWorkflowHarness):
             self.assertNotIn("cli/lib/mainline_runtime.py", tech_md)
             self.assertNotIn("cli/lib/managed_gateway.py", tech_md)
             self.assertNotIn("ll gate ", tech_md)
+
+    def test_formal_feat_ref_is_admissible_input_for_feat_to_tech(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            repo_root = Path(temp_dir)
+            feature = {
+                "feat_ref": "FEAT-SRC-001-201",
+                "title": "配置中心协作主链",
+                "goal": "验证 formal FEAT 能反查回 bundle package 并驱动 TECH 派生。",
+                "scope": ["保留协作边界。", "保留接口约束。", "允许 formal admission 进入 TECH。"],
+                "constraints": ["不得跳过 FEAT。", "不得丢失 source refs。", "TECH 仍从 feat_freeze_package 派生。", "admission 必须 fail closed。"],
+                "dependencies": ["formal FEAT registry 可解析。"],
+                "outputs": ["tech design"],
+                "acceptance_checks": [
+                    {"scenario": "formal ref resolves package", "given": "formal FEAT", "when": "run feat-to-tech", "then": "source package dir 被正确反查"},
+                    {"scenario": "selected feat remains explicit", "given": "formal FEAT", "when": "derive TECH", "then": "feat_ref 与 title 不丢失"},
+                    {"scenario": "input mode is formal admission", "given": "formal FEAT", "when": "validate input", "then": "input_mode=formal_admission"},
+                ],
+                "source_refs": ["FEAT-SRC-001-201", "EPIC-SRC001", "SRC-001"],
+            }
+            bundle = self.make_bundle_json(feature, run_id="feat-formal-tech")
+            self.make_feat_package(repo_root, "feat-formal-tech", bundle)
+            formal_feat_path = repo_root / "ssot" / "feat" / "FEAT-SRC-001-201__configuration-mainline.md"
+            formal_feat_path.parent.mkdir(parents=True, exist_ok=True)
+            formal_feat_path.write_text(
+                "---\nid: FEAT-SRC-001-201\nssot_type: FEAT\ntitle: 配置中心协作主链\nstatus: frozen\n---\n\n# 配置中心协作主链\n\nFormal FEAT body.\n",
+                encoding="utf-8",
+            )
+            registry_dir = repo_root / "artifacts" / "registry"
+            registry_dir.mkdir(parents=True, exist_ok=True)
+            (registry_dir / "formal-feat-feat-src-001-201.json").write_text(
+                json.dumps(
+                    {
+                        "artifact_ref": "formal.feat.feat-src-001-201",
+                        "managed_artifact_ref": "ssot/feat/FEAT-SRC-001-201__configuration-mainline.md",
+                        "status": "materialized",
+                        "trace": {"run_ref": "feat-formal-tech", "workflow_key": "product.epic-to-feat"},
+                        "metadata": {
+                            "layer": "formal",
+                            "source_package_ref": "artifacts/epic-to-feat/feat-formal-tech",
+                            "assigned_id": "FEAT-SRC-001-201",
+                            "feat_ref": "FEAT-SRC-001-201",
+                            "ssot_type": "FEAT",
+                        },
+                        "lineage": ["epic-to-feat.feat-formal-tech.feat-freeze-bundle", "artifacts/active/gates/decisions/gate-decision.json"],
+                    },
+                    ensure_ascii=False,
+                    indent=2,
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+
+            result = self.run_cmd(
+                "run",
+                "--input",
+                "formal.feat.feat-src-001-201",
+                "--feat-ref",
+                "FEAT-SRC-001-201",
+                "--repo-root",
+                str(repo_root),
+                "--run-id",
+                "tech-from-formal",
+            )
+            self.assertEqual(result.returncode, 0, result.stderr)
+            payload = json.loads(result.stdout)
+            self.assertEqual(payload["input_mode"], "formal_admission")
+            manifest = json.loads((Path(payload["artifacts_dir"]) / "package-manifest.json").read_text(encoding="utf-8"))
+            self.assertEqual(
+                manifest["input_artifacts_dir"],
+                str((repo_root / "artifacts" / "epic-to-feat" / "feat-formal-tech").resolve()),
+            )
+
+            validate = self.run_cmd(
+                "validate-input",
+                "--input",
+                "formal.feat.feat-src-001-201",
+                "--feat-ref",
+                "FEAT-SRC-001-201",
+                "--repo-root",
+                str(repo_root),
+            )
+            self.assertEqual(validate.returncode, 0, validate.stderr)
 
 
 if __name__ == "__main__":

@@ -9,199 +9,24 @@ import re
 from typing import Any
 
 from tech_to_impl_common import ensure_list, normalize_semantic_lock, unique_strings
+from tech_to_impl_workstreams import STALE_REENTRY_RULE, acceptance_checkpoints, assess_workstreams, implementation_steps
 
 
-FRONTEND_KEYWORDS = [
-    "ui",
-    "ux",
-    "page",
-    "screen",
-    "view",
-    "frontend",
-    "front-end",
-    "页面",
-    "交互",
-    "前端",
-    "文案",
-]
-
-BACKEND_KEYWORDS = [
-    "backend",
-    "service",
-    "worker",
-    "job",
-    "api",
-    "contract",
-    "schema",
-    "database",
-    "storage",
-    "queue",
-    "event",
-    "message",
-    "gate",
-    "workflow",
-    "runtime",
-    "path",
-    "io",
-    "registry",
-    "后端",
-    "服务",
-    "接口",
-    "契约",
-    "数据库",
-    "事件",
-    "消息",
-    "发布",
-]
-
-MIGRATION_KEYWORDS = [
-    "migration",
-    "cutover",
-    "rollout",
-    "fallback",
-    "rollback",
-    "compat",
-    "切换",
-    "迁移",
-    "灰度",
-    "回滚",
-    "兼容",
-]
-
-NEGATION_MARKERS = ["不", "无", "without", "no ", "not ", "do not", "must not"]
-GENERIC_MIGRATION_PHRASES = ["rollout_required", "adoption_e2e", "overlay"]
-STALE_REENTRY_RULE = "keeping approval and re-entry semantics outside this feat"
 
 
-def _string_segments(value: Any) -> list[str]:
-    if isinstance(value, str):
-        text = value.strip()
-        return [text] if text else []
-    if isinstance(value, list):
-        segments: list[str] = []
-        for item in value:
-            segments.extend(_string_segments(item))
-        return segments
-    if isinstance(value, dict):
-        segments: list[str] = []
-        for item in value.values():
-            segments.extend(_string_segments(item))
-        return segments
-    return []
 
 
-def feature_segments(feature: dict[str, Any]) -> list[str]:
-    segments: list[str] = []
-    for key in ["title", "goal", "axis_id", "slice_id", "track"]:
-        value = str(feature.get(key) or "").strip()
-        if value:
-            segments.append(value)
-    for key in [
-        "scope",
-        "constraints",
-        "dependencies",
-        "inputs",
-        "processing",
-        "outputs",
-        "non_goals",
-        "upstream_feat",
-        "downstream_feat",
-        "consumes",
-        "produces",
-    ]:
-        segments.extend(ensure_list(feature.get(key)))
-    for key in [
-        "identity_and_scenario",
-        "business_flow",
-        "product_objects_and_deliverables",
-        "collaboration_and_timeline",
-        "acceptance_and_testability",
-        "frozen_downstream_boundary",
-        "dependency_kinds",
-    ]:
-        segments.extend(_string_segments(feature.get(key)))
-    for check in feature.get("acceptance_checks") or []:
-        if isinstance(check, dict):
-            segments.extend(
-                [
-                    str(check.get("scenario") or ""),
-                    str(check.get("given") or ""),
-                    str(check.get("when") or ""),
-                    str(check.get("then") or ""),
-                ]
-            )
-    return [segment for segment in segments if segment.strip()]
 
 
-def implementation_surface_segments(feature: dict[str, Any], package: Any) -> list[str]:
-    segments: list[str] = []
-    for key in ["title", "goal", "axis_id", "slice_id", "track", "resolved_axis"]:
-        value = str(feature.get(key) or "").strip()
-        if value:
-            segments.append(value)
-
-    for key in [
-        "scope",
-        "constraints",
-        "dependencies",
-        "inputs",
-        "processing",
-        "outputs",
-        "upstream_feat",
-        "downstream_feat",
-        "consumes",
-        "produces",
-    ]:
-        segments.extend(ensure_list(feature.get(key)))
-
-    tech_design = package.tech_json.get("tech_design") or {}
-    if isinstance(tech_design, dict):
-        for key in [
-            "design_focus",
-            "implementation_rules",
-            "module_plan",
-            "implementation_strategy",
-            "implementation_unit_mapping",
-            "interface_contracts",
-            "integration_points",
-            "implementation_architecture",
-            "state_model",
-            "main_sequence",
-            "exception_and_compensation",
-        ]:
-            segments.extend(_string_segments(tech_design.get(key)))
-        carrier_view = tech_design.get("implementation_carrier_view") or {}
-        if isinstance(carrier_view, dict):
-            segments.extend(_string_segments(carrier_view.get("summary")))
-            segments.extend(_string_segments(carrier_view.get("diagram")))
-    return [segment for segment in segments if segment.strip()]
 
 
-def _keyword_present(lowered: str, keyword: str) -> bool:
-    ascii_keyword = keyword.isascii()
-    if ascii_keyword and keyword.isalnum() and len(keyword) <= 3:
-        return bool(re.search(rf"(?<![A-Za-z0-9_]){re.escape(keyword)}(?![A-Za-z0-9_])", lowered))
-    if ascii_keyword and re.fullmatch(r"[A-Za-z0-9_-]+", keyword):
-        return bool(re.search(rf"(?<![A-Za-z0-9_]){re.escape(keyword)}(?![A-Za-z0-9_])", lowered))
-    return keyword in lowered
 
 
-def keyword_hits_in_segments(segments: list[str], keywords: list[str]) -> list[str]:
-    hits: list[str] = []
-    for segment in segments:
-        lowered = segment.lower()
-        if any(marker in lowered for marker in NEGATION_MARKERS):
-            continue
-        for keyword in keywords:
-            if keyword in MIGRATION_KEYWORDS and any(phrase in lowered for phrase in GENERIC_MIGRATION_PHRASES):
-                continue
-            if _keyword_present(lowered, keyword) and keyword not in hits:
-                hits.append(keyword)
-    return hits
 
 
-def keyword_hits(feature: dict[str, Any], keywords: list[str]) -> list[str]:
-    return keyword_hits_in_segments(feature_segments(feature), keywords)
+
+
+
 
 
 def build_refs(package: Any) -> dict[str, str | None]:
@@ -276,119 +101,10 @@ def normalize_collaboration_boundary_text(text: str) -> str:
     return normalized
 
 
-def is_review_projection_package(feature: dict[str, Any], package: Any) -> bool:
-    lock = normalize_semantic_lock(feature.get("semantic_lock") or package.semantic_lock)
-    if str(lock.get("domain_type") or "").strip().lower() == "review_projection_rule":
-        return True
-    axis_id = str(feature.get("axis_id") or feature.get("slice_id") or "").strip().lower()
-    return axis_id in {
-        "projection-generation",
-        "authoritative-snapshot",
-        "review-focus-risk",
-        "feedback-writeback",
-    }
 
 
-def assess_workstreams(feature: dict[str, Any], package: Any) -> dict[str, Any]:
-    axis_id = str(feature.get("axis_id") or feature.get("slice_id") or "").strip().lower()
-    if is_review_projection_package(feature, package):
-        return {
-            "frontend_required": False,
-            "backend_required": True,
-            "migration_required": False,
-            "execution_surface_count": 1,
-            "rationale": {
-                "frontend": ["Review projection implementation does not introduce an end-user UI/page/component surface."],
-                "backend": ["Review projection implementation is carried by renderer/extractor/writeback runtime modules and SSOT integration code."],
-                "migration": ["Review projection FEATs do not require migration, cutover, rollback, or compat-mode planning."],
-            },
-        }
-    segments = implementation_surface_segments(feature, package)
-    frontend_hits = keyword_hits_in_segments(segments, FRONTEND_KEYWORDS)
-    backend_hits = keyword_hits_in_segments(segments, BACKEND_KEYWORDS)
-    migration_hits = keyword_hits_in_segments(segments, MIGRATION_KEYWORDS)
-    tech_surface_text = " ".join(
-        tech_list(package, "implementation_unit_mapping")
-        + tech_list(package, "integration_points")
-        + tech_list(package, "interface_contracts")
-    ).lower()
-    tech_migration_text = " ".join(tech_list(package, "implementation_unit_mapping")).lower()
-    explicit_frontend_surface = any(
-        marker in tech_surface_text
-        for marker in [
-            "/ui/",
-            "\\ui\\",
-            "/frontend/",
-            "\\frontend\\",
-            "frontend",
-            "front-end",
-            "page",
-            "screen",
-            "view",
-            "页面",
-            "前端",
-            "交互",
-        ]
-    )
-    explicit_migration_surface = any(
-        marker in tech_migration_text
-        for marker in [
-            "migration",
-            "cutover",
-            "rollout",
-            "fallback",
-            "rollback",
-            "compat",
-            "迁移",
-            "切换",
-            "回滚",
-            "灰度",
-        ]
-    )
 
-    frontend_rationale = (
-        [f"Detected explicit UI or interaction surface: {', '.join(frontend_hits[:4])}."]
-        if frontend_hits
-        else ["No explicit UI/page/component implementation surface was detected."]
-    )
 
-    backend_rationale: list[str] = []
-    if backend_hits:
-        backend_rationale.append(f"Detected runtime/service/contract surface: {', '.join(backend_hits[:4])}.")
-    if bool(package.tech_json.get("api_required")) and not backend_hits:
-        backend_rationale.append("Upstream TECH package already requires API/contract implementation support.")
-    if bool(package.tech_json.get("arch_required")) and not backend_hits:
-        backend_rationale.append("Upstream TECH package already requires architecture-aligned execution work.")
-    if not backend_rationale:
-        backend_rationale.append("No runtime/service/storage/workflow implementation surface was detected.")
-
-    migration_rationale = (
-        [f"Detected migration/cutover language: {', '.join(migration_hits[:4])}."]
-        if migration_hits
-        else ["No migration, cutover, rollback, or compat-mode surface was detected."]
-    )
-
-    frontend_required = explicit_frontend_surface or bool(frontend_hits)
-    backend_required = bool(backend_hits) or bool(package.tech_json.get("api_required")) or bool(package.tech_json.get("arch_required"))
-    migration_required = bool(migration_hits)
-
-    if axis_id in {"object-layering", "formalization", "collaboration-loop", "io-governance"} and not frontend_hits:
-        frontend_required = False
-    if axis_id in {"object-layering", "formalization"} and not explicit_migration_surface:
-        migration_hits = []
-        migration_required = False
-
-    return {
-        "frontend_required": frontend_required,
-        "backend_required": backend_required,
-        "migration_required": migration_required,
-        "execution_surface_count": int(frontend_required) + int(backend_required),
-        "rationale": {
-            "frontend": frontend_rationale,
-            "backend": backend_rationale,
-            "migration": migration_rationale,
-        },
-    }
 
 
 def implementation_scope(feature: dict[str, Any], package: Any) -> list[str]:
@@ -402,64 +118,6 @@ def implementation_scope(feature: dict[str, Any], package: Any) -> list[str]:
     return unique_strings(items)[:6]
 
 
-def implementation_steps(feature: dict[str, Any], assessment: dict[str, Any], package: Any) -> list[dict[str, str]]:
-    del feature
-    units = implementation_units(package)
-    unit_paths = [unit["path"] for unit in units]
-    unit_preview = ", ".join(unit_paths[:4]) or "the frozen TECH implementation units"
-    interface_preview = "; ".join(tech_list(package, "interface_contracts")[:2])
-    sequence_preview = "; ".join(tech_list(package, "main_sequence")[:3])
-    integration_preview = "; ".join(tech_list(package, "integration_points")[:2])
-
-    steps: list[dict[str, str]] = [
-        {
-            "title": "Freeze upstream refs and touch set",
-            "work": f"Lock feat_ref, tech_ref, optional arch/api refs, and the concrete touch set before coding: {unit_preview}.",
-            "done_when": "The implementation entry references frozen upstream objects only and the concrete file/module touch set is explicit.",
-        }
-    ]
-    if assessment["frontend_required"]:
-        steps.append(
-            {
-                "title": "Implement frontend surface",
-                "work": "Apply the selected UI/page/component changes and keep interaction behavior aligned to the frozen TECH/API boundary.",
-                "done_when": "Frontend changes are wired, bounded to the selected scope, and traceable to acceptance checks.",
-            }
-        )
-    if assessment["backend_required"]:
-        steps.append(
-            {
-                "title": "Implement frozen runtime units",
-                "work": (
-                    f"Update only the declared runtime units: {unit_preview}. "
-                    f"Honor the frozen contracts and sequence: {interface_preview or 'use upstream interface contracts'}."
-                ),
-                "done_when": (
-                    "The listed units implement the upstream state transitions, contract hooks, and evidence points "
-                    "without redefining ownership or decision semantics."
-                ),
-            }
-        )
-    if assessment["migration_required"]:
-        steps.append(
-            {
-                "title": "Prepare migration and cutover controls",
-                "work": integration_preview
-                or "Define compat-mode, rollout, rollback, or cutover sequencing needed to land the change safely.",
-                "done_when": "Migration prerequisites, guardrails, and fallback actions are explicit enough for downstream execution.",
-            }
-        )
-    steps.append(
-        {
-            "title": "Integrate, evidence, and handoff",
-            "work": (
-                "Wire the concrete sequence and integration hooks into the package handoff. "
-                + (sequence_preview or "Follow the frozen upstream runtime sequence.")
-            ),
-            "done_when": "The package can enter template.dev.feature_delivery_l2 without reinterpreting FEAT or TECH boundaries.",
-        }
-    )
-    return steps
 
 
 def risk_items(feature: dict[str, Any], assessment: dict[str, Any], package: Any) -> list[str]:
@@ -509,103 +167,6 @@ def workstream_required_inputs(assessment: dict[str, Any]) -> list[str]:
     return required
 
 
-def acceptance_checkpoints(
-    feature: dict[str, Any],
-    package: Any | None = None,
-    assessment: dict[str, Any] | None = None,
-) -> list[dict[str, str]]:
-    if package is not None:
-        units = implementation_units(package)
-        unit_paths = ", ".join(unit["path"] for unit in units[:4]) or "the declared runtime units"
-        contracts = tech_list(package, "interface_contracts")
-        main_sequence = tech_list(package, "main_sequence")
-        integration_points = tech_list(package, "integration_points")
-        migration_required = bool((assessment or {}).get("migration_required"))
-        observable_outcomes = ensure_list((feature.get("acceptance_and_testability") or {}).get("observable_outcomes"))
-
-        checkpoints = [
-            {
-                "ref": "AC-001",
-                "scenario": "Frozen touch set is implemented without design drift.",
-                "expectation": f"The declared touch set is updated and evidence-backed: {unit_paths}.",
-            },
-            {
-                "ref": "AC-002",
-                "scenario": "Frozen contracts and runtime sequence execute through the implementation entry.",
-                "expectation": (
-                    "Implementation evidence proves the frozen contract hooks and state transitions are wired. "
-                    + (contracts[0] if contracts else "Use the upstream interface contracts without shadow redefinition.")
-                ),
-            },
-            {
-                "ref": "AC-003",
-                "scenario": "Downstream handoff remains boundary-safe and ready for feature delivery.",
-                "expectation": (
-                    "The implementation package exposes only the frozen pending visibility / boundary handoff behavior, "
-                    "keeps gate decision issuance / formal publication semantics out of scope, and hands off with smoke inputs ready."
-                ),
-            },
-        ]
-        if main_sequence:
-            checkpoints[1]["expectation"] += f" Main sequence evidence covers: {'; '.join(main_sequence[:3])}."
-        if integration_points:
-            checkpoints[2]["expectation"] += f" Integration evidence covers: {'; '.join(integration_points[:2])}."
-        if observable_outcomes:
-            checkpoints[2]["expectation"] += f" Observable outcomes remain externally visible: {'; '.join(observable_outcomes[:2])}."
-        if migration_required:
-            checkpoints.append(
-                {
-                    "ref": "AC-004",
-                    "scenario": "Migration and compat controls are explicit before execution.",
-                    "expectation": "Rollback, compat-mode, and pending repair handling are explicit enough for downstream execution.",
-                }
-            )
-            if observable_outcomes:
-                checkpoints[-1]["expectation"] += f" Migration outcomes remain externally visible: {'; '.join(observable_outcomes[:2])}."
-        return checkpoints
-
-    checkpoints: list[dict[str, str]] = []
-    for index, check in enumerate(feature.get("acceptance_checks") or [], start=1):
-        if not isinstance(check, dict):
-            continue
-        checkpoints.append(
-            {
-                "ref": f"AC-{index:03d}",
-                "scenario": normalize_collaboration_boundary_text(str(check.get("scenario") or "").strip())
-                or f"acceptance-{index}",
-                "expectation": normalize_collaboration_boundary_text(str(check.get("then") or "").strip())
-                or "Expectation must be confirmed during execution.",
-            }
-        )
-    if checkpoints:
-        return checkpoints
-
-    acceptance = feature.get("acceptance_and_testability") or {}
-    criteria = ensure_list(acceptance.get("acceptance_criteria"))
-    outcomes = ensure_list(acceptance.get("observable_outcomes"))
-    authoritative_artifact = (
-        str(
-            (feature.get("product_objects_and_deliverables") or {}).get("authoritative_output")
-            or feature.get("authoritative_artifact")
-            or ""
-        ).strip()
-    )
-    for index, criterion in enumerate(criteria, start=1):
-        if outcomes:
-            expectation = outcomes[min(index - 1, len(outcomes) - 1)]
-        elif authoritative_artifact:
-            expectation = f"{authoritative_artifact} 可被外部观察并作为唯一 authoritative result。"
-        else:
-            expectation = f"该验收结果必须形成可外部观察的 authoritative outcome。"
-        checkpoints.append(
-            {
-                "ref": f"AC-{index:03d}",
-                "scenario": normalize_collaboration_boundary_text(criterion.strip()) or f"acceptance-{index}",
-                "expectation": normalize_collaboration_boundary_text(str(expectation).strip())
-                or "Expectation must be confirmed during execution.",
-            }
-        )
-    return checkpoints
 
 
 def integration_plan_items(feature: dict[str, Any], assessment: dict[str, Any], package: Any) -> list[str]:

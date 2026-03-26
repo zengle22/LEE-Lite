@@ -47,7 +47,11 @@ def supervisor_review(artifacts_dir: Path, repo_root: Path, run_id: str, allow_u
     execution = read_json(artifacts_dir / "execution-evidence.json")
 
     duplicate_path = find_duplicate_src(repo_root, candidate["title"])
-    review, semantic_findings = semantic_review(candidate, duplicate_path if not allow_update else None)
+    review, semantic_findings = semantic_review(
+        candidate,
+        duplicate_path if not allow_update else None,
+        document=document,
+    )
     annotated_semantic_findings = [
         {
             "finding_id": f"semantic-{run_id}-{index}",

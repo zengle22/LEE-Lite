@@ -22,12 +22,18 @@ from tech_to_impl_runtime import (
 )
 
 
+def _input_path_if_exists(value: str) -> Path | None:
+    candidate = Path(value)
+    return candidate.resolve() if candidate.exists() else None
+
+
 def command_run(args: argparse.Namespace) -> int:
+    input_path = _input_path_if_exists(args.input)
     result = run_workflow(
-        input_path=Path(args.input).resolve(),
+        input_path=args.input,
         feat_ref=args.feat_ref,
         tech_ref=args.tech_ref,
-        repo_root=repo_root_from(args.repo_root, Path(args.input).resolve()),
+        repo_root=repo_root_from(args.repo_root, input_path),
         run_id=args.run_id or "",
         allow_update=args.allow_update,
     )
@@ -36,11 +42,12 @@ def command_run(args: argparse.Namespace) -> int:
 
 
 def command_executor_run(args: argparse.Namespace) -> int:
+    input_path = _input_path_if_exists(args.input)
     result = executor_run(
-        input_path=Path(args.input).resolve(),
+        input_path=args.input,
         feat_ref=args.feat_ref,
         tech_ref=args.tech_ref,
-        repo_root=repo_root_from(args.repo_root, Path(args.input).resolve()),
+        repo_root=repo_root_from(args.repo_root, input_path),
         run_id=args.run_id or "",
         allow_update=args.allow_update,
     )
@@ -60,7 +67,8 @@ def command_supervisor_review(args: argparse.Namespace) -> int:
 
 
 def command_validate_input(args: argparse.Namespace) -> int:
-    errors, result = validate_input_package(Path(args.input).resolve(), args.feat_ref, args.tech_ref)
+    input_path = _input_path_if_exists(args.input)
+    errors, result = validate_input_package(args.input, args.feat_ref, args.tech_ref, repo_root_from(args.repo_root, input_path))
     print(json.dumps({"ok": not errors, "result": result, "errors": errors}, ensure_ascii=False, indent=2))
     return 0 if not errors else 1
 
@@ -120,6 +128,7 @@ def build_parser() -> argparse.ArgumentParser:
     validate_input_parser.add_argument("--input", required=True)
     validate_input_parser.add_argument("--feat-ref", required=True)
     validate_input_parser.add_argument("--tech-ref", required=True)
+    validate_input_parser.add_argument("--repo-root")
     validate_input_parser.set_defaults(func=command_validate_input)
 
     validate_output_parser = subparsers.add_parser("validate-output")

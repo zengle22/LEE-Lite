@@ -173,6 +173,11 @@ def _persist_outputs(
     candidate_json_path = artifacts_dir / "src-candidate.json"
     cli_commit = commit_candidate_markdown(repo_root, artifacts_dir, run_id, render_candidate_markdown(candidate))
     write_json(candidate_json_path, candidate)
+    write_json(artifacts_dir / "semantic-inventory.json", candidate.get("semantic_inventory", {}))
+    write_json(artifacts_dir / "source-provenance-map.json", candidate.get("source_provenance_map", []))
+    write_json(artifacts_dir / "contradiction-register.json", candidate.get("contradiction_register", []))
+    write_json(artifacts_dir / "normalization-decisions.json", candidate.get("normalization_decisions", []))
+    write_json(artifacts_dir / "omission-and-compression-report.json", candidate.get("omission_and_compression_report", {}))
     stage_results.extend(
         [
             stage("source_normalization", "passed", "SRC candidate normalized and committed via CLI artifact runtime.", "executor", input_refs=[str(artifacts_dir / "normalized-input.json")], output_refs=[str(candidate_path), str(candidate_json_path), str(cli_commit["response_path"])]),

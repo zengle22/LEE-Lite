@@ -17,6 +17,10 @@ ACCEPTANCE_DIMENSIONS = [
     "logic_vulnerability",
     "industry_gap",
     "improvement_opportunities",
+    "semantic_preservation",
+    "operator_surface_preservation",
+    "contradiction_explicitness",
+    "compression_risk",
 ]
 BRIDGE_ACCEPTANCE_DIMENSIONS = [
     "bridge_semantic_density",
@@ -469,7 +473,7 @@ def synthesize_adr_bridge_candidate(candidate: dict[str, Any], document: dict[st
     return working
 
 
-def semantic_review(candidate: dict[str, Any], duplicate_path: Any) -> tuple[dict[str, Any], list[dict[str, Any]]]:
+def semantic_review(candidate: dict[str, Any], duplicate_path: Any, document: dict[str, Any] | None = None) -> tuple[dict[str, Any], list[dict[str, Any]]]:
     findings: list[dict[str, Any]] = []
     if duplicate_path is not None:
         findings.append({"severity": "P1", "type": "duplicate_title", "description": f"Duplicate SRC title already exists at {duplicate_path}"})
@@ -495,6 +499,47 @@ def semantic_review(candidate: dict[str, Any], duplicate_path: Any) -> tuple[dic
                     "description": "semantic_lock must declare both allowed_capabilities and forbidden_capabilities.",
                 }
             )
+    if not candidate.get("semantic_inventory"):
+        findings.append(
+            {
+                "severity": "P1",
+                "type": "semantic_inventory_missing",
+                "description": "SRC candidate is missing semantic_inventory, so high-fidelity source semantics cannot be reviewed.",
+            }
+        )
+    if "source_provenance_map" not in candidate:
+        findings.append(
+            {
+                "severity": "P1",
+                "type": "source_provenance_missing",
+                "description": "SRC candidate is missing source_provenance_map, so preservation traceability is incomplete.",
+            }
+        )
+    if "normalization_decisions" not in candidate:
+        findings.append(
+            {
+                "severity": "P1",
+                "type": "normalization_decisions_missing",
+                "description": "SRC candidate is missing normalization_decisions, so source compression choices are opaque.",
+            }
+        )
+    if "omission_and_compression_report" not in candidate:
+        findings.append(
+            {
+                "severity": "P1",
+                "type": "compression_report_missing",
+                "description": "SRC candidate is missing omission_and_compression_report, so compressed or omitted semantics are not explicit.",
+            }
+        )
+    contradiction_register = candidate.get("contradiction_register")
+    if contradiction_register is None:
+        findings.append(
+            {
+                "severity": "P1",
+                "type": "contradiction_register_missing",
+                "description": "SRC candidate is missing contradiction_register, so unresolved conflicts are not explicit.",
+            }
+        )
     if candidate["source_kind"] == "governance_bridge_src":
         bridge = candidate.get("bridge_context") or {}
         if not bridge:
@@ -545,6 +590,55 @@ def semantic_review(candidate: dict[str, Any], duplicate_path: Any) -> tuple[dic
         )
         if any(not bridge.get(field) for field in required_fields) or weak_change_scope or shallow_failure_modes:
             findings.append({"severity": "P1", "type": "downstream_actionability_insufficient", "description": "Bridge context does not yet expose enough governance objects, failure modes, or downstream inheritance requirements for stable downstream consumption."})
+    raw_text = ""
+    if document is not None:
+        raw_text = " ".join(
+            [
+                str(document.get("title", "")),
+                str(document.get("problem_statement", "")),
+                str(document.get("body", "")),
+                " ".join(document.get("source_refs", [])),
+            ]
+        ).lower()
+    operator_surfaces = candidate.get("operator_surface_inventory", [])
+    expects_operator_surface = any(
+        marker in raw_text or marker in str((candidate.get("semantic_lock") or {}).get("one_sentence_truth", "")).lower()
+        for marker in (
+            "run-execution",
+            "job claim",
+            "job run",
+            "job complete",
+            "job fail",
+            "workflow 入口",
+            "cli-first",
+            "backlog",
+            "running jobs",
+            "failed jobs",
+            "deadletter",
+            "execution loop job runner",
+        )
+    )
+    if expects_operator_surface and not operator_surfaces:
+        findings.append(
+            {
+                "severity": "P1",
+                "type": "operator_surface_missing",
+                "description": "Raw input exposes operator/CLI/monitor surfaces, but SRC did not preserve them in operator_surface_inventory.",
+            }
+        )
+    omission_report = candidate.get("omission_and_compression_report") or {}
+    high_risk_omissions = [
+        item for item in omission_report.get("omitted_items", [])
+        if str(item.get("downstream_risk", "")).strip().lower() == "high"
+    ]
+    if high_risk_omissions:
+        findings.append(
+            {
+                "severity": "P1",
+                "type": "high_risk_omission_present",
+                "description": "SRC still reports high-risk omitted semantics and should not be treated as freeze-ready.",
+            }
+        )
     review = {
         "decision": "pass" if not findings else "revise",
         "summary": "No semantic issue detected." if not findings else f"{len(findings)} semantic findings detected.",
@@ -596,6 +690,22 @@ def _bridge_acceptance_findings(candidate: dict[str, Any]) -> list[dict[str, Any
                 "description": "Bridge SRC does not yet make non-goals explicit enough for downstream inheritance.",
             }
         )
+    if not candidate.get("semantic_inventory"):
+        findings.append(
+            {
+                "severity": "P1",
+                "type": "semantic_preservation_insufficient",
+                "description": "Bridge SRC does not yet expose a high-fidelity semantic inventory for downstream inheritance.",
+            }
+        )
+    if "source_provenance_map" not in candidate:
+        findings.append(
+            {
+                "severity": "P1",
+                "type": "provenance_preservation_insufficient",
+                "description": "Bridge SRC does not yet expose source provenance for normalized fields.",
+            }
+        )
     return findings
 
 
@@ -614,6 +724,10 @@ def acceptance_review(candidate: dict[str, Any], source_review: dict[str, Any]) 
             dimensions["governance_constraint_clarity"] = {"status": "revise", "note": "Governance constraints are not yet explicit enough."}
         if any(item["type"] == "non_goal_explicitness_insufficient" for item in bridge_acceptance_findings):
             dimensions["non_goal_explicitness"] = {"status": "revise", "note": "Non-goals are not yet explicit enough."}
+        if any(item["type"] == "semantic_preservation_insufficient" for item in bridge_acceptance_findings):
+            dimensions["semantic_preservation"] = {"status": "revise", "note": "High-fidelity semantic preservation is not yet explicit enough."}
+        if any(item["type"] == "provenance_preservation_insufficient" for item in bridge_acceptance_findings):
+            dimensions["semantic_preservation"] = {"status": "revise", "note": "Field provenance is not explicit enough."}
         acceptance_findings.extend(bridge_acceptance_findings)
     if source_findings:
         dimensions["feature_completeness"] = {"status": "revise", "note": "Defects remain after semantic review."}
@@ -631,6 +745,14 @@ def acceptance_review(candidate: dict[str, Any], source_review: dict[str, Any]) 
                     "linked_semantic_finding_types": [item["type"] for item in source_findings if item["type"] in bridge_types],
                 }
             )
+        if any(item["type"] in {"operator_surface_missing"} for item in source_findings):
+            dimensions["operator_surface_preservation"] = {"status": "revise", "note": "Operator/CLI/monitor surfaces were not preserved from the raw source."}
+        if any(item["type"] in {"contradiction_register_missing"} for item in source_findings):
+            dimensions["contradiction_explicitness"] = {"status": "revise", "note": "Contradictions are not explicit enough for downstream consumption."}
+        if any(item["type"] in {"compression_report_missing", "high_risk_omission_present"} for item in source_findings):
+            dimensions["compression_risk"] = {"status": "revise", "note": "Compression risk is not explicit or remains too high."}
+        if any(item["type"] in {"semantic_inventory_missing", "source_provenance_missing", "normalization_decisions_missing"} for item in source_findings):
+            dimensions["semantic_preservation"] = {"status": "revise", "note": "High-fidelity source semantics are not preserved well enough."}
         acceptance_findings.append(
             {
                 "severity": "P1",

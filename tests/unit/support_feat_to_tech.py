@@ -37,79 +37,12 @@ class FeatToTechWorkflowHarness(unittest.TestCase):
     def make_feat_package(self, root: Path, run_id: str, bundle_json: dict[str, object]) -> Path:
         package_dir = root / "artifacts" / "epic-to-feat" / run_id
         package_dir.mkdir(parents=True, exist_ok=True)
-        frontmatter = {
-            "artifact_type": "feat_freeze_package",
-            "workflow_key": "product.epic-to-feat",
-            "workflow_run_id": run_id,
-            "status": bundle_json["status"],
-            "schema_version": bundle_json["schema_version"],
-            "epic_freeze_ref": bundle_json["epic_freeze_ref"],
-            "src_root_id": bundle_json["src_root_id"],
-            "feat_refs": bundle_json["feat_refs"],
-        }
-        markdown = [
-            "---",
-            *[f"{key}: {value}" for key, value in frontmatter.items() if key != "feat_refs"],
-            "feat_refs:",
-            *[f"  - {item}" for item in bundle_json["feat_refs"]],
-            "source_refs:",
-            *[f"  - {item}" for item in bundle_json["source_refs"]],
-            "---",
-            "",
-            f"# {bundle_json['title']}",
-            "",
-            "## FEAT Bundle Intent",
-            "",
-            str(bundle_json["bundle_intent"]),
-            "",
-            "## EPIC Context",
-            "",
-            f"- epic_freeze_ref: {bundle_json['epic_freeze_ref']}",
-            f"- src_root_id: {bundle_json['src_root_id']}",
-            "",
-            "## Boundary Matrix",
-            "",
-            *[f"- {item['feat_ref']}: {item['title']}" for item in bundle_json["boundary_matrix"]],
-            "",
-            "## FEAT Inventory",
-            "",
-            *[f"### {feature['feat_ref']} {feature['title']}" for feature in bundle_json["features"]],
-            "",
-            "## Acceptance and Review",
-            "",
-            "- upstream acceptance: approve",
-            "",
-            "## Downstream Handoff",
-            "",
-            "- workflow.dev.feat_to_tech",
-            "",
-            "## Traceability",
-            "",
-            *[f"- {item}" for item in bundle_json["source_refs"]],
-        ]
+        frontmatter = _frontmatter_for(run_id, bundle_json)
+        markdown = _bundle_markdown(frontmatter, bundle_json)
+        _write_json(package_dir / "feat-freeze-bundle.json", bundle_json)
         (package_dir / "feat-freeze-bundle.md").write_text("\n".join(markdown) + "\n", encoding="utf-8")
-        (package_dir / "feat-freeze-bundle.json").write_text(
-            json.dumps(bundle_json, ensure_ascii=False, indent=2) + "\n",
-            encoding="utf-8",
-        )
-        payloads = {
-            "package-manifest.json": {"status": bundle_json["status"], "run_id": run_id},
-            "feat-review-report.json": {"decision": "pass", "summary": "review ok"},
-            "feat-acceptance-report.json": {"decision": "approve", "summary": "acceptance ok"},
-            "feat-defect-list.json": [],
-            "feat-freeze-gate.json": {"workflow_key": "product.epic-to-feat", "freeze_ready": True, "decision": "pass"},
-            "handoff-to-feat-downstreams.json": {
-                "target_workflows": [
-                    {"workflow": "workflow.dev.feat_to_tech"},
-                    {"workflow": "workflow.qa.feat_to_testset"},
-                ],
-                "derivable_children": ["TECH", "TESTSET"],
-            },
-            "execution-evidence.json": {"run_id": run_id, "decision": "pass"},
-            "supervision-evidence.json": {"run_id": run_id, "decision": "pass"},
-        }
-        for name, payload in payloads.items():
-            (package_dir / name).write_text(json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+        for name, payload in _companion_payloads(run_id, bundle_json).items():
+            _write_json(package_dir / name, payload)
         return package_dir
 
     def make_bundle_json(self, feature: dict[str, object], run_id: str = "feat-src001") -> dict[str, object]:
@@ -147,3 +80,82 @@ class FeatToTechWorkflowHarness(unittest.TestCase):
             ],
             "features": [feature],
         }
+
+
+def _frontmatter_for(run_id: str, bundle_json: dict[str, object]) -> dict[str, object]:
+    return {
+        "artifact_type": "feat_freeze_package",
+        "workflow_key": "product.epic-to-feat",
+        "workflow_run_id": run_id,
+        "status": bundle_json["status"],
+        "schema_version": bundle_json["schema_version"],
+        "epic_freeze_ref": bundle_json["epic_freeze_ref"],
+        "src_root_id": bundle_json["src_root_id"],
+        "feat_refs": bundle_json["feat_refs"],
+    }
+
+
+def _bundle_markdown(frontmatter: dict[str, object], bundle_json: dict[str, object]) -> list[str]:
+    return [
+        "---",
+        *[f"{key}: {value}" for key, value in frontmatter.items() if key != "feat_refs"],
+        "feat_refs:",
+        *[f"  - {item}" for item in bundle_json["feat_refs"]],
+        "source_refs:",
+        *[f"  - {item}" for item in bundle_json["source_refs"]],
+        "---",
+        "",
+        f"# {bundle_json['title']}",
+        "",
+        "## FEAT Bundle Intent",
+        "",
+        str(bundle_json["bundle_intent"]),
+        "",
+        "## EPIC Context",
+        "",
+        f"- epic_freeze_ref: {bundle_json['epic_freeze_ref']}",
+        f"- src_root_id: {bundle_json['src_root_id']}",
+        "",
+        "## Boundary Matrix",
+        "",
+        *[f"- {item['feat_ref']}: {item['title']}" for item in bundle_json["boundary_matrix"]],
+        "",
+        "## FEAT Inventory",
+        "",
+        *[f"### {feature['feat_ref']} {feature['title']}" for feature in bundle_json["features"]],
+        "",
+        "## Acceptance and Review",
+        "",
+        "- upstream acceptance: approve",
+        "",
+        "## Downstream Handoff",
+        "",
+        "- workflow.dev.feat_to_tech",
+        "",
+        "## Traceability",
+        "",
+        *[f"- {item}" for item in bundle_json["source_refs"]],
+    ]
+
+
+def _companion_payloads(run_id: str, bundle_json: dict[str, object]) -> dict[str, object]:
+    return {
+        "package-manifest.json": {"status": bundle_json["status"], "run_id": run_id},
+        "feat-review-report.json": {"decision": "pass", "summary": "review ok"},
+        "feat-acceptance-report.json": {"decision": "approve", "summary": "acceptance ok"},
+        "feat-defect-list.json": [],
+        "feat-freeze-gate.json": {"workflow_key": "product.epic-to-feat", "freeze_ready": True, "decision": "pass"},
+        "handoff-to-feat-downstreams.json": {
+            "target_workflows": [
+                {"workflow": "workflow.dev.feat_to_tech"},
+                {"workflow": "workflow.qa.feat_to_testset"},
+            ],
+            "derivable_children": ["TECH", "TESTSET"],
+        },
+        "execution-evidence.json": {"run_id": run_id, "decision": "pass"},
+        "supervision-evidence.json": {"run_id": run_id, "decision": "pass"},
+    }
+
+
+def _write_json(path: Path, payload: dict[str, object] | list[object]) -> None:
+    path.write_text(json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")

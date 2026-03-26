@@ -38,6 +38,8 @@ class TechToImplWorkflowTests(TechToImplWorkflowHarness):
             input_dir = self.make_tech_package(repo_root, "tech-impl-dual", bundle)
             artifacts_dir = self.run_impl_flow(repo_root, input_dir, feature["feat_ref"], bundle["tech_ref"])
             impl_bundle = json.loads((artifacts_dir / "impl-bundle.json").read_text(encoding="utf-8"))
+            manifest = json.loads((artifacts_dir / "package-manifest.json").read_text(encoding="utf-8"))
+            gate_ready_package = json.loads((artifacts_dir / "input" / "gate-ready-package.json").read_text(encoding="utf-8"))
             smoke_gate = json.loads((artifacts_dir / "smoke-gate-subject.json").read_text(encoding="utf-8"))
             handoff = json.loads((artifacts_dir / "handoff-to-feature-delivery.json").read_text(encoding="utf-8"))
             evidence_plan = json.loads((artifacts_dir / "dev-evidence-plan.json").read_text(encoding="utf-8"))
@@ -73,6 +75,13 @@ class TechToImplWorkflowTests(TechToImplWorkflowHarness):
             self.assertIn("implementation_unit_mapping", frozen_decisions)
             self.assertTrue(any("decision-driven revise/retry routing stays in runtime" in item for item in frozen_decisions["implementation_rules"]))
             self.assertFalse(any("keeping approval and re-entry semantics outside this FEAT" in item for item in frozen_decisions["implementation_rules"]))
+            self.assertEqual(manifest["gate_ready_package_ref"], f"artifacts/tech-to-impl/{artifacts_dir.name}/input/gate-ready-package.json")
+            self.assertTrue(manifest["authoritative_handoff_ref"].startswith("artifacts/active/gates/handoffs/"))
+            self.assertTrue(manifest["gate_pending_ref"].startswith("artifacts/active/gates/pending/"))
+            self.assertEqual(gate_ready_package["payload"]["candidate_ref"], f"tech-to-impl.{artifacts_dir.name}.impl-bundle")
+            self.assertEqual(gate_ready_package["payload"]["machine_ssot_ref"], f"artifacts/tech-to-impl/{artifacts_dir.name}/impl-bundle.json")
+            self.assertTrue((repo_root / manifest["authoritative_handoff_ref"]).exists())
+            self.assertTrue((repo_root / manifest["gate_pending_ref"]).exists())
 
             validate = self.run_cmd("validate-output", "--artifacts-dir", str(artifacts_dir))
             self.assertEqual(validate.returncode, 0, validate.stderr)
@@ -388,6 +397,121 @@ class TechToImplWorkflowTests(TechToImplWorkflowHarness):
             self.assertNotIn("Expectation must be confirmed during execution.", impl_task)
             self.assertIn("cutover / fallback 边界可被外部观察。", impl_task)
 
+    def test_execution_runner_entry_impl_stays_backend_only_and_preserves_runner_boundary(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            repo_root = Path(temp_dir)
+            semantic_lock = {
+                "domain_type": "execution_runner_rule",
+                "one_sentence_truth": "gate approve 后必须生成 ready execution job，并由 Execution Loop Job Runner 自动消费后推进到下一个 skill。",
+                "primary_object": "execution_loop_job_runner",
+                "lifecycle_stage": "post_gate_auto_progression",
+                "allowed_capabilities": [
+                    "ready_execution_job_materialization",
+                    "runner_skill_entry",
+                    "runner_control_surface",
+                    "ready_queue_consumption",
+                    "next_skill_dispatch",
+                    "execution_result_recording",
+                    "runner_observability",
+                ],
+                "forbidden_capabilities": [
+                    "formal_publication_substitution",
+                    "admission_only_decomposition",
+                    "third_session_human_relay",
+                ],
+                "inheritance_rule": "approve semantics must stay coupled to ready-job emission and runner-driven next-skill progression; downstream may not replace this with formal publication or admission-only flows.",
+            }
+            feature = {
+                "feat_ref": "FEAT-SRC-ADR018-002",
+                "title": "Runner 用户入口流",
+                "axis_id": "runner-operator-entry",
+                "goal": "让 Claude/Codex CLI 用户通过独立 runner skill 启动或恢复 Execution Loop Job Runner。",
+                "scope": ["定义 runner 独立 skill 入口。", "定义 start / resume 语义。", "定义入口调用如何把运行权交给 runner。"],
+                "constraints": [
+                    "Execution Loop Job Runner 必须以独立 skill 入口暴露给 Claude/Codex CLI 用户。",
+                    "入口必须显式声明 start / resume 语义。",
+                    "入口不得退化成手工逐个调用下游 skill。",
+                ],
+                "dependencies": [
+                    "Boundary to ready-job FEAT: 本 FEAT 不负责生成 ready execution job。",
+                    "Boundary to runner-control-surface FEAT: 入口启动后，后续控制语义由控制面 FEAT 承担。",
+                ],
+                "acceptance_checks": [
+                    {"scenario": "Runner skill entry is explicit", "then": "存在一个明确的 runner skill entry"},
+                    {"scenario": "Runner entry preserves authoritative context", "then": "保留 authoritative run context"},
+                    {"scenario": "Runner entry is not manual relay", "then": "不会退化成 manual downstream relay"},
+                ],
+                "semantic_lock": semantic_lock,
+            }
+            bundle = self.make_bundle_json(feature, run_id="tech-impl-runner-entry", arch_required=True, api_required=True)
+            bundle["source_refs"] = [
+                "dev.feat-to-tech::tech-impl-runner-entry",
+                feature["feat_ref"],
+                bundle["tech_ref"],
+                "EPIC-ADR018",
+                "SRC-ADR018",
+                "ADR-018",
+            ]
+            bundle["selected_feat"]["semantic_lock"] = semantic_lock
+            bundle["semantic_lock"] = semantic_lock
+            bundle["tech_design"] = {
+                "design_focus": list(feature["scope"]),
+                "implementation_rules": list(feature["constraints"]),
+                "state_model": [
+                    "runner_entry_requested -> runner_context_initialized -> runner_entry_published",
+                ],
+                "implementation_unit_mapping": [
+                    "`cli/lib/protocol.py` (`extend`): 定义 `ExecutionRunnerStartRequest`、`ExecutionRunnerRunRef`、`RunnerEntryReceipt` 结构。",
+                    "`cli/lib/runner_entry.py` (`new`): 提供 runner skill start/resume 的入口适配层。",
+                    "`cli/lib/execution_runner.py` (`new`): 管理 runner context bootstrap 与恢复逻辑。",
+                    "`cli/commands/loop/command.py` (`new`): 暴露 `run-execution` 入口。",
+                ],
+                "interface_contracts": [
+                    "`ExecutionRunnerStartRequest`: input=`runner_scope_ref`, `entry_mode`; output=`runner_run_ref`, `runner_context_ref`, `entry_receipt_ref`; errors=`runner_scope_missing`; idempotent=`yes by runner_scope_ref + entry_mode`。",
+                ],
+                "main_sequence": [
+                    "1. accept start/resume request from Claude/Codex CLI",
+                    "2. bootstrap or restore runner context",
+                    "3. publish runner invocation receipt",
+                    "4. hand off to queue consumption lifecycle",
+                ],
+                "integration_points": [
+                    "调用方通过 `cli/commands/loop/command.py` / `cli/lib/runner_entry.py` 启动 runner。",
+                    "runner context 交由 `cli/lib/execution_runner.py` 继续驱动后续 lifecycle。",
+                ],
+                "exception_and_compensation": [
+                    "runner context build fail：返回 runner_context_conflict 并阻止进入 queue consumption。",
+                ],
+            }
+            input_dir = self.make_tech_package(repo_root, "tech-impl-runner-entry", bundle)
+
+            result = self.run_cmd(
+                "run",
+                "--input",
+                str(input_dir),
+                "--feat-ref",
+                feature["feat_ref"],
+                "--tech-ref",
+                bundle["tech_ref"],
+                "--repo-root",
+                str(repo_root),
+            )
+            self.assertEqual(result.returncode, 0, result.stderr)
+            artifacts_dir = Path(json.loads(result.stdout)["artifacts_dir"])
+            impl_bundle = json.loads((artifacts_dir / "impl-bundle.json").read_text(encoding="utf-8"))
+            impl_task = (artifacts_dir / "impl-task.md").read_text(encoding="utf-8")
+            backend_workstream = (artifacts_dir / "backend-workstream.md").read_text(encoding="utf-8")
+
+            self.assertFalse(impl_bundle["workstream_assessment"]["frontend_required"])
+            self.assertTrue(impl_bundle["workstream_assessment"]["backend_required"])
+            self.assertFalse(impl_bundle["workstream_assessment"]["migration_required"])
+            self.assertFalse((artifacts_dir / "frontend-workstream.md").exists())
+            self.assertIn("cli/lib/runner_entry.py", impl_task)
+            self.assertIn("cli/lib/execution_runner.py", impl_task)
+            self.assertIn("Execution-runner lifecycle remains boundary-safe", impl_task)
+            self.assertNotIn("pending visibility / boundary handoff behavior", impl_task)
+            self.assertIn("run-execution", backend_workstream)
+
     def test_validate_input_rejects_mismatched_tech_ref(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             repo_root = Path(temp_dir)
@@ -542,6 +666,90 @@ class TechToImplWorkflowTests(TechToImplWorkflowHarness):
             self.assertTrue(drift["semantic_lock_preserved"])
             self.assertIn("status: execution_ready", impl_task)
             self.assertIn("status: execution_ready", integration_plan)
+
+    def test_formal_tech_ref_is_admissible_input_for_tech_to_impl(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            repo_root = Path(temp_dir)
+            feature = {
+                "feat_ref": "FEAT-SRC-001-401",
+                "title": "配置中心实施主链",
+                "goal": "验证 formal TECH 能反查回 tech package 并驱动 IMPL 派生。",
+                "scope": ["保留 TECH 边界。", "保留 workstream assessment。", "允许 formal admission 进入 IMPL。"],
+                "constraints": ["不得跳过 TECH。", "不得丢失 source refs。", "IMPL 仍从 tech_design_package 派生。"],
+                "acceptance_checks": [
+                    {"scenario": "formal ref resolves package", "then": "source package dir 被正确反查"},
+                    {"scenario": "selected tech remains explicit", "then": "feat_ref / tech_ref 不丢失"},
+                    {"scenario": "input mode is formal admission", "then": "input_mode=formal_admission"},
+                ],
+            }
+            bundle = self.make_bundle_json(feature, run_id="tech-formal-impl", arch_required=True, api_required=False)
+            self.make_tech_package(repo_root, "tech-formal-impl", bundle)
+            formal_tech_path = repo_root / "ssot" / "tech" / "SRC-001" / "TECH-FEAT-SRC-001-401__configuration-implementation-mainline.md"
+            formal_tech_path.parent.mkdir(parents=True, exist_ok=True)
+            formal_tech_path.write_text(
+                "---\nid: TECH-FEAT-SRC-001-401\nssot_type: TECH\ntitle: 配置中心实施主链技术设计\nstatus: accepted\n---\n\n# 配置中心实施主链技术设计\n\nFormal TECH body.\n",
+                encoding="utf-8",
+            )
+            registry_dir = repo_root / "artifacts" / "registry"
+            registry_dir.mkdir(parents=True, exist_ok=True)
+            (registry_dir / "formal-tech-tech-formal-impl.json").write_text(
+                json.dumps(
+                    {
+                        "artifact_ref": "formal.tech.tech-formal-impl",
+                        "managed_artifact_ref": "ssot/tech/SRC-001/TECH-FEAT-SRC-001-401__configuration-implementation-mainline.md",
+                        "status": "materialized",
+                        "trace": {"run_ref": "tech-formal-impl", "workflow_key": "dev.feat-to-tech"},
+                        "metadata": {
+                            "layer": "formal",
+                            "source_package_ref": "artifacts/feat-to-tech/tech-formal-impl",
+                            "assigned_id": "TECH-FEAT-SRC-001-401",
+                            "tech_ref": "TECH-FEAT-SRC-001-401",
+                            "feat_ref": "FEAT-SRC-001-401",
+                            "ssot_type": "TECH",
+                        },
+                        "lineage": ["feat-to-tech.tech-formal-impl.tech-design-bundle", "artifacts/active/gates/decisions/gate-decision.json"],
+                    },
+                    ensure_ascii=False,
+                    indent=2,
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+
+            result = self.run_cmd(
+                "run",
+                "--input",
+                "formal.tech.tech-formal-impl",
+                "--feat-ref",
+                "FEAT-SRC-001-401",
+                "--tech-ref",
+                "TECH-FEAT-SRC-001-401",
+                "--repo-root",
+                str(repo_root),
+                "--run-id",
+                "impl-from-formal",
+            )
+            self.assertEqual(result.returncode, 0, result.stderr)
+            payload = json.loads(result.stdout)
+            self.assertEqual(payload["input_mode"], "formal_admission")
+            manifest = json.loads((Path(payload["artifacts_dir"]) / "package-manifest.json").read_text(encoding="utf-8"))
+            self.assertEqual(
+                manifest["input_artifacts_dir"],
+                str((repo_root / "artifacts" / "feat-to-tech" / "tech-formal-impl").resolve()),
+            )
+
+            validate = self.run_cmd(
+                "validate-input",
+                "--input",
+                "formal.tech.tech-formal-impl",
+                "--feat-ref",
+                "FEAT-SRC-001-401",
+                "--tech-ref",
+                "TECH-FEAT-SRC-001-401",
+                "--repo-root",
+                str(repo_root),
+            )
+            self.assertEqual(validate.returncode, 0, validate.stderr)
 
 
 if __name__ == "__main__":

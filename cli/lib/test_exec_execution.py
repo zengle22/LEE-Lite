@@ -20,12 +20,13 @@ from cli.lib.test_exec_artifacts import (
     normalize_ui_source_spec,
     resolve_ssot_context,
 )
-from cli.lib.test_exec_playwright import run_playwright_project, write_playwright_project
+from cli.lib.test_exec_playwright import ensure_playwright_project, run_playwright_project, write_playwright_project
 from cli.lib.test_exec_reporting import (
     build_execution_refs,
     finalize_execution_outputs,
     write_pre_execution_artifacts,
 )
+from cli.lib.test_exec_ui_flow import apply_ui_flow_plan, derive_ui_flow_plan
 from cli.lib.test_exec_ui_resolution import apply_ui_binding, derive_ui_intent, resolve_ui_binding
 from cli.lib.test_exec_ui_sources import collect_ui_source_context
 
@@ -241,10 +242,23 @@ def run_narrow_execution(
     ui_source_spec = normalize_ui_source_spec(payload)
     context = resolve_ssot_context(test_set, environment, ui_source_spec)
     raw_case_pack = build_test_case_pack(test_set)
+    runtime_probe_root: Path | None = None
+    if action == "test-exec-web-e2e":
+        write_playwright_project(workspace_root, output_root, raw_case_pack, environment)
+        ensure_playwright_project(output_root / "playwright-project", environment)
+        runtime_probe_root = output_root / "playwright-project"
     ui_intent = derive_ui_intent(raw_case_pack, ui_source_spec)
-    ui_source_context = collect_ui_source_context(workspace_root, ui_source_spec, environment, raw_case_pack)
+    ui_source_context = collect_ui_source_context(
+        workspace_root,
+        ui_source_spec,
+        environment,
+        raw_case_pack,
+        project_root=runtime_probe_root,
+    )
     ui_binding_map = resolve_ui_binding(raw_case_pack, ui_intent, ui_source_spec, ui_source_context)
+    ui_flow_plan = derive_ui_flow_plan(raw_case_pack, ui_binding_map)
     case_pack = apply_ui_binding(raw_case_pack, ui_binding_map)
+    case_pack = apply_ui_flow_plan(case_pack, ui_flow_plan)
     script_pack = build_script_pack(action, environment, case_pack, ui_source_spec)
     case_meta = build_freeze_meta("test_case_pack", case_pack)
     refs = build_execution_refs(output_root, workspace_root)
@@ -256,6 +270,7 @@ def run_narrow_execution(
         ui_intent,
         ui_source_context,
         ui_binding_map,
+        ui_flow_plan,
         case_pack,
         case_meta,
     )

@@ -1,0 +1,248 @@
+#!/usr/bin/env python3
+"""
+Rendering helpers for feat-to-tech package documents.
+"""
+
+from __future__ import annotations
+
+from feat_to_tech_common import ensure_list, unique_strings
+from feat_to_tech_derivation import (
+    api_compatibility_rules,
+    api_surfaces,
+    architecture_topics,
+    explicit_axis,
+    responsibility_splits,
+)
+
+DOWNSTREAM_WORKFLOW = "workflow.dev.tech_to_impl"
+
+
+def display_list(values: list[str]) -> str:
+    items = [str(item).strip() for item in values if str(item).strip()]
+    return ", ".join(items) if items else "None"
+
+
+def build_markdown_body(json_payload, feature, refs, assessment, focus, rules, nfrs, implementation_arch, runtime_view, states, modules, strategy, unit_mapping, contracts, sequence_steps, main_flow_diagram, exception_rules, integrations, skeleton, api_specs, consistency, traceability):
+    return "\n\n".join(
+        [
+            build_selected_feat_section(feature, refs),
+            build_need_assessment_section(assessment),
+            build_tech_design_section(focus, rules, nfrs, implementation_arch, runtime_view, states, modules, strategy, unit_mapping, contracts, sequence_steps, main_flow_diagram, exception_rules, integrations, skeleton),
+            build_optional_arch_section(feature, refs, assessment),
+            build_optional_api_section(feature, refs, assessment, api_specs),
+            build_consistency_section(consistency),
+            build_handoff_section(refs, assessment),
+            build_traceability_section(traceability),
+        ]
+    ).replace("# ", f"# {json_payload['title']}\n\n", 1)
+
+
+def build_selected_feat_section(feature, refs):
+    return "# \n## Selected FEAT\n\n" + "\n".join([
+        f"- feat_ref: `{refs['feat_ref']}`",
+        f"- title: {feature.get('title')}",
+        f"- axis_id: {feature.get('axis_id')}",
+        f"- resolved_axis: {explicit_axis(feature) or 'derived'}",
+        f"- epic_freeze_ref: `{refs['epic_ref']}`",
+        f"- src_root_id: `{refs['src_ref']}`",
+        f"- goal: {feature.get('goal')}",
+        f"- authoritative_artifact: {feature.get('authoritative_artifact')}",
+        f"- upstream_feat: {display_list(ensure_list(feature.get('upstream_feat')))}",
+        f"- downstream_feat: {display_list(ensure_list(feature.get('downstream_feat')))}",
+        f"- gate_decision_dependency_feat_refs: {display_list(ensure_list(feature.get('gate_decision_dependency_feat_refs')))}",
+        f"- admission_dependency_feat_refs: {display_list(ensure_list(feature.get('admission_dependency_feat_refs')))}",
+    ])
+
+
+def build_need_assessment_section(assessment):
+    return "## Need Assessment\n\n" + "\n".join([
+        f"- arch_required: {assessment['arch_required']}",
+        *[f"  - {item}" for item in assessment["arch_rationale"]],
+        f"- api_required: {assessment['api_required']}",
+        *[f"  - {item}" for item in assessment["api_rationale"]],
+    ])
+
+
+def build_tech_design_section(focus, rules, nfrs, implementation_arch, runtime_view, states, modules, strategy, unit_mapping, contracts, sequence_steps, main_flow_diagram, exception_rules, integrations, skeleton):
+    return "## TECH Design\n\n" + "\n".join([
+        "- Design focus:", *[f"  - {item}" for item in focus],
+        "- Implementation rules:", *[f"  - {item}" for item in rules],
+        "- Non-functional requirements:", *[f"  - {item}" for item in nfrs],
+        "", "### Implementation Carrier View", *[f"- {item}" for item in implementation_arch], "",
+        runtime_view, "", "### State Model", *[f"- {item}" for item in states], "",
+        "### Module Plan", *[f"- {item}" for item in modules], "",
+        "### Implementation Strategy", *[f"- {item}" for item in strategy], "",
+        "### Implementation Unit Mapping", *[f"- {item}" for item in unit_mapping], "",
+        "### Interface Contracts", *[f"- {item}" for item in contracts], "",
+        "### Main Sequence", *[f"- {item}" for item in sequence_steps], "",
+        main_flow_diagram, "", "### Exception and Compensation", *[f"- {item}" for item in exception_rules], "",
+        "### Integration Points", *[f"- {item}" for item in integrations], "",
+        "### Minimal Code Skeleton", "- Happy path:", skeleton["happy_path"], "", "- Failure path:", skeleton["failure_path"],
+    ])
+
+
+def build_optional_arch_section(feature, refs, assessment):
+    if not assessment["arch_required"]:
+        return "## Optional ARCH\n\n- ARCH not required for this FEAT."
+    return "## Optional ARCH\n\n" + "\n".join(
+        [f"- arch_ref: `{refs['arch_ref']}`", "- summary_topics:", *[f"  - {item}" for item in architecture_topics(feature)], "- see: `arch-design.md`"]
+    )
+
+
+def build_optional_api_section(feature, refs, assessment, api_specs):
+    if not assessment["api_required"]:
+        return "## Optional API\n\n- API not required for this FEAT."
+    return "## Optional API\n\n" + "\n".join(
+        [f"- api_ref: `{refs['api_ref']}`", "- contract_surfaces:", *[f"  - {item}" for item in api_surfaces(feature)], "- command_refs:", *[f"  - `{spec['command']}`" for spec in api_specs], "- response_envelope:", "  - success: `{ ok: true, command_ref, trace_ref, result }`", "  - error: `{ ok: false, command_ref, trace_ref, error }`", "- see: `api-contract.md`"]
+    )
+
+
+def build_consistency_section(consistency):
+    return "## Cross-Artifact Consistency\n\n" + "\n".join([
+        f"- passed: {consistency['passed']}",
+        f"- structural_passed: {consistency['structural_passed']}",
+        f"- semantic_passed: {consistency['semantic_passed']}",
+        "- checks:",
+        *[f"  - [{item['category']}] {item['name']}: {item['passed']} ({item['detail']})" for item in consistency["checks"]],
+        "- issues:",
+        *([f"  - {item}" for item in consistency["issues"]] or ["  - None"]),
+        "- minor_open_items:",
+        *([f"  - {item}" for item in consistency["minor_open_items"]] or ["  - None"]),
+    ])
+
+
+def build_handoff_section(refs, assessment):
+    return "## Downstream Handoff\n\n" + "\n".join([
+        f"- target_workflow: {DOWNSTREAM_WORKFLOW}",
+        f"- tech_ref: `{refs['tech_ref']}`",
+        f"- arch_ref: `{refs['arch_ref']}`" if assessment["arch_required"] else "- arch_ref: not emitted",
+        f"- api_ref: `{refs['api_ref']}`" if assessment["api_required"] else "- api_ref: not emitted",
+    ])
+
+
+def build_traceability_section(traceability):
+    return "## Traceability\n\n" + "\n".join(
+        f"- {item['design_section']}: {', '.join(item['feat_fields'])} <- {', '.join(item['source_refs'])}"
+        for item in traceability
+    )
+
+
+def build_tech_docs(refs, source_refs, feature, focus, rules, nfrs, implementation_arch, runtime_view, states, modules, strategy, unit_mapping, contracts, sequence_steps, main_flow_diagram, exception_rules, integrations, skeleton, traceability, json_payload):
+    frontmatter = {
+        "artifact_type": "TECH",
+        "status": json_payload["status"],
+        "schema_version": "1.0.0",
+        "tech_ref": refs["tech_ref"],
+        "feat_ref": refs["feat_ref"],
+        "source_refs": source_refs,
+    }
+    body = "\n\n".join(
+        [
+            f"# {refs['tech_ref']}",
+            "## Overview\n\n" + str(feature.get("goal") or ""),
+            "## Design Focus\n\n" + "\n".join(f"- {item}" for item in focus),
+            "## Implementation Rules\n\n" + "\n".join(f"- {item}" for item in rules),
+            "## Non-Functional Requirements\n\n" + "\n".join(f"- {item}" for item in nfrs),
+            "## Implementation Carrier View\n\n" + "\n".join(f"- {item}" for item in implementation_arch) + "\n\n" + runtime_view,
+            "## State Model\n\n" + "\n".join(f"- {item}" for item in states),
+            "## Module Plan\n\n" + "\n".join(f"- {item}" for item in modules),
+            "## Implementation Strategy\n\n" + "\n".join(f"- {item}" for item in strategy),
+            "## Implementation Unit Mapping\n\n" + "\n".join(f"- {item}" for item in unit_mapping),
+            "## Interface Contracts\n\n" + "\n".join(f"- {item}" for item in contracts),
+            "## Main Sequence\n\n" + "\n".join(f"- {item}" for item in sequence_steps) + "\n\n" + main_flow_diagram,
+            "## Exception and Compensation\n\n" + "\n".join(f"- {item}" for item in exception_rules),
+            "## Integration Points\n\n" + "\n".join(f"- {item}" for item in integrations),
+            "## Minimal Code Skeleton\n\n- Happy path:\n\n" + skeleton["happy_path"] + "\n\n- Failure path:\n\n" + skeleton["failure_path"],
+            "## Traceability\n\n" + "\n".join(f"- {item['design_section']}: {', '.join(item['source_refs'])}" for item in traceability),
+        ]
+    )
+    return frontmatter, body
+
+
+def build_arch_docs(feature, refs, source_refs, assessment, arch_diagram, json_payload):
+    if not assessment["arch_required"]:
+        return None, None
+    arch_out_of_scope = ensure_list(feature.get("non_goals"))
+    arch_out_of_scope.extend(
+        item for item in ensure_list(feature.get("constraints")) if any(marker in item.lower() for marker in ["不得", "不", "only", "must not", "do not", "not "])
+    )
+    acceptance = feature.get("acceptance_and_testability") or {}
+    if isinstance(acceptance, dict):
+        arch_out_of_scope.extend(ensure_list(acceptance.get("out_of_scope")))
+    if not arch_out_of_scope:
+        axis = explicit_axis(feature) or "derived"
+        defaults = {
+            "collaboration": ["Do not define decision vocabulary or final formalization semantics here.", "Do not publish formal objects or downstream admission results here."],
+            "formalization": ["Do not redefine authoritative submission or pending visibility here.", "Do not decide downstream consumer admission policy here."],
+            "layering": ["Do not redefine handoff submission or materialization dispatch here.", "Do not rewrite path / mode governance here."],
+            "io_governance": ["Do not redefine object layering or admission semantics here.", "Do not carry approve / reject business semantics here."],
+            "adoption_e2e": ["Do not rewrite foundation FEAT internal semantics here.", "Do not create a parallel gate or audit decision model here."],
+        }
+        arch_out_of_scope.extend(defaults.get(axis, []))
+    frontmatter = {
+        "artifact_type": "ARCH",
+        "status": json_payload["status"],
+        "schema_version": "1.0.0",
+        "arch_ref": refs["arch_ref"],
+        "feat_ref": refs["feat_ref"],
+        "source_refs": source_refs,
+    }
+    body = "\n\n".join(
+        [
+            f"# {refs['arch_ref']}",
+            "## Boundary Placement\n\n" + "\n".join(f"- {item}" for item in architecture_topics(feature)),
+            "## System Topology\n\n" + arch_diagram,
+            "## Responsibility Split\n\n" + "\n".join(f"- {item}" for item in responsibility_splits(feature)),
+            "## Dedicated Runtime Placement\n\n" + "\n".join(f"- {item}" for item in assessment["arch_rationale"]),
+            "## Out of Scope\n\n" + "\n".join(f"- {item}" for item in unique_strings(arch_out_of_scope)[:4]),
+        ]
+    )
+    return frontmatter, body
+
+
+def build_api_docs(refs, source_refs, assessment, feature, api_specs, json_payload):
+    if not assessment["api_required"]:
+        return None, None
+    frontmatter = {
+        "artifact_type": "API",
+        "status": json_payload["status"],
+        "schema_version": "1.0.0",
+        "api_ref": refs["api_ref"],
+        "feat_ref": refs["feat_ref"],
+        "source_refs": source_refs,
+    }
+    body = "\n\n".join(
+        [
+            f"# {refs['api_ref']}",
+            "## Contract Scope\n\n" + "\n".join(f"- {item}" for item in api_surfaces(feature)),
+            "## Response Envelope\n\n- Success envelope: `{ ok: true, command_ref, trace_ref, result }`\n- Error envelope: `{ ok: false, command_ref, trace_ref, error }`",
+            "## Command Contracts\n\n" + "\n\n".join(
+                "\n".join(
+                    [
+                        f"### `{spec['command']}`",
+                        f"- Surface: {spec['surface']}",
+                        "- Request schema:",
+                        *[f"  - {item}" for item in spec["request_schema"]],
+                        "- Response schema:",
+                        *[f"  - {item}" for item in spec["response_schema"]],
+                        "- Field semantics:",
+                        *[f"  - {item}" for item in spec["field_semantics"]],
+                        "- Enum / domain:",
+                        *([f"  - {item}" for item in spec["enum_domain"]] or ["  - None"]),
+                        "- Invariants:",
+                        *[f"  - {item}" for item in spec["invariants"]],
+                        "- Canonical refs:",
+                        *[f"  - {item}" for item in spec["canonical_refs"]],
+                        "- Errors:",
+                        *[f"  - {item}" for item in spec["errors"]],
+                        f"- Idempotency key: {spec['idempotency']}",
+                        "- Preconditions:",
+                        *[f"  - {item}" for item in spec["preconditions"]],
+                    ]
+                )
+                for spec in api_specs
+            ),
+            "## Compatibility and Versioning\n\n" + "\n".join([f"- {item}" for item in api_compatibility_rules(feature)]),
+        ]
+    )
+    return frontmatter, body

@@ -74,6 +74,7 @@ REQUIRED_DATA_FIELDS = {
     "ui_intent_ref",
     "ui_source_context_ref",
     "ui_binding_map_ref",
+    "ui_flow_plan_ref",
     "test_case_pack_ref",
     "test_case_pack_meta_ref",
     "script_pack_ref",
