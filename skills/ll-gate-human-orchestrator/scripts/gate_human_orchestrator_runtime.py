@@ -77,6 +77,181 @@ def _run_gate_command(group_action: list[str], request_path: Path, response_path
     return response
 
 
+def _prepare_executor_output_dir(repo_root: Path, package_path: Path, run_id: str, allow_update: bool) -> tuple[str, Path]:
+    effective_run_id = run_id or default_run_id(package_path)
+    output_dir = output_dir_for(repo_root, effective_run_id)
+    if output_dir.exists() and not allow_update:
+        raise FileExistsError(f"Output directory already exists: {output_dir}")
+    output_dir.mkdir(parents=True, exist_ok=True)
+    (output_dir / "_cli").mkdir(parents=True, exist_ok=True)
+    return effective_run_id, output_dir
+
+
+def _evaluate_gate_package(
+    package_path: Path,
+    package_payload: dict[str, Any],
+    repo_root: Path,
+    output_dir: Path,
+    trace: dict[str, Any],
+    audit_refs: list[str],
+    decision: str,
+    decision_reason: str,
+    resolved_target: str,
+) -> dict[str, Any]:
+    request_path = output_dir / "_cli" / "gate-evaluate.request.json"
+    response_path = output_dir / "_cli" / "gate-evaluate.response.json"
+    request = {
+        "api_version": "v1",
+        "command": "gate.evaluate",
+        "request_id": f"req-gate-evaluate-{trace['run_ref']}",
+        "workspace_root": repo_root.as_posix(),
+        "actor_ref": "ll-gate-human-orchestrator",
+        "trace": trace,
+        "payload": {
+            "gate_ready_package_ref": repo_relative(repo_root, package_path),
+            "audit_finding_refs": audit_refs,
+            "target_matrix": {"allowed_targets": ["materialized_handoff", "materialized_job", "run_closure"]},
+            "decision_target": resolved_target,
+            "machine_ssot_ref": str(package_payload.get("machine_ssot_ref", "")),
+            "decision_reason": decision_reason or "issued through governed human gate orchestrator",
+            "evidence_refs": [str(package_payload.get("evidence_bundle_ref", ""))],
+        },
+    }
+    if decision:
+        request["payload"]["decision"] = decision
+    _write_request(request_path, request)
+    response = _run_gate_command(["gate", "evaluate"], request_path, response_path)
+    return {"result": response["data"], "request_ref": request_path, "response_ref": response_path}
+
+
+def _dispatch_gate_decision(repo_root: Path, output_dir: Path, trace: dict[str, Any], gate_decision_ref: str) -> dict[str, Any]:
+    request_path = output_dir / "_cli" / "gate-dispatch.request.json"
+    response_path = output_dir / "_cli" / "gate-dispatch.response.json"
+    _write_request(
+        request_path,
+        {
+            "api_version": "v1",
+            "command": "gate.dispatch",
+            "request_id": f"req-gate-dispatch-{trace['run_ref']}",
+            "workspace_root": repo_root.as_posix(),
+            "actor_ref": "ll-gate-human-orchestrator",
+            "trace": trace,
+            "payload": {"gate_decision_ref": gate_decision_ref},
+        },
+    )
+    response = _run_gate_command(["gate", "dispatch"], request_path, response_path)
+    return {"result": response["data"], "request_ref": request_path, "response_ref": response_path}
+
+
+def _build_executor_bundle(
+    package_path: Path,
+    package_payload: dict[str, Any],
+    repo_root: Path,
+    effective_run_id: str,
+    evaluate_result: dict[str, Any],
+    dispatch_result: dict[str, Any],
+) -> dict[str, Any]:
+    projection_fields = projection_bundle_fields(repo_root, evaluate_result["brief_record_ref"], str(package_payload.get("machine_ssot_ref", "")))
+    return {
+        "artifact_type": "gate_decision_package",
+        "workflow_key": "governance.gate-human-orchestrator",
+        "workflow_run_id": effective_run_id,
+        "title": f"Gate Decision Package {effective_run_id}",
+        "status": "drafted",
+        "schema_version": "1.0.0",
+        "input_ref": repo_relative(repo_root, package_path),
+        **projection_fields,
+        "decision_ref": evaluate_result["decision_ref"],
+        "decision": evaluate_result["decision"],
+        "decision_display": decision_display(evaluate_result["decision"]),
+        "decision_target": evaluate_result["decision_target"],
+        "decision_basis_refs": evaluate_result["decision_basis_refs"],
+        "dispatch_target": evaluate_result["dispatch_target"],
+        "dispatch_target_display": dispatch_target_display(evaluate_result["dispatch_target"]),
+        "projection_status_display": projection_status_display(projection_fields["projection_status"]),
+        "materialized_handoff_ref": dispatch_result.get("materialized_handoff_ref", evaluate_result.get("materialized_handoff_ref", "")),
+        "materialized_job_ref": dispatch_result.get("materialized_job_ref", ""),
+        "source_refs": [
+            repo_relative(repo_root, package_path),
+            evaluate_result["decision_ref"],
+            evaluate_result["brief_record_ref"],
+            evaluate_result["pending_human_decision_ref"],
+            *[ref for ref in (projection_fields["human_projection_ref"], projection_fields["snapshot_ref"], projection_fields["focus_ref"]) if ref],
+        ],
+        "runtime_refs": {
+            "brief_record_ref": evaluate_result["brief_record_ref"],
+            "pending_human_decision_ref": evaluate_result["pending_human_decision_ref"],
+            "dispatch_receipt_ref": dispatch_result["dispatch_receipt_ref"],
+            "materialized_handoff_ref": dispatch_result.get("materialized_handoff_ref", evaluate_result.get("materialized_handoff_ref", "")),
+            "materialized_job_ref": dispatch_result.get("materialized_job_ref", ""),
+            "human_projection_ref": projection_fields["human_projection_ref"],
+            "snapshot_ref": projection_fields["snapshot_ref"],
+            "focus_ref": projection_fields["focus_ref"],
+        },
+    }
+
+
+def _write_executor_outputs(
+    output_dir: Path,
+    input_path: Path,
+    package: Any,
+    bundle_json: dict[str, Any],
+    evaluate_refs: dict[str, Any],
+    dispatch_refs: dict[str, Any],
+) -> None:
+    write_bundle_files(output_dir, bundle_json)
+    dump_json(
+        output_dir / "runtime-artifact-refs.json",
+        {
+            "evaluate_request_ref": str(evaluate_refs["request_ref"]),
+            "evaluate_response_ref": str(evaluate_refs["response_ref"]),
+            "dispatch_request_ref": str(dispatch_refs["request_ref"]),
+            "dispatch_response_ref": str(dispatch_refs["response_ref"]),
+            **bundle_json["runtime_refs"],
+        },
+    )
+    dump_json(output_dir / "gate-review-report.json", {"decision": "pass", "summary": "executor produced gate runtime outputs", "decision_action": bundle_json["decision"], "projection_status": bundle_json["projection_status"], "human_projection_ref": bundle_json["human_projection_ref"]})
+    dump_json(output_dir / "gate-acceptance-report.json", {"decision": "pending_supervisor", "summary": "awaiting supervisor review"})
+    dump_json(output_dir / "gate-defect-list.json", [])
+    dump_json(output_dir / "handoff-to-gate-downstreams.json", dispatch_handoff(bundle_json))
+    dump_json(
+        output_dir / "execution-evidence.json",
+        {
+            "skill_id": "ll-gate-human-orchestrator",
+            "run_id": bundle_json["workflow_run_id"],
+            "role": "executor",
+            "inputs": [str(package.package_path)],
+            "outputs": [str(output_dir / "gate-decision-bundle.md"), str(output_dir / "gate-decision-bundle.json")],
+            "commands_run": [f"python skills/ll-gate-human-orchestrator/scripts/gate_human_orchestrator.py executor-run --input {input_path}", "ll gate evaluate", "ll gate dispatch"],
+            "structural_results": {
+                "input_validation": "pass",
+                "decision_ref_present": True,
+                "decision_target_present": bool(bundle_json["decision_target"]),
+                "decision_basis_refs_present": bool(bundle_json["decision_basis_refs"]),
+                "dispatch_receipt_present": True,
+                "approve_materialized": bundle_json["decision"] != "approve" or bool(bundle_json["materialized_handoff_ref"]),
+                "human_projection_present": bool(bundle_json["human_projection_ref"]),
+                "projection_review_visible": bundle_json["projection_status"] == "review_visible",
+                "projection_markers_valid": all(bundle_json["projection_markers"].get(key) is True for key in ("derived_only", "non_authoritative", "non_inheritable")),
+            },
+        },
+    )
+    dump_json(
+        output_dir / "package-manifest.json",
+        {
+            "run_id": bundle_json["workflow_run_id"],
+            "artifacts_dir": str(output_dir),
+            "input_artifacts_dir": str(package.artifacts_dir),
+            "primary_artifact_ref": str(output_dir / "gate-decision-bundle.md"),
+            "bundle_ref": str(output_dir / "gate-decision-bundle.json"),
+            "runtime_refs_ref": str(output_dir / "runtime-artifact-refs.json"),
+            "execution_evidence_ref": str(output_dir / "execution-evidence.json"),
+            "supervision_evidence_ref": str(output_dir / "supervision-evidence.json"),
+            "status": "drafted",
+        },
+    )
+
+
 def executor_run(
     input_path: Path,
     repo_root: Path,
@@ -92,174 +267,14 @@ def executor_run(
         raise ValueError("; ".join(errors))
 
     package = load_gate_ready_package(input_path)
-    effective_run_id = run_id or default_run_id(package.package_path)
-    output_dir = output_dir_for(repo_root, effective_run_id)
-    if output_dir.exists() and not allow_update:
-        raise FileExistsError(f"Output directory already exists: {output_dir}")
-    output_dir.mkdir(parents=True, exist_ok=True)
-    (output_dir / "_cli").mkdir(parents=True, exist_ok=True)
-
+    effective_run_id, output_dir = _prepare_executor_output_dir(repo_root, package.package_path, run_id, allow_update)
     audit_refs = audit_finding_refs or _default_audit_refs(repo_root)
     resolved_target = decision_target or str(package.payload.get("candidate_ref", ""))
-    trace = {
-        "run_ref": effective_run_id,
-        "workflow_key": "governance.gate-human-orchestrator",
-    }
-
-    evaluate_request_path = output_dir / "_cli" / "gate-evaluate.request.json"
-    evaluate_response_path = output_dir / "_cli" / "gate-evaluate.response.json"
-    evaluate_request = {
-        "api_version": "v1",
-        "command": "gate.evaluate",
-        "request_id": f"req-gate-evaluate-{effective_run_id}",
-        "workspace_root": repo_root.as_posix(),
-        "actor_ref": "ll-gate-human-orchestrator",
-        "trace": trace,
-        "payload": {
-            "gate_ready_package_ref": repo_relative(repo_root, package.package_path),
-            "audit_finding_refs": audit_refs,
-            "target_matrix": {"allowed_targets": ["materialized_handoff", "materialized_job", "run_closure"]},
-            "decision_target": resolved_target,
-            "machine_ssot_ref": str(package.payload.get("machine_ssot_ref", "")),
-            "decision_reason": decision_reason or "issued through governed human gate orchestrator",
-            "evidence_refs": [str(package.payload.get("evidence_bundle_ref", ""))],
-        },
-    }
-    if decision:
-        evaluate_request["payload"]["decision"] = decision
-    _write_request(evaluate_request_path, evaluate_request)
-    evaluate = _run_gate_command(["gate", "evaluate"], evaluate_request_path, evaluate_response_path)
-    result = evaluate["data"]
-
-    dispatch_request_path = output_dir / "_cli" / "gate-dispatch.request.json"
-    dispatch_response_path = output_dir / "_cli" / "gate-dispatch.response.json"
-    dispatch_request = {
-        "api_version": "v1",
-        "command": "gate.dispatch",
-        "request_id": f"req-gate-dispatch-{effective_run_id}",
-        "workspace_root": repo_root.as_posix(),
-        "actor_ref": "ll-gate-human-orchestrator",
-        "trace": trace,
-        "payload": {
-            "gate_decision_ref": result["gate_decision_ref"],
-        },
-    }
-    _write_request(dispatch_request_path, dispatch_request)
-    dispatch = _run_gate_command(["gate", "dispatch"], dispatch_request_path, dispatch_response_path)
-    dispatch_result = dispatch["data"]
-    projection_fields = projection_bundle_fields(
-        repo_root,
-        result["brief_record_ref"],
-        str(package.payload.get("machine_ssot_ref", "")),
-    )
-
-    bundle_json = {
-        "artifact_type": "gate_decision_package",
-        "workflow_key": "governance.gate-human-orchestrator",
-        "workflow_run_id": effective_run_id,
-        "title": f"Gate Decision Package {effective_run_id}",
-        "status": "drafted",
-        "schema_version": "1.0.0",
-        "input_ref": repo_relative(repo_root, package.package_path),
-        **projection_fields,
-        "decision_ref": result["decision_ref"],
-        "decision": result["decision"],
-        "decision_display": decision_display(result["decision"]),
-        "decision_target": result["decision_target"],
-        "decision_basis_refs": result["decision_basis_refs"],
-        "dispatch_target": result["dispatch_target"],
-        "dispatch_target_display": dispatch_target_display(result["dispatch_target"]),
-        "projection_status_display": projection_status_display(projection_fields["projection_status"]),
-        "materialized_handoff_ref": dispatch_result.get("materialized_handoff_ref", result.get("materialized_handoff_ref", "")),
-        "materialized_job_ref": dispatch_result.get("materialized_job_ref", ""),
-        "source_refs": [
-            repo_relative(repo_root, package.package_path),
-            result["decision_ref"],
-            result["brief_record_ref"],
-            result["pending_human_decision_ref"],
-            *[ref for ref in (projection_fields["human_projection_ref"], projection_fields["snapshot_ref"], projection_fields["focus_ref"]) if ref],
-        ],
-        "runtime_refs": {
-            "brief_record_ref": result["brief_record_ref"],
-            "pending_human_decision_ref": result["pending_human_decision_ref"],
-            "dispatch_receipt_ref": dispatch_result["dispatch_receipt_ref"],
-            "materialized_handoff_ref": dispatch_result.get("materialized_handoff_ref", result.get("materialized_handoff_ref", "")),
-            "materialized_job_ref": dispatch_result.get("materialized_job_ref", ""),
-            "human_projection_ref": projection_fields["human_projection_ref"],
-            "snapshot_ref": projection_fields["snapshot_ref"],
-            "focus_ref": projection_fields["focus_ref"],
-        },
-    }
-    write_bundle_files(output_dir, bundle_json)
-    dump_json(
-        output_dir / "runtime-artifact-refs.json",
-        {
-            "evaluate_request_ref": str(evaluate_request_path),
-            "evaluate_response_ref": str(evaluate_response_path),
-            "dispatch_request_ref": str(dispatch_request_path),
-            "dispatch_response_ref": str(dispatch_response_path),
-            **bundle_json["runtime_refs"],
-        },
-    )
-    dump_json(
-        output_dir / "gate-review-report.json",
-        {
-            "decision": "pass",
-            "summary": "executor produced gate runtime outputs",
-            "decision_action": bundle_json["decision"],
-            "projection_status": bundle_json["projection_status"],
-            "human_projection_ref": bundle_json["human_projection_ref"],
-        },
-    )
-    dump_json(
-        output_dir / "gate-acceptance-report.json",
-        {"decision": "pending_supervisor", "summary": "awaiting supervisor review"},
-    )
-    dump_json(output_dir / "gate-defect-list.json", [])
-    dump_json(output_dir / "handoff-to-gate-downstreams.json", dispatch_handoff(bundle_json))
-    dump_json(
-        output_dir / "execution-evidence.json",
-        {
-            "skill_id": "ll-gate-human-orchestrator",
-            "run_id": effective_run_id,
-            "role": "executor",
-            "inputs": [str(package.package_path)],
-            "outputs": [str(output_dir / "gate-decision-bundle.md"), str(output_dir / "gate-decision-bundle.json")],
-            "commands_run": [
-                f"python scripts/gate_human_orchestrator.py executor-run --input {input_path}",
-                "ll gate evaluate",
-                "ll gate dispatch",
-            ],
-            "structural_results": {
-                "input_validation": "pass",
-                "decision_ref_present": True,
-                "decision_target_present": bool(bundle_json["decision_target"]),
-                "decision_basis_refs_present": bool(bundle_json["decision_basis_refs"]),
-                "dispatch_receipt_present": True,
-                "approve_materialized": bundle_json["decision"] != "approve" or bool(bundle_json["materialized_handoff_ref"]),
-                "human_projection_present": bool(bundle_json["human_projection_ref"]),
-                "projection_review_visible": bundle_json["projection_status"] == "review_visible",
-                "projection_markers_valid": all(
-                    bundle_json["projection_markers"].get(key) is True
-                    for key in ("derived_only", "non_authoritative", "non_inheritable")
-                ),
-            },
-        },
-    )
-    dump_json(
-        output_dir / "package-manifest.json",
-        {
-            "run_id": effective_run_id,
-            "artifacts_dir": str(output_dir),
-            "input_artifacts_dir": str(package.artifacts_dir),
-            "primary_artifact_ref": str(output_dir / "gate-decision-bundle.md"),
-            "bundle_ref": str(output_dir / "gate-decision-bundle.json"),
-            "runtime_refs_ref": str(output_dir / "runtime-artifact-refs.json"),
-            "execution_evidence_ref": str(output_dir / "execution-evidence.json"),
-            "supervision_evidence_ref": str(output_dir / "supervision-evidence.json"),
-            "status": "drafted",
-        },
-    )
+    trace = {"run_ref": effective_run_id, "workflow_key": "governance.gate-human-orchestrator"}
+    evaluate_refs = _evaluate_gate_package(package.package_path, package.payload, repo_root, output_dir, trace, audit_refs, decision, decision_reason, resolved_target)
+    dispatch_refs = _dispatch_gate_decision(repo_root, output_dir, trace, evaluate_refs["result"]["gate_decision_ref"])
+    bundle_json = _build_executor_bundle(package.package_path, package.payload, repo_root, effective_run_id, evaluate_refs["result"], dispatch_refs["result"])
+    _write_executor_outputs(output_dir, input_path, package, bundle_json, evaluate_refs, dispatch_refs)
     return {
         "ok": True,
         "run_id": effective_run_id,
@@ -328,6 +343,7 @@ def update_supervisor_outputs(artifacts_dir: Path, supervision: dict[str, Any]) 
 
 def validate_output_package(artifacts_dir: Path) -> tuple[list[str], dict[str, Any]]:
     errors: list[str] = []
+    allowed_projection_statuses = {"review_visible", "traceability_pending"}
     required = [
         "package-manifest.json",
         "gate-decision-bundle.md",
@@ -359,8 +375,8 @@ def validate_output_package(artifacts_dir: Path) -> tuple[list[str], dict[str, A
             errors.append(f"missing bundle field: {field}")
     if bundle.get("decision") == "approve" and not bundle.get("materialized_handoff_ref"):
         errors.append("approve requires materialized_handoff_ref")
-    if bundle.get("projection_status") != "review_visible":
-        errors.append("human projection must be review_visible")
+    if bundle.get("projection_status") not in allowed_projection_statuses:
+        errors.append(f"human projection must be one of {sorted(allowed_projection_statuses)}")
     if not bundle.get("snapshot_ref"):
         errors.append("missing bundle field: snapshot_ref")
     if not bundle.get("focus_ref"):

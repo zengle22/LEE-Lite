@@ -24,8 +24,8 @@ roles:
 
 runtime:
   mode: lite_native
-  command: python scripts/gate_human_orchestrator.py run --input <gate-ready-dir> --repo-root <repo-root>
-  entry_script: scripts/gate_human_orchestrator.py
+  command: python skills/ll-gate-human-orchestrator/scripts/gate_human_orchestrator.py run --input <gate-ready-dir> --repo-root <repo-root>
+  entry_script: skills/ll-gate-human-orchestrator/scripts/gate_human_orchestrator.py
   accepted_input_paths:
     - artifacts/active/gates/packages
     - direct gate_ready_package directory path
@@ -61,11 +61,11 @@ output:
 
 validation:
   structural:
-    - "python scripts/gate_human_orchestrator.py validate-input --input $INPUT"
-    - "python scripts/gate_human_orchestrator.py run --input $INPUT --repo-root $REPO_ROOT --allow-update"
-    - "python scripts/gate_human_orchestrator.py validate-output --artifacts-dir $OUTPUT"
-    - "python scripts/gate_human_orchestrator.py validate-package-readiness --artifacts-dir $OUTPUT"
-    - "python scripts/gate_human_orchestrator.py freeze-guard --artifacts-dir $OUTPUT"
+    - "python skills/ll-gate-human-orchestrator/scripts/gate_human_orchestrator.py validate-input --input $INPUT"
+    - "python skills/ll-gate-human-orchestrator/scripts/gate_human_orchestrator.py run --input $INPUT --repo-root $REPO_ROOT --allow-update"
+    - "python skills/ll-gate-human-orchestrator/scripts/gate_human_orchestrator.py validate-output --artifacts-dir $OUTPUT"
+    - "python skills/ll-gate-human-orchestrator/scripts/gate_human_orchestrator.py validate-package-readiness --artifacts-dir $OUTPUT"
+    - "python skills/ll-gate-human-orchestrator/scripts/gate_human_orchestrator.py freeze-guard --artifacts-dir $OUTPUT"
   semantic:
     input_checklist: input/semantic-checklist.md
     output_checklist: output/semantic-checklist.md

@@ -1,340 +1,32 @@
 #!/usr/bin/env python3
-"""Human approval round helpers for ll-gate-human-orchestrator."""
+"""Human approval round orchestration for ll-gate-human-orchestrator."""
 
 from __future__ import annotations
 
-import json
 import re
 from pathlib import Path
 from typing import Any
 
 from gate_human_orchestrator_common import dump_json, load_gate_ready_package, load_json, repo_relative
 from gate_human_orchestrator_projection import write_bundle_files
-from gate_human_orchestrator_runtime import default_run_id, output_dir_for, repo_root_from, run_workflow
+from gate_human_orchestrator_queue import active_claimed_item, claimable_queue_item
+from gate_human_orchestrator_round_support import (
+    human_brief_payload,
+    load_ssot_brief,
+    refresh_round_input_if_needed,
+    refresh_request_brief,
+    request_markdown,
+    request_path,
+    review_summary,
+    round_state_path,
+    submission_path,
+    synthetic_gate_ready_package,
+)
+from gate_human_orchestrator_runtime import _run_gate_command, default_run_id, output_dir_for, run_workflow
 
 
 ALLOWED_ACTIONS = ["approve", "revise", "retry", "handoff", "reject"]
-
-
-def _path_variants(value: str, repo_root: Path) -> set[str]:
-    raw = str(value or "").strip()
-    if not raw:
-        return set()
-    variants = {raw, raw.replace("\\", "/")}
-    try:
-        path = Path(raw)
-        if not path.is_absolute():
-            path = (repo_root / path)
-        resolved = path.resolve()
-        variants.add(str(resolved))
-        variants.add(resolved.as_posix())
-        variants.add(str(resolved).replace("\\", "/"))
-    except Exception:
-        pass
-    return {item for item in variants if item}
-
-
-def _load_ssot_excerpt(repo_root: Path, machine_ssot_ref: str) -> list[str]:
-    if not machine_ssot_ref:
-        return []
-    path = Path(machine_ssot_ref)
-    ssot_path = path if path.is_absolute() else (repo_root / path)
-    if not ssot_path.exists():
-        return []
-    excerpt: list[str] = []
-    try:
-        payload = load_json(ssot_path)
-        for field in ("product_summary", "completed_state", "authoritative_output", "frozen_downstream_boundary"):
-            value = payload.get(field)
-            if isinstance(value, str) and value.strip():
-                excerpt.append(value.strip())
-        return excerpt[:4]
-    except (json.JSONDecodeError, UnicodeDecodeError):
-        text = ssot_path.read_text(encoding="utf-8")
-        for line in text.splitlines():
-            stripped = line.strip()
-            if not stripped or stripped == "---":
-                continue
-            if stripped.startswith(("artifact_type:", "workflow_key:", "workflow_run_id:", "status:", "source_refs:")):
-                continue
-            excerpt.append(stripped)
-            if len(excerpt) >= 4:
-                break
-        return excerpt
-
-
-def _request_markdown(request: dict[str, Any]) -> str:
-    lines = [
-        f"# {request['title']}",
-        "",
-        "## 待审批对象",
-        "",
-        f"- pending_human_decision_ref: {request['pending_human_decision_ref']}",
-        f"- decision_target: {request['decision_target']}",
-        f"- machine_ssot_ref: {request['machine_ssot_ref']}",
-        "",
-        "## 需要你做的决定",
-        "",
-        f"- {request['decision_question']}",
-        "",
-        "## 建议关注点",
-        "",
-    ]
-    lines.extend(f"- {item}" for item in request["focus_points"])
-    lines.extend(
-        [
-            "",
-            "## 可直接回复的格式",
-            "",
-            *[f"- {item}" for item in request["reply_examples"]],
-        ]
-    )
-    if request["ssot_excerpt"]:
-        lines.extend(["", "## Machine SSOT 摘要", ""])
-        lines.extend(f"- {item}" for item in request["ssot_excerpt"])
-    return "\n".join(lines) + "\n"
-
-
-def _review_summary(request: dict[str, Any], *, status: str = "") -> dict[str, Any]:
-    return {
-        "title": request.get("title", ""),
-        "status": status or "",
-        "pending_human_decision_ref": request.get("pending_human_decision_ref", ""),
-        "decision_target": request.get("decision_target", ""),
-        "machine_ssot_ref": request.get("machine_ssot_ref", ""),
-        "decision_question": request.get("decision_question", ""),
-        "focus_points": list(request.get("focus_points", [])),
-        "allowed_actions": list(request.get("allowed_actions", [])),
-        "reply_examples": list(request.get("reply_examples", [])),
-        "basis_refs_hint": list(request.get("basis_refs_hint", [])),
-        "ssot_excerpt": list(request.get("ssot_excerpt", [])),
-    }
-
-
-def _human_brief_payload(request: dict[str, Any], *, status: str = "") -> dict[str, Any]:
-    return {
-        "status": status or "",
-        "markdown": _request_markdown(request),
-        "summary": _review_summary(request, status=status),
-    }
-
-
-def _round_state_path(artifacts_dir: Path) -> Path:
-    return artifacts_dir / "round-state.json"
-
-
-def _request_path(artifacts_dir: Path) -> Path:
-    return artifacts_dir / "human-decision-request.json"
-
-
-def _submission_path(artifacts_dir: Path) -> Path:
-    return artifacts_dir / "human-decision-submission.json"
-
-
-def _pending_index_path(repo_root: Path) -> Path:
-    return repo_root / "artifacts" / "active" / "gates" / "pending" / "index.json"
-
-
-def _claimable_queue_item(repo_root: Path) -> dict[str, Any] | None:
-    index_path = _pending_index_path(repo_root)
-    queue_items: list[tuple[str, dict[str, Any], Path]] = []
-    pending_dir = repo_root / "artifacts" / "active" / "gates" / "pending"
-    if index_path.exists():
-        index = load_json(index_path)
-        handoffs = index.get("handoffs", {})
-        if isinstance(handoffs, dict):
-            for item_key in sorted(handoffs):
-                entry = handoffs[item_key]
-                if not isinstance(entry, dict):
-                    continue
-                pending_ref = str(entry.get("gate_pending_ref", ""))
-                if not pending_ref:
-                    continue
-                queue_items.append((item_key, entry, repo_root / pending_ref))
-    elif pending_dir.exists():
-        for pending_path in sorted(pending_dir.glob("*.json")):
-            if pending_path.name.startswith("_"):
-                continue
-            entry = {"gate_pending_ref": repo_relative(repo_root, pending_path)}
-            queue_items.append((pending_path.stem, entry, pending_path))
-
-    for item_key, entry, pending_path in queue_items:
-        handoff_ref = str(entry.get("handoff_ref", ""))
-        if not handoff_ref and pending_path.exists():
-            pending_payload = load_json(pending_path)
-            handoff_ref = str(pending_payload.get("handoff_ref", ""))
-        if not handoff_ref:
-            continue
-        handoff_path = repo_root / handoff_ref
-        if not pending_path.exists() or not handoff_path.exists():
-            continue
-        pending = load_json(pending_path)
-        if str(pending.get("claim_status", "")).lower() == "active":
-            continue
-        handoff = load_json(handoff_path)
-        payload_ref = str(handoff.get("payload_ref", "")).strip()
-        if not payload_ref:
-            continue
-        payload_path = Path(payload_ref) if Path(payload_ref).is_absolute() else (repo_root / payload_ref)
-        if not payload_path.exists():
-            continue
-        try:
-            package = load_gate_ready_package(payload_path)
-        except Exception:
-            package = None
-        return {
-            "item_key": item_key,
-            "entry": entry,
-            "pending": pending,
-            "pending_path": pending_path,
-            "handoff": handoff,
-            "handoff_path": handoff_path,
-            "payload_path": payload_path,
-            "package": package,
-        }
-    return None
-
-
-def _active_claimed_item(repo_root: Path, actor_ref: str) -> dict[str, Any] | None:
-    pending_dir = repo_root / "artifacts" / "active" / "gates" / "pending"
-    if not pending_dir.exists():
-        return None
-    for pending_path in sorted(pending_dir.glob("*.json")):
-        if pending_path.name.startswith("_"):
-            continue
-        pending = load_json(pending_path)
-        if str(pending.get("claim_status", "")).lower() != "active":
-            continue
-        if str(pending.get("claim_owner", "")) != actor_ref:
-            continue
-        claimed_run_id = str(pending.get("claimed_run_id", "")).strip()
-        if not claimed_run_id:
-            continue
-        artifacts_dir = output_dir_for(repo_root, claimed_run_id)
-        request_path = _request_path(artifacts_dir)
-        state_path = _round_state_path(artifacts_dir)
-        if not request_path.exists() or not state_path.exists():
-            continue
-        handoff_ref = str(pending.get("handoff_ref", "")).strip()
-        return {
-            "run_id": claimed_run_id,
-            "artifacts_dir": artifacts_dir,
-            "request": load_json(request_path),
-            "state": load_json(state_path),
-            "handoff_ref": handoff_ref,
-            "gate_pending_ref": repo_relative(repo_root, pending_path),
-            "claim_ref": repo_relative(repo_root, artifacts_dir / "queue-claim.json"),
-            "request_ref": repo_relative(repo_root, request_path),
-        }
-    return None
-
-
-def _proposal_data(repo_root: Path, handoff: dict[str, Any]) -> dict[str, Any]:
-    proposal_ref = str(handoff.get("proposal_ref", "")).strip()
-    if not proposal_ref:
-        return {}
-    proposal_path = Path(proposal_ref) if Path(proposal_ref).is_absolute() else (repo_root / proposal_ref)
-    if not proposal_path.exists():
-        return {}
-    try:
-        return load_json(proposal_path)
-    except Exception:
-        return {}
-
-
-def _registry_candidate_ref_for_payload(repo_root: Path, payload_path: Path) -> str:
-    registry_dir = repo_root / "artifacts" / "registry"
-    if not registry_dir.exists():
-        return repo_relative(repo_root, payload_path)
-    managed_variants = _path_variants(repo_relative(repo_root, payload_path), repo_root) | _path_variants(str(payload_path), repo_root)
-    source_dir_variants = _path_variants(repo_relative(repo_root, payload_path.parent), repo_root) | _path_variants(str(payload_path.parent), repo_root)
-    for registry_path in sorted(registry_dir.glob("*.json")):
-        try:
-            record = load_json(registry_path)
-        except Exception:
-            continue
-        managed_artifact_ref = str(record.get("managed_artifact_ref", "")).strip()
-        artifact_ref = str(record.get("artifact_ref", "")).strip()
-        if not managed_artifact_ref or not artifact_ref:
-            continue
-        metadata = record.get("metadata", {})
-        source_package_ref = ""
-        if isinstance(metadata, dict):
-            source_package_ref = str(metadata.get("source_package_ref", "")).strip()
-        if _path_variants(managed_artifact_ref, repo_root) & managed_variants:
-            return artifact_ref
-        if source_package_ref and (_path_variants(source_package_ref, repo_root) & source_dir_variants):
-            return artifact_ref
-    return repo_relative(repo_root, payload_path)
-
-
-def _synthetic_gate_ready_package(
-    repo_root: Path,
-    artifacts_dir: Path,
-    handoff: dict[str, Any],
-    payload_path: Path,
-) -> Path:
-    proposal = _proposal_data(repo_root, handoff)
-    supporting_refs = proposal.get("supporting_artifact_refs", [])
-    evidence_refs = proposal.get("evidence_bundle_refs", [])
-    acceptance_ref = ""
-    if isinstance(supporting_refs, list):
-        for ref in supporting_refs:
-            ref_str = str(ref)
-            if ref_str.endswith("acceptance-report.json"):
-                acceptance_ref = ref_str
-                break
-        if not acceptance_ref and supporting_refs:
-            acceptance_ref = str(supporting_refs[0])
-    evidence_ref = ""
-    if isinstance(evidence_refs, list) and evidence_refs:
-        evidence_ref = str(evidence_refs[0])
-    if not evidence_ref:
-        evidence_ref = str(handoff.get("trace_context_ref", ""))
-    package_path = artifacts_dir / "synthetic-gate-ready-package.json"
-    dump_json(
-        package_path,
-        {
-            "trace": dict(handoff.get("trace", {})),
-            "payload": {
-                "candidate_ref": _registry_candidate_ref_for_payload(repo_root, payload_path),
-                "machine_ssot_ref": repo_relative(repo_root, payload_path),
-                "acceptance_ref": acceptance_ref,
-                "evidence_bundle_ref": evidence_ref,
-                "proposal_ref": str(handoff.get("proposal_ref", "")),
-                "handoff_ref": str(handoff.get("gate_pending_ref") or handoff.get("handoff_ref", "")),
-            },
-            "synthetic_from_handoff": True,
-        },
-    )
-    return package_path
-
-
-def _refresh_round_input_if_needed(repo_root: Path, artifacts_dir: Path, state: dict[str, Any]) -> Path:
-    input_ref = str(state.get("input_ref", "")).strip()
-    input_path = repo_root / Path(input_ref)
-    if not input_ref or not input_path.exists():
-        return input_path
-    try:
-        payload = load_json(input_path)
-    except Exception:
-        return input_path
-    if not payload.get("synthetic_from_handoff"):
-        return input_path
-    handoff_ref = str(state.get("handoff_ref", "")).strip()
-    if not handoff_ref:
-        return input_path
-    handoff_path = repo_root / handoff_ref
-    if not handoff_path.exists():
-        return input_path
-    handoff = load_json(handoff_path)
-    payload_ref = str(handoff.get("payload_ref", "")).strip()
-    if not payload_ref:
-        return input_path
-    payload_path = Path(payload_ref) if Path(payload_ref).is_absolute() else (repo_root / payload_ref)
-    if not payload_path.exists():
-        return input_path
-    return _synthetic_gate_ready_package(repo_root, artifacts_dir, handoff, payload_path)
+_CLOSEABLE_STATUSES = {"decision_recorded", "closed"}
 
 
 def prepare_round(input_path: Path, repo_root: Path, run_id: str, allow_update: bool = False) -> dict[str, Any]:
@@ -347,6 +39,7 @@ def prepare_round(input_path: Path, repo_root: Path, run_id: str, allow_update: 
 
     decision_target = str(package.payload.get("candidate_ref", ""))
     machine_ssot_ref = str(package.payload.get("machine_ssot_ref", ""))
+    ssot_brief = load_ssot_brief(repo_root, machine_ssot_ref)
     audit_ref = repo_root / "artifacts" / "active" / "audit" / "finding-bundle.json"
     audit_refs = [repo_relative(repo_root, audit_ref)] if audit_ref.exists() else []
     request = {
@@ -370,7 +63,10 @@ def prepare_round(input_path: Path, repo_root: Path, run_id: str, allow_update: 
             "reject: <原因>",
         ],
         "basis_refs_hint": [repo_relative(repo_root, package.package_path), str(package.payload.get("evidence_bundle_ref", "")), *audit_refs],
-        "ssot_excerpt": _load_ssot_excerpt(repo_root, machine_ssot_ref),
+        "ssot_excerpt": ssot_brief["excerpt"],
+        "ssot_fulltext_markdown": ssot_brief["fulltext_markdown"],
+        "ssot_outline": ssot_brief["outline"],
+        "review_checkpoints": ssot_brief["review_points"],
     }
     state = {
         "run_id": effective_run_id,
@@ -379,12 +75,12 @@ def prepare_round(input_path: Path, repo_root: Path, run_id: str, allow_update: 
         "decision_target": decision_target,
         "machine_ssot_ref": machine_ssot_ref,
         "audit_finding_refs": audit_refs,
-        "request_ref": repo_relative(repo_root, _request_path(artifacts_dir)),
+        "request_ref": repo_relative(repo_root, request_path(artifacts_dir)),
         "submission_ref": "",
         "bundle_ref": "",
     }
-    dump_json(_request_path(artifacts_dir), request)
-    (artifacts_dir / "human-decision-request.md").write_text(_request_markdown(request), encoding="utf-8")
+    dump_json(request_path(artifacts_dir), request)
+    (artifacts_dir / "human-decision-request.md").write_text(request_markdown(request), encoding="utf-8")
     dump_json(
         artifacts_dir / "human-decision-submission.template.json",
         {
@@ -395,7 +91,7 @@ def prepare_round(input_path: Path, repo_root: Path, run_id: str, allow_update: 
             "approver": "",
         },
     )
-    dump_json(_round_state_path(artifacts_dir), state)
+    dump_json(round_state_path(artifacts_dir), state)
     dump_json(
         artifacts_dir / "pending-human-decision.json",
         {
@@ -409,19 +105,21 @@ def prepare_round(input_path: Path, repo_root: Path, run_id: str, allow_update: 
         "ok": True,
         "run_id": effective_run_id,
         "artifacts_dir": str(artifacts_dir),
-        "request_ref": str(_request_path(artifacts_dir)),
+        "request_ref": str(request_path(artifacts_dir)),
         "pending_human_decision_ref": repo_relative(repo_root, artifacts_dir / "pending-human-decision.json"),
         "status": state["status"],
-        "review_summary": _review_summary(request, status=state["status"]),
-        "human_brief": _human_brief_payload(request, status=state["status"]),
+        "review_summary": review_summary(request, status=state["status"]),
+        "human_brief": human_brief_payload(request, status=state["status"]),
     }
 
 
 def claim_next(repo_root: Path, run_id: str, allow_update: bool = False, actor_ref: str = "ll-gate-human-orchestrator") -> dict[str, Any]:
-    item = _claimable_queue_item(repo_root)
+    item = claimable_queue_item(repo_root)
     if not item:
-        active = _active_claimed_item(repo_root, actor_ref)
+        active = active_claimed_item(repo_root, actor_ref)
         if active:
+            status = str(active["state"].get("status", "claimed"))
+            request = refresh_request_brief(repo_root, active["artifacts_dir"]) or active["request"]
             return {
                 "ok": True,
                 "run_id": active["run_id"],
@@ -430,31 +128,34 @@ def claim_next(repo_root: Path, run_id: str, allow_update: bool = False, actor_r
                 "gate_pending_ref": active["gate_pending_ref"],
                 "claim_ref": active["claim_ref"],
                 "request_ref": active["request_ref"],
-                "status": str(active["state"].get("status", "claimed")),
+                "status": status,
                 "reused_active_claim": True,
-                "review_summary": _review_summary(active["request"], status=str(active["state"].get("status", ""))),
-                "human_brief": _human_brief_payload(active["request"], status=str(active["state"].get("status", ""))),
+                "review_summary": review_summary(request, status=status),
+                "human_brief": human_brief_payload(request, status=status),
             }
         raise FileNotFoundError("no claimable gate pending item found")
+
     effective_run_id = run_id or item["item_key"]
     artifacts_dir = output_dir_for(repo_root, effective_run_id)
     package_input = item["payload_path"]
     if item.get("package") is None:
         artifacts_dir.mkdir(parents=True, exist_ok=True)
-        package_input = _synthetic_gate_ready_package(repo_root, artifacts_dir, item["handoff"], item["payload_path"])
+        package_input = synthetic_gate_ready_package(repo_root, artifacts_dir, item["handoff"], item["payload_path"])
     prepared = prepare_round(package_input, repo_root, effective_run_id, allow_update=True)
     artifacts_dir = Path(prepared["artifacts_dir"])
-    state = load_json(_round_state_path(artifacts_dir))
+    state = load_json(round_state_path(artifacts_dir))
     claim_ref = artifacts_dir / "queue-claim.json"
-    claim = {
-        "run_id": effective_run_id,
-        "handoff_ref": repo_relative(repo_root, item["handoff_path"]),
-        "gate_pending_ref": repo_relative(repo_root, item["pending_path"]),
-        "payload_ref": repo_relative(repo_root, item["payload_path"]),
-        "claim_owner": actor_ref,
-        "claim_status": "active",
-    }
-    dump_json(claim_ref, claim)
+    dump_json(
+        claim_ref,
+        {
+            "run_id": effective_run_id,
+            "handoff_ref": repo_relative(repo_root, item["handoff_path"]),
+            "gate_pending_ref": repo_relative(repo_root, item["pending_path"]),
+            "payload_ref": repo_relative(repo_root, item["payload_path"]),
+            "claim_owner": actor_ref,
+            "claim_status": "active",
+        },
+    )
     pending = dict(item["pending"])
     pending["claim_owner"] = actor_ref
     pending["claim_status"] = "active"
@@ -468,8 +169,8 @@ def claim_next(repo_root: Path, run_id: str, allow_update: bool = False, actor_r
             "claim_owner": actor_ref,
         }
     )
-    dump_json(_round_state_path(artifacts_dir), state)
-    request = load_json(_request_path(artifacts_dir))
+    dump_json(round_state_path(artifacts_dir), state)
+    request = load_json(request_path(artifacts_dir))
     return {
         "ok": True,
         "run_id": effective_run_id,
@@ -479,8 +180,8 @@ def claim_next(repo_root: Path, run_id: str, allow_update: bool = False, actor_r
         "claim_ref": str(claim_ref),
         "request_ref": prepared["request_ref"],
         "status": "claimed",
-        "review_summary": _review_summary(request, status=state["status"]),
-        "human_brief": _human_brief_payload(request, status=state["status"]),
+        "review_summary": review_summary(request, status=state["status"]),
+        "human_brief": human_brief_payload(request, status=state["status"]),
     }
 
 
@@ -490,19 +191,19 @@ def show_pending(repo_root: Path) -> dict[str, Any]:
     if root.exists():
         for state_path in sorted(root.glob("*/round-state.json")):
             state = load_json(state_path)
-            if state.get("status") == "pending_human_reply":
-                request_path = state_path.parent / "human-decision-request.json"
-                request = load_json(request_path) if request_path.exists() else {}
-                items.append(
-                    {
-                        "run_id": state.get("run_id", ""),
-                        "artifacts_dir": str(state_path.parent),
-                        "decision_target": state.get("decision_target", ""),
-                        "request_ref": state.get("request_ref", ""),
-                        "review_summary": _review_summary(request, status=str(state.get("status", ""))),
-                        "human_brief": _human_brief_payload(request, status=str(state.get("status", ""))),
-                    }
-                )
+            if state.get("status") != "pending_human_reply":
+                continue
+            request = refresh_request_brief(repo_root, state_path.parent)
+            items.append(
+                {
+                    "run_id": state.get("run_id", ""),
+                    "artifacts_dir": str(state_path.parent),
+                    "decision_target": state.get("decision_target", ""),
+                    "request_ref": state.get("request_ref", ""),
+                    "review_summary": review_summary(request, status=str(state.get("status", ""))),
+                    "human_brief": human_brief_payload(request, status=str(state.get("status", ""))),
+                }
+            )
     return {"ok": True, "pending_count": len(items), "items": items}
 
 
@@ -520,10 +221,9 @@ def parse_human_reply(reply: str, default_target: str) -> dict[str, Any]:
     if decision == "handoff":
         parts = [part.strip() for part in body.split("|", 1)]
         target = parts[0]
-        reason = parts[1] if len(parts) == 2 else f"handoff to {target}"
         if not target:
             raise ValueError("handoff reply requires a target before '|'")
-        return {"decision": "handoff", "decision_reason": reason, "decision_target": target}
+        return {"decision": "handoff", "decision_reason": parts[1] if len(parts) == 2 else f"handoff to {target}", "decision_target": target}
     if decision == "approve":
         return {"decision": "approve", "decision_reason": body or "approved by human reviewer", "decision_target": default_target}
     if not body:
@@ -532,50 +232,138 @@ def parse_human_reply(reply: str, default_target: str) -> dict[str, Any]:
 
 
 def capture_decision(artifacts_dir: Path, repo_root: Path, reply: str, approver: str, allow_update: bool = False) -> dict[str, Any]:
-    state = load_json(_round_state_path(artifacts_dir))
+    state = load_json(round_state_path(artifacts_dir))
     if state.get("status") != "pending_human_reply":
         raise ValueError(f"round is not awaiting human reply: {state.get('status', 'unknown')}")
-    input_path = _refresh_round_input_if_needed(repo_root, artifacts_dir, state)
+    input_path = refresh_round_input_if_needed(repo_root, artifacts_dir, state)
     package = load_gate_ready_package(input_path)
     runtime_target = str(package.payload.get("candidate_ref", "")) or str(state.get("decision_target", ""))
     parsed = parse_human_reply(reply, runtime_target)
-    submission = {
-        "pending_human_decision_ref": state.get("request_ref", ""),
-        "decision": parsed["decision"],
-        "decision_reason": parsed["decision_reason"],
-        "decision_target": parsed["decision_target"],
-        "decision_basis_refs": load_json(_request_path(artifacts_dir)).get("basis_refs_hint", []),
-        "approver": approver,
-    }
-    dump_json(_submission_path(artifacts_dir), submission)
+    dump_json(
+        submission_path(artifacts_dir),
+        {
+            "pending_human_decision_ref": state.get("request_ref", ""),
+            "decision": parsed["decision"],
+            "decision_reason": parsed["decision_reason"],
+            "decision_target": parsed["decision_target"],
+            "decision_basis_refs": load_json(request_path(artifacts_dir)).get("basis_refs_hint", []),
+            "approver": approver,
+        },
+    )
     result = run_workflow(
         input_path=input_path,
         repo_root=repo_root,
         run_id=str(state["run_id"]),
-        decision=submission["decision"],
-        decision_reason=submission["decision_reason"],
-        decision_target=submission["decision_target"],
+        decision=parsed["decision"],
+        decision_reason=parsed["decision_reason"],
+        decision_target=parsed["decision_target"],
         audit_finding_refs=list(state.get("audit_finding_refs", [])),
         allow_update=True,
     )
     bundle_path = Path(result["artifacts_dir"]) / "gate-decision-bundle.json"
     bundle = load_json(bundle_path)
-    for ref_value in (repo_relative(repo_root, _request_path(artifacts_dir)), repo_relative(repo_root, _submission_path(artifacts_dir))):
+    for ref_value in (repo_relative(repo_root, request_path(artifacts_dir)), repo_relative(repo_root, submission_path(artifacts_dir))):
         if ref_value not in bundle["source_refs"]:
             bundle["source_refs"].append(ref_value)
     write_bundle_files(Path(result["artifacts_dir"]), bundle)
     state.update(
         {
             "status": "decision_recorded",
-            "submission_ref": repo_relative(repo_root, _submission_path(artifacts_dir)),
+            "submission_ref": repo_relative(repo_root, submission_path(artifacts_dir)),
             "bundle_ref": repo_relative(repo_root, bundle_path),
         }
     )
-    dump_json(_round_state_path(artifacts_dir), state)
+    dump_json(round_state_path(artifacts_dir), state)
     return {
         "ok": True,
         "artifacts_dir": result["artifacts_dir"],
-        "decision": submission["decision"],
-        "submission_ref": str(_submission_path(artifacts_dir)),
+        "decision": parsed["decision"],
+        "submission_ref": str(submission_path(artifacts_dir)),
         "bundle_ref": str(bundle_path),
+    }
+
+
+def close_run(artifacts_dir: Path, repo_root: Path, allow_update: bool = False) -> dict[str, Any]:
+    del allow_update
+    state_path = round_state_path(artifacts_dir)
+    if not state_path.exists():
+        raise FileNotFoundError(f"round-state not found: {state_path}")
+    state = load_json(state_path)
+    run_id = str(state.get("run_id", "")).strip()
+    status = str(state.get("status", "")).strip()
+    if not run_id:
+        raise ValueError("round-state missing run_id")
+    if status == "closed":
+        return {
+            "ok": True,
+            "run_id": run_id,
+            "artifacts_dir": str(artifacts_dir),
+            "status": "closed",
+            "run_closure_ref": str(state.get("run_closure_ref", "")),
+            "gate_pending_ref": str(state.get("gate_pending_ref", "")),
+            "gate_decision_ref": "",
+        }
+    if status not in _CLOSEABLE_STATUSES:
+        raise ValueError(f"round is not closeable: {status or 'unknown'}")
+
+    bundle_ref = str(state.get("bundle_ref", "")).strip()
+    gate_decision_ref = ""
+    if bundle_ref:
+        bundle_path = repo_root / Path(bundle_ref)
+        if bundle_path.exists():
+            gate_decision_ref = str(load_json(bundle_path).get("decision_ref", "")).strip()
+    if not gate_decision_ref:
+        raise ValueError("cannot close round before gate decision is recorded")
+
+    request_path_cli = artifacts_dir / "_cli" / "gate-close-run.request.json"
+    response_path_cli = artifacts_dir / "_cli" / "gate-close-run.response.json"
+    dump_json(
+        request_path_cli,
+        {
+            "api_version": "v1",
+            "command": "gate.close-run",
+            "request_id": f"req-gate-close-run-{run_id}",
+            "workspace_root": repo_root.as_posix(),
+            "actor_ref": "ll-gate-human-orchestrator",
+            "trace": {"run_ref": run_id, "workflow_key": "governance.gate-human-orchestrator"},
+            "payload": {"run_ref": run_id, "gate_decision_ref": gate_decision_ref},
+        },
+    )
+    close_data = _run_gate_command(["gate", "close-run"], request_path_cli, response_path_cli)["data"]
+
+    gate_pending_ref = str(state.get("gate_pending_ref", "")).strip()
+    if gate_pending_ref:
+        pending_path = repo_root / Path(gate_pending_ref)
+        if pending_path.exists():
+            pending = load_json(pending_path)
+            pending.update(
+                {
+                    "claim_status": "released",
+                    "claim_owner": "",
+                    "released_run_id": run_id,
+                    "pending_state": "closed",
+                    "run_closure_ref": str(close_data.get("run_closure_ref", "")),
+                    "gate_decision_ref": gate_decision_ref,
+                }
+            )
+            dump_json(pending_path, pending)
+
+    claim_path = artifacts_dir / "queue-claim.json"
+    if claim_path.exists():
+        claim = load_json(claim_path)
+        claim["claim_status"] = "released"
+        claim["run_closure_ref"] = str(close_data.get("run_closure_ref", ""))
+        dump_json(claim_path, claim)
+
+    state["status"] = "closed"
+    state["run_closure_ref"] = str(close_data.get("run_closure_ref", ""))
+    dump_json(state_path, state)
+    return {
+        "ok": True,
+        "run_id": run_id,
+        "artifacts_dir": str(artifacts_dir),
+        "status": "closed",
+        "run_closure_ref": str(close_data.get("run_closure_ref", "")),
+        "gate_pending_ref": gate_pending_ref,
+        "gate_decision_ref": gate_decision_ref,
     }

@@ -189,15 +189,16 @@ def write_bundle_files(artifacts_dir: Path, bundle: dict[str, Any]) -> None:
 
 def human_projection_findings(bundle: dict[str, Any]) -> list[dict[str, str]]:
     findings: list[dict[str, str]] = []
+    allowed_statuses = {"review_visible", "traceability_pending"}
     if not bundle.get("machine_ssot_ref"):
         findings.append({"title": "Missing Machine SSOT ref", "detail": "machine_ssot_ref must be explicit in the gate package."})
     if not bundle.get("human_projection_ref"):
         findings.append({"title": "Missing human projection ref", "detail": "gate bundle must expose the rendered projection ref."})
-    if bundle.get("projection_status") != "review_visible":
+    if bundle.get("projection_status") not in allowed_statuses:
         findings.append(
             {
                 "title": "Projection not reviewer-ready",
-                "detail": f"projection_status must be review_visible, got {bundle.get('projection_status', 'missing')}.",
+                "detail": f"projection_status must be one of {sorted(allowed_statuses)}, got {bundle.get('projection_status', 'missing')}.",
             }
         )
     markers = bundle.get("projection_markers", {})

@@ -11,7 +11,7 @@ This skill is the governed gate workflow for turning one `gate_ready_package` in
 
 - Governing ADRs: `E:\ai\LEE-Lite-skill-first\ssot\adr\ADR-016-Gate Skill 作为第二会话 Human Gate Orchestrator 的实现基线.MD`, `ADR-015`, `ADR-001`
 - Upstream runtime object: `gate_ready_package`
-- Primary runtime command: `python scripts/gate_human_orchestrator.py run --input <gate-ready-dir> --repo-root <repo-root>`
+- Primary runtime command: `python skills/ll-gate-human-orchestrator/scripts/gate_human_orchestrator.py run --input <gate-ready-dir> --repo-root <repo-root>`
 - Real execution surface: `ll gate evaluate`, `ll gate dispatch`, `ll gate materialize`
 
 ## Required Read Order
@@ -33,6 +33,19 @@ This skill is the governed gate workflow for turning one `gate_ready_package` in
 5. Always dispatch the authoritative decision after evaluation.
 6. Record execution evidence and then require a supervisor pass before freeze.
 7. Freeze only after `validate-package-readiness` returns success.
+
+## Human Interaction Rule
+
+- When using `claim-next`, `prepare-round`, or `show-pending`, do not stop at file paths or raw JSON.
+- Always surface the approval context directly in the reply:
+  - what object is under review
+  - what decision is being requested
+  - the main focus points
+  - the allowed reply formats
+- If the runtime returns `human_brief`, render its markdown inline for the user.
+- If the runtime returns `review_summary`, summarize the key fields in plain Chinese before asking for a decision.
+- Default the human-facing brief to Chinese unless the user explicitly asks for another language.
+- The user should not need to open artifact files just to understand the pending approval item.
 
 ## Workflow Boundary
 

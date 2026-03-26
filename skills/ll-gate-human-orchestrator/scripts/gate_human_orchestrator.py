@@ -9,7 +9,7 @@ import sys
 from pathlib import Path
 
 from gate_human_orchestrator_common import validate_input_package
-from gate_human_orchestrator_interaction import capture_decision, claim_next, prepare_round, show_pending
+from gate_human_orchestrator_interaction import capture_decision, claim_next, close_run, prepare_round, show_pending
 from gate_human_orchestrator_runtime import (
     collect_evidence_report,
     projection_comment,
@@ -133,6 +133,16 @@ def command_capture_decision(args: argparse.Namespace) -> int:
     return 0
 
 
+def command_close_run(args: argparse.Namespace) -> int:
+    result = close_run(
+        artifacts_dir=Path(args.artifacts_dir).resolve(),
+        repo_root=repo_root_from(args.repo_root, Path(args.artifacts_dir).resolve()),
+        allow_update=args.allow_update,
+    )
+    print(json.dumps(result, ensure_ascii=False))
+    return 0
+
+
 def command_capture_comment(args: argparse.Namespace) -> int:
     result = projection_comment(
         artifacts_dir=Path(args.artifacts_dir).resolve(),
@@ -205,6 +215,12 @@ def build_parser() -> argparse.ArgumentParser:
     capture_parser.add_argument("--repo-root")
     capture_parser.add_argument("--allow-update", action="store_true")
     capture_parser.set_defaults(func=command_capture_decision)
+
+    close_parser = subparsers.add_parser("close-run")
+    close_parser.add_argument("--artifacts-dir", required=True)
+    close_parser.add_argument("--repo-root")
+    close_parser.add_argument("--allow-update", action="store_true")
+    close_parser.set_defaults(func=command_close_run)
 
     supervisor_parser = subparsers.add_parser("supervisor-review")
     supervisor_parser.add_argument("--artifacts-dir", required=True)
