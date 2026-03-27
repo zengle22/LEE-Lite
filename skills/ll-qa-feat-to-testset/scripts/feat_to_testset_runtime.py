@@ -10,6 +10,7 @@ from pathlib import Path
 from typing import Any
 
 from feat_to_testset_candidate import build_candidate_package, write_executor_outputs
+from feat_to_testset_cli_integration import refresh_supervisor_bundle
 from feat_to_testset_common import (
     dump_json,
     find_feature,
@@ -86,7 +87,7 @@ def executor_run(input_path: str | Path, feat_ref: str, repo_root: Path, run_id:
     if output_dir.exists() and not allow_update:
         raise FileExistsError(f"Output directory already exists: {output_dir}")
 
-    write_executor_outputs(output_dir, package, generated, f"python scripts/feat_to_testset.py executor-run --input {input_path} --feat-ref {effective_feat_ref}")
+    write_executor_outputs(output_dir, repo_root, package, generated, f"python scripts/feat_to_testset.py executor-run --input {input_path} --feat-ref {effective_feat_ref}")
     return {
         "ok": True,
         "run_id": effective_run_id,
@@ -120,7 +121,7 @@ def supervisor_review(artifacts_dir: Path, repo_root: Path, run_id: str, allow_u
     effective_run_id = run_id or artifacts_dir.name
     generated = build_candidate_package(package, feature, feat_ref, effective_run_id)
     supervision = build_supervision_evidence(artifacts_dir)
-    update_supervisor_outputs(artifacts_dir, supervision)
+    supervisor_commit = update_supervisor_outputs(artifacts_dir, repo_root, supervision)
 
     proposal_ref = ""
     gate_ready_package_ref = ""
@@ -158,6 +159,7 @@ def supervisor_review(artifacts_dir: Path, repo_root: Path, run_id: str, allow_u
         manifest["authoritative_handoff_ref"] = str(gate_submit_data.get("handoff_ref", ""))
         manifest["gate_pending_ref"] = str(gate_submit_data.get("gate_pending_ref", ""))
         manifest["gate_submit_cli_ref"] = repo_relative(repo_root, Path(handoff_result["response_path"]))
+        manifest["cli_supervisor_commit_ref"] = str(supervisor_commit["response_path"])
         dump_json(artifacts_dir / "package-manifest.json", manifest)
         proposal_ref = repo_relative(repo_root, proposal_path)
         gate_ready_package_ref = repo_relative(repo_root, gate_ready_package)

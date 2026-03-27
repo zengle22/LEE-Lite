@@ -9,6 +9,7 @@ from typing import Any
 import yaml
 
 from feat_to_testset_common import dump_json, dump_yaml, ensure_list, load_json, parse_markdown_frontmatter, render_markdown
+from feat_to_testset_cli_integration import refresh_supervisor_bundle
 
 ENVIRONMENT_INPUT_CATEGORIES = [
     "environment",
@@ -122,7 +123,7 @@ def build_supervision_evidence(artifacts_dir: Path) -> dict[str, Any]:
     }
 
 
-def update_supervisor_outputs(artifacts_dir: Path, supervision: dict[str, Any]) -> None:
+def update_supervisor_outputs(artifacts_dir: Path, repo_root: Path, supervision: dict[str, Any]) -> dict[str, Any]:
     bundle_json = load_json(artifacts_dir / "test-set-bundle.json")
     manifest = load_json(artifacts_dir / "package-manifest.json")
     test_set_yaml = yaml_load(artifacts_dir / "test-set.yaml")
@@ -180,9 +181,7 @@ def update_supervisor_outputs(artifacts_dir: Path, supervision: dict[str, Any]) 
             "updated_at": _utc_now(),
         }
     )
-    frontmatter, body = parse_markdown_frontmatter((artifacts_dir / "test-set-bundle.md").read_text(encoding="utf-8"))
-    frontmatter["status"] = manifest_status
-    (artifacts_dir / "test-set-bundle.md").write_text(render_markdown(frontmatter, body), encoding="utf-8")
+    cli_commit = refresh_supervisor_bundle(repo_root, artifacts_dir, manifest_status)
     dump_json(artifacts_dir / "test-set-bundle.json", bundle_json)
     dump_yaml(artifacts_dir / "test-set.yaml", test_set_yaml)
     dump_json(artifacts_dir / "test-set-review-report.json", review_report)
@@ -190,7 +189,9 @@ def update_supervisor_outputs(artifacts_dir: Path, supervision: dict[str, Any]) 
     dump_json(artifacts_dir / "test-set-defect-list.json", supervision.get("semantic_findings") or [])
     dump_json(artifacts_dir / "test-set-freeze-gate.json", freeze_gate)
     dump_json(artifacts_dir / "supervision-evidence.json", supervision)
+    manifest["cli_supervisor_commit_ref"] = str(cli_commit["response_path"])
     dump_json(artifacts_dir / "package-manifest.json", manifest)
+    return cli_commit
 
 
 def _validate_identity(bundle_json: dict[str, Any], errors: list[str]) -> None:

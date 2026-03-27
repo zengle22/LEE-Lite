@@ -760,6 +760,18 @@ def synthetic_gate_ready_package(repo_root: Path, artifacts_dir: Path, handoff: 
     proposal = proposal_data(repo_root, handoff)
     supporting_refs = proposal.get("supporting_artifact_refs", [])
     evidence_refs = proposal.get("evidence_bundle_refs", [])
+    candidate_ref = ""
+    machine_ssot_ref = ""
+    if payload_path.name.endswith(".json"):
+        try:
+            payload_json = load_json(payload_path)
+        except Exception:
+            payload_json = {}
+        if isinstance(payload_json, dict):
+            payload_block = payload_json.get("payload")
+            if isinstance(payload_block, dict):
+                candidate_ref = str(payload_block.get("candidate_ref", "")).strip()
+                machine_ssot_ref = str(payload_block.get("machine_ssot_ref", "")).strip()
     acceptance_ref = ""
     if isinstance(supporting_refs, list):
         for ref in supporting_refs:
@@ -778,8 +790,8 @@ def synthetic_gate_ready_package(repo_root: Path, artifacts_dir: Path, handoff: 
         {
             "trace": dict(handoff.get("trace", {})),
             "payload": {
-                "candidate_ref": registry_candidate_ref_for_payload(repo_root, payload_path),
-                "machine_ssot_ref": repo_relative(repo_root, payload_path),
+                "candidate_ref": candidate_ref or registry_candidate_ref_for_payload(repo_root, payload_path),
+                "machine_ssot_ref": machine_ssot_ref or repo_relative(repo_root, payload_path),
                 "acceptance_ref": acceptance_ref,
                 "evidence_bundle_ref": evidence_ref,
                 "proposal_ref": str(handoff.get("proposal_ref", "")),

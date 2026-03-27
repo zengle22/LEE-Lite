@@ -56,11 +56,25 @@ def build_semantic_drift_check(feature: dict[str, Any], bundle_json: dict[str, A
             "next-skill-dispatch",
             "execution-result-feedback",
             "runner-observability-surface",
+            "skill-adoption-e2e",
         }:
             anchor_matches.append("execution_runner_axis")
         if "runner" in generated_text and any(
             token in generated_text
-            for token in ["ready", "queue", "entry", "control", "dispatch", "feedback", "observability", "monitor"]
+            for token in [
+                "ready",
+                "queue",
+                "entry",
+                "control",
+                "dispatch",
+                "feedback",
+                "observability",
+                "monitor",
+                "pilot",
+                "cutover",
+                "fallback",
+                "wave",
+            ]
         ):
             anchor_matches.append("execution_runner_signature")
     preserved = not forbidden_hits and len(anchor_matches) >= 1

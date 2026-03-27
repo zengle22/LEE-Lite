@@ -11,6 +11,8 @@ from feat_to_testset_common import ensure_list, normalize_semantic_lock
 def feature_profile(feature: dict[str, Any]) -> str:
     lock = normalize_semantic_lock(feature.get("semantic_lock"))
     axis_id = str(feature.get("axis_id") or "").strip().lower()
+    if axis_id == "skill-adoption-e2e":
+        return "pilot"
     if axis_id == "ready-job-emission":
         return "runner_ready_job"
     if axis_id == "runner-operator-entry":
@@ -44,6 +46,28 @@ def feature_profile(feature: dict[str, Any]) -> str:
         return "projection_generation"
     if str(lock.get("domain_type") or "").strip().lower() == "execution_runner_rule":
         title = str(feature.get("title") or "").lower()
+        scope_text = " ".join(
+            ensure_list(feature.get("scope"))
+            + ensure_list(feature.get("constraints"))
+            + ensure_list(feature.get("dependencies"))
+            + ensure_list(feature.get("non_goals"))
+        ).lower()
+        pilot_text = f"{title} {scope_text}"
+        if any(
+            marker in pilot_text
+            for marker in [
+                "governed skill",
+                "onboarding",
+                "pilot",
+                "cutover",
+                "fallback",
+                "migration wave",
+                "接入",
+                "验证流",
+                "迁移波次",
+            ]
+        ):
+            return "pilot"
         if "用户入口" in title or "skill entry" in title:
             return "runner_operator_entry"
         if "控制面" in title or "control surface" in title:

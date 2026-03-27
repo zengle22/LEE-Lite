@@ -15,6 +15,7 @@ from feat_to_testset_common import (
     slugify,
     unique_strings,
 )
+from feat_to_testset_cli_integration import commit_bundle_markdown
 from feat_to_testset_derivation import (
     build_gate_subjects,
     build_test_set_yaml,
@@ -358,9 +359,11 @@ def build_candidate_package(package: Any, feature: dict[str, Any], feat_ref: str
     )
 
 
-def write_executor_outputs(output_dir, package, generated: GeneratedCandidatePackage, command_name: str) -> None:
+def write_executor_outputs(output_dir, repo_root, package, generated: GeneratedCandidatePackage, command_name: str) -> None:
     output_dir.mkdir(parents=True, exist_ok=True)
-    (output_dir / "test-set-bundle.md").write_text(render_markdown(generated.bundle_frontmatter, generated.bundle_body), encoding="utf-8")
+    bundle_markdown = render_markdown(generated.bundle_frontmatter, generated.bundle_body)
+    (output_dir / "test-set-bundle.md").write_text(bundle_markdown, encoding="utf-8")
+    cli_commit = commit_bundle_markdown(repo_root, output_dir, generated.run_id, bundle_markdown, "test-set-bundle-executor-commit")
     dump_json(output_dir / "test-set-bundle.json", generated.bundle_json)
     dump_yaml(output_dir / "test-set.yaml", generated.test_set_yaml)
     (output_dir / "analysis.md").write_text(generated.analysis_markdown.strip() + "\n", encoding="utf-8")
@@ -394,7 +397,8 @@ def write_executor_outputs(output_dir, package, generated: GeneratedCandidatePac
             "semantic_drift_check_ref": str(output_dir / "semantic-drift-check.json"),
             "execution_evidence_ref": str(output_dir / "execution-evidence.json"),
             "supervision_evidence_ref": str(output_dir / "supervision-evidence.json"),
-        },
+            "cli_executor_commit_ref": str(cli_commit["response_path"]),
+            },
     )
     dump_json(
         output_dir / "execution-evidence.json",
@@ -413,6 +417,9 @@ def write_executor_outputs(output_dir, package, generated: GeneratedCandidatePac
                 "required_environment_inputs_present": True,
                 "semantic_lock_present": bool(generated.bundle_json.get("semantic_lock")),
                 "semantic_lock_preserved": generated.semantic_drift_check.get("semantic_lock_preserved", True),
+                "cli_executor_commit_ref": str(cli_commit["response_path"]),
+                "cli_executor_receipt_ref": cli_commit["response"]["data"].get("receipt_ref", ""),
+                "cli_executor_registry_record_ref": cli_commit["response"]["data"].get("registry_record_ref", ""),
             },
             "key_decisions": generated.execution_decisions,
             "uncertainties": generated.execution_uncertainties,
