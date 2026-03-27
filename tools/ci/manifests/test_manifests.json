@@ -13,6 +13,9 @@
   ],
   "cli_tests": [
     "tests/unit/test_cli_runtime.py",
+    "tests/unit/test_cli_runner_monitor.py",
+    "tests/unit/test_cli_runner_recovery.py",
+    "tests/unit/test_cli_runner_runtime.py",
     "tests/unit/test_cli_runtime_governed_flows.py",
     "tests/unit/test_cli_skill_test_exec.py"
   ],

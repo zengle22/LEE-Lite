@@ -25,7 +25,13 @@ frozen_at: '2026-03-26T09:21:36Z'
 
 ## 问题陈述
 
-这导致系统虽然在架构目标上是“双会话双队列”，但实际运行上仍表现为： 当前执行链已经出现Execution Loop 消费自动执行队列、下游应消费结构化流转对象，而不是目录猜测、但当前仍缺少一个正式 consumer 去自动消费 artifacts/jobs/ready/ 中的 job，并把它推进到下游 workflow等失控行为。 这会直接造成但如果长期依赖“第三会话人工接力”，则三会话过渡形态会被误当成正式架构，导致 ADR-001 的目标无法收敛落地、无法形成统一 execution loop、dispatch 无法真正构成自动推进。 正式文件读写统一纳入围绕 双会话双队列闭环 的治理边界，不再依赖分散约定。
+LL 已经具备 `submit-handoff -> decide -> materialize -> dispatch -> close-run` 的 gate 主链，也已经能在 gate 批准后生成结构化 ready job。缺口在于系统此前没有正式 consumer 去消费 `artifacts/jobs/ready/` 中的 job，并把它推进到下游 workflow。
+
+如果继续依赖“第三会话人工接力”，双会话双队列只会停留在架构口号，`dispatch` 也会退化成“写一份待办说明”。因此，SRC-003 把 ADR-018 收敛为一条明确的主链事实：
+
+- gate approve 必须生成 ready execution job；
+- Execution Loop Job Runner 必须消费 ready job；
+- 下游 workflow 必须通过结构化输入引用被自动拉起，而不是由额外会话猜路径接力。
 
 ## 目标用户
 
@@ -36,24 +42,61 @@ frozen_at: '2026-03-26T09:21:36Z'
 
 ## 触发场景
 
-- 当治理类变更需要被下游 skill 继承时。
+- gate 批准某一正式产物并允许自动推进时。
+- operator 需要用统一 CLI 启动、恢复或观察 execution loop 时。
+- 下游 workflow 需要继承同一组 job schema、状态机与 evidence 约束时。
 
 ## 业务动因
 
-- 需要现在就把这类治理变化收敛成正式需求源，否则但如果长期依赖“第三会话人工接力”，则三会话过渡形态会被误当成正式架构，导致 ADR-001 的目标无法收敛落地、无法形成统一 execution loop会继续沿后续需求链扩散。
-- 将 ADR 归一为 bridge SRC 的价值，是让下游围绕 双会话双队列闭环 共享同一组继承约束，而不是继续各自猜路径或重写规则。
-- 这能为后续链路提供稳定输入：下游需求链必须将 双会话双队列闭环 视为同一治理闭环的组成部分统一继承，不得在本链路中重新发明等价规则。
+- 必须把“dispatch 之后谁来跑”从隐式人工动作提升为正式运行时职责。
+- 必须让下游围绕同一份 ready-job contract、状态机和 control surface 继承，而不是各自重写 runner 语义。
+- 必须让 reviewer、operator 和下游 skill 在不回读原始 ADR 的前提下理解可执行边界。
 
 ## 语义清单
 
 - Actors: 受该治理规则约束的 skill 作者; workflow / orchestration 设计者; human gate / reviewer; artifact 管理与治理消费者
-- Product surfaces: 双会话双队列闭环 对应的正式对象、contract 或 policy; skill author 不再自行定义等价治理对象或边界。; reviewer 可在不回读原始 ADR 的前提下判断候选是否满足主要约束。; 下游消费方可按统一 contract、boundary 与 lineage 读取正式对象。
-- Operator surfaces: Execution Loop Job Runner; ll loop run-execution; ll job claim; ll job run; ll job complete; ll job fail; runner observability surface
-- Entry points: Execution Loop Job Runner; ll loop run-execution; ll job claim; ll job run; ll job complete; ll job fail
-- Commands: ll loop run-execution; ll job claim; ll job run; ll job complete; ll job fail
-- Runtime objects: ready_execution_job_materialization; ready_queue_consumption; next_skill_dispatch; execution_result_recording; retry_reentry_return; ready execution job; claimed execution job; next-skill invocation; execution outcome
-- States: * 上游 workflow 可以产出 freeze-ready package；; 但当前仍缺少一个正式 consumer 去自动消费 `artifacts/jobs/ready/` 中的 job，并把它推进到下游 workflow。; * 自动消费 ready job 的 execution runner; * 谁来把 ready job claim 成 running；; * 谁来把执行结果回写为 `done / failed / waiting-human / deadletter`；; 如果 ready job 不被正式 consumer 消费，那么：; * `jobs/ready/`; * `jobs/running/`
-- Observability surfaces: runner observability surface; * ready backlog; * running jobs; * failed jobs; * deadletters; * waiting-human jobs
+- Product surfaces: ready job schema; execution runner state machine; workflow dispatch contract; execution evidence writeback policy
+- Operator surfaces: Execution Loop Job Runner; ll loop run-execution; ll loop show-status; ll loop show-backlog; ll job claim; ll job run; ll job complete; ll job fail
+- Entry points: Execution Loop Job Runner; ll loop run-execution
+- Commands: ll loop run-execution; ll loop show-status; ll loop show-backlog; ll job claim; ll job run; ll job complete; ll job fail
+- Runtime objects: ready execution job; claimed execution job; execution attempt evidence; workflow invocation result; runner status snapshot
+- States: ready; claimed; running; done; failed; waiting-human; deadletter
+- Observability surfaces: runner status snapshot; ready backlog; running jobs; failed jobs; waiting-human jobs; deadletters
+
+## 统一 contract
+
+下游继承时必须把以下字段视为 ready-job 的最小正式 contract：
+
+- `job_id`
+- `job_type`
+- `status`
+- `queue_path`
+- `target_skill`
+- `source_run_id`
+- `gate_decision_ref`
+- `input_refs`
+- `authoritative_input_ref`
+- `formal_ref` 或 `handoff_ref`
+- `retry_count`
+- `retry_budget`
+- `created_at`
+
+兼容字段 `source_artifacts` 可以保留，但只作为历史 writer/reader 的镜像视图，不得替代 `input_refs` 与 `authoritative_input_ref`。
+
+## 当前实现状态
+
+截至 2026-03-26，本仓库已经落地以下最小主链：
+
+- `ll gate dispatch` 生成 `status=ready` 的结构化 job，并同时写入 `input_refs`、`authoritative_input_ref`、`formal_ref` 等字段。
+- `ll loop run-execution` 可扫描 ready queue、claim job、执行下游 workflow、回写 `done/failed`。
+- `ll job claim/run/complete/fail` 提供显式控制面，用于修复、人工介入和调试。
+- runner 会写执行 attempt evidence，并生成 ready/running/failed/backlog 视图。
+
+当前仍保留以下下一阶段工作：
+
+- 强化 `retry-reentry`、`waiting-human`、`deadletter` 的策略与恢复流程；
+- 扩大自动推进覆盖链路；
+- 补齐 claim timeout / lease recovery 等单消费者之外的恢复协议。
 
 ## 标准化决策
 
@@ -72,6 +115,8 @@ frozen_at: '2026-03-26T09:21:36Z'
 
 - skill_entry: Execution Loop Job Runner | phase=start | actor=workflow / orchestration operator
 - cli_control_surface: ll loop run-execution | phase=start | actor=Claude/Codex CLI operator
+- cli_control_surface: ll loop show-status | phase=monitor | actor=Claude/Codex CLI operator
+- cli_control_surface: ll loop show-backlog | phase=monitor | actor=Claude/Codex CLI operator
 - cli_control_surface: ll job claim | phase=init | actor=Claude/Codex CLI operator
 - cli_control_surface: ll job run | phase=run | actor=Claude/Codex CLI operator
 - cli_control_surface: ll job complete | phase=repair | actor=Claude/Codex CLI operator
@@ -81,17 +126,17 @@ frozen_at: '2026-03-26T09:21:36Z'
 ## 用户入口与控制面
 
 - 主入口 skill: Execution Loop Job Runner
-- CLI control surface: ll loop run-execution; ll job claim; ll job run; ll job complete; ll job fail
+- CLI control surface: ll loop run-execution; ll loop show-status; ll loop show-backlog; ll job claim; ll job run; ll job complete; ll job fail
 - 运行监控面: runner observability surface
 - 用户交互边界: 用户通过 Claude/Codex CLI 显式调用 skill 入口或控制命令启动、恢复、观察运行时。
 
 ## 冲突与未决点
 
-- 第三会话: unresolved | requires_human_confirmation=True
+- 第三会话人工接力: rejected | ready-job emission 必须与 runner 自动消费绑定，不能继续作为正式执行形态保留。
 
 ## 目标能力对象
 
-- 双会话双队列闭环 对应的正式对象、contract 或 policy
+- execution runner 对应的正式对象、contract、state machine 与 control surface
 
 ## 成功结果
 
@@ -101,9 +146,9 @@ frozen_at: '2026-03-26T09:21:36Z'
 
 ## 治理变更摘要
 
-- 治理对象：双会话双队列闭环
-- 统一原则：正式文件读写统一纳入围绕 双会话双队列闭环 的治理边界，不再依赖分散约定。
-- 下游必须继承的约束：下游需求链必须将 双会话双队列闭环 视为同一治理闭环的组成部分统一继承，不得在本链路中重新发明等价规则。
+- 治理对象：Execution Loop Job Runner 与 ready execution job contract
+- 统一原则：gate approve、ready-job emission、runner auto progression 必须被视为同一条治理闭环。
+- 下游必须继承的约束：下游需求链不得回退为 formal publication 停止态，也不得重新引入第三会话人工接力。
 
 ## Semantic Lock
 
@@ -123,14 +168,15 @@ frozen_at: '2026-03-26T09:21:36Z'
 
 ## 关键约束
 
-- 正式文件读写必须围绕 双会话双队列闭环 的统一边界建模，不得在下游恢复自由路径写入。
-- 下游需求链必须将 双会话双队列闭环 视为同一治理闭环的组成部分统一继承，不得在本链路中重新发明等价规则。
+- runner 只能消费结构化 job object 与正式引用，不得扫描目录猜业务输入。
+- ready job 的主输入必须通过 `input_refs` 与 `authoritative_input_ref` 明确给出。
+- gate、formal publication、execution progression 三者边界必须分离，不得重新混层。
 
 ## 范围边界
 
-- In scope: 定义 skill 文件读写、artifact 输入输出边界与路径策略的统一治理边界。
-- In scope: 为后续主链对象提供统一约束来源与交接依据，而不是在本层展开 API 或实现设计。
-- Out of scope: 下游 EPIC/FEAT/TASK 分解与实现细节。
+- In scope: 定义 ready-job schema、runner state machine、operator surface 与 evidence writeback 的统一约束。
+- In scope: 为后续主链对象提供统一交接依据，使 `dispatch -> run-execution -> outcome` 成为正式主链。
+- Out of scope: 具体业务 skill 的内部实现细节。
 
 ## 来源追溯
 
@@ -140,16 +186,16 @@ frozen_at: '2026-03-26T09:21:36Z'
 ## 桥接摘要
 
 - 本 SRC 的作用不是重复 ADR 论证，而是把治理结论转译成下游可直接继承的正式边界。
-- 下游应默认继承这里定义的治理对象、约束和交接边界，而不是重新发明等价规则。
+- 下游应默认继承这里定义的 ready-job contract、runner state machine 与 control surface，而不是重新发明等价规则。
 
 ## Bridge Context
 
 - 结构化继承元数据区：本节仅用于机器消费与下游继承，不承担正文展开解释。
 - governed_by_adrs: ADR-018, ADR-001, ADR-003, ADR-005, ADR-006, ADR-009
-- change_scope: 将《ADR 018 Execution Loop Job Runner 作为自动推进运行时》涉及的双会话双队列闭环收敛为统一主链继承边界，明确 loop、handoff、gate 与 formal materialization 的协作责任。
-- governance_objects: 双会话双队列闭环
-- current_failure_modes: Execution Loop 消费自动执行队列；; 下游应消费结构化流转对象，而不是目录猜测。; 但当前仍缺少一个正式 consumer 去自动消费 artifacts/jobs/ready/ 中的 job，并把它推进到下游 workflow。
-- downstream_inheritance_requirements: 下游需求链必须将 双会话双队列闭环 视为同一治理闭环的组成部分统一继承，不得在本链路中重新发明等价规则。
+- change_scope: 将《ADR 018 Execution Loop Job Runner 作为自动推进运行时》收敛为 ready-job emission、runner auto progression 与 execution evidence 的统一主链边界。
+- governance_objects: ready execution job contract; execution loop job runner; runner observability surface
+- current_failure_modes: dispatch 只写 job 不消费; formal publication 后停滞; 第三会话人工接力; 目录猜测输入; 缺少统一 outcome writeback
+- downstream_inheritance_requirements: 下游需求链必须继承 ready-job contract、runner state machine、CLI control surface 与 evidence writeback 约束。
 - expected_downstream_objects: EPIC, FEAT, TASK
-- acceptance_impact: 下游 gate、auditor 与 handoff 必须基于同一组受治理边界判断正式产物是否合法。; 下游消费方应能在不回读原始 ADR 的前提下理解主要失控行为与统一治理理由。; 审计链应能回答谁推进了 candidate、谁做了 final decision、为什么允许推进、正式物化了什么对象。
-- non_goals: 下游 EPIC/FEAT/TASK 分解与实现细节。
+- acceptance_impact: 下游 gate、auditor 与 handoff 必须基于同一组 ready-job / runner contract 判断正式产物是否合法。; 下游消费方应能在不回读原始 ADR 的前提下理解谁发出了 ready job、谁 claim 了 job、谁执行了下一步 workflow。; 审计链应能回答 job 从 ready 到 outcome 的完整迁移。
+- non_goals: 具体业务 skill 的内部实现细节。

@@ -1,6 +1,6 @@
 # ADR-018：Execution Loop Job Runner 作为自动推进运行时
 
-* 状态：Draft
+* 状态：Accepted
 * 日期：2026-03-25
 * 决策者：Le Zeng
 * 适用范围：LEE Lite（LL）v0.x 主链自动推进运行时
@@ -312,10 +312,12 @@ ADR-018 要求 runner 只消费正式 job object。
 * `status`
 * `queue_path`
 * `target_skill`
-* `source_run_ref`
+* `source_run_id`
 * `gate_decision_ref`
 * `input_refs`
-* `formal_artifact_ref` 或 `handoff_ref`
+* `authoritative_input_ref`
+* `formal_ref` 或 `handoff_ref`
+* `source_artifacts`（兼容镜像字段，可选）
 * `retry_count`
 * `retry_budget`
 * `created_at`
@@ -323,9 +325,18 @@ ADR-018 要求 runner 只消费正式 job object。
 其中：
 
 * `target_skill` 用于决定路由到哪个 workflow；
-* `formal_artifact_ref` 用于消费 formal layer 输入；
+* `source_run_id` 是当前 gate/materialization run 的稳定追溯主键；
+* `input_refs` 是 runner 可消费的正式输入集合；
+* `authoritative_input_ref` 标明 runner 首选消费的主输入；
+* `formal_ref` 用于消费 formal layer 输入；
 * `handoff_ref` 用于承接 gate materialized handoff；
+* `source_artifacts` 仅用于兼容已有 writer/reader，不得替代 `input_refs` 与 `authoritative_input_ref`；
 * `gate_decision_ref` 用于追溯该 job 的治理来源。
+
+为兼容早期 ADR 草案中的命名，`source_run_ref` 与 `formal_artifact_ref` 在 v0.x runtime 中统一收敛为：
+
+* `source_run_id`
+* `formal_ref`
 
 runner 不得消费：
 
@@ -361,7 +372,7 @@ runner 至少冻结以下 job 状态机：
 
 1. `running -> failed`
 2. `failed -> ready`  
-   仅当 retry policy 允许
+   仅当通过 `retry-reentry` 动作且 retry policy 允许
 3. `failed -> waiting-human`  
    当需要人工判定
 4. `failed -> deadletter`  
