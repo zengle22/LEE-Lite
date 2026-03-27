@@ -6,7 +6,7 @@ from argparse import Namespace
 
 from cli.lib.execution_runner import run_job
 from cli.lib.job_outcome import complete_job, fail_job
-from cli.lib.job_queue import claim_job, renew_job_lease
+from cli.lib.job_queue import claim_job, release_hold_job, renew_job_lease
 from cli.lib.protocol import CommandContext, run_with_protocol
 from cli.lib.errors import ensure, parse_int
 
@@ -42,6 +42,16 @@ def _job_handler(ctx: CommandContext):
             else None,
         )
         return "OK", "job claimed", result, [], [result["claimed_job_ref"]]
+    if ctx.action == "release-hold":
+        job_ref = str(payload.get("job_ref") or "")
+        ensure(job_ref, "INVALID_REQUEST", "job_ref is required")
+        result = release_hold_job(
+            ctx.workspace_root,
+            job_ref,
+            actor_ref=actor_ref,
+            note=str(payload.get("note") or "").strip() or None,
+        )
+        return "OK", "job released from hold", result, [], [result["released_job_ref"]]
     if ctx.action == "run":
         job_ref = str(payload.get("job_ref") or "")
         ensure(job_ref, "INVALID_REQUEST", "job_ref is required")

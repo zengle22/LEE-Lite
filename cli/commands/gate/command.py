@@ -12,6 +12,7 @@ from cli.lib.fs import canonical_to_path, load_json, to_canonical_path, write_js
 from cli.lib.formalization import materialize_formal
 from cli.lib.gate_collaboration_actions import collaboration_handlers
 from cli.lib.protocol import CommandContext, run_with_protocol
+from cli.lib.job_queue import list_jobs, release_hold_job
 from cli.lib.ready_job_dispatch import (
     build_epic_downstream_dispatch,
     build_feat_downstream_dispatch,
@@ -23,6 +24,7 @@ from cli.lib.registry_store import resolve_registry_record, slugify
 from cli.lib.review_projection.renderer import build_gate_human_projection
 
 GATE_DECISIONS = {"approve", "revise", "retry", "handoff", "reject"}
+PROGRESSION_MODES = {"auto-continue", "hold"}
 
 
 def _artifact_path(ctx: CommandContext, relative: str):
@@ -90,6 +92,47 @@ def _dispatch_target(decision: str) -> str:
     return mapping[decision]
 
 
+def _normalize_progression_mode(value: object) -> str:
+    progression_mode = str(value or "").strip()
+    if not progression_mode:
+        return ""
+    ensure(
+        progression_mode in PROGRESSION_MODES,
+        "INVALID_REQUEST",
+        f"unknown progression_mode: {progression_mode}",
+    )
+    return progression_mode
+
+
+def _default_progression_mode(formal_ref: str) -> str:
+    return "hold" if formal_ref.startswith("formal.testset.") else "auto-continue"
+
+
+def _required_preconditions(payload: dict[str, Any], progression_mode: str, formal_ref: str) -> list[str]:
+    value = payload.get("required_preconditions")
+    if isinstance(value, list):
+        cleaned = [str(item).strip() for item in value if str(item).strip()]
+        if cleaned:
+            return cleaned
+    if progression_mode == "hold" and formal_ref.startswith("formal.testset."):
+        return ["test_environment_ref"]
+    return []
+
+
+def _resolve_progression_policy(payload: dict[str, Any], decision: dict[str, Any]) -> tuple[str, str, list[str]]:
+    requested = _normalize_progression_mode(payload.get("progression_mode"))
+    stored = _normalize_progression_mode(decision.get("progression_mode"))
+    formal_ref = str(decision.get("formal_ref") or "").strip()
+    progression_mode = requested or stored or _default_progression_mode(formal_ref)
+    hold_reason = str(
+        payload.get("hold_reason") or decision.get("hold_reason") or ""
+    ).strip()
+    if progression_mode == "hold" and not hold_reason and formal_ref.startswith("formal.testset."):
+        hold_reason = "test_environment_pending"
+    required_preconditions = _required_preconditions(payload, progression_mode, formal_ref)
+    return progression_mode, hold_reason, required_preconditions
+
+
 def _load_handoff_payload(ctx: CommandContext, handoff_ref: str | None) -> dict[str, Any]:
     handoff = _load_json_if_exists(ctx, handoff_ref)
     payload_ref = str(handoff.get("payload_ref", "")).strip()
@@ -105,6 +148,37 @@ def _load_gate_package_payload(ctx: CommandContext, gate_ready_package_ref: str 
     gate_package = _load_json_if_exists(ctx, gate_ready_package_ref)
     package_payload = gate_package.get("payload", {})
     return package_payload if isinstance(package_payload, dict) else {}
+
+
+def _resolve_release_hold_candidates(
+    ctx: CommandContext,
+    *,
+    decision_ref: str,
+    dispatch_receipt_ref: str | None = None,
+) -> list[str]:
+    candidate_refs: list[str] = []
+    if dispatch_receipt_ref:
+        dispatch_receipt = _load_json_if_exists(ctx, dispatch_receipt_ref)
+        raw_refs = []
+        materialized_job_ref = str(dispatch_receipt.get("materialized_job_ref") or "").strip()
+        if materialized_job_ref:
+            raw_refs.append(materialized_job_ref)
+        materialized_job_refs = dispatch_receipt.get("materialized_job_refs")
+        if isinstance(materialized_job_refs, list):
+            raw_refs.extend(str(item).strip() for item in materialized_job_refs if str(item).strip())
+        for ref in raw_refs:
+            job = _load_json_if_exists(ctx, ref)
+            if str(job.get("status") or "").strip() == "waiting-human":
+                candidate_refs.append(ref)
+    if candidate_refs:
+        return list(dict.fromkeys(candidate_refs))
+    waiting_jobs = list_jobs(ctx.workspace_root, "waiting-human")
+    matched = [
+        str(item["job_ref"])
+        for item in waiting_jobs
+        if str(item["payload"].get("gate_decision_ref") or "").strip() == decision_ref
+    ]
+    return list(dict.fromkeys(matched))
 
 
 def _decision_target(
@@ -291,6 +365,12 @@ def _evaluate_action(ctx: CommandContext):
         materialized = _materialize_decision(ctx, decision_ref, decision_target, payload)
         decision.update(materialized)
         decision["materialization_state"] = "materialized"
+        progression_mode, hold_reason, required_preconditions = _resolve_progression_policy(payload, decision)
+        decision["progression_mode"] = progression_mode
+        if hold_reason:
+            decision["hold_reason"] = hold_reason
+        if required_preconditions:
+            decision["required_preconditions"] = required_preconditions
         created_refs.extend(
             [
                 materialized["materialized_handoff_ref"],
@@ -308,6 +388,7 @@ def _evaluate_action(ctx: CommandContext):
         "decision_target": decision_target,
         "decision_basis_refs": decision_basis_refs,
         "dispatch_target": dispatch_target,
+        "progression_mode": decision.get("progression_mode", ""),
         "materialized_handoff_ref": decision.get("materialized_handoff_ref", ""),
         "formal_ref": decision.get("formal_ref", ""),
         "published_ref": decision.get("published_ref", ""),
@@ -331,6 +412,12 @@ def _materialize_action(ctx: CommandContext):
     ensure(candidate_ref, "INVALID_REQUEST", "candidate_ref is required for materialize")
     materialized = _materialize_decision(ctx, decision_ref, candidate_ref, payload)
     decision.update(materialized)
+    progression_mode, hold_reason, required_preconditions = _resolve_progression_policy(payload, decision)
+    decision["progression_mode"] = progression_mode
+    if hold_reason:
+        decision["hold_reason"] = hold_reason
+    if required_preconditions:
+        decision["required_preconditions"] = required_preconditions
     write_json(_artifact_path(ctx, decision_ref), decision)
     return "OK", "formal handoff materialized", {
         "canonical_path": materialized["materialized_handoff_ref"],
@@ -339,6 +426,7 @@ def _materialize_action(ctx: CommandContext):
         "materialized_job_ref": "",
         "run_closure_ref": "",
         "enablement_scope": "guarded-only" if payload.get("guarded_only") else "core",
+        "progression_mode": decision.get("progression_mode", ""),
         "formal_ref": materialized["formal_ref"],
         "published_ref": materialized["published_ref"],
         "materialized_ssot_ref": materialized.get("materialized_ssot_ref", ""),
@@ -356,6 +444,14 @@ def _dispatch_action(ctx: CommandContext):
     decision = load_json(canonical_to_path(decision_ref, ctx.workspace_root))
     decision_type = str(decision.get("decision_type") or decision.get("decision") or "")
     dispatch_target = str(payload.get("dispatch_target") or decision.get("dispatch_target") or _dispatch_target(decision_type))
+    progression_mode, hold_reason, required_preconditions = _resolve_progression_policy(payload, decision)
+    if decision_type == "approve":
+        decision["progression_mode"] = progression_mode
+        if hold_reason:
+            decision["hold_reason"] = hold_reason
+        if required_preconditions:
+            decision["required_preconditions"] = required_preconditions
+        write_json(_artifact_path(ctx, decision_ref), decision)
     dispatch_ref = _gate_paths(decision)["dispatch"]
     materialized_job_ref = ""
     materialized_handoff_ref = ""
@@ -440,6 +536,7 @@ def _dispatch_action(ctx: CommandContext):
             "trace": ctx.trace,
             "gate_decision_ref": decision_ref,
             "dispatch_target": dispatch_target,
+            "progression_mode": progression_mode if decision_type == "approve" else "",
             "materialized_job_ref": materialized_job_ref,
             "materialized_job_refs": materialized_job_refs,
             "materialized_handoff_ref": materialized_handoff_ref,
@@ -451,6 +548,7 @@ def _dispatch_action(ctx: CommandContext):
         "gate_decision_ref": decision_ref,
         "dispatch_receipt_ref": dispatch_ref,
         "dispatch_status": "dispatched",
+        "progression_mode": progression_mode if decision_type == "approve" else "",
         "materialized_handoff_ref": materialized_handoff_ref,
         "materialized_handoff_refs": materialized_handoff_refs,
         "materialized_job_ref": materialized_job_ref,
@@ -458,6 +556,41 @@ def _dispatch_action(ctx: CommandContext):
         "run_closure_ref": "",
         "enablement_scope": "core",
     }, [], [dispatch_ref, materialized_handoff_ref, materialized_job_ref, *materialized_handoff_refs, *materialized_job_refs]
+
+
+def _release_hold_action(ctx: CommandContext):
+    payload = ctx.payload
+    dispatch_receipt_ref = str(payload.get("dispatch_receipt_ref") or "").strip()
+    decision_ref = str(payload.get("gate_decision_ref") or payload.get("decision_ref") or "").strip()
+    if dispatch_receipt_ref and not decision_ref:
+        dispatch_receipt = _load_json_if_exists(ctx, dispatch_receipt_ref)
+        decision_ref = str(dispatch_receipt.get("gate_decision_ref") or "").strip()
+    ensure(decision_ref, "INVALID_REQUEST", "gate_decision_ref or dispatch_receipt_ref is required")
+    released_job_refs = _resolve_release_hold_candidates(
+        ctx,
+        decision_ref=decision_ref,
+        dispatch_receipt_ref=dispatch_receipt_ref or None,
+    )
+    ensure(bool(released_job_refs), "PRECONDITION_FAILED", f"no waiting-human hold jobs found for {decision_ref}")
+    released: list[dict[str, Any]] = []
+    evidence_refs: list[str] = []
+    for job_ref in released_job_refs:
+        result = release_hold_job(
+            ctx.workspace_root,
+            job_ref,
+            actor_ref=str(ctx.request.get("actor_ref") or "gate.operator"),
+            note=str(payload.get("note") or "").strip() or "gate released held downstream progression",
+        )
+        released.append(result)
+        evidence_refs.append(result["released_job_ref"])
+    return "OK", "gate hold released", {
+        "canonical_path": released[0]["released_job_ref"],
+        "gate_decision_ref": decision_ref,
+        "dispatch_receipt_ref": dispatch_receipt_ref,
+        "released_job_ref": released[0]["released_job_ref"],
+        "released_job_refs": [item["released_job_ref"] for item in released],
+        "released_count": len(released),
+    }, [], evidence_refs
 
 
 def _close_action(ctx: CommandContext):
@@ -483,6 +616,7 @@ def _gate_handler(ctx: CommandContext):
         "evaluate": _evaluate_action,
         "materialize": _materialize_action,
         "dispatch": _dispatch_action,
+        "release-hold": _release_hold_action,
         "close-run": _close_action,
     }
     handlers.update(collaboration_handlers())

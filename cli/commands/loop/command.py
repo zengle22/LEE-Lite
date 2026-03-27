@@ -9,7 +9,8 @@ from cli.lib.errors import ensure, parse_int
 from cli.lib.execution_runner import run_job
 from cli.lib.job_outcome import complete_job, fail_job
 from cli.lib.job_queue import claim_job, list_ready_jobs
-from cli.lib.protocol import CommandContext, run_with_protocol
+from cli.lib.protocol import CommandContext, ExecutionRunnerStartRequest, run_with_protocol
+from cli.lib.runner_entry import bootstrap_runner_entry
 from cli.lib.runner_monitor import write_recovery_snapshot, write_status_snapshot
 
 
@@ -35,6 +36,21 @@ def _run_execution(ctx: CommandContext):
     payload = ctx.payload
     actor_ref = str(ctx.request.get("actor_ref") or "runner.operator")
     owner_ref = str(payload.get("runner_id") or actor_ref)
+    entry_request = ExecutionRunnerStartRequest.from_command_context(
+        ctx,
+        default_entry_mode="resume" if ctx.action == "resume-execution" else None,
+    )
+    entry_result = (
+        bootstrap_runner_entry(
+            ctx.workspace_root,
+            request_id=str(ctx.request["request_id"]),
+            actor_ref=actor_ref,
+            trace=ctx.trace,
+            start_request=entry_request,
+        )
+        if entry_request
+        else None
+    )
     ready_jobs = [{"job_ref": str(payload["ready_job_ref"])}] if payload.get("ready_job_ref") else list_ready_jobs(ctx.workspace_root)
     processed: list[dict[str, Any]] = []
     for item in ready_jobs[: _max_jobs(payload, ready_jobs)]:
@@ -43,7 +59,12 @@ def _run_execution(ctx: CommandContext):
             str(item["job_ref"]),
             runner_id=owner_ref,
             actor_ref=actor_ref,
-            runner_run_id=str(payload.get("runner_run_id") or ctx.trace.get("run_ref") or ctx.request["request_id"]),
+            runner_run_id=str(
+                (entry_result.runner_run_id if entry_result else "")
+                or payload.get("runner_run_id")
+                or ctx.trace.get("run_ref")
+                or ctx.request["request_id"]
+            ),
         )
         attempt = run_job(
             ctx.workspace_root,
@@ -93,7 +114,7 @@ def _run_execution(ctx: CommandContext):
         ctx.workspace_root,
         name=f"{ctx.request['request_id']}-post-run-status",
     )
-    return "OK", "execution loop completed", {
+    data = {
         "canonical_path": report_ref,
         "runner_run_ref": report_ref,
         "processed_count": len(processed),
@@ -102,7 +123,10 @@ def _run_execution(ctx: CommandContext):
         "post_run_counts": post_run_snapshot["counts"],
         "post_run_queue_summary": post_run_snapshot["queue_summary"],
         "recoverable_queue_summary": post_run_snapshot["recoverable_queue_summary"],
-    }, [], [report_ref, post_run_snapshot["snapshot_ref"], *[item["execution_outcome_ref"] for item in processed]]
+    }
+    if entry_result:
+        data.update(entry_result.to_dict())
+    return "OK", "execution loop completed", data, [], [report_ref, post_run_snapshot["snapshot_ref"], *[item["execution_outcome_ref"] for item in processed], *(([entry_result.entry_receipt_ref, entry_result.runner_context_ref, entry_result.runner_run_ref]) if entry_result else [])]
 
 
 def _run_recovery(ctx: CommandContext, recovery_action: str):
@@ -124,7 +148,7 @@ def _loop_handler(ctx: CommandContext):
         return _run_recovery(ctx, recovery_action or "scan")
     if recovery_action:
         return _run_recovery(ctx, recovery_action)
-    if ctx.action == "run-execution":
+    if ctx.action in {"run-execution", "resume-execution"}:
         return _run_execution(ctx)
     name = "runner-backlog" if ctx.action == "show-backlog" else "runner-status"
     status_filter = "ready" if ctx.action == "show-backlog" else None

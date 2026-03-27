@@ -11,7 +11,11 @@ from cli.lib.test_exec_runtime import execute_test_exec_skill
 
 
 def _skill_handler(ctx: CommandContext):
-    ensure(ctx.action in {"test-exec-web-e2e", "test-exec-cli", "gate-human-orchestrator"}, "INVALID_REQUEST", "unsupported skill action")
+    ensure(
+        ctx.action in {"test-exec-web-e2e", "test-exec-cli", "gate-human-orchestrator"},
+        "INVALID_REQUEST",
+        "unsupported skill action",
+    )
     if ctx.action == "gate-human-orchestrator":
         result = run_gate_human_orchestrator(
             workspace_root=ctx.workspace_root,
