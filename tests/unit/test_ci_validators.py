@@ -109,6 +109,28 @@ class CiValidatorTests(unittest.TestCase):
             report = json.loads((output_dir / "skill-governance-report.json").read_text(encoding="utf-8"))
             self.assertEqual(report["status"], "passed")
 
+    def test_find_skill_roots_accepts_layered_skill_paths(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            repo_root = Path(temp_dir)
+            skill_root = repo_root / "skills" / "l3" / "demo-skill"
+            write(skill_root / "SKILL.md", "---\nname: demo-skill\ndescription: demo\n---\n")
+            with patch.object(common, "ROOT", repo_root):
+                roots = common.find_skill_roots(["skills/l3/demo-skill/SKILL.md"])
+            self.assertEqual(roots, [skill_root])
+
+    def test_skill_governance_accepts_real_layered_runner_bundle(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            output_dir = Path(temp_dir)
+            exit_code = check_skill_governance(
+                ["skills/l3/ll-execution-loop-job-runner/SKILL.md"],
+                output_dir,
+                False,
+                MANIFESTS / "test_manifests.json",
+            )
+            self.assertEqual(exit_code, 0)
+            report = json.loads((output_dir / "skill-governance-report.json").read_text(encoding="utf-8"))
+            self.assertEqual(report["status"], "passed")
+
     def test_cli_governance_matches_committed_snapshot(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             output_dir = Path(temp_dir)
@@ -137,6 +159,19 @@ class CiValidatorTests(unittest.TestCase):
             self.assertEqual(exit_code, 0)
             payload = json.loads((output_dir / "impacted-dependency-chain.json").read_text(encoding="utf-8"))
             self.assertIn("tests/unit/test_lee_product_raw_to_src.py", payload["impacted_tests"])
+
+    def test_cross_domain_compat_maps_layered_skill_change(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            output_dir = Path(temp_dir)
+            exit_code = check_cross_domain_compat(
+                ["skills/l3/ll-execution-loop-job-runner/SKILL.md"],
+                output_dir,
+                MANIFESTS / "dependency_rules.json",
+                False,
+            )
+            self.assertEqual(exit_code, 0)
+            payload = json.loads((output_dir / "impacted-dependency-chain.json").read_text(encoding="utf-8"))
+            self.assertIn("tests/unit/test_cli_skill_runner_entry.py", payload["impacted_tests"])
 
     def test_cross_domain_compat_fails_closed_for_unmapped_skill(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:

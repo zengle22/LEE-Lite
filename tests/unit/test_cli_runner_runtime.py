@@ -135,6 +135,73 @@ class CliRunnerRuntimeTest(unittest.TestCase):
         self.assertEqual(final_job["status"], "done")
         self.assertFalse((self.workspace / "artifacts" / "jobs" / "ready" / "job-loop.json").exists())
 
+    def test_loop_run_execution_bootstraps_runner_context_when_entry_payload_present(self) -> None:
+        self.create_ready_job("job-loop-entry.json")
+        request = self.build_request(
+            "loop.run-execution",
+            {
+                "consume_all": True,
+                "entry_mode": "start",
+                "runner_scope_ref": "runner.scope.default",
+                "runner_run_id": "runner-loop-start-001",
+            },
+        )
+        request_path = self.request_path("loop-run-entry.json")
+        write_json(request_path, request)
+        response_path = self.response_path("loop-run-entry.response.json")
+        with patch(
+            "cli.lib.execution_runner.invoke_target",
+            return_value={"ok": True, "target_skill": "workflow.dev.feat_to_tech", "result": {"ok": True}},
+        ):
+            self.assertEqual(self.run_cli("loop", "run-execution", "--request", str(request_path), "--response-out", str(response_path)), 0)
+        payload = read_json(response_path)["data"]
+        self.assertEqual(payload["entry_mode"], "start")
+        self.assertEqual(payload["runner_scope_ref"], "runner.scope.default")
+        self.assertEqual(payload["runner_run_id"], "runner-loop-start-001")
+        self.assertTrue((self.workspace / payload["runner_context_ref"]).exists())
+        self.assertTrue((self.workspace / payload["entry_receipt_ref"]).exists())
+        context = read_json(self.workspace / payload["runner_context_ref"])
+        self.assertEqual(context["runner_run_id"], "runner-loop-start-001")
+
+    def test_loop_resume_execution_restores_existing_context(self) -> None:
+        start_request = self.build_request(
+            "loop.run-execution",
+            {
+                "entry_mode": "start",
+                "runner_scope_ref": "runner.scope.default",
+                "runner_run_id": "runner-loop-start-ctx-001",
+            },
+        )
+        start_request_path = self.request_path("loop-run-start.json")
+        start_response_path = self.response_path("loop-run-start.response.json")
+        write_json(start_request_path, start_request)
+        self.assertEqual(self.run_cli("loop", "run-execution", "--request", str(start_request_path), "--response-out", str(start_response_path)), 0)
+
+        self.create_ready_job("job-loop-resume.json")
+        resume_request = self.build_request(
+            "loop.resume-execution",
+            {
+                "runner_scope_ref": "runner.scope.default",
+                "consume_all": True,
+                "runner_run_id": "ignored-runner-id",
+            },
+        )
+        resume_request_path = self.request_path("loop-resume.json")
+        resume_response_path = self.response_path("loop-resume.response.json")
+        write_json(resume_request_path, resume_request)
+        with patch(
+            "cli.lib.execution_runner.invoke_target",
+            return_value={"ok": True, "target_skill": "workflow.dev.feat_to_tech", "result": {"ok": True}},
+        ):
+            self.assertEqual(self.run_cli("loop", "resume-execution", "--request", str(resume_request_path), "--response-out", str(resume_response_path)), 0)
+        payload = read_json(resume_response_path)["data"]
+        self.assertEqual(payload["entry_mode"], "resume")
+        self.assertEqual(payload["runner_run_id"], "runner-loop-start-ctx-001")
+        context = read_json(self.workspace / payload["runner_context_ref"])
+        self.assertEqual(context["runner_run_id"], "runner-loop-start-ctx-001")
+        done_job = read_json(self.workspace / payload["processed_jobs"][0]["final_job_ref"])
+        self.assertEqual(done_job["runner_run_id"], "runner-loop-start-ctx-001")
+
     def test_loop_show_status_and_backlog(self) -> None:
         self.create_ready_job("job-backlog.json")
         write_json(

@@ -152,6 +152,184 @@ class CliRunnerRecoveryTest(unittest.TestCase):
                 owner_ref="runner-a",
             )
 
+    def test_complete_rejects_claimed_job_before_run_transition(self) -> None:
+        claimed_ref = self.create_job(status="claimed", name="job-claimed-complete.json", lease_expires_at=iso_z(300))
+
+        with self.assertRaises(CommandError) as ctx:
+            complete_job(
+                self.workspace,
+                job_ref=claimed_ref,
+                trace={},
+                actor_ref="runner-a",
+                owner_ref="runner-a",
+            )
+
+        self.assertEqual(ctx.exception.status_code, "PRECONDITION_FAILED")
+        self.assertIn("job is not running", ctx.exception.message)
+
+    def test_job_complete_command_rejects_claimed_job_and_preserves_job_file(self) -> None:
+        claimed_ref = self.create_job(status="claimed", name="job-claimed-complete-cli.json", lease_expires_at=iso_z(300))
+
+        request = self.build_request(
+            "job.complete",
+            {
+                "job_ref": claimed_ref,
+                "runner_id": "runner-a",
+            },
+            actor_ref="runner-a",
+        )
+        request_path = self.request_path("job-complete-claimed.json")
+        response_path = self.response_path("job-complete-claimed.response.json")
+        write_json(request_path, request)
+
+        self.assertEqual(self.run_cli("job", "complete", "--request", str(request_path), "--response-out", str(response_path)), 4)
+
+        payload = read_json(response_path)
+        self.assertEqual(payload["status_code"], "PRECONDITION_FAILED")
+        self.assertIn("job is not running", payload["message"])
+        claimed_job = read_json(self.workspace / claimed_ref)
+        self.assertEqual(claimed_job["status"], "claimed")
+        self.assertFalse((self.workspace / "artifacts/evidence/execution/job-claimed-complete-cli-outcome.json").exists())
+
+    def test_job_fail_command_rejects_retry_budget_exhausted_without_outcome_evidence(self) -> None:
+        running_ref = self.create_job(
+            status="running",
+            name="job-fail-retry-exhausted-cli.json",
+            claim_owner="runner-a",
+            lease_expires_at=iso_z(300),
+            retry_count=2,
+        )
+        before_job = read_json(self.workspace / running_ref)
+
+        request = self.build_request(
+            "job.fail",
+            {
+                "job_ref": running_ref,
+                "runner_id": "runner-a",
+                "failure_mode": "retry-reentry",
+                "reason": "temporary downstream failure",
+            },
+            actor_ref="runner-a",
+        )
+        request_path = self.request_path("job-fail-retry-exhausted-cli.json")
+        response_path = self.response_path("job-fail-retry-exhausted-cli.response.json")
+        write_json(request_path, request)
+
+        self.assertEqual(self.run_cli("job", "fail", "--request", str(request_path), "--response-out", str(response_path)), 4)
+
+        payload = read_json(response_path)
+        self.assertEqual(payload["status_code"], "PRECONDITION_FAILED")
+        self.assertEqual(payload["message"], "retry budget exhausted")
+        after_job = read_json(self.workspace / running_ref)
+        self.assertEqual(after_job, before_job)
+        self.assertFalse((self.workspace / "artifacts/evidence/execution/job-fail-retry-exhausted-cli-outcome.json").exists())
+
+    def test_job_fail_command_requeues_retry_reentry_successfully_with_evidence(self) -> None:
+        running_ref = self.create_job(
+            status="running",
+            name="job-fail-requeue-cli.json",
+            claim_owner="runner-a",
+            lease_expires_at=iso_z(300),
+            retry_count=1,
+        )
+        before_job = read_json(self.workspace / running_ref)
+
+        request = self.build_request(
+            "job.fail",
+            {
+                "job_ref": running_ref,
+                "runner_id": "runner-a",
+                "failure_mode": "retry-reentry",
+                "reason": "temporary downstream failure",
+            },
+            actor_ref="runner-a",
+        )
+        request_path = self.request_path("job-fail-requeue-cli.json")
+        response_path = self.response_path("job-fail-requeue-cli.response.json")
+        write_json(request_path, request)
+
+        self.assertEqual(self.run_cli("job", "fail", "--request", str(request_path), "--response-out", str(response_path)), 0)
+
+        payload = read_json(response_path)
+        data = payload["data"]
+        self.assertEqual(payload["status_code"], "OK")
+        self.assertEqual(data["status"], "ready")
+        self.assertEqual(data["requeued_job_ref"], "artifacts/jobs/ready/job-fail-requeue-cli.json")
+        self.assertEqual(data["job_ref"], data["requeued_job_ref"])
+        self.assertTrue(data["execution_outcome_ref"])
+
+        ready_job = read_json(self.workspace / data["requeued_job_ref"])
+        self.assertEqual(ready_job["status"], "ready")
+        self.assertEqual(ready_job["queue_path"], data["requeued_job_ref"])
+        self.assertEqual(ready_job["retry_count"], before_job["retry_count"] + 1)
+        self.assertEqual(ready_job["claim_owner"], "")
+        self.assertEqual(ready_job["runner_run_id"], "")
+        self.assertTrue((self.workspace / data["execution_outcome_ref"]).exists())
+        outcome = read_json(self.workspace / data["execution_outcome_ref"])
+        self.assertEqual(outcome["outcome"], "retry-reentry")
+        self.assertEqual(outcome["job_ref"], running_ref)
+
+    def test_job_release_hold_promotes_waiting_human_job_to_ready(self) -> None:
+        waiting_ref = self.create_job(status="waiting-human", name="job-release-hold.json")
+        waiting_job = read_json(self.workspace / waiting_ref)
+        waiting_job["progression_mode"] = "hold"
+        waiting_job["hold_reason"] = "test_environment_pending"
+        waiting_job["required_preconditions"] = ["test_environment_ref"]
+        write_json(self.workspace / waiting_ref, waiting_job)
+
+        request = self.build_request(
+            "job.release-hold",
+            {
+                "job_ref": waiting_ref,
+                "note": "environment is now ready",
+            },
+            actor_ref="runner.operator",
+        )
+        request_path = self.request_path("job-release-hold.json")
+        response_path = self.response_path("job-release-hold.response.json")
+        write_json(request_path, request)
+
+        self.assertEqual(
+            self.run_cli("job", "release-hold", "--request", str(request_path), "--response-out", str(response_path)),
+            0,
+        )
+
+        payload = read_json(response_path)
+        data = payload["data"]
+        self.assertEqual(data["released_job_ref"], "artifacts/jobs/ready/job-release-hold.json")
+        released_job = read_json(self.workspace / data["released_job_ref"])
+        self.assertEqual(released_job["status"], "ready")
+        self.assertEqual(released_job["queue_path"], data["released_job_ref"])
+        self.assertEqual(released_job["progression_mode"], "auto-continue")
+        self.assertEqual(released_job["hold_released_by"], "runner.operator")
+        self.assertTrue(released_job["hold_released_at"])
+        self.assertEqual(released_job["state_history"][-1]["status"], "ready")
+        self.assertIn("environment is now ready", released_job["state_history"][-1]["note"])
+        self.assertFalse((self.workspace / waiting_ref).exists())
+
+    def test_job_release_hold_rejects_non_waiting_human_job(self) -> None:
+        ready_ref = self.create_job(status="ready", name="job-release-hold-invalid.json")
+
+        request = self.build_request(
+            "job.release-hold",
+            {
+                "job_ref": ready_ref,
+            },
+            actor_ref="runner.operator",
+        )
+        request_path = self.request_path("job-release-hold-invalid.json")
+        response_path = self.response_path("job-release-hold-invalid.response.json")
+        write_json(request_path, request)
+
+        self.assertEqual(
+            self.run_cli("job", "release-hold", "--request", str(request_path), "--response-out", str(response_path)),
+            4,
+        )
+
+        payload = read_json(response_path)
+        self.assertEqual(payload["status_code"], "PRECONDITION_FAILED")
+        self.assertEqual(payload["message"], f"job is not on hold: {ready_ref}")
+
     def test_job_run_heartbeat_only_renews_active_claim(self) -> None:
         claimed_ref = self.create_job(status="claimed", name="job-heartbeat.json", lease_expires_at=iso_z(300))
         before = read_json(self.workspace / claimed_ref)
@@ -300,6 +478,51 @@ class CliRunnerRecoveryTest(unittest.TestCase):
         self.assertEqual(payload["status_code"], "INVALID_REQUEST")
         self.assertEqual(payload["message"], "lease_timeout_seconds must be >= 1")
 
+    def test_job_fail_rejects_non_integer_retry_counts_in_job_record(self) -> None:
+        cases = [
+            ("retry_count", "oops", "retry_count must be an integer"),
+            ("retry_budget", True, "retry_budget must be an integer"),
+            ("retry_count", -1, "retry_count must be >= 0"),
+            ("retry_budget", -1, "retry_budget must be >= 0"),
+            ("retry_count", 1.5, "retry_count must be an integer"),
+            ("retry_budget", 1.5, "retry_budget must be an integer"),
+        ]
+        for field_name, invalid_value, expected_message in cases:
+            running_ref = self.create_job(
+                status="running",
+                name=f"job-invalid-{field_name}.json",
+                claim_owner="runner-a",
+                lease_expires_at=iso_z(300),
+                retry_count=1,
+            )
+            malformed = read_json(self.workspace / running_ref)
+            malformed[field_name] = invalid_value
+            write_json(self.workspace / running_ref, malformed)
+            before_job = read_json(self.workspace / running_ref)
+
+            request = self.build_request(
+                "job.fail",
+                {
+                    "job_ref": running_ref,
+                    "runner_id": "runner-a",
+                    "failure_mode": "retry-reentry",
+                    "reason": "temporary downstream failure",
+                },
+                actor_ref="runner-a",
+            )
+            request_path = self.request_path(f"job-fail-invalid-{field_name}.json")
+            response_path = self.response_path(f"job-fail-invalid-{field_name}.response.json")
+            write_json(request_path, request)
+
+            self.assertEqual(self.run_cli("job", "fail", "--request", str(request_path), "--response-out", str(response_path)), 2)
+
+            payload = read_json(response_path)
+            self.assertEqual(payload["status_code"], "INVALID_REQUEST")
+            self.assertEqual(payload["message"], expected_message)
+            after_job = read_json(self.workspace / running_ref)
+            self.assertEqual(after_job, before_job)
+            self.assertFalse((self.workspace / f"artifacts/evidence/execution/{Path(running_ref).stem}-outcome.json").exists())
+
     def test_retry_reentry_requeues_without_owner(self) -> None:
         running_ref = self.create_job(status="running", name="job-retry.json", claim_owner="runner-a", lease_expires_at=iso_z(300))
 
@@ -320,6 +543,36 @@ class CliRunnerRecoveryTest(unittest.TestCase):
         self.assertEqual(ready_job["runner_run_id"], "")
         self.assertEqual(ready_job["lease_expires_at"], "")
         self.assertEqual(ready_job["started_at"], "")
+        self.assertEqual(ready_job["heartbeat_at"], "")
+        self.assertEqual(ready_job["lease_renewed_at"], "")
+        self.assertEqual(ready_job["heartbeat_count"], 0)
+
+    def test_retry_reentry_rejects_when_retry_budget_exhausted(self) -> None:
+        running_ref = self.create_job(
+            status="running",
+            name="job-retry-exhausted.json",
+            claim_owner="runner-a",
+            lease_expires_at=iso_z(300),
+            retry_count=2,
+        )
+        before_job = read_json(self.workspace / running_ref)
+
+        with self.assertRaises(CommandError) as ctx:
+            fail_job(
+                self.workspace,
+                job_ref=running_ref,
+                trace={},
+                actor_ref="runner-a",
+                owner_ref="runner-a",
+                reason="temporary downstream failure",
+                failure_mode="retry-reentry",
+            )
+
+        self.assertEqual(ctx.exception.status_code, "PRECONDITION_FAILED")
+        self.assertEqual(ctx.exception.message, "retry budget exhausted")
+        after_job = read_json(self.workspace / running_ref)
+        self.assertEqual(after_job, before_job)
+        self.assertFalse((self.workspace / "artifacts/evidence/execution/job-retry-exhausted-outcome.json").exists())
 
     def test_waiting_human_and_deadletter_are_not_recoverable(self) -> None:
         waiting_ref = self.create_job(status="waiting-human", name="job-waiting.json")

@@ -338,6 +338,56 @@ class CliRunnerMonitorTest(unittest.TestCase):
         self.assertEqual(payload["queue_summary"]["statuses"]["running"]["count"], 1)
         self.assertTrue((self.workspace / running_ref).exists())
 
+    def test_recover_jobs_command_repair_rehomes_expired_jobs(self) -> None:
+        running_ref = self.create_job(
+            status="running",
+            name="job-explicit-recover-repair.json",
+            target_skill="workflow.dev.feat_to_tech",
+            created_at="2026-03-20T00:00:00Z",
+            extras={
+                "claim_owner": "runner-1",
+                "runner_run_id": "run-expired",
+                "claimed_at": "2026-03-20T00:01:00Z",
+                "started_at": "2026-03-20T00:02:00Z",
+                "lease_timeout_seconds": 60,
+                "lease_expires_at": "2026-03-20T00:03:00Z",
+            },
+        )
+
+        request = self.build_request("loop.recover-jobs", {"recovery_action": "repair"})
+        request_path = self.request_path("loop-recover-jobs-repair.json")
+        write_json(request_path, request)
+        response_path = self.response_path("loop-recover-jobs-repair.response.json")
+
+        self.assertEqual(self.run_cli("loop", "recover-jobs", "--request", str(request_path), "--response-out", str(response_path)), 0)
+        payload = read_json(response_path)["data"]
+
+        self.assertEqual(payload["recovery_action"], "repair")
+        self.assertEqual(payload["recovery_scan_summary"]["expired_running_count"], 1)
+        self.assertEqual(payload["recovery_scan_summary"]["expired_running_job_refs"], [running_ref])
+        self.assertEqual(payload["recovery_repair_summary"]["repaired_count"], 1)
+        self.assertEqual(payload["recovery_repair_summary"]["recovered_jobs"][0]["job_ref"], "artifacts/jobs/ready/job-explicit-recover-repair.json")
+        self.assertEqual(payload["queue_summary"]["statuses"]["ready"]["count"], 1)
+        self.assertEqual(payload["queue_summary"]["statuses"]["running"]["count"], 0)
+        self.assertEqual(payload["recoverable_queue_summary"]["ready_count"], 1)
+        self.assertEqual(payload["recoverable_queue_summary"]["running_count"], 0)
+        self.assertEqual(payload["recoverable_queue_summary"]["focus"], "all")
+        self.assertEqual(payload["recoverable_queue_summary"]["suggested_actions"][0]["action"], "drain-ready-queue")
+        self.assertTrue((self.workspace / "artifacts/jobs/ready/job-explicit-recover-repair.json").exists())
+        self.assertFalse((self.workspace / running_ref).exists())
+        ready_job = read_json(self.workspace / "artifacts/jobs/ready/job-explicit-recover-repair.json")
+        self.assertEqual(ready_job["last_recovered_from_status"], "running")
+        self.assertEqual(ready_job["last_recovered_owner"], "runner-1")
+        self.assertTrue(ready_job["lease_recovered_at"])
+        self.assertEqual(ready_job["claim_owner"], "")
+        self.assertEqual(ready_job["runner_run_id"], "")
+        self.assertEqual(ready_job["lease_expires_at"], "")
+        self.assertEqual(ready_job["heartbeat_at"], "")
+        self.assertEqual(ready_job["lease_renewed_at"], "")
+        self.assertEqual(ready_job["heartbeat_count"], 0)
+        self.assertEqual(ready_job["state_history"][-1]["status"], "ready")
+        self.assertIn("recovered expired", ready_job["state_history"][-1]["note"])
+
     def test_run_execution_rejects_non_integer_max_jobs(self) -> None:
         request = self.build_request("loop.run-execution", {"max_jobs": "oops"})
         request_path = self.request_path("loop-run-execution-invalid-max-jobs.json")

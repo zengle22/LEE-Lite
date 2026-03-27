@@ -783,7 +783,7 @@ class CliRuntimeTest(unittest.TestCase):
         self.assertEqual(job["target_skill"], "workflow.dev.tech_to_impl")
         self.assertEqual(job["tech_ref"], "TECH-SRC-001-301")
 
-    def test_gate_materialize_feat_to_testset_candidate_promotes_formal_testset_and_dispatches_execution_job(self) -> None:
+    def test_gate_materialize_feat_to_testset_candidate_promotes_formal_testset_and_holds_execution_job_by_default(self) -> None:
         run_id = "feat-testset-run"
         package_dir = self.workspace / "artifacts" / "feat-to-testset" / run_id
         package_dir.mkdir(parents=True, exist_ok=True)
@@ -850,6 +850,171 @@ class CliRuntimeTest(unittest.TestCase):
         job = read_json(self.workspace / dispatch_payload["data"]["materialized_job_refs"][0])
         self.assertEqual(job["target_skill"], "skill.qa.test_exec_cli")
         self.assertEqual(job["test_set_ref"], "TESTSET-SRC-001-301")
+        self.assertEqual(dispatch_payload["data"]["progression_mode"], "hold")
+        self.assertEqual(job["progression_mode"], "hold")
+        self.assertEqual(job["status"], "waiting-human")
+        self.assertIn("artifacts/jobs/waiting-human/", dispatch_payload["data"]["materialized_job_refs"][0])
+        self.assertEqual(job["required_preconditions"], ["test_environment_ref"])
+        self.assertEqual(job["hold_reason"], "test_environment_pending")
+
+    def test_gate_materialize_feat_to_testset_candidate_can_auto_continue_when_gate_explicitly_allows_it(self) -> None:
+        run_id = "feat-testset-auto-run"
+        package_dir = self.workspace / "artifacts" / "feat-to-testset" / run_id
+        package_dir.mkdir(parents=True, exist_ok=True)
+        (package_dir / "test-set-bundle.md").write_text("# TESTSET Bundle\n", encoding="utf-8")
+        write_json(
+            package_dir / "test-set-bundle.json",
+            {
+                "artifact_type": "test_set_candidate_package",
+                "workflow_key": "qa.feat-to-testset",
+                "workflow_run_id": run_id,
+                "title": "Mainline Collaboration TESTSET Bundle",
+                "status": "approval_pending",
+                "feat_ref": "FEAT-SRC-001-301",
+                "test_set_ref": "TESTSET-SRC-001-301",
+                "downstream_target": "skill.qa.test_exec_cli",
+                "source_refs": ["FEAT-SRC-001-301", "EPIC-SRC-001-001", "SRC-001"],
+            },
+        )
+        (package_dir / "test-set.yaml").write_text(
+            "id: TESTSET-SRC-001-301\nssot_type: TESTSET\nstatus: approved\nfeat_ref: FEAT-SRC-001-301\n",
+            encoding="utf-8",
+        )
+        write_json(package_dir / "handoff-to-test-execution.json", {"target_skill": "skill.qa.test_exec_cli"})
+        write_json(
+            self.workspace / "artifacts" / "registry" / f"feat-to-testset-{run_id}-test-set-bundle.json",
+            {
+                "artifact_ref": f"feat-to-testset.{run_id}.test-set-bundle",
+                "managed_artifact_ref": f"artifacts/feat-to-testset/{run_id}/test-set-bundle.md",
+                "status": "committed",
+                "trace": {"run_ref": run_id, "workflow_key": "qa.feat-to-testset"},
+                "metadata": {"layer": "candidate"},
+                "lineage": [],
+            },
+        )
+        decision_path = self.workspace / "artifacts" / "active" / "gates" / "decisions" / "gate-decision-testset-auto.json"
+        write_json(
+            decision_path,
+            {
+                "decision_type": "approve",
+                "candidate_ref": f"feat-to-testset.{run_id}.test-set-bundle",
+                "progression_mode": "auto-continue",
+            },
+        )
+
+        materialize_request = self.build_request(
+            "gate.materialize",
+            {
+                "gate_decision_ref": "artifacts/active/gates/decisions/gate-decision-testset-auto.json",
+                "candidate_ref": f"feat-to-testset.{run_id}.test-set-bundle",
+            },
+        )
+        materialize_req = self.request_path("gate-materialize-feat-testset-auto.json")
+        write_json(materialize_req, materialize_request)
+        materialize_response = self.response_path("gate-materialize-feat-testset-auto.response.json")
+        self.assertEqual(self.run_cli("gate", "materialize", "--request", str(materialize_req), "--response-out", str(materialize_response)), 0)
+
+        dispatch_request = self.build_request(
+            "gate.dispatch",
+            {"gate_decision_ref": "artifacts/active/gates/decisions/gate-decision-testset-auto.json"},
+        )
+        dispatch_req = self.request_path("gate-dispatch-feat-testset-auto.json")
+        write_json(dispatch_req, dispatch_request)
+        dispatch_response = self.response_path("gate-dispatch-feat-testset-auto.response.json")
+        self.assertEqual(self.run_cli("gate", "dispatch", "--request", str(dispatch_req), "--response-out", str(dispatch_response)), 0)
+        dispatch_payload = read_json(dispatch_response)
+        self.assertEqual(dispatch_payload["data"]["progression_mode"], "auto-continue")
+        self.assertEqual(len(dispatch_payload["data"]["materialized_job_refs"]), 1)
+        job_ref = dispatch_payload["data"]["materialized_job_refs"][0]
+        job = read_json(self.workspace / job_ref)
+        self.assertEqual(job["progression_mode"], "auto-continue")
+        self.assertEqual(job["status"], "ready")
+        self.assertIn("artifacts/jobs/ready/", job_ref)
+
+    def test_gate_release_hold_promotes_dispatched_waiting_human_job_to_ready(self) -> None:
+        run_id = "feat-testset-release-run"
+        package_dir = self.workspace / "artifacts" / "feat-to-testset" / run_id
+        package_dir.mkdir(parents=True, exist_ok=True)
+        (package_dir / "test-set-bundle.md").write_text("# TESTSET Bundle\n", encoding="utf-8")
+        write_json(
+            package_dir / "test-set-bundle.json",
+            {
+                "artifact_type": "test_set_candidate_package",
+                "workflow_key": "qa.feat-to-testset",
+                "workflow_run_id": run_id,
+                "title": "Mainline Collaboration TESTSET Bundle",
+                "status": "approval_pending",
+                "feat_ref": "FEAT-SRC-001-301",
+                "test_set_ref": "TESTSET-SRC-001-301",
+                "downstream_target": "skill.qa.test_exec_cli",
+                "source_refs": ["FEAT-SRC-001-301", "EPIC-SRC-001-001", "SRC-001"],
+            },
+        )
+        (package_dir / "test-set.yaml").write_text(
+            "id: TESTSET-SRC-001-301\nssot_type: TESTSET\nstatus: approved\nfeat_ref: FEAT-SRC-001-301\n",
+            encoding="utf-8",
+        )
+        write_json(package_dir / "handoff-to-test-execution.json", {"target_skill": "skill.qa.test_exec_cli"})
+        write_json(
+            self.workspace / "artifacts" / "registry" / f"feat-to-testset-{run_id}-test-set-bundle.json",
+            {
+                "artifact_ref": f"feat-to-testset.{run_id}.test-set-bundle",
+                "managed_artifact_ref": f"artifacts/feat-to-testset/{run_id}/test-set-bundle.md",
+                "status": "committed",
+                "trace": {"run_ref": run_id, "workflow_key": "qa.feat-to-testset"},
+                "metadata": {"layer": "candidate"},
+                "lineage": [],
+            },
+        )
+        decision_path = self.workspace / "artifacts" / "active" / "gates" / "decisions" / "gate-decision-testset-release.json"
+        write_json(decision_path, {"decision_type": "approve", "candidate_ref": f"feat-to-testset.{run_id}.test-set-bundle"})
+
+        materialize_request = self.build_request(
+            "gate.materialize",
+            {
+                "gate_decision_ref": "artifacts/active/gates/decisions/gate-decision-testset-release.json",
+                "candidate_ref": f"feat-to-testset.{run_id}.test-set-bundle",
+            },
+        )
+        materialize_req = self.request_path("gate-materialize-feat-testset-release.json")
+        write_json(materialize_req, materialize_request)
+        materialize_response = self.response_path("gate-materialize-feat-testset-release.response.json")
+        self.assertEqual(self.run_cli("gate", "materialize", "--request", str(materialize_req), "--response-out", str(materialize_response)), 0)
+
+        dispatch_request = self.build_request(
+            "gate.dispatch",
+            {"gate_decision_ref": "artifacts/active/gates/decisions/gate-decision-testset-release.json"},
+        )
+        dispatch_req = self.request_path("gate-dispatch-feat-testset-release.json")
+        write_json(dispatch_req, dispatch_request)
+        dispatch_response = self.response_path("gate-dispatch-feat-testset-release.response.json")
+        self.assertEqual(self.run_cli("gate", "dispatch", "--request", str(dispatch_req), "--response-out", str(dispatch_response)), 0)
+        dispatch_payload = read_json(dispatch_response)
+        waiting_job_ref = dispatch_payload["data"]["materialized_job_refs"][0]
+        waiting_job = read_json(self.workspace / waiting_job_ref)
+        self.assertEqual(waiting_job["status"], "waiting-human")
+
+        release_request = self.build_request(
+            "gate.release-hold",
+            {
+                "dispatch_receipt_ref": dispatch_payload["data"]["dispatch_receipt_ref"],
+                "note": "test environment provisioned",
+            },
+        )
+        release_req = self.request_path("gate-release-hold.json")
+        write_json(release_req, release_request)
+        release_response = self.response_path("gate-release-hold.response.json")
+        self.assertEqual(self.run_cli("gate", "release-hold", "--request", str(release_req), "--response-out", str(release_response)), 0)
+        release_payload = read_json(release_response)
+        released_job_ref = release_payload["data"]["released_job_ref"]
+        self.assertEqual(release_payload["data"]["released_count"], 1)
+        self.assertEqual(released_job_ref, "artifacts/jobs/ready/gate-decision-testset-release-testset-src-001-301-test-exec.json")
+        released_job = read_json(self.workspace / released_job_ref)
+        self.assertEqual(released_job["status"], "ready")
+        self.assertEqual(released_job["progression_mode"], "auto-continue")
+        self.assertEqual(released_job["hold_released_by"], "test-suite")
+        self.assertEqual(released_job["queue_path"], released_job_ref)
+        self.assertFalse((self.workspace / waiting_job_ref).exists())
 
     def test_gate_materialize_tech_to_impl_candidate_promotes_formal_impl(self) -> None:
         run_id = "tech-impl-run"
