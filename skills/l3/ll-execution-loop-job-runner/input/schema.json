@@ -1,0 +1,76 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "execution runner skill request envelope",
+  "type": "object",
+  "properties": {
+    "api_version": {
+      "const": "v1"
+    },
+    "command": {
+      "const": "skill.execution-loop-job-runner"
+    },
+    "request_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "workspace_root": {
+      "type": "string",
+      "minLength": 1
+    },
+    "actor_ref": {
+      "type": "string",
+      "minLength": 1
+    },
+    "trace": {
+      "type": "object"
+    },
+    "payload": {
+      "type": "object",
+      "properties": {
+        "runner_scope_ref": {
+          "type": "string",
+          "minLength": 1
+        },
+        "entry_mode": {
+          "enum": [
+            "start",
+            "resume"
+          ]
+        },
+        "queue_ref": {
+          "type": "string"
+        },
+        "ready_job_ref": {
+          "type": "string"
+        },
+        "consume_all": {
+          "type": "boolean"
+        },
+        "max_jobs": {
+          "type": [
+            "integer",
+            "string"
+          ]
+        },
+        "runner_run_id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "runner_scope_ref",
+        "entry_mode"
+      ],
+      "additionalProperties": true
+    }
+  },
+  "required": [
+    "api_version",
+    "command",
+    "request_id",
+    "workspace_root",
+    "actor_ref",
+    "trace",
+    "payload"
+  ],
+  "additionalProperties": true
+}

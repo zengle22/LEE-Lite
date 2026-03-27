@@ -1,0 +1,4 @@
+- Response command remains `skill.execution-loop-job-runner`.
+- Response preserves `runner_run_ref`, `runner_context_ref`, and `entry_receipt_ref`.
+- `delegated_command_ref` points to a loop carrier, not a repo CLI skill façade.
+- Failure responses keep the delegated runtime diagnostics without hiding the error code.

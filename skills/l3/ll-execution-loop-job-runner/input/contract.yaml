@@ -1,0 +1,11 @@
+artifact_type: execution_runner_skill_request
+command: skill.execution-loop-job-runner
+required_payload_fields:
+  - runner_scope_ref
+  - entry_mode
+optional_payload_fields:
+  - queue_ref
+  - ready_job_ref
+  - consume_all
+  - max_jobs
+  - runner_run_id

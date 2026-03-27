@@ -1,0 +1,279 @@
+id: TESTSET-SRC-ADR018-RAW2SRC-RESTART-20260326-R1-004
+ssot_type: TESTSET
+workflow_key: qa.feat-to-testset
+template_id: template.qa.test_set_production
+template_workflow_key: workflow.qa.test_set_production_l3
+test_set_id: TS-SRC-ADR018-RAW2SRC-RESTART-20260326-R1-004
+feat_ref: FEAT-SRC-ADR018-RAW2SRC-RESTART-20260326-R1-004
+epic_ref: EPIC-GATE-EXECUTION-RUNNER
+src_ref: SRC-ADR018-RAW2SRC-RESTART-20260326-R1
+title: Execution Runner 自动取件流 Test Set
+description: Execution Runner 自动取件流 governed QA candidate package
+derived_slug: execution-runner-u81ea-u52a8-u53d6-u4ef6-u6d41
+coverage_scope:
+- 定义 runner 扫描、claim、running 和防重入边界。
+- 定义 jobs/ready 到 runner ownership 的状态转移。
+- 定义 runner 对 job lineage、claim 证据和并发责任的记录方式。
+recommended_coverage_scope_name:
+- execution runner intake feature
+feature_owned_code_paths:
+- cli/lib/job_queue.py
+- cli/lib/job_state.py
+- cli/commands/job/command.py
+risk_focus:
+- 要求 every test unit 都能回链到 FEAT acceptance、governing ADR 与 expected downstream evidence。
+- single-owner claim 失效
+- job_not_ready / already_claimed 不可追溯
+preconditions:
+- selected FEAT 及其上游 source refs 可被稳定解析。
+- ready execution job 已进入 artifacts/jobs/ready。
+- single-owner claim guard 可输出 authoritative verdict。
+environment_assumptions:
+- 需要可解析 selected FEAT 所依赖的集成环境与上游 artifact lineage。
+- 需要能读取并追踪 FEAT、EPIC、SRC 与 governing ADR 引用。
+- 需要保留 execution evidence 与 supervision evidence 所要求的最小审计链。
+- ready queue scan 与 single-owner claim 需要可重复执行且可判定冲突。
+- running ownership record 必须对后续 dispatch 可见。
+required_environment_inputs:
+  environment:
+  - 可运行 selected FEAT 的集成环境
+  - 可解析 source_refs 的受治理 workspace 上下文
+  data:
+  - 覆盖 FEAT acceptance checks 所需的最小测试数据或 fixtures
+  - 可重建 analysis/strategy trace 的输入样本
+  - ready execution job fixture
+  - claim conflict failure sample
+  - running ownership record sample
+  services:
+  - selected FEAT 所依赖的集成服务或协作 consumer
+  - ready queue scanner
+  - single-owner claimer
+  access:
+  - 读取 FEAT candidate / freeze lineage 所需权限
+  - 执行 QA evidence 采集与落盘所需权限
+  - 读取 artifacts/jobs/ready 与写回 running ownership 的权限
+  - queue claim identity 或等价 credential material
+  feature_flags:
+  - selected FEAT 涉及的 gated rollout、cutover 或 guarded branch 开关
+  - single-owner claim guard / ready queue replay protection
+  ui_or_integration_context:
+  - 驱动 FEAT acceptance checks 的 CLI 命令、接口调用或 integration context
+  - runner queue intake integration context
+test_layers:
+- integration
+test_units:
+- unit_ref: TS-SRC-ADR018-RAW2SRC-RESTART-20260326-R1-004-U01
+  title: ready queue intake 维持 single-owner claim 语义
+  priority: P1
+  input_preconditions:
+  - artifacts/jobs/ready contains a valid next-skill job
+  - ready execution job 已进入 artifacts/jobs/ready。
+  trigger_action: Execution Loop Job Runner runs
+  observation_points:
+  - claim receipt
+  - job owner
+  - running ownership record。
+  pass_conditions:
+  - 同一 ready job 只被一个 runner 成功 claim。
+  - claim 后形成 running ownership record。
+  fail_conditions:
+  - 同一 ready job 被多个 runner 同时 claim。
+  - claim 后未形成 ownership record。
+  required_evidence:
+  - claim receipt
+  - running ownership record
+  - single-owner verdict
+  suggested_layers: &id001
+  - integration
+  supporting_refs:
+  - EPIC-GATE-EXECUTION-RUNNER
+  - SRC-ADR018-RAW2SRC-RESTART-20260326-R1
+  - product.raw-to-src::adr018-raw2src-restart-20260326-r1
+  - ADR-018
+  - ADR-001
+  - ADR-003
+  - ADR-005
+  - ADR-006
+  - ADR-009
+  - ready queue scan
+  - claimed execution job
+  - running ownership record
+  - single-owner claim
+  - jobs/ready
+  - claim
+  - running
+  acceptance_ref: runner-intake-AC-01
+- unit_ref: TS-SRC-ADR018-RAW2SRC-RESTART-20260326-R1-004-U02
+  title: claim conflict 与 job_not_ready 路径必须 fail closed
+  priority: P1
+  input_preconditions:
+  - multiple runner invocations inspect the same ready job
+  - 存在 claim conflict 或 job_not_ready 场景。
+  trigger_action: claim is attempted
+  observation_points:
+  - claim verdict
+  - denied reason
+  - queue state。
+  pass_conditions:
+  - claim conflict / job_not_ready 均返回 authoritative denied verdict。
+  - queue 状态不会被静默篡改。
+  fail_conditions:
+  - 冲突场景仍成功 claim。
+  - 失败场景没有 denied reason。
+  required_evidence:
+  - claim denial evidence
+  - queue state snapshot
+  - failure verdict trace
+  suggested_layers: *id001
+  supporting_refs:
+  - EPIC-GATE-EXECUTION-RUNNER
+  - SRC-ADR018-RAW2SRC-RESTART-20260326-R1
+  - product.raw-to-src::adr018-raw2src-restart-20260326-r1
+  - ADR-018
+  - ADR-001
+  - ADR-003
+  - ADR-005
+  - ADR-006
+  - ADR-009
+  - ready queue scan
+  - claimed execution job
+  - running ownership record
+  - single-owner claim
+  - single owner
+  - claim
+  - ownership
+  - job_not_ready
+  - already_claimed
+  acceptance_ref: runner-intake-AC-02
+- unit_ref: TS-SRC-ADR018-RAW2SRC-RESTART-20260326-R1-004-U03
+  title: running ownership 必须对 dispatch 与 monitor 可见
+  priority: P1
+  input_preconditions:
+  - a downstream flow needs to start next-skill execution
+  - running ownership record sample 可读取。
+  trigger_action: the start condition is resolved
+  observation_points:
+  - ownership visibility
+  - dispatch precondition
+  - monitor snapshot。
+  pass_conditions:
+  - dispatch 与 observability 都能读取同一 running ownership record。
+  - ownership 不因 queue scan 重放而丢失。
+  fail_conditions:
+  - dispatch 看不到 current owner。
+  - monitor 与 dispatch 看到不同 ownership 真相。
+  required_evidence:
+  - ownership visibility evidence
+  - dispatch precondition trace
+  - monitor snapshot
+  suggested_layers: *id001
+  supporting_refs:
+  - EPIC-GATE-EXECUTION-RUNNER
+  - SRC-ADR018-RAW2SRC-RESTART-20260326-R1
+  - product.raw-to-src::adr018-raw2src-restart-20260326-r1
+  - ADR-018
+  - ADR-001
+  - ADR-003
+  - ADR-005
+  - ADR-006
+  - ADR-009
+  - ready queue scan
+  - claimed execution job
+  - running ownership record
+  - single-owner claim
+  - ready queue
+  - runner intake
+  - no ad hoc invocation
+  - running ownership visibility
+  acceptance_ref: runner-intake-AC-03
+coverage_exclusions:
+- 不覆盖 selected FEAT 之外的相邻 FEAT 语义。
+- 不把本 TESTSET 扩展为 TASK、TECH 或 runner-level 实现细节。
+pass_criteria:
+- 每条 acceptance check 都有至少一个可执行测试单元映射。
+- TESTSET 不越界覆盖相邻 FEAT 或新需求。
+- candidate package 在外置 approval 前保持 machine-readable traceability 与 gate subject
+  identity。
+- 高风险或 adoption/E2E 路径需要明确的环境、数据与 pilot execution 前提。
+- ready queue consumption 必须保持 single-owner claim 语义。
+- claim conflict、job_not_ready 等失败路径必须可追溯且 fail closed。
+evidence_required:
+- analysis 与 strategy 形成过程的 execution evidence
+- supervisor 对 TESTSET 与 traceability 的 review evidence
+- candidate package 的 machine-readable gate subject records
+- ready queue scan evidence
+- claim receipt
+- running ownership record
+acceptance_traceability:
+- acceptance_ref: runner-intake-AC-01
+  acceptance_scenario: Ready queue is auto-consumed
+  given: artifacts/jobs/ready contains a valid next-skill job
+  when: Execution Loop Job Runner runs
+  then: the runner must claim the job and record running ownership without human relay.
+  unit_refs:
+  - TS-SRC-ADR018-RAW2SRC-RESTART-20260326-R1-004-U01
+  coverage_status: covered
+  coverage_notes: Acceptance is explicitly mapped to executable minimum coverage units.
+- acceptance_ref: runner-intake-AC-02
+  acceptance_scenario: Claim semantics are single-owner
+  given: multiple runner invocations inspect the same ready job
+  when: claim is attempted
+  then: only one runner ownership record may succeed.
+  unit_refs:
+  - TS-SRC-ADR018-RAW2SRC-RESTART-20260326-R1-004-U02
+  coverage_status: covered
+  coverage_notes: Acceptance is explicitly mapped to executable minimum coverage units.
+- acceptance_ref: runner-intake-AC-03
+  acceptance_scenario: Ready queue remains the authoritative intake
+  given: a downstream flow needs to start next-skill execution
+  when: the start condition is resolved
+  then: the FEAT must use the ready queue and runner claim path instead of directory
+    guessing or ad hoc invocation.
+  unit_refs:
+  - TS-SRC-ADR018-RAW2SRC-RESTART-20260326-R1-004-U03
+  coverage_status: covered
+  coverage_notes: Acceptance is explicitly mapped to executable minimum coverage units.
+source_refs:
+- product.epic-to-feat::adr018-epic2feat-restart-20260326-r1
+- FEAT-SRC-ADR018-RAW2SRC-RESTART-20260326-R1-004
+- EPIC-GATE-EXECUTION-RUNNER
+- SRC-ADR018-RAW2SRC-RESTART-20260326-R1
+- product.raw-to-src::adr018-raw2src-restart-20260326-r1
+- ADR-018
+- ADR-001
+- ADR-003
+- ADR-005
+- ADR-006
+- ADR-009
+- product.src-to-epic::adr018-src2epic-restart-20260326-r1
+governing_adrs:
+- ADR-018
+- ADR-001
+- ADR-003
+- ADR-005
+- ADR-006
+- ADR-009
+semantic_lock:
+  domain_type: execution_runner_rule
+  one_sentence_truth: gate approve 后必须生成 ready execution job，并由 Execution Loop Job
+    Runner 自动消费 artifacts/jobs/ready 后推进到下一个 skill，而不是停在 formal publication 或人工接力。
+  primary_object: execution_loop_job_runner
+  lifecycle_stage: post_gate_auto_progression
+  allowed_capabilities:
+  - ready_execution_job_materialization
+  - ready_queue_consumption
+  - next_skill_dispatch
+  - execution_result_recording
+  - retry_reentry_return
+  forbidden_capabilities:
+  - formal_publication_substitution
+  - admission_only_decomposition
+  - third_session_human_relay
+  - directory_guessing_consumer
+  inheritance_rule: approve semantics must stay coupled to ready-job emission and
+    runner-driven next-skill progression; downstream may not replace this with formal
+    publication or admission-only flows.
+status: frozen
+candidate_package_ref: artifacts/feat-to-testset/adr018-epic2feat-restart-20260326-r1--feat-src-adr018-raw2src-restart-20260326-r1-004
+gate_decision_ref: artifacts/active/gates/decisions/gate-decision.json
+frozen_at: '2026-03-27T02:45:53Z'

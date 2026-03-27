@@ -1,0 +1,11 @@
+artifact_type: execution_runner_skill_response
+command: skill.execution-loop-job-runner
+required_data_fields:
+  - skill_ref
+  - runner_skill_ref
+  - entry_mode
+  - runner_scope_ref
+  - delegated_command_ref
+  - runner_run_ref
+  - runner_context_ref
+  - entry_receipt_ref

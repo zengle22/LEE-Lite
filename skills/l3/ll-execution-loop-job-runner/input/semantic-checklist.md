@@ -1,0 +1,4 @@
+- Request command is `skill.execution-loop-job-runner`.
+- Payload declares explicit `entry_mode`.
+- `runner_scope_ref` is present and stable across retries.
+- Request does not ask the skill to invoke downstream skills manually.

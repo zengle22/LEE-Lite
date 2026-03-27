@@ -1,0 +1,4 @@
+interface:
+  display_name: "Execution Loop Job Runner"
+  short_description: "Workspace adapter target for governed runner entry"
+  default_prompt: "Use $ll-execution-loop-job-runner to start or resume the governed execution runner in the current workspace."

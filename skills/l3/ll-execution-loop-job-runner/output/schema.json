@@ -1,0 +1,92 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "execution runner skill response envelope",
+  "type": "object",
+  "properties": {
+    "api_version": {
+      "const": "v1"
+    },
+    "command": {
+      "const": "skill.execution-loop-job-runner"
+    },
+    "request_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "result_status": {
+      "type": "string",
+      "minLength": 1
+    },
+    "status_code": {
+      "type": "string",
+      "minLength": 1
+    },
+    "exit_code": {
+      "type": "integer"
+    },
+    "message": {
+      "type": "string"
+    },
+    "data": {
+      "type": "object",
+      "properties": {
+        "skill_ref": {
+          "const": "skill.execution_loop_job_runner"
+        },
+        "runner_skill_ref": {
+          "const": "skill.runner.execution_loop_job_runner"
+        },
+        "entry_mode": {
+          "enum": [
+            "start",
+            "resume"
+          ]
+        },
+        "delegated_command_ref": {
+          "enum": [
+            "ll loop run-execution",
+            "ll loop resume-execution"
+          ]
+        },
+        "runner_scope_ref": {
+          "type": "string",
+          "minLength": 1
+        },
+        "runner_run_ref": {
+          "type": "string",
+          "minLength": 1
+        },
+        "runner_context_ref": {
+          "type": "string",
+          "minLength": 1
+        },
+        "entry_receipt_ref": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "required": [
+        "skill_ref",
+        "runner_skill_ref",
+        "entry_mode",
+        "runner_scope_ref",
+        "delegated_command_ref",
+        "runner_run_ref",
+        "runner_context_ref",
+        "entry_receipt_ref"
+      ],
+      "additionalProperties": true
+    }
+  },
+  "required": [
+    "api_version",
+    "command",
+    "request_id",
+    "result_status",
+    "status_code",
+    "exit_code",
+    "message",
+    "data"
+  ],
+  "additionalProperties": true
+}

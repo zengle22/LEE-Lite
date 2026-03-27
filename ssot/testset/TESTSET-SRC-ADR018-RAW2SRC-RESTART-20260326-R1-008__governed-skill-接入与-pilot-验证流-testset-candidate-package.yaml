@@ -1,0 +1,397 @@
+id: TESTSET-SRC-ADR018-RAW2SRC-RESTART-20260326-R1-008
+ssot_type: TESTSET
+workflow_key: qa.feat-to-testset
+template_id: template.qa.test_set_production
+template_workflow_key: workflow.qa.test_set_production_l3
+test_set_id: TS-SRC-ADR018-RAW2SRC-RESTART-20260326-R1-008
+feat_ref: FEAT-SRC-ADR018-RAW2SRC-RESTART-20260326-R1-008
+epic_ref: EPIC-GATE-EXECUTION-RUNNER
+src_ref: SRC-ADR018-RAW2SRC-RESTART-20260326-R1
+title: governed skill 接入与 pilot 验证流 Test Set
+description: governed skill 接入与 pilot 验证流 governed QA candidate package
+derived_slug: governed-skill-u63a5-u5165-u4e0e-pilot-u9a8c-u8bc1-u6d41
+coverage_scope:
+- 定义 governed skill 的接入、pilot、cutover 与 fallback 规则，让主链能力通过真实链路验证成立。
+- 定义至少一条 producer -> consumer -> audit -> gate pilot 主链如何覆盖真实协作。
+- 定义 adoption 成立时业务方拿到的 evidence、integration matrix 与 cutover decision。
+recommended_coverage_scope_name:
+- pilot rollout feature
+feature_owned_code_paths:
+- cli/lib/rollout_state.py
+- cli/lib/pilot_chain.py
+- cli/commands/rollout/command.py
+- cli/commands/audit/command.py
+risk_focus:
+- 要求 every test unit 都能回链到 FEAT acceptance、governing ADR 与 expected downstream evidence。
+- pilot evidence 不完整却继续 rollout
+- compat_mode / wave state / fallback trace 漂移
+preconditions:
+- 'Boundary to foundation FEATs: 本 FEAT 只负责接入、迁移与真实链路验证，不重写 Gateway / Policy / Registry
+  / Audit / Gate 的能力定义。'
+- 'Boundary to release/test planning: 本 FEAT 负责定义 adoption/E2E 能力边界和 pilot 目标，不替代后续
+  release orchestration 或 test reporting。'
+- foundation FEAT 对应主链已可执行。
+- 至少一个真实 pilot scope 已被选定。
+environment_assumptions:
+- 需要可解析 selected FEAT 所依赖的集成环境与上游 artifact lineage。
+- 需要能读取并追踪 FEAT、EPIC、SRC 与 governing ADR 引用。
+- 需要保留 execution evidence 与 supervision evidence 所要求的最小审计链。
+- 若启用 e2e 层且目标为 CLI sibling，必须具备可重复执行的 CLI 或跨服务集成上下文。
+- 依赖服务或上游能力应以可观测、可判定的方式处于可用状态。
+- 真实 pilot chain 需要 producer、gate、formal、consumer、audit 五段至少一条完整连通。
+- wave state、compat_mode 与 cutover_guard_ref 必须可追溯且可回放。
+required_environment_inputs:
+  environment:
+  - 可运行 selected FEAT 的集成环境
+  - 可解析 source_refs 的受治理 workspace 上下文
+  - 可重复的端到端验证环境
+  data:
+  - 覆盖 FEAT acceptance checks 所需的最小测试数据或 fixtures
+  - 可重建 analysis/strategy trace 的输入样本
+  - pilot evidence package
+  - wave state fixture
+  - fallback / rollback 失败样本
+  services:
+  - selected FEAT 所依赖的集成服务或协作 consumer
+  - 跨 skill pilot 链路涉及的 producer / consumer / gate consumer
+  - pilot chain verifier
+  - wave state writer
+  - audit evidence aggregator
+  access:
+  - 读取 FEAT candidate / freeze lineage 所需权限
+  - 执行 QA evidence 采集与落盘所需权限
+  - pilot verifier credential / audit token / rollout service account
+  - 读取与写回 wave state、cutover_guard_ref、fallback receipt 的权限
+  feature_flags:
+  - selected FEAT 涉及的 gated rollout、cutover 或 guarded branch 开关
+  - pilot enablement / guarded rollout / compat mode switch
+  ui_or_integration_context:
+  - 驱动 FEAT acceptance checks 的 CLI 命令、接口调用或 integration context
+  - producer -> gate -> formal -> consumer -> audit pilot chain context
+test_layers:
+- integration
+- e2e
+test_units:
+- unit_ref: TS-SRC-ADR018-RAW2SRC-RESTART-20260326-R1-008-U01
+  title: onboarding matrix 固化 skill、wave_id、compat_mode 与 cutover_guard_ref
+  priority: P1
+  input_preconditions:
+  - EPIC-GATE-EXECUTION-RUNNER requires real governed skill landing
+  - rollout onboarding contract 可写回 wave state。
+  trigger_action: 生成 onboarding matrix，并把 wave_id、compat_mode、cutover_guard_ref 写回
+    rollout state。
+  observation_points:
+  - integration matrix
+  - wave_id
+  - compat_mode
+  - cutover_guard_ref。
+  pass_conditions:
+  - onboarding scope 与 migration waves 可追溯。
+  - cutover / fallback 规则以 machine-readable 形式存在。
+  fail_conditions:
+  - wave / compat_mode / cutover_guard_ref 缺失。
+  - 迁移策略只能口头表达。
+  required_evidence:
+  - onboarding matrix
+  - wave state evidence
+  - cutover directive
+  suggested_layers: &id001
+  - integration
+  - e2e
+  supporting_refs:
+  - EPIC-GATE-EXECUTION-RUNNER
+  - SRC-ADR018-RAW2SRC-RESTART-20260326-R1
+  - product.raw-to-src::adr018-raw2src-restart-20260326-r1
+  - ADR-018
+  - ADR-001
+  - ADR-003
+  - ADR-005
+  - ADR-006
+  - ADR-009
+  - OnboardingMatrix
+  - CutoverDirective
+  - PilotEvidenceRef
+  - compat_mode
+  - wave_id
+  - cutover_guard_ref
+  - producer -> gate -> formal -> consumer -> audit
+  - FEAT-SRC-ADR018-RAW2SRC-RESTART-20260326-R1-008
+  - integration matrix
+  - migration wave
+  - cutover
+  - fallback
+  acceptance_ref: FEAT-SRC-ADR018-RAW2SRC-RESTART-20260326-R1-008-AC-01
+- unit_ref: TS-SRC-ADR018-RAW2SRC-RESTART-20260326-R1-008-U02
+  title: pilot chain verifier 验证 producer -> gate -> formal -> consumer -> audit
+  priority: P1
+  input_preconditions:
+  - Foundation FEATs are implemented in isolation
+  - foundation 流程已提供 gate / formal / IO 基础能力。
+  trigger_action: 执行真实 pilot chain verifier。
+  observation_points:
+  - producer handoff
+  - gate decision
+  - formal publication
+  - consumer admission
+  - audit evidence。
+  pass_conditions:
+  - 至少一条真实 pilot 主链完整跑通。
+  - 五段链路都有可追溯 evidence。
+  fail_conditions:
+  - 任一链路缺段仍被视为通过。
+  - 仅组件内自测而无真实 pilot evidence。
+  required_evidence:
+  - pilot evidence package
+  - end-to-end chain trace
+  - audit submission evidence
+  suggested_layers: *id001
+  supporting_refs:
+  - EPIC-GATE-EXECUTION-RUNNER
+  - SRC-ADR018-RAW2SRC-RESTART-20260326-R1
+  - product.raw-to-src::adr018-raw2src-restart-20260326-r1
+  - ADR-018
+  - ADR-001
+  - ADR-003
+  - ADR-005
+  - ADR-006
+  - ADR-009
+  - OnboardingMatrix
+  - CutoverDirective
+  - PilotEvidenceRef
+  - compat_mode
+  - wave_id
+  - cutover_guard_ref
+  - producer -> gate -> formal -> consumer -> audit
+  - FEAT-SRC-ADR018-RAW2SRC-RESTART-20260326-R1-008
+  - producer -> consumer -> audit -> gate
+  - pilot chain
+  - E2E evidence
+  acceptance_ref: FEAT-SRC-ADR018-RAW2SRC-RESTART-20260326-R1-008-AC-02
+- unit_ref: TS-SRC-ADR018-RAW2SRC-RESTART-20260326-R1-008-U03
+  title: pilot evidence 缺失时 rollout 必须 fail closed
+  priority: P1
+  input_preconditions:
+  - pilot chain verifier 未产出完整 evidence。
+  trigger_action: 尝试推进 wave 或 cutover。
+  observation_points:
+  - rollout decision
+  - wave state
+  - denied / blocked verdict。
+  pass_conditions:
+  - evidence 不足时不能继续 rollout。
+  - wave 维持 fail closed 状态。
+  fail_conditions:
+  - evidence 缺失仍可推进 wave。
+  - rollout guard 被绕过。
+  required_evidence:
+  - blocked rollout evidence
+  - wave state denial trace
+  suggested_layers: *id001
+  supporting_refs:
+  - EPIC-GATE-EXECUTION-RUNNER
+  - SRC-ADR018-RAW2SRC-RESTART-20260326-R1
+  - product.raw-to-src::adr018-raw2src-restart-20260326-r1
+  - ADR-018
+  - ADR-001
+  - ADR-003
+  - ADR-005
+  - ADR-006
+  - ADR-009
+  - OnboardingMatrix
+  - CutoverDirective
+  - PilotEvidenceRef
+  - compat_mode
+  - wave_id
+  - cutover_guard_ref
+  - producer -> gate -> formal -> consumer -> audit
+  - fail closed
+  - pilot evidence package
+  acceptance_ref: FEAT-SRC-ADR018-RAW2SRC-RESTART-20260326-R1-008-AC-02
+- unit_ref: TS-SRC-ADR018-RAW2SRC-RESTART-20260326-R1-008-U04
+  title: fallback 结果必须记录到 receipt / wave state
+  priority: P1
+  input_preconditions:
+  - fallback 或 rollback 场景已触发。
+  - receipt 与 wave state 都允许 authoritative writeback。
+  trigger_action: 执行 fallback / rollback，并写回 receipt 与 wave state。
+  observation_points:
+  - fallback result
+  - receipt / wave state writeback
+  - fallback reason code。
+  pass_conditions:
+  - fallback 结果被记录并可追溯。
+  - receipt 与 wave state 保持同一条 authoritative update trace。
+  fail_conditions:
+  - fallback 未记录到 receipt 或 wave state。
+  - fallback 结果无法回放或审计。
+  required_evidence:
+  - fallback evidence
+  - wave state update
+  - receipt writeback trace
+  suggested_layers: *id001
+  supporting_refs:
+  - EPIC-GATE-EXECUTION-RUNNER
+  - SRC-ADR018-RAW2SRC-RESTART-20260326-R1
+  - product.raw-to-src::adr018-raw2src-restart-20260326-r1
+  - ADR-018
+  - ADR-001
+  - ADR-003
+  - ADR-005
+  - ADR-006
+  - ADR-009
+  - OnboardingMatrix
+  - CutoverDirective
+  - PilotEvidenceRef
+  - compat_mode
+  - wave_id
+  - cutover_guard_ref
+  - producer -> gate -> formal -> consumer -> audit
+  - FEAT-SRC-ADR018-RAW2SRC-RESTART-20260326-R1-008
+  - governed skill onboarding
+  - scope control
+  - no global governance expansion
+  derivation_basis:
+  - fallback writeback obligation
+  - wave state auditability
+  - cutover / rollback trace closure
+- unit_ref: TS-SRC-ADR018-RAW2SRC-RESTART-20260326-R1-008-U05
+  title: adoption scope 不得扩张为仓库级全局治理改造
+  priority: P1
+  input_preconditions:
+  - A team proposes folding all file-governance cleanup into this FEAT
+  - 待评估方案包含超出 governed skill onboarding / pilot / cutover 的全局治理动作。
+  trigger_action: 提交包含仓库级治理动作的 adoption 方案，并执行 FEAT boundary check。
+  observation_points:
+  - scope boundary verdict
+  - rejected expansion note
+  - accepted onboarding scope。
+  pass_conditions:
+  - scope 仅限 governed skill onboarding / pilot / cutover。
+  - 仓库级治理扩张请求被明确拒绝。
+  fail_conditions:
+  - 把仓库级治理清理纳入该 FEAT。
+  - scope expansion 未留下明确 verdict。
+  required_evidence:
+  - scope boundary verdict
+  - rejected expansion evidence
+  - boundary review note
+  suggested_layers: *id001
+  supporting_refs:
+  - EPIC-GATE-EXECUTION-RUNNER
+  - SRC-ADR018-RAW2SRC-RESTART-20260326-R1
+  - product.raw-to-src::adr018-raw2src-restart-20260326-r1
+  - ADR-018
+  - ADR-001
+  - ADR-003
+  - ADR-005
+  - ADR-006
+  - ADR-009
+  - OnboardingMatrix
+  - CutoverDirective
+  - PilotEvidenceRef
+  - compat_mode
+  - wave_id
+  - cutover_guard_ref
+  - producer -> gate -> formal -> consumer -> audit
+  - FEAT-SRC-ADR018-RAW2SRC-RESTART-20260326-R1-008
+  - governed skill onboarding
+  - scope control
+  - no global governance expansion
+  - scope boundary
+  acceptance_ref: FEAT-SRC-ADR018-RAW2SRC-RESTART-20260326-R1-008-AC-03
+coverage_exclusions:
+- Do not redefine Gateway / Policy / Registry / Audit / Gate technical contracts that
+  already belong to foundation FEATs.
+- Do not require one-shot migration of every governed skill or exhaustive coverage
+  of every producer/consumer combination.
+pass_criteria:
+- 每条 acceptance check 都有至少一个可执行测试单元映射。
+- TESTSET 不越界覆盖相邻 FEAT 或新需求。
+- candidate package 在外置 approval 前保持 machine-readable traceability 与 gate subject
+  identity。
+- 高风险或 adoption/E2E 路径需要明确的环境、数据与 pilot execution 前提。
+- 至少一条 producer -> gate -> formal -> consumer -> audit 真实 pilot 主链被验证。
+- pilot evidence 缺失时 rollout 必须 fail closed，fallback / wave state 必须可追溯。
+evidence_required:
+- analysis 与 strategy 形成过程的 execution evidence
+- supervisor 对 TESTSET 与 traceability 的 review evidence
+- candidate package 的 machine-readable gate subject records
+- 若进入 e2e 层，需补充 pilot 链路或 UI/integration context 的执行前提证据
+- pilot evidence package
+- wave state / cutover_guard_ref evidence
+- fallback / rollback evidence
+acceptance_traceability:
+- acceptance_ref: FEAT-SRC-ADR018-RAW2SRC-RESTART-20260326-R1-008-AC-01
+  acceptance_scenario: Onboarding scope and migration waves are explicit
+  given: EPIC-GATE-EXECUTION-RUNNER requires real governed skill landing
+  when: FEAT-SRC-ADR018-RAW2SRC-RESTART-20260326-R1-008 is reviewed for downstream
+    planning
+  then: The FEAT must define onboarding scope, migration waves, and cutover / fallback
+    rules without pretending all governed skills migrate at once.
+  unit_refs:
+  - TS-SRC-ADR018-RAW2SRC-RESTART-20260326-R1-008-U01
+  coverage_status: covered
+  coverage_notes: Acceptance is explicitly mapped to executable minimum coverage units.
+- acceptance_ref: FEAT-SRC-ADR018-RAW2SRC-RESTART-20260326-R1-008-AC-02
+  acceptance_scenario: At least one real pilot chain is required
+  given: Foundation FEATs are implemented in isolation
+  when: 执行 pilot chain verifier 并评估 adoption readiness
+  then: 至少一条 producer -> gate -> formal -> consumer -> audit 真实 pilot 主链必须被验证，不能只依赖组件内自测。
+  unit_refs:
+  - TS-SRC-ADR018-RAW2SRC-RESTART-20260326-R1-008-U02
+  - TS-SRC-ADR018-RAW2SRC-RESTART-20260326-R1-008-U03
+  coverage_status: covered
+  coverage_notes: Acceptance is explicitly mapped to executable minimum coverage units.
+- acceptance_ref: FEAT-SRC-ADR018-RAW2SRC-RESTART-20260326-R1-008-AC-03
+  acceptance_scenario: Adoption scope does not expand into repository-wide governance
+  given: A team proposes folding all file-governance cleanup into this FEAT
+  when: The proposal is checked against FEAT boundaries
+  then: onboarding scope 必须保持在 governed skill onboarding / pilot / cutover 范围内，并拒绝仓库级治理扩张。
+  unit_refs:
+  - TS-SRC-ADR018-RAW2SRC-RESTART-20260326-R1-008-U05
+  coverage_status: covered
+  coverage_notes: Acceptance is explicitly mapped to executable minimum coverage units.
+source_refs:
+- product.epic-to-feat::adr018-epic2feat-restart-20260326-r1
+- FEAT-SRC-ADR018-RAW2SRC-RESTART-20260326-R1-008
+- EPIC-GATE-EXECUTION-RUNNER
+- SRC-ADR018-RAW2SRC-RESTART-20260326-R1
+- product.raw-to-src::adr018-raw2src-restart-20260326-r1
+- ADR-018
+- ADR-001
+- ADR-003
+- ADR-005
+- ADR-006
+- ADR-009
+- product.src-to-epic::adr018-src2epic-restart-20260326-r1
+governing_adrs:
+- ADR-018
+- ADR-001
+- ADR-003
+- ADR-005
+- ADR-006
+- ADR-009
+semantic_lock:
+  domain_type: execution_runner_rule
+  one_sentence_truth: gate approve 后必须生成 ready execution job，并由 Execution Loop Job
+    Runner 自动消费 artifacts/jobs/ready 后推进到下一个 skill，而不是停在 formal publication 或人工接力。
+  primary_object: execution_loop_job_runner
+  lifecycle_stage: post_gate_auto_progression
+  allowed_capabilities:
+  - ready_execution_job_materialization
+  - ready_queue_consumption
+  - next_skill_dispatch
+  - execution_result_recording
+  - retry_reentry_return
+  forbidden_capabilities:
+  - formal_publication_substitution
+  - admission_only_decomposition
+  - third_session_human_relay
+  - directory_guessing_consumer
+  inheritance_rule: approve semantics must stay coupled to ready-job emission and
+    runner-driven next-skill progression; downstream may not replace this with formal
+    publication or admission-only flows.
+status: frozen
+candidate_package_ref: artifacts/feat-to-testset/adr018-epic2feat-restart-20260326-r1--feat-src-adr018-raw2src-restart-20260326-r1-008
+gate_decision_ref: artifacts/active/gates/decisions/gate-decision.json
+frozen_at: '2026-03-27T03:34:17Z'

@@ -1,0 +1,90 @@
+skill_id: ll-execution-loop-job-runner
+skill_type: workflow
+version: 1.0.0
+workflow_key: workflow.execution-loop-job-runner
+
+authority:
+  governing_adrs:
+    - E:\ai\LEE-Lite-skill-first\ssot\adr\ADR-018-Execution Loop Job Runner 作为自动推进运行时.MD
+    - E:\ai\LEE-Lite-skill-first\ssot\adr\ADR-020-标准 Skill 实现、Adapter 安装与 CLI 边界基线.MD
+  feat_ref: FEAT-SRC-003-002
+  runtime_carrier_start: python -m cli.ll loop run-execution
+  runtime_carrier_resume: python -m cli.ll loop resume-execution
+  runtime_entry: python scripts/runner_operator_entry.py invoke --request <request-path> --response-out <response-path>
+  downstream_workflow: execution.loop.runtime
+
+roles:
+  executor:
+    required: true
+    evidence_required: true
+    prompt_file: agents/executor.md
+  supervisor:
+    required: true
+    evidence_required: true
+    prompt_file: agents/supervisor.md
+
+runtime:
+  mode: lite_native
+  command: python scripts/runner_operator_entry.py invoke --request <request-path> --response-out <response-path>
+  entry_script: skills/l3/ll-execution-loop-job-runner/scripts/runner_operator_entry.py
+  accepted_input_paths:
+    - artifacts/active/contracts/input/<request>.json
+    - direct runner skill request json
+  produced_output_dir: artifacts/active/runner
+  required_output_artifacts:
+    - skill response envelope json
+    - runner_run_ref
+    - runner_context_ref
+    - entry_receipt_ref
+    - post_run_snapshot_ref
+
+input:
+  artifact_type: execution_runner_skill_request
+  contract_file: input/contract.yaml
+  schema_file: input/schema.json
+  structural_validation_required: true
+  semantic_validation_required: true
+
+output:
+  artifact_type: execution_runner_skill_response
+  contract_file: output/contract.yaml
+  schema_file: output/schema.json
+  template_file: output/template.md
+  structural_validation_required: true
+  semantic_validation_required: true
+
+validation:
+  structural:
+    - "python scripts/runner_operator_entry.py validate-input --request <request-path>"
+    - "python scripts/runner_operator_entry.py invoke --request <request-path> --response-out <response-path>"
+    - "python scripts/runner_operator_entry.py validate-output --response <response-path>"
+    - "python scripts/runner_operator_entry.py freeze-guard --response <response-path>"
+  semantic:
+    input_checklist: input/semantic-checklist.md
+    output_checklist: output/semantic-checklist.md
+
+evidence:
+  execution_schema: evidence/execution-evidence.schema.json
+  supervision_schema: evidence/supervision-evidence.schema.json
+  report_template: evidence/report.template.md
+
+lifecycle:
+  definition_file: ll.lifecycle.yaml
+  max_revision_rounds: 2
+
+gate:
+  freeze_requires:
+    - input_structural_pass
+    - input_semantic_pass
+    - output_structural_pass
+    - output_semantic_pass
+    - execution_evidence_present
+    - supervision_evidence_present
+    - runner_context_present
+    - entry_receipt_present
+  reject_when:
+    - runner_scope_missing
+    - invalid_entry_mode
+    - runner_context_conflict
+    - resume_target_not_found
+    - required_runtime_refs_missing

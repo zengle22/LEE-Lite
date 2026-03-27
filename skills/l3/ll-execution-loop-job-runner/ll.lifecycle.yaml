@@ -1,0 +1,17 @@
+skill_id: ll-execution-loop-job-runner
+version: 1.0.0
+states:
+  - drafted
+  - install_ready
+  - installed
+  - deprecated
+transitions:
+  - from: drafted
+    to: install_ready
+    when: contracts_and_runtime_smoke_pass
+  - from: install_ready
+    to: installed
+    when: adapter_install_smoke_pass
+  - from: installed
+    to: deprecated
+    when: replacement_skill_is_authoritative
