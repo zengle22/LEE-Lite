@@ -10,12 +10,13 @@ feat_ref: FEAT-SRC-003-005
 epic_ref: EPIC-SRC-003-001
 src_ref: SRC-003
 title: 下游 Skill 自动派发流 Test Set
-description: 冻结 target skill 解析、authoritative input lineage 与自动 dispatch 边界。
+description: 冻结 target skill 解析、authoritative input lineage、gate progression policy 与自动 dispatch 边界。
 status: frozen
 frozen_at: '2026-03-26T00:00:00+08:00'
 candidate_package_ref: artifacts/feat-to-testset/adr018-runner-dispatch-testset-r1
 coverage_scope:
   - 定义 next skill target、输入包引用和调用边界。
+  - 定义 `progression_mode = auto-continue | hold` 如何控制是否进入 ready queue。
   - 定义 runner 把 claimed job 交给下游 skill 时的 authoritative invocation 记录。
   - 定义执行启动失败时如何回写 runner 结果而不是静默丢失。
 recommended_coverage_scope_name:
@@ -32,7 +33,7 @@ preconditions:
   - claimed execution job 已形成 running ownership。
   - target skill ref 与 authoritative input 可被解析。
 environment_assumptions:
-  - target skill ref 与 authoritative input 必须能从 claimed job 唯一解析。
+  - target skill ref、authoritative input 与 progression policy 必须能从 claimed job 唯一解析。
   - next-skill invocation 与 execution attempt 必须保留 lineage。
 required_environment_inputs:
   data:
@@ -65,15 +66,15 @@ test_units:
       - dispatch 使用的输入与 claimed job authoritative input 一致。
       - lineage binding 可回放。
   - unit_ref: TS-SRC-003-005-U03
-    title: dispatch 不退化为第三会话人工接力
+    title: hold 决策不得被 runner 偷跑为自动 dispatch
     priority: P1
     trigger_action: the next step after approve is reviewed
     pass_conditions:
-      - dispatch 由 runner 自动完成，不要求第三会话人工 relay。
-      - operator intervention 仅限治理例外，不是正常主链路径。
+      - `progression_mode = hold` 的 approve 不进入 ready queue。
+      - operator intervention 是显式治理边界，而不是 runner 运行时失败后的补救。
 pass_criteria:
-  - claimed job 必须派发到声明的 target skill，并保留 authoritative input lineage。
-  - dispatch 不得退化成第三会话人工接力。
+  - `auto-continue` 的 claimed job 必须派发到声明的 target skill，并保留 authoritative input lineage。
+  - `hold` 的 approve 不得被 runner 自动消费。
 evidence_required:
   - next-skill invocation evidence
   - execution attempt record

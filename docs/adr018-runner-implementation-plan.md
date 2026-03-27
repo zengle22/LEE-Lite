@@ -9,6 +9,7 @@
 - ADR/SRC 状态与代码现实不一致；
 - ready-job contract 与现有 writer 漂移；
 - CLI/runtime/test surface 在 SSOT 中存在但仓库中缺失。
+- gate approve 后缺少显式的 post-approve progression policy，导致不该自动执行的 TESTSET execution job 直接泄漏到 ready queue。
 
 ## 分阶段计划
 
@@ -57,9 +58,10 @@
 
 - 把 runner 覆盖从当前最小链路扩展到更多下游 workflow；
 - 补齐 `show-status`、`show-backlog` 在 operator 视角下的稳定输出；
-- 明确每类 `target_skill` 的运行入口与 admission 前置条件。
+- 明确每类 `target_skill` 的运行入口与 admission 前置条件；
+- 把 gate `approve` 后的 `progression_mode` 固化为 `auto-continue | hold`，避免 QA execution 链路被误自动拉起。
 
-状态：进行中
+状态：已完成
 
 当前已覆盖：
 
@@ -68,6 +70,7 @@
 - `workflow.dev.feat_to_tech`
 - `workflow.qa.feat_to_testset`
 - `workflow.dev.tech_to_impl`
+- `formal.testset.* -> skill.qa.test_exec_*` 默认 `hold`
 
 下一步：
 
@@ -93,6 +96,8 @@
 - 显式 `ll job renew-lease` 与 `ll loop recover-jobs` 控制面；
 - operator 视角的 `show-status` / `show-backlog` 聚合快照；
 - `run-execution` 后置监控快照与恢复摘要联动。
+- 显式 `ll job release-hold` 控制面；
+- 显式 `ll gate release-hold` façade，用于从 gate / dispatch 语义上恢复 hold 下游推进。
 
 下一步：
 
@@ -104,12 +109,14 @@
 
 1. 先完成 Contract 对齐，避免 SSOT 和实现继续分叉。
 2. 再落最小 Runner 主链，保证 `dispatch -> run-execution -> outcome` 真实可跑。
-3. 然后扩展覆盖链路和恢复协议，最后补全观测与回流能力。
+3. 然后扩展覆盖链路和恢复协议，补上 `progression_mode`、hold 边界和 release 控制面。
+4. 最后补全文档、观测与回流能力。
 
 ## 验收标准
 
-- gate dispatch 生成的 job 默认处于 `ready` 状态；
+- gate dispatch 会根据 `progression_mode` 生成 `ready` 或 `waiting-human` job；
 - `ll loop run-execution` 能自动消费 ready job 并推进下游 workflow；
 - operator 可通过 `ll loop` / `ll job` 完成最小控制与修复；
+- operator 可通过 `ll gate release-hold` 或 `ll job release-hold` 恢复被 hold 的下游推进；
 - 执行 evidence、状态迁移和 backlog 视图都能被稳定写回；
 - SSOT、CLI surface、单元测试三者一致。

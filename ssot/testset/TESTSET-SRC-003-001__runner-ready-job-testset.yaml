@@ -10,13 +10,14 @@ feat_ref: FEAT-SRC-003-001
 epic_ref: EPIC-SRC-003-001
 src_ref: SRC-003
 title: 批准后 Ready Job 生成流 Test Set
-description: 冻结 approve 后 ready execution job 生成、approve-to-job lineage 和非 approve 阻断边界。
+description: 冻结 approve 后 ready / hold dispatch 生成、approve-to-job lineage 和非 approve 阻断边界。
 status: frozen
 frozen_at: '2026-03-26T00:00:00+08:00'
 candidate_package_ref: artifacts/feat-to-testset/adr018-runner-readyjob-testset-r1
 coverage_scope:
-  - 定义 approve 后必须产出的 ready execution job 及其最小字段。
+  - 定义 approve 后可产出的 ready / hold dispatch object 及其最小字段。
   - 定义 ready job 的 authoritative refs、next skill target 和队列落点。
+  - 定义 approve 后 `progression_mode = auto-continue | hold` 的治理边界。
   - 定义 revise / retry / reject / handoff 与 ready job 生成的边界，避免 approve 语义漂移。
 recommended_coverage_scope_name:
   - execution runner ready-job feature
@@ -33,8 +34,8 @@ preconditions:
   - approve decision 已存在且 dispatchable。
   - ready queue writer 可写入 artifacts/jobs/ready。
 environment_assumptions:
-  - approve decision 与 next skill target 必须可解析为唯一 ready execution job。
-  - artifacts/jobs/ready 写入与 approve-to-job lineage 需要可重复验证。
+  - approve decision 与 next skill target 必须可解析为唯一 governed dispatch result。
+  - ready / hold 队列写入与 approve-to-job lineage 需要可重复验证。
 required_environment_inputs:
   data:
     - approve decision fixture
@@ -52,12 +53,13 @@ test_layers:
   - integration
 test_units:
   - unit_ref: TS-SRC-003-001-U01
-    title: approve 结果只在允许时写入 ready execution job
+    title: approve 结果只在允许 auto-continue 时写入 ready execution job
     priority: P1
     trigger_action: dispatch finishes
     pass_conditions:
       - approve 后形成唯一 ready execution job。
       - approve-to-job lineage 可回链到 gate decision 与 target skill。
+      - `progression_mode = hold` 时不得写入 ready queue。
   - unit_ref: TS-SRC-003-001-U02
     title: 非 approve 路径不得泄漏 ready queue item
     priority: P1
@@ -73,7 +75,7 @@ test_units:
       - ready job 只保留一条 authoritative queue lineage。
       - 下游 runner 可直接用该 lineage 启动消费。
 pass_criteria:
-  - approve 后必须产出 ready execution job，并保留 approve-to-job lineage。
+  - approve 后必须产出 governed dispatch result，并保留 approve-to-job lineage。
   - non-approve 路径不得生成 ready queue item。
 evidence_required:
   - ready execution job evidence
@@ -81,7 +83,7 @@ evidence_required:
   - ready queue receipt
 acceptance_traceability:
   - acceptance_ref: ready-job-emission-AC-01
-    acceptance_scenario: Approve emits one ready job
+    acceptance_scenario: Approve emits one governed dispatch result
     coverage_status: covered
   - acceptance_ref: ready-job-emission-AC-02
     acceptance_scenario: Approve is not rewritten as formal publication

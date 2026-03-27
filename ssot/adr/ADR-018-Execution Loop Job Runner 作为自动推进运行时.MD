@@ -4,7 +4,7 @@
 * 日期：2026-03-25
 * 决策者：Le Zeng
 * 适用范围：LEE Lite（LL）v0.x 主链自动推进运行时
-* 相关 ADR：ADR-001、ADR-003、ADR-005、ADR-006、ADR-009
+* 相关 ADR：ADR-001、ADR-003、ADR-005、ADR-006、ADR-009、ADR-020
 
 ---
 
@@ -156,6 +156,14 @@ LL v0.x 正式采用：
 5. runner 只消费结构化 job object 与 formal/handoff refs；
 6. runner 是自动执行 consumer，不是业务语义决策者。
 
+gate approve 后的推进策略也同时冻结为：
+
+1. `decision=approve` 只表达“当前对象批准通过”；
+2. 是否继续自动拉起下游，必须由 gate 显式给出 `progression_mode`；
+3. `progression_mode=auto-continue` 时，dispatch 才可生成 `status=ready` 的 next-skill job；
+4. `progression_mode=hold` 时，dispatch 必须停在 hold/waiting-human 边界，等待环境、部署或人工前置满足；
+5. runner 只消费已经被 gate 允许自动推进的 ready job，不替 gate 猜测“该不该继续”。
+
 ---
 
 ## 3.2 正式定义
@@ -175,6 +183,12 @@ Execution Loop Job Runner 在 LL v0.x 中被定义为：
 * formalization authority；
 * 人工审批替代物；
 * 新的重型调度平台。
+
+若后续需要提供 Claude/Codex 可显式触发的 operator-facing skill 入口，则该入口必须遵循 ADR-020：
+
+* skill authority 在 canonical governed skill bundle；
+* `ll loop/*`、`ll job/*` 仍是 repo control CLI carrier；
+* control CLI 不得替代 skill 本体。
 
 因此，本 ADR 的核心取舍是：
 
@@ -230,7 +244,7 @@ ADR-018 规定：
 
 两者边界必须清晰：
 
-* gate 决定“是否允许自动推进”
+* gate 通过 `decision=approve` + `progression_mode` 决定“是否允许自动推进”
 * runner 负责“已经允许后如何自动执行”
 
 ## 4.5 与 ADR-009 的关系

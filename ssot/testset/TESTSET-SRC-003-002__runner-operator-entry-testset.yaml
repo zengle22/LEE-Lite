@@ -10,17 +10,24 @@ feat_ref: FEAT-SRC-003-002
 epic_ref: EPIC-SRC-003-001
 src_ref: SRC-003
 title: Runner 用户入口流 Test Set
-description: 冻结 Execution Loop Job Runner 的独立 skill 入口、CLI 启动面与 start/resume 上下文边界。
+description: 冻结 Execution Loop Job Runner 的 canonical governed skill bundle、installed adapter、CLI 启动面与 start/resume 上下文边界。
 status: frozen
 frozen_at: '2026-03-26T00:00:00+08:00'
 candidate_package_ref: artifacts/feat-to-testset/adr018-runner-entry-testset-r1
 coverage_scope:
-  - 定义独立 skill 入口：Execution Loop Job Runner。
+  - 定义独立 canonical governed skill bundle：`skills/l3/ll-execution-loop-job-runner/`。
   - 定义入口 skill 的最小输入、启动时机和与 ready queue 的绑定边界。
-  - 定义 operator 通过入口 skill 触发 runner 的责任，而不是继续依赖人工接力或隐式后台。
+  - 定义 operator 通过 installed skill adapter 与 repo CLI carrier 触发 runner 的责任，而不是继续依赖人工接力或隐式后台。
 recommended_coverage_scope_name:
   - execution runner operator-entry feature
 feature_owned_code_paths:
+  - skills/l3/ll-execution-loop-job-runner/SKILL.md
+  - skills/l3/ll-execution-loop-job-runner/ll.contract.yaml
+  - skills/l3/ll-execution-loop-job-runner/ll.lifecycle.yaml
+  - skills/l3/ll-execution-loop-job-runner/input/contract.yaml
+  - skills/l3/ll-execution-loop-job-runner/input/schema.json
+  - skills/l3/ll-execution-loop-job-runner/output/contract.yaml
+  - skills/l3/ll-execution-loop-job-runner/output/schema.json
   - cli/lib/runner_entry.py
   - cli/lib/execution_runner.py
   - cli/commands/loop/command.py
@@ -30,13 +37,13 @@ risk_focus:
   - resume 丢失 authoritative run context
 preconditions:
   - selected FEAT 及其上游 source refs 可被稳定解析。
-  - Claude/Codex CLI 可调用 runner skill entry。
+  - Claude/Codex CLI 可调用 installed runner skill adapter。
   - runner context bootstrapper 可创建或恢复 run context。
 environment_assumptions:
   - 需要可解析 selected FEAT 所依赖的集成环境与上游 artifact lineage。
   - 需要能读取并追踪 FEAT、EPIC、SRC 与 governing ADR 引用。
   - 需要保留 execution evidence 与 supervision evidence 所要求的最小审计链。
-  - Claude/Codex CLI 可调用 runner skill entry，且 run context 可启动或恢复。
+  - Claude/Codex CLI 可调用 installed runner skill adapter，且 run context 可启动或恢复。
   - entry receipt 与 runner_run_ref 必须可回链到同一条 authoritative runner trace。
 required_environment_inputs:
   environment:
@@ -50,12 +57,13 @@ required_environment_inputs:
     - runner context sample
   services:
     - selected FEAT 所依赖的集成服务或协作 consumer
-    - runner skill entry
+    - canonical runner skill bundle
+    - installed runner skill adapter
     - runner context bootstrapper
   access:
     - 读取 FEAT candidate / freeze lineage 所需权限
     - 执行 QA evidence 采集与落盘所需权限
-    - 调用 runner skill entry 与读取 runner invocation receipt 的权限
+    - 调用 installed runner skill adapter 与读取 runner invocation receipt 的权限
     - runner context bootstrap identity 或等价账号材料
   feature_flags:
     - run-execution enablement / resume-entry guard
@@ -66,15 +74,16 @@ test_layers:
   - integration
 test_units:
   - unit_ref: TS-SRC-003-002-U01
-    title: runner skill 入口作为显式 Claude/Codex CLI 用户入口存在
+    title: canonical runner skill bundle 作为显式 Claude/Codex CLI 用户入口存在
     priority: P1
     trigger_action: the runtime入口 is inspected
     pass_conditions:
-      - 存在独立 runner skill 入口。
-      - 入口可通过 Claude/Codex CLI 直接调用，不隐藏在后台自动链中。
+      - 存在独立 canonical governed skill bundle。
+      - 入口可通过 Claude/Codex CLI installed adapter 直接调用，不隐藏在后台自动链中。
     required_evidence:
       - runner invocation receipt
-      - runner skill entry trace
+      - canonical runner skill trace
+      - installed adapter smoke evidence
       - operator surface evidence
   - unit_ref: TS-SRC-003-002-U02
     title: start 与 resume 保留 authoritative runner context
@@ -92,8 +101,8 @@ test_units:
     priority: P1
     trigger_action: FEAT-SRC-003-002 is reviewed as a standalone capability
     pass_conditions:
-      - runner 入口只启动或恢复 execution runner，不要求人工接力调用下一 skill。
-      - 入口职责与 dispatch 职责分离。
+      - runner skill authority 只启动或恢复 execution runner，不要求人工接力调用下一 skill。
+      - skill authority、CLI carrier 与 dispatch 职责分离。
     required_evidence:
       - invocation mode evidence
       - responsibility boundary note
@@ -102,14 +111,15 @@ coverage_exclusions:
   - 不把本 TESTSET 扩展为 TASK、TECH 或 runner-level 实现细节。
 pass_criteria:
   - 每条 acceptance check 都有至少一个可执行测试单元映射。
-  - runner skill entry 必须是显式的 Claude/Codex CLI 用户入口。
+  - runner skill authority 必须是显式的 Claude/Codex CLI 用户入口。
   - start / resume 必须保留 authoritative run context，不得退化成 manual relay。
 evidence_required:
   - analysis 与 strategy 形成过程的 execution evidence
   - supervisor 对 TESTSET 与 traceability 的 review evidence
   - runner invocation receipt
   - runner context bootstrap evidence
-  - runner skill entry trace
+  - canonical runner skill trace
+  - installed adapter smoke evidence
 acceptance_traceability:
   - acceptance_ref: runner-operator-entry-AC-01
     acceptance_scenario: Runner exposes a named skill entry
@@ -128,6 +138,7 @@ source_refs:
   - product.raw-to-src::adr018-entry-surface-r1
   - product.src-to-epic::adr018-entry-surface-epic-r1
   - ADR-018
+  - ADR-020
   - ADR-001
   - ADR-003
   - ADR-005
@@ -135,6 +146,7 @@ source_refs:
   - ADR-009
 governing_adrs:
   - ADR-018
+  - ADR-020
   - ADR-001
   - ADR-003
   - ADR-005
