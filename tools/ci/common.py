@@ -104,10 +104,15 @@ def find_skill_roots(changed_files: list[str]) -> list[Path]:
     roots: set[Path] = set()
     for rel_path in changed_files:
         parts = Path(rel_path).parts
-        if len(parts) >= 2 and parts[0] == "skills":
+        if not parts or parts[0] != "skills":
+            continue
+        candidate: Path | None = None
+        if len(parts) >= 3 and parts[1].lower().startswith("l") and parts[1][1:].isdigit():
+            candidate = ROOT / parts[0] / parts[1] / parts[2]
+        elif len(parts) >= 2:
             candidate = ROOT / parts[0] / parts[1]
-            if candidate.is_dir():
-                roots.add(candidate)
+        if candidate and candidate.is_dir():
+            roots.add(candidate)
     return sorted(roots)
 
 

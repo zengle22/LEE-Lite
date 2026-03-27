@@ -24,7 +24,16 @@ from .common import (
 
 
 def extract_runtime_paths(command: str) -> list[str]:
-    return re.findall(r"[\w./-]+\.(?:py|sh|json|yaml|yml|md)", command)
+    return re.findall(r"(?<!<)[\w./-]+\.(?:py|sh|json|yaml|yml|md)(?!>)", command)
+
+
+def _resolve_declared_path(skill_root: Path, declared: str) -> Path:
+    path = Path(declared)
+    if path.is_absolute():
+        return path
+    if path.parts and path.parts[0] in {"artifacts", "cli", "skills", "spec", "ssot", "tests", "tools"}:
+        return ROOT / path
+    return skill_root / path
 
 
 def build_cli_surface() -> dict[str, Any]:
@@ -99,7 +108,7 @@ def check_skill_governance(changed_files: list[str], output_dir: Path, run_tests
         for declared in sorted(set(declared_paths)):
             if declared.startswith("<"):
                 continue
-            if not (skill_root / declared).exists():
+            if not _resolve_declared_path(skill_root, declared).exists():
                 violations.append(Violation("skill-governance", "broken_declared_path", rel_root, f"Declared path does not exist: {declared}"))
         agent_configs = sorted((skill_root / "agents").glob("*.yaml"))
         if agent_configs:

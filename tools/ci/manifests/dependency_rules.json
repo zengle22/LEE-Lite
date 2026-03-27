@@ -58,6 +58,15 @@
       "tests": ["tests/unit/test_lee_qa_feat_to_testset.py"]
     },
     {
+      "name": "execution-loop-job-runner-skill",
+      "patterns": ["skills/l3/ll-execution-loop-job-runner/**"],
+      "tests": [
+        "tests/unit/test_ci_validators.py",
+        "tests/unit/test_cli_skill_runner_entry.py",
+        "tests/unit/test_cli_runner_runtime.py"
+      ]
+    },
+    {
       "name": "cli-runtime",
       "patterns": ["cli/**"],
       "tests": [
