@@ -53,3 +53,20 @@ def ensure(condition: bool, status_code: str, message: str, diagnostics: list[st
     if not condition:
         raise CommandError(status_code, message, diagnostics or [])
 
+
+def parse_int(value: object, *, field_name: str, minimum: int | None = None) -> int:
+    if isinstance(value, bool):
+        raise CommandError("INVALID_REQUEST", f"{field_name} must be an integer")
+    if isinstance(value, int):
+        parsed = value
+    elif isinstance(value, str):
+        normalized = value.strip()
+        try:
+            parsed = int(normalized)
+        except (TypeError, ValueError) as exc:
+            raise CommandError("INVALID_REQUEST", f"{field_name} must be an integer") from exc
+    else:
+        raise CommandError("INVALID_REQUEST", f"{field_name} must be an integer")
+    if minimum is not None and parsed < minimum:
+        raise CommandError("INVALID_REQUEST", f"{field_name} must be >= {minimum}")
+    return parsed

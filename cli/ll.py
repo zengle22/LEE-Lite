@@ -9,6 +9,8 @@ from cli.commands.artifact.command import handle as handle_artifact
 from cli.commands.audit.command import handle as handle_audit
 from cli.commands.evidence.command import handle as handle_evidence
 from cli.commands.gate.command import handle as handle_gate
+from cli.commands.job.command import handle as handle_job
+from cli.commands.loop.command import handle as handle_loop
 from cli.commands.registry.command import handle as handle_registry
 from cli.commands.rollout.command import handle as handle_rollout
 from cli.commands.skill.command import handle as handle_skill
@@ -55,6 +57,18 @@ def build_parser() -> argparse.ArgumentParser:
     for action in ("submit-handoff", "show-pending", "decide", "create", "verify", "evaluate", "materialize", "dispatch", "close-run"):
         _add_action_parser(gate_sub, action)
     gate.set_defaults(handler=handle_gate)
+
+    loop = groups.add_parser("loop")
+    loop_sub = loop.add_subparsers(dest="action", required=True)
+    for action in ("run-execution", "show-status", "show-backlog", "recover-jobs"):
+        _add_action_parser(loop_sub, action)
+    loop.set_defaults(handler=handle_loop)
+
+    job = groups.add_parser("job")
+    job_sub = job.add_subparsers(dest="action", required=True)
+    for action in ("claim", "run", "renew-lease", "complete", "fail"):
+        _add_action_parser(job_sub, action)
+    job.set_defaults(handler=handle_job)
 
     rollout = groups.add_parser("rollout")
     rollout_sub = rollout.add_subparsers(dest="action", required=True)
