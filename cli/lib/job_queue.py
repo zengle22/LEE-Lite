@@ -160,3 +160,35 @@ def renew_job_lease(
         "lease_expires_at": updated_job.get("lease_expires_at", ""),
         "heartbeat_count": updated_job.get("heartbeat_count", 0),
     }
+
+
+def release_hold_job(
+    workspace_root: Path,
+    job_ref: str,
+    *,
+    actor_ref: str,
+    note: str | None = None,
+) -> dict[str, Any]:
+    _, payload = load_job_record(workspace_root, job_ref)
+    ensure(str(payload.get("status") or "").strip() == "waiting-human", "PRECONDITION_FAILED", f"job is not on hold: {job_ref}")
+    released_ref, released_job = transition_job(
+        workspace_root,
+        job_ref,
+        "ready",
+        actor_ref=actor_ref,
+        note=note or "operator released hold and promoted job to ready",
+        updates={
+            "progression_mode": "auto-continue",
+            "hold_released_at": payload.get("hold_released_at") or claimed_job_time(),
+            "hold_released_by": actor_ref,
+        },
+    )
+    return {
+        "canonical_path": released_ref,
+        "job_ref": released_ref,
+        "released_job_ref": released_ref,
+        "job_id": released_job["job_id"],
+        "status": released_job["status"],
+        "queue_path": released_job.get("queue_path", released_ref),
+        "progression_mode": released_job.get("progression_mode", ""),
+    }

@@ -27,6 +27,7 @@ ALLOWED_TRANSITIONS = {
     "claimed": {"running"},
     "running": {"done", "failed", "waiting-human", "deadletter"},
     "failed": {"ready", "waiting-human", "deadletter"},
+    "waiting-human": {"ready"},
 }
 
 
@@ -181,6 +182,7 @@ def recover_job_to_ready(
     payload["updated_at"] = utc_now()
     _append_history(payload, status="ready", actor_ref=actor_ref, note=note or "runner recovered expired lease")
     target_path = job_path_for_status(workspace_root, "ready", source_path.name)
+    payload["queue_path"] = to_canonical_path(target_path, workspace_root)
     ensure(not target_path.exists(), "PRECONDITION_FAILED", f"target job path already exists: {to_canonical_path(target_path, workspace_root)}")
     ensure_parent(target_path)
     write_json(target_path, payload)
@@ -210,6 +212,7 @@ def transition_job(
     payload["updated_at"] = utc_now()
     _append_history(payload, status=target_status, actor_ref=actor_ref, note=note)
     target_path = job_path_for_status(workspace_root, target_status, source_path.name)
+    payload["queue_path"] = to_canonical_path(target_path, workspace_root)
     if target_path.resolve() == source_path.resolve():
         write_json(target_path, payload)
         return to_canonical_path(target_path, workspace_root), payload

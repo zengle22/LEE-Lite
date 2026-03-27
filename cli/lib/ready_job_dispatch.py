@@ -25,6 +25,7 @@ def _base_handoff(
     target_kind: str,
     source_package_ref: str,
     authoritative_input_ref: str,
+    progression_mode: str = "auto-continue",
 ) -> dict[str, Any]:
     return {
         "trace": trace,
@@ -37,6 +38,7 @@ def _base_handoff(
         "target_kind": target_kind,
         "source_package_ref": source_package_ref,
         "authoritative_input_ref": authoritative_input_ref,
+        "progression_mode": progression_mode,
         "created_at": _utc_now(),
     }
 
@@ -55,6 +57,8 @@ def _base_job(
     input_refs: list[str],
     queue_path: str,
     slug: str,
+    progression_mode: str = "auto-continue",
+    status: str = "ready",
 ) -> dict[str, Any]:
     return {
         "trace": trace,
@@ -69,7 +73,7 @@ def _base_job(
         "authoritative_input_ref": authoritative_input_ref,
         "gate_decision_ref": decision_ref,
         "priority": "normal",
-        "status": "ready",
+        "status": status,
         "created_at": _utc_now(),
         "queue_path": queue_path,
         "consumer_type": "skill_loop",
@@ -78,6 +82,7 @@ def _base_job(
         "formal_ref": formal_ref,
         "published_ref": published_ref,
         "source_package_ref": source_package_ref,
+        "progression_mode": progression_mode,
     }
 
 
@@ -125,6 +130,7 @@ def build_feat_downstream_dispatch(
                 target_kind=target_kind,
                 source_package_ref=source_package_ref,
                 authoritative_input_ref=authoritative_input_ref,
+                progression_mode="auto-continue",
             )
             handoff_payload["feat_ref"] = feat_ref
             write_json(canonical_to_path(handoff_ref, workspace_root), handoff_payload)
@@ -143,6 +149,8 @@ def build_feat_downstream_dispatch(
                 input_refs=input_refs,
                 queue_path=job_ref,
                 slug=slug,
+                progression_mode="auto-continue",
+                status="ready",
             )
             job_payload["feat_ref"] = feat_ref
             job_payload["reason"] = f"Approved FEAT {feat_ref} is ready for downstream {target_kind} derivation."
@@ -181,6 +189,7 @@ def build_src_downstream_dispatch(
         target_kind="EPIC",
         source_package_ref=source_package_ref,
         authoritative_input_ref=authoritative_input_ref,
+        progression_mode="auto-continue",
     )
     handoff_payload["src_ref"] = src_ref
     write_json(canonical_to_path(handoff_ref, workspace_root), handoff_payload)
@@ -198,6 +207,8 @@ def build_src_downstream_dispatch(
         input_refs=input_refs,
         queue_path=job_ref,
         slug=f"{slugify(src_ref)}-src-to-epic",
+        progression_mode="auto-continue",
+        status="ready",
     )
     job_payload["src_ref"] = src_ref
     job_payload["reason"] = f"Approved SRC {src_ref} is ready for downstream EPIC derivation."
@@ -234,6 +245,7 @@ def build_epic_downstream_dispatch(
         target_kind="FEAT",
         source_package_ref=source_package_ref,
         authoritative_input_ref=authoritative_input_ref,
+        progression_mode="auto-continue",
     )
     handoff_payload["epic_ref"] = epic_ref
     handoff_payload["src_ref"] = src_ref
@@ -252,6 +264,8 @@ def build_epic_downstream_dispatch(
         input_refs=input_refs,
         queue_path=job_ref,
         slug=f"{slugify(epic_ref)}-epic-to-feat",
+        progression_mode="auto-continue",
+        status="ready",
     )
     job_payload["epic_ref"] = epic_ref
     job_payload["src_ref"] = src_ref
@@ -288,6 +302,7 @@ def build_tech_downstream_dispatch(
         target_kind="IMPL",
         source_package_ref=source_package_ref,
         authoritative_input_ref=authoritative_input_ref,
+        progression_mode="auto-continue",
     )
     handoff_payload["feat_ref"] = feat_ref
     handoff_payload["tech_ref"] = tech_ref
@@ -306,6 +321,8 @@ def build_tech_downstream_dispatch(
         input_refs=input_refs,
         queue_path=job_ref,
         slug=f"{slugify(tech_ref or formal_ref)}-tech-to-impl",
+        progression_mode="auto-continue",
+        status="ready",
     )
     job_payload["feat_ref"] = feat_ref
     job_payload["tech_ref"] = tech_ref
@@ -331,9 +348,27 @@ def build_testset_downstream_dispatch(
     published_ref = str(record.get("managed_artifact_ref") or "").strip()
     source_package_ref = str(metadata.get("source_package_ref") or "").strip()
     handoff_ref = f"artifacts/active/handoffs/{Path(decision_ref).stem}-{slugify(test_set_ref or formal_ref)}-test-exec.json"
-    job_ref = f"artifacts/jobs/ready/{Path(decision_ref).stem}-{slugify(test_set_ref or formal_ref)}-test-exec.json"
+    progression_mode = str(decision.get("progression_mode") or "hold").strip()
+    ensure(
+        progression_mode in {"auto-continue", "hold"},
+        "INVALID_REQUEST",
+        f"unsupported progression_mode for TESTSET dispatch: {progression_mode}",
+    )
+    job_dir = "artifacts/jobs/ready" if progression_mode == "auto-continue" else "artifacts/jobs/waiting-human"
+    job_status = "ready" if progression_mode == "auto-continue" else "waiting-human"
+    job_ref = f"{job_dir}/{Path(decision_ref).stem}-{slugify(test_set_ref or formal_ref)}-test-exec.json"
     authoritative_input_ref = published_ref or formal_ref
     input_refs = [decision_ref, formal_ref, published_ref] if published_ref else [decision_ref, formal_ref]
+    required_preconditions = decision.get("required_preconditions")
+    if isinstance(required_preconditions, list):
+        required_preconditions = [str(item).strip() for item in required_preconditions if str(item).strip()]
+    else:
+        required_preconditions = []
+    if progression_mode == "hold" and not required_preconditions:
+        required_preconditions = ["test_environment_ref"]
+    hold_reason = str(decision.get("hold_reason") or "").strip()
+    if progression_mode == "hold" and not hold_reason:
+        hold_reason = "test_environment_pending"
 
     handoff_payload = _base_handoff(
         trace=trace,
@@ -344,9 +379,14 @@ def build_testset_downstream_dispatch(
         target_kind="TEST_EXEC",
         source_package_ref=source_package_ref,
         authoritative_input_ref=authoritative_input_ref,
+        progression_mode=progression_mode,
     )
     handoff_payload["feat_ref"] = feat_ref
     handoff_payload["test_set_ref"] = test_set_ref
+    if required_preconditions:
+        handoff_payload["required_preconditions"] = required_preconditions
+    if hold_reason:
+        handoff_payload["hold_reason"] = hold_reason
     write_json(canonical_to_path(handoff_ref, workspace_root), handoff_payload)
 
     job_payload = _base_job(
@@ -362,9 +402,20 @@ def build_testset_downstream_dispatch(
         input_refs=input_refs,
         queue_path=job_ref,
         slug=f"{slugify(test_set_ref or formal_ref)}-test-exec",
+        progression_mode=progression_mode,
+        status=job_status,
     )
     job_payload["feat_ref"] = feat_ref
     job_payload["test_set_ref"] = test_set_ref
-    job_payload["reason"] = f"Approved TESTSET {test_set_ref or formal_ref} is ready for downstream execution."
+    if required_preconditions:
+        job_payload["required_preconditions"] = required_preconditions
+    if hold_reason:
+        job_payload["hold_reason"] = hold_reason
+    if progression_mode == "auto-continue":
+        job_payload["reason"] = f"Approved TESTSET {test_set_ref or formal_ref} is ready for downstream execution."
+    else:
+        job_payload["reason"] = (
+            f"Approved TESTSET {test_set_ref or formal_ref} is held until downstream execution preconditions are released."
+        )
     write_json(canonical_to_path(job_ref, workspace_root), job_payload)
     return [handoff_ref], [job_ref]

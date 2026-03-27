@@ -54,19 +54,19 @@ def build_parser() -> argparse.ArgumentParser:
 
     gate = groups.add_parser("gate")
     gate_sub = gate.add_subparsers(dest="action", required=True)
-    for action in ("submit-handoff", "show-pending", "decide", "create", "verify", "evaluate", "materialize", "dispatch", "close-run"):
+    for action in ("submit-handoff", "show-pending", "decide", "create", "verify", "evaluate", "materialize", "dispatch", "release-hold", "close-run"):
         _add_action_parser(gate_sub, action)
     gate.set_defaults(handler=handle_gate)
 
     loop = groups.add_parser("loop")
     loop_sub = loop.add_subparsers(dest="action", required=True)
-    for action in ("run-execution", "show-status", "show-backlog", "recover-jobs"):
+    for action in ("run-execution", "resume-execution", "show-status", "show-backlog", "recover-jobs"):
         _add_action_parser(loop_sub, action)
     loop.set_defaults(handler=handle_loop)
 
     job = groups.add_parser("job")
     job_sub = job.add_subparsers(dest="action", required=True)
-    for action in ("claim", "run", "renew-lease", "complete", "fail"):
+    for action in ("claim", "release-hold", "run", "renew-lease", "complete", "fail"):
         _add_action_parser(job_sub, action)
     job.set_defaults(handler=handle_job)
 

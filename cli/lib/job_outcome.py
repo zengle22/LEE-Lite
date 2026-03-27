@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from cli.lib.errors import ensure
+from cli.lib.errors import ensure, parse_int
 from cli.lib.fs import canonical_to_path, write_json
 from cli.lib.job_state import ensure_job_lease_active, ensure_job_owner, load_job_record, transition_job, utc_now
 
@@ -72,6 +72,10 @@ def fail_job(
     ensure_job_owner(job, owner_ref=owner_ref, job_ref=job_ref)
     ensure_job_lease_active(job, job_ref=job_ref)
     ensure(failure_mode in {"failed", "waiting-human", "deadletter", "retry-reentry"}, "INVALID_REQUEST", f"unknown failure_mode: {failure_mode}")
+    if failure_mode == "retry-reentry":
+        retry_count = parse_int(job.get("retry_count", 0), field_name="retry_count", minimum=0)
+        retry_budget = parse_int(job.get("retry_budget", 0), field_name="retry_budget", minimum=0)
+        ensure(retry_count < retry_budget, "PRECONDITION_FAILED", "retry budget exhausted")
     outcome_ref = _outcome_ref(job["job_id"], "outcome")
     outcome_payload = {
         "trace": trace,
@@ -85,9 +89,6 @@ def fail_job(
     }
     write_json(canonical_to_path(outcome_ref, workspace_root), outcome_payload)
     if failure_mode == "retry-reentry":
-        retry_count = int(job.get("retry_count", 0))
-        retry_budget = int(job.get("retry_budget", 0))
-        ensure(retry_count < retry_budget, "PRECONDITION_FAILED", "retry budget exhausted")
         failed_ref, _ = transition_job(
             workspace_root,
             job_ref,
@@ -110,6 +111,9 @@ def fail_job(
                 "claimed_at": "",
                 "started_at": "",
                 "lease_expires_at": "",
+                "heartbeat_at": "",
+                "lease_renewed_at": "",
+                "heartbeat_count": 0,
             },
         )
         return {

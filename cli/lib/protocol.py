@@ -36,6 +36,75 @@ class CommandContext:
         return trace
 
 
+@dataclass(frozen=True)
+class ExecutionRunnerStartRequest:
+    runner_scope_ref: str
+    entry_mode: str
+    queue_ref: str
+    runner_run_id: str
+
+    @classmethod
+    def from_command_context(cls, ctx: CommandContext, *, default_entry_mode: str | None = None) -> "ExecutionRunnerStartRequest | None":
+        payload = ctx.payload
+        runner_scope_ref = str(payload.get("runner_scope_ref") or "").strip()
+        entry_mode = str(payload.get("entry_mode") or default_entry_mode or "").strip().lower()
+        if not runner_scope_ref and not entry_mode:
+            return None
+        ensure(runner_scope_ref, "INVALID_REQUEST", "runner_scope_missing: runner_scope_ref is required")
+        ensure(entry_mode in {"start", "resume"}, "INVALID_REQUEST", "entry_mode must be start or resume")
+        queue_ref = str(payload.get("queue_ref") or "artifacts/jobs/ready").strip() or "artifacts/jobs/ready"
+        runner_run_id = str(payload.get("runner_run_id") or ctx.trace.get("run_ref") or ctx.request["request_id"]).strip()
+        ensure(runner_run_id, "INVALID_REQUEST", "runner_run_id is required")
+        return cls(
+            runner_scope_ref=runner_scope_ref,
+            entry_mode=entry_mode,
+            queue_ref=queue_ref,
+            runner_run_id=runner_run_id,
+        )
+
+
+@dataclass(frozen=True)
+class ExecutionRunnerRunRef:
+    runner_run_ref: str
+    runner_context_ref: str
+    entry_receipt_ref: str
+    runner_scope_ref: str
+    entry_mode: str
+    queue_ref: str
+    started_at: str
+    runner_run_id: str
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "runner_run_ref": self.runner_run_ref,
+            "runner_context_ref": self.runner_context_ref,
+            "entry_receipt_ref": self.entry_receipt_ref,
+            "runner_scope_ref": self.runner_scope_ref,
+            "entry_mode": self.entry_mode,
+            "queue_ref": self.queue_ref,
+            "started_at": self.started_at,
+            "runner_run_id": self.runner_run_id,
+        }
+
+
+@dataclass(frozen=True)
+class RunnerEntryReceipt:
+    runner_run_ref: str
+    runner_context_ref: str
+    entry_receipt_ref: str
+    entry_mode: str
+    started_at: str
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "runner_run_ref": self.runner_run_ref,
+            "runner_context_ref": self.runner_context_ref,
+            "entry_receipt_ref": self.entry_receipt_ref,
+            "entry_mode": self.entry_mode,
+            "started_at": self.started_at,
+        }
+
+
 def load_context(args: Namespace) -> CommandContext:
     request_path = Path(args.request).resolve()
     request = load_json(request_path)
