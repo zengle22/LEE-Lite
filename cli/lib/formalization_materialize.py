@@ -130,6 +130,12 @@ def _resolve_src_target_path(workspace_root: Path, formal_ref: str, title: str) 
     return assigned_id, formal_src_output_path(workspace_root, assigned_id, title)
 
 
+def _ensure_publication_title(title: str, target_kind: str, ref_value: str) -> str:
+    normalized = str(title or "").strip()
+    ensure(normalized, "PRECONDITION_FAILED", f"{target_kind} formalization requires non-empty title: {ref_value}")
+    return normalized
+
+
 def materialize_src(
     workspace_root: Path,
     trace: dict[str, Any],
@@ -140,8 +146,9 @@ def materialize_src(
     materialized_by: str,
 ) -> dict[str, str]:
     snapshot = read_candidate_snapshot(workspace_root, source_path, candidate)
+    title = _ensure_publication_title(snapshot["title"], "src", str(candidate.get("artifact_ref") or formal_ref))
     frozen_at = datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
-    assigned_id, target_path = _resolve_src_target_path(workspace_root, formal_ref, snapshot["title"])
+    assigned_id, target_path = _resolve_src_target_path(workspace_root, formal_ref, title)
     write_result = governed_write(
         workspace_root,
         trace=trace,
@@ -226,8 +233,9 @@ def materialize_epic(
     materialized_by: str,
 ) -> dict[str, str]:
     snapshot = read_candidate_snapshot(workspace_root, source_path, candidate)
+    title = _ensure_publication_title(snapshot["title"], "epic", str(candidate.get("artifact_ref") or formal_ref))
     frozen_at = datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
-    assigned_id, target_path = _resolve_epic_target_path(workspace_root, formal_ref, snapshot["title"], snapshot, candidate)
+    assigned_id, target_path = _resolve_epic_target_path(workspace_root, formal_ref, title, snapshot, candidate)
     write_result = governed_write(
         workspace_root,
         trace=trace,
@@ -298,7 +306,7 @@ def materialize_feat(
     gateway_receipt_refs: list[str] = []
     for feature in features:
         assigned_id = str(feature.get("feat_ref") or "").strip()
-        title = str(feature.get("title") or assigned_id).strip() or assigned_id
+        title = _ensure_publication_title(str(feature.get("title") or ""), "feat", assigned_id)
         child_formal_ref = f"formal.feat.{slugify(assigned_id)}"
         existing = existing_formal_record(workspace_root, child_formal_ref)
         target_path: Path | None = None
@@ -364,7 +372,7 @@ def materialize_tech(
     snapshot = read_candidate_snapshot(workspace_root, source_path, candidate)
     candidate_json = snapshot["candidate_json"]
     assigned_id = str(candidate_json.get("tech_ref") or "").strip() or str(candidate["artifact_ref"]).replace("candidate.", "TECH-", 1)
-    title = str(candidate_json.get("title") or snapshot["title"]).strip() or assigned_id
+    title = _ensure_publication_title(str(candidate_json.get("title") or snapshot["title"]), "tech", assigned_id)
     existing = existing_formal_record(workspace_root, formal_ref)
     target_path: Path | None = None
     if existing:
@@ -451,7 +459,7 @@ def materialize_testset(
         test_set_yaml = yaml.safe_load(test_set_path.read_text(encoding="utf-8")) or {}
     candidate_json = snapshot["candidate_json"]
     assigned_id = str(candidate_json.get("test_set_ref") or test_set_yaml.get("id") or "").strip() or formal_ref.split(".")[-1].upper()
-    title = str(candidate_json.get("title") or snapshot["title"]).strip() or assigned_id
+    title = _ensure_publication_title(str(candidate_json.get("title") or snapshot["title"]), "testset", assigned_id)
     existing = existing_formal_record(workspace_root, formal_ref)
     target_path: Path | None = None
     if existing:
@@ -532,7 +540,7 @@ def materialize_impl(
     snapshot = read_candidate_snapshot(workspace_root, source_path, candidate)
     candidate_json = snapshot["candidate_json"]
     assigned_id = str(candidate_json.get("impl_ref") or "").strip() or formal_ref.split(".")[-1].upper()
-    title = str(candidate_json.get("title") or snapshot["title"]).strip() or assigned_id
+    title = _ensure_publication_title(str(candidate_json.get("title") or snapshot["title"]), "impl", assigned_id)
     existing = existing_formal_record(workspace_root, formal_ref)
     target_path: Path | None = None
     if existing:

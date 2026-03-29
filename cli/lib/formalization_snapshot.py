@@ -258,6 +258,9 @@ def normalized_publication_slug(title: str, assigned_id: str) -> str:
     ascii_slug = re.sub(r"-{2,}", "-", ascii_slug)
     if ascii_slug:
         return ascii_slug
+    unicode_slug = slugify(str(title or ""))
+    if unicode_slug and unicode_slug != "artifact":
+        return unicode_slug
     parts = [part.lower() for part in re.split(r"[^A-Za-z0-9]+", str(assigned_id or "")) if part]
     if parts[:2] == ["release", "note"]:
         parts = parts[2:]

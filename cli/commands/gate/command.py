@@ -59,9 +59,18 @@ def _load_json_if_exists(ctx: CommandContext, ref_value: str | None) -> dict[str
 
 
 def _gate_key(payload: dict[str, Any]) -> str:
-    handoff_ref = str(payload.get("handoff_ref", "")).strip()
-    if handoff_ref:
-        return Path(handoff_ref).stem
+    for field in (
+        "_gate_key_hint",
+        "handoff_ref",
+        "decision_target",
+        "candidate_ref",
+        "formal_ref",
+        "gate_ready_package_ref",
+        "proposal_ref",
+    ):
+        value = str(payload.get(field, "")).strip()
+        if value:
+            return slugify(value)
     return "gate"
 
 
@@ -150,6 +159,52 @@ def _load_gate_package_payload(ctx: CommandContext, gate_ready_package_ref: str 
     return package_payload if isinstance(package_payload, dict) else {}
 
 
+def _raw_to_src_package_dir(ctx: CommandContext, candidate_ref: str) -> Path | None:
+    if not candidate_ref:
+        return None
+    try:
+        record = resolve_registry_record(ctx.workspace_root, candidate_ref)
+    except CommandError:
+        return None
+    trace = record.get("trace", {})
+    if str(trace.get("workflow_key") or "") != "product.raw-to-src":
+        return None
+    managed_artifact_ref = str(record.get("managed_artifact_ref") or "").strip()
+    if not managed_artifact_ref:
+        return None
+    return canonical_to_path(managed_artifact_ref, ctx.workspace_root).parent
+
+
+def _ensure_raw_to_src_gate_ready(ctx: CommandContext, candidate_ref: str) -> None:
+    package_dir = _raw_to_src_package_dir(ctx, candidate_ref)
+    if package_dir is None:
+        return
+    manifest_path = package_dir / "package-manifest.json"
+    acceptance_path = package_dir / "acceptance-report.json"
+    ensure(manifest_path.exists(), "PRECONDITION_FAILED", f"raw-to-src package manifest missing for {candidate_ref}")
+    manifest = load_json(manifest_path)
+    ensure(
+        str(manifest.get("status") or "") == "freeze_ready",
+        "PRECONDITION_FAILED",
+        f"raw-to-src candidate is not freeze_ready: {manifest.get('status', '')}",
+    )
+    if acceptance_path.exists():
+        acceptance = load_json(acceptance_path)
+        ensure(
+            str(acceptance.get("decision") or "") in {"pass", "approve"},
+            "PRECONDITION_FAILED",
+            f"raw-to-src acceptance did not pass: {acceptance.get('decision', '')}",
+        )
+    result_summary_path = package_dir / "result-summary.json"
+    if result_summary_path.exists():
+        result_summary = load_json(result_summary_path)
+        ensure(
+            str(result_summary.get("recommended_action") or "") == "next_skill",
+            "PRECONDITION_FAILED",
+            f"raw-to-src candidate is not ready for downstream dispatch: {result_summary.get('recommended_action', '')}",
+        )
+
+
 def _resolve_release_hold_candidates(
     ctx: CommandContext,
     *,
@@ -222,7 +277,10 @@ def _persist_brief_and_pending(
     decision_target: str,
     findings: list[dict[str, object]],
 ) -> tuple[str, str]:
-    paths = _gate_paths(payload)
+    keyed_payload = dict(payload)
+    if decision_target and not keyed_payload.get("_gate_key_hint"):
+        keyed_payload["_gate_key_hint"] = decision_target
+    paths = _gate_paths(keyed_payload)
     brief = {
         "trace": ctx.trace,
         "handoff_ref": handoff_ref,
@@ -331,9 +389,11 @@ def _evaluate_action(ctx: CommandContext):
     decision_type = _normalize_decision(payload, findings)
     decision_target = _decision_target(payload, package_payload, handoff_payload)
     ensure(decision_target, "INVALID_REQUEST", "decision_target is required")
+    keyed_payload = dict(payload)
+    keyed_payload["_gate_key_hint"] = decision_target
     brief_record_ref, pending_human_decision_ref = _persist_brief_and_pending(
         ctx,
-        payload,
+        keyed_payload,
         handoff_ref,
         proposal_ref,
         decision_target,
@@ -341,7 +401,7 @@ def _evaluate_action(ctx: CommandContext):
     )
     decision_basis_refs = _decision_basis_refs(payload, brief_record_ref, findings_refs, evidence_refs)
     dispatch_target = str(payload.get("dispatch_target") or _dispatch_target(decision_type))
-    decision_ref = _gate_paths(payload)["decision"]
+    decision_ref = _gate_paths(keyed_payload)["decision"]
     decision = {
         "trace": ctx.trace,
         "handoff_ref": handoff_ref,
@@ -362,6 +422,7 @@ def _evaluate_action(ctx: CommandContext):
     created_refs = [brief_record_ref, pending_human_decision_ref, decision_ref]
     write_json(_artifact_path(ctx, decision_ref), decision)
     if decision_type == "approve":
+        _ensure_raw_to_src_gate_ready(ctx, decision_target)
         materialized = _materialize_decision(ctx, decision_ref, decision_target, payload)
         decision.update(materialized)
         decision["materialization_state"] = "materialized"
@@ -410,6 +471,7 @@ def _materialize_action(ctx: CommandContext):
     ensure(decision.get("decision_type") == "approve", "PRECONDITION_FAILED", "only approve can materialize")
     candidate_ref = str(payload.get("candidate_ref", decision.get("candidate_ref", payload.get("artifact_ref", ""))))
     ensure(candidate_ref, "INVALID_REQUEST", "candidate_ref is required for materialize")
+    _ensure_raw_to_src_gate_ready(ctx, candidate_ref)
     materialized = _materialize_decision(ctx, decision_ref, candidate_ref, payload)
     decision.update(materialized)
     progression_mode, hold_reason, required_preconditions = _resolve_progression_policy(payload, decision)
