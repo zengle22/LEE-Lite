@@ -1,0 +1,4 @@
+interface:
+  display_name: "LL Project Init"
+  short_description: "Governed skill for LL Project Init"
+  default_prompt: "Use $ll-project-init to run the governed ll-project-init workflow."

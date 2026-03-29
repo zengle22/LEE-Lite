@@ -1,0 +1,71 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "ll-project-init input",
+  "type": "object",
+  "required": [
+    "artifact_type",
+    "schema_version",
+    "project_name",
+    "project_slug",
+    "target_root",
+    "template_profile",
+    "authoritative_layout_ref"
+  ],
+  "properties": {
+    "artifact_type": {
+      "type": "string",
+      "const": "project_init_request"
+    },
+    "schema_version": {
+      "type": "string",
+      "const": "1.0.0"
+    },
+    "project_name": {
+      "type": "string",
+      "minLength": 1
+    },
+    "project_slug": {
+      "type": "string",
+      "pattern": "^[a-z0-9][a-z0-9-]{1,63}$"
+    },
+    "description": {
+      "type": "string"
+    },
+    "target_root": {
+      "type": "string",
+      "minLength": 1
+    },
+    "template_profile": {
+      "type": "string",
+      "const": "lee-skill-first"
+    },
+    "default_branch": {
+      "type": "string",
+      "minLength": 1
+    },
+    "managed_files_policy": {
+      "type": "string",
+      "enum": [
+        "create_missing",
+        "refresh_managed"
+      ]
+    },
+    "initialize_runtime_shells": {
+      "type": "boolean"
+    },
+    "authoritative_layout_ref": {
+      "type": "string",
+      "minLength": 1
+    },
+    "repo_url": {
+      "type": "string"
+    },
+    "source_refs": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    }
+  },
+  "additionalProperties": true
+}

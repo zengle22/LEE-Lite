@@ -14,7 +14,9 @@ roles:
     prompt_file: agents/supervisor.md
 
 runtime:
+  mode: lite_native
   command: python scripts/raw_to_src.py run --input <path>
+  entry_script: scripts/raw_to_src.py
   executor_command: python scripts/raw_to_src.py executor-run --input <path>
   supervisor_command: python scripts/raw_to_src.py supervisor-review --artifacts-dir <artifacts-dir>
   artifact_directory: artifacts/raw-to-src
@@ -75,6 +77,13 @@ lifecycle:
     total_repair_budget: 4
 
 gate:
+  freeze_requires:
+    - input_structural_pass
+    - input_semantic_pass
+    - output_structural_pass
+    - output_semantic_pass
+    - execution_evidence_present
+    - supervision_evidence_present
   model: external
   readiness_signal: freeze_readiness_assessment
   skill_emits:

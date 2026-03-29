@@ -1,0 +1,88 @@
+skill_id: ll-project-init
+skill_type: workflow
+version: 0.1.0
+workflow_key: repo.project-init
+
+authority:
+  source_repository: E:\ai\LEE-Lite-skill-first
+  structure_reference: resources/project-structure-reference.md
+  canonical_profile: lee-skill-first
+  default_write_policy: create_missing
+
+roles:
+  executor:
+    required: true
+    evidence_required: true
+    prompt_file: agents/executor.md
+  supervisor:
+    required: true
+    evidence_required: true
+    prompt_file: agents/supervisor.md
+
+runtime:
+  mode: lite_native
+  command: python scripts/workflow_runtime.py run --input <request> --repo-root <target-root> --allow-update
+  entry_script: scripts/workflow_runtime.py
+  required_flags:
+    - --allow-update
+  produced_output_dir: artifacts/project-init/<run_id>
+  required_output_artifacts:
+    - package-manifest.json
+    - initialization-plan.json
+    - created-paths.json
+    - skipped-existing-paths.json
+    - file-write-report.json
+    - structural-report.json
+    - result-summary.json
+    - execution-evidence.json
+    - supervision-evidence.json
+    - project-bootstrap-report.md
+
+input:
+  artifact_type: project_init_request
+  contract_file: input/contract.yaml
+  schema_file: input/schema.json
+  structural_validation_required: true
+  semantic_validation_required: true
+
+output:
+  artifact_type: project_init_package
+  contract_file: output/contract.yaml
+  schema_file: output/schema.json
+  template_file: output/template.md
+  structural_validation_required: true
+  semantic_validation_required: true
+
+validation:
+  structural:
+    - "python scripts/workflow_runtime.py validate-input --input $INPUT"
+    - "python scripts/workflow_runtime.py run --input $INPUT --repo-root $REPO_ROOT --allow-update"
+    - "python scripts/workflow_runtime.py validate-output --artifacts-dir $OUTPUT"
+    - "python scripts/workflow_runtime.py validate-package-readiness --artifacts-dir $OUTPUT"
+  semantic:
+    input_checklist: input/semantic-checklist.md
+    output_checklist: output/semantic-checklist.md
+
+evidence:
+  execution_schema: evidence/execution-evidence.schema.json
+  supervision_schema: evidence/supervision-evidence.schema.json
+  report_template: evidence/report.template.md
+
+lifecycle:
+  definition_file: ll.lifecycle.yaml
+  max_revision_rounds: 1
+
+gate:
+  freeze_requires:
+    - input_structural_pass
+    - input_semantic_pass
+    - output_structural_pass
+    - output_semantic_pass
+    - execution_evidence_present
+    - supervision_evidence_present
+  reject_when:
+    - request_missing_target_root
+    - unsupported_profile
+    - unmanaged_file_conflict
+    - required_output_missing
+    - required_evidence_missing

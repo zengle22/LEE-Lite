@@ -1,0 +1,41 @@
+artifact_type: project_init_package
+schema_version: 1.0.0
+artifact_directory: artifacts/project-init/<run_id>
+primary_artifact: project-bootstrap-report.md
+required_runtime_artifacts:
+  - package-manifest.json
+  - initialization-plan.json
+  - created-paths.json
+  - skipped-existing-paths.json
+  - file-write-report.json
+  - structural-report.json
+  - result-summary.json
+  - execution-evidence.json
+  - supervision-evidence.json
+  - project-bootstrap-report.md
+required_initialized_paths:
+  - .editorconfig
+  - .gitignore
+  - .projectignore
+  - README.md
+  - .local/README.md
+  - .lee/config.yaml
+  - .lee/repos.yaml
+  - .project/dirs.yaml
+  - docs/repository-layout.md
+  - skills
+  - tests/unit
+structural_checks:
+  - required_artifact_presence
+  - initialized_path_presence
+  - report_consistency
+  - evidence_presence
+semantic_gate:
+  required: true
+forbidden_content:
+  - unmanaged_file_overwrite
+  - runtime_cache_materialized_as_durable_output
+  - undocumented_scaffold_drift
+notes:
+  - The package must record created, updated, and skipped paths explicitly.
+  - Existing unmanaged files may be skipped but not overwritten.

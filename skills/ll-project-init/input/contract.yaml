@@ -1,0 +1,29 @@
+artifact_type: project_init_request
+schema_version: 1.0.0
+accepted_input_types:
+  - .json
+  - .yaml
+  - .yml
+  - .md
+required_fields:
+  - artifact_type
+  - schema_version
+  - project_name
+  - project_slug
+  - target_root
+  - template_profile
+  - authoritative_layout_ref
+structural_checks:
+  - schema
+  - normalized_slug
+  - target_root_present
+  - supported_profile
+  - managed_write_policy_supported
+forbidden_requests:
+  - overwrite_unmanaged_existing_files
+  - runtime_state_inside_durable_tree
+  - unsupported_template_profile
+notes:
+  - `repo_root` from the CLI may override `target_root` at execution time.
+  - `template_profile` must remain `lee-skill-first` until the skill adds another profile explicitly.
+  - `managed_files_policy` may be `create_missing` or `refresh_managed`.
