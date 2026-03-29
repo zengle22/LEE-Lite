@@ -27,6 +27,7 @@
     "ll-dev-feat-to-tech": ["tests/unit/test_lee_dev_feat_to_tech.py"],
     "ll-dev-tech-to-impl": ["tests/unit/test_lee_dev_tech_to_impl.py"],
     "ll-qa-feat-to-testset": ["tests/unit/test_lee_qa_feat_to_testset.py"],
+    "ll-project-init": ["tests/unit/test_lee_project_init.py"],
     "ll-meta-skill-creator": ["tests/unit/test_ll_meta_skill_creator.py"],
     "ll-execution-loop-job-runner": [
       "tests/unit/test_ci_validators.py",

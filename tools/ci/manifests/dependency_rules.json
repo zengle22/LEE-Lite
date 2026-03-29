@@ -1,20 +1,14 @@
 {
   "governed_prefixes": [
     "ssot/",
-    "spec/contracts/",
-    "spec/governance/",
-    "spec/skill-standard/",
     "skills/",
     "cli/"
   ],
   "rules": [
     {
-      "name": "ssot-or-spec-foundation",
+      "name": "ssot-foundation",
       "patterns": [
-        "ssot/**",
-        "spec/contracts/**",
-        "spec/governance/**",
-        "spec/skill-standard/**"
+        "ssot/**"
       ],
       "tests": [
         "tests/unit/test_lee_product_raw_to_src.py",
@@ -26,6 +20,11 @@
         "tests/unit/test_cli_runtime_governed_flows.py",
         "tests/unit/test_cli_skill_test_exec.py"
       ]
+    },
+    {
+      "name": "repository-layout-guide",
+      "patterns": ["docs/repository-layout.md"],
+      "tests": ["tests/unit/test_lee_project_init.py"]
     },
     {
       "name": "raw-to-src",
@@ -56,6 +55,11 @@
       "name": "feat-to-testset",
       "patterns": ["skills/ll-qa-feat-to-testset/**"],
       "tests": ["tests/unit/test_lee_qa_feat_to_testset.py"]
+    },
+    {
+      "name": "project-init",
+      "patterns": ["skills/ll-project-init/**"],
+      "tests": ["tests/unit/test_lee_project_init.py"]
     },
     {
       "name": "execution-loop-job-runner-skill",
