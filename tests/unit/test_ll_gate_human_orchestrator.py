@@ -31,7 +31,7 @@ class GateHumanOrchestratorWorkflowTests(GateHumanOrchestratorTestSupport):
             self.assertEqual(bundle["projection_status_display"], "可供评审")
             self.assertEqual(bundle["materialized_job_ref"], "")
             self.assertTrue(bundle["materialized_handoff_ref"].endswith("materialized-handoff.json"))
-            self.assertTrue(runtime_refs["dispatch_receipt_ref"].endswith("gate-dispatch-receipt.json"))
+            self.assertTrue(runtime_refs["dispatch_receipt_ref"].endswith("-dispatch-receipt.json"))
             self.assertTrue(freeze_gate["freeze_ready"])
             self.assertIn("# Gate 裁决包 gate-approve", bundle_markdown)
             self.assertIn("## 人工评审简报", bundle_markdown)
@@ -69,7 +69,7 @@ class GateHumanOrchestratorWorkflowTests(GateHumanOrchestratorTestSupport):
             self.assertEqual(bundle["dispatch_target_display"], "回流 execution")
             self.assertEqual(bundle["projection_status_display"], "可供评审")
             self.assertEqual(bundle["materialized_handoff_ref"], "")
-            self.assertTrue(bundle["materialized_job_ref"].endswith("gate-decision-return.json"))
+            self.assertTrue(bundle["materialized_job_ref"].endswith("-return.json"))
             self.assertTrue(freeze_gate["freeze_ready"])
 
             validate = self.run_cmd("validate-output", "--artifacts-dir", str(artifacts_dir), cwd=ROOT)
@@ -293,6 +293,108 @@ class GateHumanOrchestratorWorkflowTests(GateHumanOrchestratorTestSupport):
             self.assertIn("Runner 运行监控流", markdown)
             self.assertIn("workflow.dev.feat_to_tech", markdown)
             self.assertIn("### 这轮 FEAT 面向的关键角色", markdown)
+
+    def test_prepare_round_tech_design_package_renders_human_friendly_implementation_summary(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            repo_root = Path(temp_dir)
+            input_dir = self.make_tech_design_gate_ready_package(repo_root, run_id="tech-design-round")
+
+            prepare = self.run_cmd(
+                "prepare-round",
+                "--input",
+                str(input_dir),
+                "--repo-root",
+                str(repo_root),
+                "--run-id",
+                "gate-tech-design-round",
+                cwd=ROOT,
+            )
+            self.assertEqual(prepare.returncode, 0, prepare.stderr)
+            prepare_payload = json.loads(prepare.stdout)
+            summary = prepare_payload["review_summary"]
+            markdown = prepare_payload["human_brief"]["markdown"]
+
+            self.assertTrue(any(item.startswith("实现目标:") for item in summary["ssot_excerpt"]))
+            self.assertTrue(any(item.startswith("状态机:") for item in summary["ssot_excerpt"]))
+            self.assertTrue(any(item.startswith("实现模块:") for item in summary["ssot_excerpt"]))
+            self.assertTrue(any("tech_design_package" in item for item in summary["ssot_outline"]))
+            self.assertTrue(any("state_model" in item or "可见字段" in item for item in summary["ssot_outline"]))
+            self.assertTrue(any("state_model" in item.lower() or "合同" in item for item in summary["review_checkpoints"]))
+            self.assertIn("### 这份 TECH 主要在实现什么", markdown)
+            self.assertIn("### 实现边界与职责分工", markdown)
+            self.assertIn("### 计划落到哪些模块", markdown)
+            self.assertIn("### 核心状态机", markdown)
+            self.assertIn("### 关键接口合同", markdown)
+            self.assertIn("workflow.dev.tech_to_impl", markdown)
+
+    def test_prepare_round_test_set_package_renders_human_friendly_validation_summary(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            repo_root = Path(temp_dir)
+            input_dir = self.make_test_set_gate_ready_package(repo_root, run_id="test-set-round")
+
+            prepare = self.run_cmd(
+                "prepare-round",
+                "--input",
+                str(input_dir),
+                "--repo-root",
+                str(repo_root),
+                "--run-id",
+                "gate-test-set-round",
+                cwd=ROOT,
+            )
+            self.assertEqual(prepare.returncode, 0, prepare.stderr)
+            prepare_payload = json.loads(prepare.stdout)
+            summary = prepare_payload["review_summary"]
+            markdown = prepare_payload["human_brief"]["markdown"]
+
+            self.assertTrue(any(item.startswith("测试目标:") for item in summary["ssot_excerpt"]))
+            self.assertTrue(any(item.startswith("关键测试单元:") for item in summary["ssot_excerpt"]))
+            self.assertTrue(any(item.startswith("通过标准:") for item in summary["ssot_excerpt"]))
+            self.assertTrue(any(item.startswith("下游执行目标:") for item in summary["ssot_excerpt"]))
+            self.assertTrue(any("test_set_candidate_package" in item for item in summary["ssot_outline"]))
+            self.assertTrue(any("fail-closed" in item or "环境" in item for item in summary["review_checkpoints"]))
+            self.assertIn("### 这份 TESTSET 要覆盖什么", markdown)
+            self.assertIn("### 明确不覆盖什么", markdown)
+            self.assertIn("### 关键测试单元", markdown)
+            self.assertIn("### 通过标准", markdown)
+            self.assertIn("### 执行前置环境假设", markdown)
+            self.assertIn("skill.qa.test_exec_cli", markdown)
+
+    def test_prepare_round_impl_package_renders_human_friendly_delivery_summary(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            repo_root = Path(temp_dir)
+            input_dir = self.make_impl_gate_ready_package(repo_root, run_id="impl-round")
+
+            prepare = self.run_cmd(
+                "prepare-round",
+                "--input",
+                str(input_dir),
+                "--repo-root",
+                str(repo_root),
+                "--run-id",
+                "gate-impl-round",
+                cwd=ROOT,
+            )
+            self.assertEqual(prepare.returncode, 0, prepare.stderr)
+            prepare_payload = json.loads(prepare.stdout)
+            summary = prepare_payload["review_summary"]
+            markdown = prepare_payload["human_brief"]["markdown"]
+
+            self.assertTrue(any(item.startswith("实现目标:") for item in summary["ssot_excerpt"]))
+            self.assertTrue(any(item.startswith("执行面:") for item in summary["ssot_excerpt"]))
+            self.assertTrue(any(item.startswith("实施步骤:") for item in summary["ssot_excerpt"]))
+            self.assertTrue(any(item.startswith("交付模板:") for item in summary["ssot_excerpt"]))
+            self.assertTrue(any("feature_impl_candidate_package" in item for item in summary["ssot_outline"]))
+            self.assertTrue(any("implementation_steps" in item or "交付输入" in item for item in summary["ssot_outline"]))
+            self.assertTrue(any("IMPL" in item or "evidence" in item for item in summary["review_checkpoints"]))
+            self.assertIn("### 这份 IMPL 具体覆盖什么", markdown)
+            self.assertIn("### 必须继承的实现约束", markdown)
+            self.assertIn("### 计划落到哪些模块", markdown)
+            self.assertIn("### 核心状态机", markdown)
+            self.assertIn("### 冻结接口合同", markdown)
+            self.assertIn("### 实施任务拆分", markdown)
+            self.assertIn("### 交付与验收", markdown)
+            self.assertIn("template.dev.feature_delivery_l2", markdown)
 
     def test_capture_decision_refreshes_legacy_synthetic_round_target(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:

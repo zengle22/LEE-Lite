@@ -631,6 +631,71 @@ class RawToSrcWorkflowTests(unittest.TestCase):
             self.assertEqual(job_proposal["retry_budget"], 2)
             defect_types = {item["type"] for item in json.loads((artifacts_dir / "defect-list.json").read_text(encoding="utf-8"))}
             self.assertIn("layer_boundary", defect_types)
+            self.assertEqual(payload["gate_ready_package_ref"], None)
+            self.assertEqual(payload["authoritative_handoff_ref"], None)
+            self.assertEqual(payload["gate_pending_ref"], None)
+            self.assertFalse((artifacts_dir / "input" / "gate-ready-package.json").exists())
+
+    def test_semantic_allow_update_repairs_duplicate_and_boundary_then_freezes(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            repo_root = Path(temp_dir)
+            self.make_repo(repo_root)
+            title = "ADR-011 EPIC to FEAT Lite-Native Skill 逆向 SSOT 基线"
+            self.write_existing_src(repo_root, title)
+            source = repo_root / "adr011-auto-fix.md"
+            source.write_text(
+                "\n".join(
+                    [
+                        "---",
+                        "input_type: raw_requirement",
+                        f"title: {title}",
+                        "source_refs:",
+                        "  - ADR-011",
+                        "---",
+                        "",
+                        f"# {title}",
+                        "",
+                        "## 问题陈述",
+                        "",
+                        "需要把这次治理变化直接展开成 EPIC 和 FEAT 方案，否则后面拆分会继续漂移。",
+                        "",
+                    ]
+                ),
+                encoding="utf-8",
+            )
+
+            result = self.run_cmd(
+                "run",
+                "--input",
+                str(source),
+                "--repo-root",
+                str(repo_root),
+                "--run-id",
+                "test-run-allow-update",
+                "--allow-update",
+            )
+            self.assertEqual(result.returncode, 0, result.stderr)
+            payload = json.loads(result.stdout)
+            self.assertEqual(payload["status"], "freeze_ready")
+            self.assertEqual(payload["recommended_action"], "next_skill")
+
+            artifacts_dir = Path(payload["artifacts_dir"])
+            candidate = json.loads((artifacts_dir / "src-candidate.json").read_text(encoding="utf-8"))
+            self.assertTrue(candidate["title"].endswith("修订版"))
+            self.assertNotIn("EPIC", candidate["problem_statement"])
+            self.assertNotIn("FEAT", candidate["problem_statement"])
+
+            semantic_findings = json.loads((artifacts_dir / "source-semantic-findings.json").read_text(encoding="utf-8"))
+            self.assertEqual(semantic_findings["decision"], "pass")
+            self.assertEqual(semantic_findings["findings"], [])
+            acceptance = json.loads((artifacts_dir / "acceptance-report.json").read_text(encoding="utf-8"))
+            self.assertEqual(acceptance["decision"], "approve")
+            patch_lineage = json.loads((artifacts_dir / "patch-lineage.json").read_text(encoding="utf-8"))
+            semantic_events = [item for item in patch_lineage["events"] if item["stage_id"] == "semantic_fix_loop"]
+            self.assertTrue(any(item["issue_code"] == "duplicate_title" for item in semantic_events))
+            self.assertTrue(any(item["issue_code"] == "layer_boundary" for item in semantic_events))
+            self.assertTrue((artifacts_dir / "input" / "gate-ready-package.json").exists())
+            self.assertTrue(payload["gate_ready_package_ref"])
 
     def test_executor_and_supervisor_commands_respect_boundary(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:

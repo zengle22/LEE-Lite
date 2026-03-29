@@ -240,15 +240,15 @@ class CliRuntimeTest(unittest.TestCase):
             self.run_cli("gate", "evaluate", "--request", str(evaluate_req), "--response-out", str(evaluate_response)), 0
         )
         payload = read_json(evaluate_response)
-        self.assertEqual(payload["data"]["gate_decision_ref"], "artifacts/active/gates/decisions/gate-decision.json")
+        self.assertTrue(payload["data"]["gate_decision_ref"].startswith("artifacts/active/gates/decisions/"))
+        self.assertTrue(payload["data"]["gate_decision_ref"].endswith("-decision.json"))
         self.assertEqual(payload["data"]["decision"], "approve")
         self.assertEqual(payload["data"]["decision_target"], "candidate.impl")
         self.assertEqual(payload["data"]["dispatch_target"], "formal_publication_trigger")
-        self.assertEqual(payload["data"]["brief_record_ref"], "artifacts/active/gates/briefs/gate-brief-record.json")
-        self.assertEqual(
-            payload["data"]["pending_human_decision_ref"],
-            "artifacts/active/gates/pending-human/gate-pending-human-decision.json",
-        )
+        self.assertTrue(payload["data"]["brief_record_ref"].startswith("artifacts/active/gates/briefs/"))
+        self.assertTrue(payload["data"]["brief_record_ref"].endswith("-brief-record.json"))
+        self.assertTrue(payload["data"]["pending_human_decision_ref"].startswith("artifacts/active/gates/pending-human/"))
+        self.assertTrue(payload["data"]["pending_human_decision_ref"].endswith("-pending-human-decision.json"))
         self.assertEqual(payload["data"]["materialized_handoff_ref"], "artifacts/active/handoffs/materialized-handoff.json")
         decision = read_json(self.workspace / payload["data"]["gate_decision_ref"])
         self.assertEqual(decision["materialization_state"], "materialized")
@@ -260,6 +260,103 @@ class CliRuntimeTest(unittest.TestCase):
         block_ids = [block["id"] for block in brief["human_projection"]["review_blocks"]]
         self.assertIn("authoritative_snapshot", block_ids)
         self.assertIn("review_focus", block_ids)
+
+    def test_gate_evaluate_uses_distinct_active_paths_per_decision_target(self) -> None:
+        tech_candidate = self.workspace / "artifacts" / "active" / "run-001" / "tech-candidate.json"
+        testset_candidate = self.workspace / "artifacts" / "active" / "run-001" / "testset-candidate.json"
+        write_json(
+            tech_candidate,
+            {
+                "artifact_type": "tech_design_package",
+                "freeze_ready": True,
+                "status": "accepted",
+                "title": "Tech Candidate",
+            },
+        )
+        write_json(
+            testset_candidate,
+            {
+                "artifact_type": "test_set_candidate_package",
+                "freeze_ready": True,
+                "status": "approval_pending",
+                "title": "Testset Candidate",
+            },
+        )
+        for artifact_ref, managed_ref in (
+            ("candidate.tech", "artifacts/active/run-001/tech-candidate.json"),
+            ("candidate.testset", "artifacts/active/run-001/testset-candidate.json"),
+        ):
+            bind_request = self.build_request(
+                "registry.bind-record",
+                {
+                    "artifact_ref": artifact_ref,
+                    "managed_artifact_ref": managed_ref,
+                    "status": "candidate",
+                },
+            )
+            bind_req = self.request_path(f"bind-{artifact_ref.replace('.', '-')}.json")
+            write_json(bind_req, bind_request)
+            bind_response = self.response_path(f"bind-{artifact_ref.replace('.', '-')}.response.json")
+            self.assertEqual(self.run_cli("registry", "bind-record", "--request", str(bind_req), "--response-out", str(bind_response)), 0)
+
+        tech_package = self.workspace / "artifacts" / "active" / "gates" / "packages" / "tech-gate-ready-package.json"
+        testset_package = self.workspace / "artifacts" / "active" / "gates" / "packages" / "testset-gate-ready-package.json"
+        write_json(
+            tech_package,
+            {
+                "trace": {"run_ref": "RUN-001"},
+                "payload": {
+                    "candidate_ref": "candidate.tech",
+                    "machine_ssot_ref": "candidate.tech",
+                    "acceptance_ref": "artifacts/active/run-001/acceptance-tech.json",
+                    "evidence_bundle_ref": "artifacts/active/run-001/evidence-tech.json",
+                },
+            },
+        )
+        write_json(
+            testset_package,
+            {
+                "trace": {"run_ref": "RUN-001"},
+                "payload": {
+                    "candidate_ref": "candidate.testset",
+                    "machine_ssot_ref": "candidate.testset",
+                    "acceptance_ref": "artifacts/active/run-001/acceptance-testset.json",
+                    "evidence_bundle_ref": "artifacts/active/run-001/evidence-testset.json",
+                },
+            },
+        )
+        for name in ("acceptance-tech.json", "evidence-tech.json", "acceptance-testset.json", "evidence-testset.json"):
+            write_json(self.workspace / "artifacts" / "active" / "run-001" / name, {"ok": True})
+        audit_bundle = self.workspace / "artifacts" / "active" / "audit" / "finding-bundle-multi.json"
+        write_json(audit_bundle, {"findings": []})
+
+        def evaluate(input_ref: str, request_name: str, response_name: str) -> dict:
+            evaluate_request = self.build_request(
+                "gate.evaluate",
+                {
+                    "gate_ready_package_ref": input_ref,
+                    "audit_finding_refs": ["artifacts/active/audit/finding-bundle-multi.json"],
+                    "target_matrix": {"allowed_targets": ["materialized_handoff", "materialized_job", "run_closure"]},
+                    "decision": "revise",
+                },
+            )
+            evaluate_req = self.request_path(request_name)
+            write_json(evaluate_req, evaluate_request)
+            evaluate_response = self.response_path(response_name)
+            self.assertEqual(
+                self.run_cli("gate", "evaluate", "--request", str(evaluate_req), "--response-out", str(evaluate_response)),
+                0,
+            )
+            return read_json(evaluate_response)
+
+        tech_payload = evaluate("artifacts/active/gates/packages/tech-gate-ready-package.json", "gate-evaluate-tech.json", "gate-evaluate-tech.response.json")
+        testset_payload = evaluate("artifacts/active/gates/packages/testset-gate-ready-package.json", "gate-evaluate-testset.json", "gate-evaluate-testset.response.json")
+
+        self.assertNotEqual(tech_payload["data"]["gate_decision_ref"], testset_payload["data"]["gate_decision_ref"])
+        self.assertNotEqual(tech_payload["data"]["brief_record_ref"], testset_payload["data"]["brief_record_ref"])
+        self.assertNotEqual(tech_payload["data"]["pending_human_decision_ref"], testset_payload["data"]["pending_human_decision_ref"])
+        self.assertTrue((self.workspace / tech_payload["data"]["gate_decision_ref"]).exists())
+        self.assertTrue((self.workspace / testset_payload["data"]["gate_decision_ref"]).exists())
 
 
     def test_gate_evaluate_respects_guarded_disable(self) -> None:
@@ -327,7 +424,7 @@ class CliRuntimeTest(unittest.TestCase):
         )
         dispatch_payload = read_json(dispatch_response)
         self.assertEqual(dispatch_payload["data"]["dispatch_status"], "dispatched")
-        self.assertTrue(dispatch_payload["data"]["materialized_job_ref"].endswith("gate-decision-return.json"))
+        self.assertTrue(dispatch_payload["data"]["materialized_job_ref"].endswith("-return.json"))
         self.assertEqual(dispatch_payload["data"]["materialized_handoff_ref"], "")
 
     def test_gate_materialize_dispatch_and_close(self) -> None:
@@ -387,9 +484,13 @@ class CliRuntimeTest(unittest.TestCase):
 
     def test_gate_materialize_raw_to_src_candidate_promotes_formal_src_markdown(self) -> None:
         run_id = "raw-src-run"
-        candidate_path = self.workspace / "artifacts" / "raw-to-src" / run_id / "src-candidate.md"
+        package_dir = self.workspace / "artifacts" / "raw-to-src" / run_id
+        candidate_path = package_dir / "src-candidate.md"
         candidate_path.parent.mkdir(parents=True, exist_ok=True)
         candidate_path.write_text("# SRC Candidate\n\nApproved content.\n", encoding="utf-8")
+        write_json(package_dir / "package-manifest.json", {"status": "freeze_ready"})
+        write_json(package_dir / "acceptance-report.json", {"decision": "pass"})
+        write_json(package_dir / "result-summary.json", {"recommended_action": "next_skill"})
         write_json(
             self.workspace / "artifacts" / "registry" / f"raw-to-src-{run_id}-src-candidate.json",
             {
@@ -443,6 +544,65 @@ class CliRuntimeTest(unittest.TestCase):
         handoff = read_json(self.workspace / payload["data"]["materialized_handoff_ref"])
         self.assertEqual(handoff["formal_ref"], f"formal.src.{run_id}")
         self.assertEqual(handoff["published_ref"], "ssot/src/SRC-001__src-candidate.md")
+
+    def test_gate_rejects_raw_to_src_candidate_that_is_not_freeze_ready(self) -> None:
+        run_id = "raw-src-retry"
+        package_dir = self.workspace / "artifacts" / "raw-to-src" / run_id
+        package_dir.mkdir(parents=True, exist_ok=True)
+        (package_dir / "src-candidate.md").write_text("# SRC Candidate\n\nNeeds repair.\n", encoding="utf-8")
+        write_json(
+            package_dir / "package-manifest.json",
+            {
+                "status": "retry_proposed",
+                "primary_artifact_ref": f"artifacts/raw-to-src/{run_id}/src-candidate.md",
+            },
+        )
+        write_json(package_dir / "acceptance-report.json", {"decision": "revise"})
+        write_json(package_dir / "result-summary.json", {"recommended_action": "retry"})
+        write_json(
+            self.workspace / "artifacts" / "registry" / f"raw-to-src-{run_id}-src-candidate.json",
+            {
+                "artifact_ref": f"raw-to-src.{run_id}.src-candidate",
+                "managed_artifact_ref": f"artifacts/raw-to-src/{run_id}/src-candidate.md",
+                "status": "committed",
+                "trace": {"run_ref": run_id, "workflow_key": "product.raw-to-src"},
+                "metadata": {"layer": "formal"},
+                "lineage": [],
+            },
+        )
+        package_request = self.build_request(
+            "gate.create",
+            {
+                "candidate_ref": f"raw-to-src.{run_id}.src-candidate",
+                "acceptance_ref": f"artifacts/raw-to-src/{run_id}/acceptance-report.json",
+                "evidence_bundle_ref": f"artifacts/raw-to-src/{run_id}/supervision-evidence.json",
+            },
+        )
+        package_req = self.request_path("gate-create-raw-retry.json")
+        write_json(package_req, package_request)
+        package_response = self.response_path("gate-create-raw-retry.response.json")
+        self.assertEqual(self.run_cli("gate", "create", "--request", str(package_req), "--response-out", str(package_response)), 0)
+
+        audit_bundle = self.workspace / "artifacts" / "active" / "audit" / "finding-bundle-raw-retry.json"
+        write_json(audit_bundle, {"findings": []})
+        evaluate_request = self.build_request(
+            "gate.evaluate",
+            {
+                "gate_ready_package_ref": "artifacts/active/gates/packages/gate-ready-package.json",
+                "audit_finding_refs": ["artifacts/active/audit/finding-bundle-raw-retry.json"],
+                "target_matrix": {"allowed_targets": ["materialized_handoff"]},
+            },
+        )
+        evaluate_req = self.request_path("gate-evaluate-raw-retry.json")
+        write_json(evaluate_req, evaluate_request)
+        evaluate_response = self.response_path("gate-evaluate-raw-retry.response.json")
+        self.assertEqual(
+            self.run_cli("gate", "evaluate", "--request", str(evaluate_req), "--response-out", str(evaluate_response)),
+            4,
+        )
+        failure = read_json(evaluate_response)
+        self.assertEqual(failure["status_code"], "PRECONDITION_FAILED")
+        self.assertIn("not freeze_ready", failure["message"])
 
     def test_gate_materialize_src_to_epic_candidate_promotes_formal_epic_markdown(self) -> None:
         run_id = "src-epic-run"
@@ -632,6 +792,131 @@ class CliRuntimeTest(unittest.TestCase):
         registry_record = read_json(self.workspace / "artifacts" / "registry" / f"formal-epic-{run_id}.json")
         self.assertEqual(registry_record["managed_artifact_ref"], expected_ref)
         self.assertEqual(registry_record["metadata"]["assigned_id"], "EPIC-SRC-003-001")
+
+    def test_gate_materialize_src_to_epic_candidate_preserves_unicode_slug_for_pure_chinese_title(self) -> None:
+        run_id = "src-epic-chinese-title-run"
+        package_dir = self.workspace / "artifacts" / "src-to-epic" / run_id
+        package_dir.mkdir(parents=True, exist_ok=True)
+        title = "主链正式交接与治理闭环统一能力"
+        markdown_text = "\n".join(
+            [
+                "---",
+                "artifact_type: epic_freeze_package",
+                "workflow_key: product.src-to-epic",
+                f"workflow_run_id: {run_id}",
+                f"title: {title}",
+                "status: accepted",
+                "epic_freeze_ref: EPIC-UNICODE-TITLE",
+                "src_root_id: SRC-005",
+                "source_refs:",
+                "  - SRC-005",
+                "  - ADR-011",
+                "---",
+                "",
+                f"# {title}",
+                "",
+                "Approved EPIC content.",
+            ]
+        )
+        (package_dir / "epic-freeze.md").write_text(markdown_text + "\n", encoding="utf-8")
+        write_json(
+            package_dir / "epic-freeze.json",
+            {
+                "artifact_type": "epic_freeze_package",
+                "workflow_key": "product.src-to-epic",
+                "workflow_run_id": run_id,
+                "title": title,
+                "status": "accepted",
+                "schema_version": "1.0.0",
+                "epic_freeze_ref": "EPIC-UNICODE-TITLE",
+                "src_root_id": "SRC-005",
+                "source_refs": ["SRC-005", "ADR-011"],
+            },
+        )
+        write_json(
+            self.workspace / "artifacts" / "registry" / f"src-to-epic-{run_id}-epic-freeze.json",
+            {
+                "artifact_ref": f"src-to-epic.{run_id}.epic-freeze",
+                "managed_artifact_ref": f"artifacts/src-to-epic/{run_id}/epic-freeze.md",
+                "status": "committed",
+                "trace": {"run_ref": run_id, "workflow_key": "product.src-to-epic"},
+                "metadata": {"layer": "formal"},
+                "lineage": [],
+            },
+        )
+        decision_path = self.workspace / "artifacts" / "active" / "gates" / "decisions" / "gate-decision.json"
+        write_json(decision_path, {"decision_type": "approve", "candidate_ref": f"src-to-epic.{run_id}.epic-freeze"})
+
+        materialize_request = self.build_request(
+            "gate.materialize",
+            {
+                "gate_decision_ref": "artifacts/active/gates/decisions/gate-decision.json",
+                "candidate_ref": f"src-to-epic.{run_id}.epic-freeze",
+            },
+        )
+        materialize_req = self.request_path("gate-materialize-src-epic-chinese-title.json")
+        write_json(materialize_req, materialize_request)
+        materialize_response = self.response_path("gate-materialize-src-epic-chinese-title.response.json")
+        self.assertEqual(
+            self.run_cli("gate", "materialize", "--request", str(materialize_req), "--response-out", str(materialize_response)),
+            0,
+        )
+
+        payload = read_json(materialize_response)
+        expected_ref = "ssot/epic/EPIC-SRC-005-001__主链正式交接与治理闭环统一能力.md"
+        self.assertEqual(payload["data"]["assigned_id"], "EPIC-SRC-005-001")
+        self.assertEqual(payload["data"]["published_ref"], expected_ref)
+        self.assertTrue((self.workspace / "ssot" / "epic" / "EPIC-SRC-005-001__主链正式交接与治理闭环统一能力.md").exists())
+
+    def test_gate_materialize_epic_to_feat_candidate_rejects_missing_feature_title(self) -> None:
+        run_id = "epic-feat-missing-title-run"
+        package_dir = self.workspace / "artifacts" / "epic-to-feat" / run_id
+        package_dir.mkdir(parents=True, exist_ok=True)
+        (package_dir / "feat-freeze-bundle.md").write_text("# FEAT Bundle\n", encoding="utf-8")
+        write_json(
+            package_dir / "feat-freeze-bundle.json",
+            {
+                "artifact_type": "feat_freeze_package",
+                "workflow_key": "product.epic-to-feat",
+                "workflow_run_id": run_id,
+                "title": "Governed FEAT Bundle",
+                "status": "accepted",
+                "schema_version": "1.0.0",
+                "epic_freeze_ref": "EPIC-SRC-001-001",
+                "src_root_id": "SRC-001",
+                "source_refs": ["EPIC-SRC-001-001", "SRC-001"],
+                "features": [{"feat_ref": "FEAT-SRC-001-399"}],
+            },
+        )
+        write_json(
+            self.workspace / "artifacts" / "registry" / f"epic-to-feat-{run_id}-feat-freeze-bundle.json",
+            {
+                "artifact_ref": f"epic-to-feat.{run_id}.feat-freeze-bundle",
+                "managed_artifact_ref": f"artifacts/epic-to-feat/{run_id}/feat-freeze-bundle.md",
+                "status": "committed",
+                "trace": {"run_ref": run_id, "workflow_key": "product.epic-to-feat"},
+                "metadata": {"layer": "formal"},
+                "lineage": [],
+            },
+        )
+        decision_path = self.workspace / "artifacts" / "active" / "gates" / "decisions" / "gate-decision.json"
+        write_json(decision_path, {"decision_type": "approve", "candidate_ref": f"epic-to-feat.{run_id}.feat-freeze-bundle"})
+
+        materialize_request = self.build_request(
+            "gate.materialize",
+            {
+                "gate_decision_ref": "artifacts/active/gates/decisions/gate-decision.json",
+                "candidate_ref": f"epic-to-feat.{run_id}.feat-freeze-bundle",
+            },
+        )
+        materialize_req = self.request_path("gate-materialize-epic-feat-missing-title.json")
+        write_json(materialize_req, materialize_request)
+        materialize_response = self.response_path("gate-materialize-epic-feat-missing-title.response.json")
+        exit_code = self.run_cli("gate", "materialize", "--request", str(materialize_req), "--response-out", str(materialize_response))
+        self.assertEqual(exit_code, 4)
+        payload = read_json(materialize_response)
+        self.assertEqual(payload["status_code"], "PRECONDITION_FAILED")
+        self.assertIn("feat formalization requires non-empty title", payload["message"])
 
     def test_gate_materialize_epic_to_feat_candidate_promotes_formal_feat_markdown_and_dispatches_jobs(self) -> None:
         run_id = "epic-feat-run"
