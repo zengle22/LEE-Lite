@@ -211,6 +211,39 @@ def _feature_summaries(raw_value: object, *, limit: int) -> list[str]:
     return summaries
 
 
+def _module_summaries(raw_value: object, *, limit: int) -> list[str]:
+    summaries: list[str] = []
+    if not isinstance(raw_value, list):
+        return summaries
+    for item in raw_value:
+        if not isinstance(item, str):
+            continue
+        text = item.strip()
+        if not text:
+            continue
+        summaries.append(text)
+        if len(summaries) >= limit:
+            break
+    return summaries
+
+
+def _test_unit_summaries(raw_value: object, *, limit: int) -> list[str]:
+    summaries: list[str] = []
+    for entry in _first_dict_items(raw_value, limit=limit):
+        unit_ref = _dict_field_text(entry, "unit_ref", "id")
+        title = _dict_field_text(entry, "title", "name")
+        trigger = _dict_field_text(entry, "trigger_action")
+        pass_condition = _dict_field_text(entry, "pass_conditions")
+        headline = title or trigger or pass_condition or unit_ref
+        if not headline:
+            continue
+        if unit_ref and headline != unit_ref:
+            summaries.append(f"{unit_ref} {headline}")
+        else:
+            summaries.append(headline)
+    return summaries
+
+
 def _artifact_specific_excerpt(payload: dict[str, Any]) -> list[str]:
     artifact_type = str(payload.get("artifact_type", "")).strip()
     excerpt: list[str] = []
@@ -249,6 +282,77 @@ def _artifact_specific_excerpt(payload: dict[str, Any]) -> list[str]:
         downstream_workflows = _first_items(payload, "downstream_workflows", limit=3)
         if downstream_workflows:
             excerpt.append(f"下游工作流: {_join_items(downstream_workflows)}")
+        return excerpt
+    if artifact_type == "tech_design_package":
+        selected_feat = payload.get("selected_feat")
+        if isinstance(selected_feat, dict):
+            goal = str(selected_feat.get("goal", "")).strip()
+            if goal:
+                excerpt.append(f"实现目标: {goal}")
+        state_model = _first_items(payload.get("tech_design", {}), "state_model", limit=2) if isinstance(payload.get("tech_design"), dict) else []
+        if state_model:
+            excerpt.append(f"状态机: {_join_items(state_model)}")
+        module_plan = _first_items(payload.get("tech_design", {}), "module_plan", limit=3) if isinstance(payload.get("tech_design"), dict) else []
+        if module_plan:
+            excerpt.append(f"实现模块: {_join_items(module_plan)}")
+        interface_contracts = _first_items(payload.get("tech_design", {}), "interface_contracts", limit=2) if isinstance(payload.get("tech_design"), dict) else []
+        if interface_contracts:
+            excerpt.append(f"关键合同: {_join_items(interface_contracts)}")
+        downstream = payload.get("downstream_handoff")
+        if isinstance(downstream, dict):
+            target_workflow = str(downstream.get("target_workflow", "")).strip()
+            if target_workflow:
+                excerpt.append(f"下游交接: {target_workflow}")
+        return excerpt
+    if artifact_type == "test_set_candidate_package":
+        selected_feat = payload.get("selected_feat")
+        if isinstance(selected_feat, dict):
+            goal = str(selected_feat.get("goal", "")).strip()
+            if goal:
+                excerpt.append(f"测试目标: {goal}")
+        test_units = _test_unit_summaries(payload.get("strategy_draft", {}).get("test_units") if isinstance(payload.get("strategy_draft"), dict) else payload.get("test_units"), limit=3)
+        if test_units:
+            excerpt.append(f"关键测试单元: {_join_items(test_units)}")
+        pass_criteria = _first_items(payload.get("test_set", {}), "pass_criteria", limit=2) if isinstance(payload.get("test_set"), dict) else _first_items(payload, "pass_criteria", limit=2)
+        if pass_criteria:
+            excerpt.append(f"通过标准: {_join_items(pass_criteria)}")
+        downstream_target = str(payload.get("downstream_target", "")).strip()
+        if downstream_target:
+            excerpt.append(f"下游执行目标: {downstream_target}")
+        return excerpt
+    if artifact_type == "feature_impl_candidate_package":
+        selected_scope = payload.get("selected_scope")
+        if isinstance(selected_scope, dict):
+            goal = str(selected_scope.get("goal", "")).strip()
+            if goal:
+                excerpt.append(f"实现目标: {goal}")
+        workstream_assessment = payload.get("workstream_assessment")
+        if isinstance(workstream_assessment, dict):
+            surfaces: list[str] = []
+            if bool(workstream_assessment.get("frontend_required")):
+                surfaces.append("frontend")
+            if bool(workstream_assessment.get("backend_required")):
+                surfaces.append("backend")
+            if bool(workstream_assessment.get("migration_required")):
+                surfaces.append("migration")
+            if surfaces:
+                excerpt.append(f"执行面: {_join_items(surfaces)}")
+        implementation_steps = payload.get("implementation_steps")
+        if isinstance(implementation_steps, list):
+            titles: list[str] = []
+            for entry in implementation_steps[:3]:
+                if not isinstance(entry, dict):
+                    continue
+                title = str(entry.get("title", "")).strip()
+                if title:
+                    titles.append(title)
+            if titles:
+                excerpt.append(f"实施步骤: {_join_items(titles)}")
+        downstream = payload.get("downstream_handoff")
+        if isinstance(downstream, dict):
+            template_id = str(downstream.get("target_template_id", "")).strip()
+            if template_id:
+                excerpt.append(f"交付模板: {template_id}")
         return excerpt
     return excerpt
 
@@ -297,6 +401,94 @@ def ssot_outline(payload: dict[str, Any]) -> list[str]:
         feature_titles = [item.split(":", 1)[0] for item in _feature_summaries(payload.get("features"), limit=5)]
         if feature_titles:
             outline.append("主要 FEAT: " + "；".join(feature_titles))
+        return outline
+    if artifact_type == "tech_design_package":
+        tech_design = payload.get("tech_design")
+        if isinstance(tech_design, dict):
+            tech_sections = [
+                ("design_focus", len(tech_design.get("design_focus", [])) if isinstance(tech_design.get("design_focus"), list) else 0),
+                ("module_plan", len(tech_design.get("module_plan", [])) if isinstance(tech_design.get("module_plan"), list) else 0),
+                ("state_model", len(tech_design.get("state_model", [])) if isinstance(tech_design.get("state_model"), list) else 0),
+                ("interface_contracts", len(tech_design.get("interface_contracts", [])) if isinstance(tech_design.get("interface_contracts"), list) else 0),
+                ("implementation_unit_mapping", len(tech_design.get("implementation_unit_mapping", [])) if isinstance(tech_design.get("implementation_unit_mapping"), list) else 0),
+            ]
+            outline.append("TECH 主体块: " + ", ".join(f"{name}[{count}]" for name, count in tech_sections if count))
+        selected_feat = payload.get("selected_feat")
+        if isinstance(selected_feat, dict):
+            title = str(selected_feat.get("title", "")).strip()
+            if title:
+                outline.append("Selected FEAT: " + title)
+        downstream = payload.get("downstream_handoff")
+        if isinstance(downstream, dict):
+            target_workflow = str(downstream.get("target_workflow", "")).strip()
+            if target_workflow:
+                outline.append("下游工作流: " + target_workflow)
+        return outline
+    if artifact_type == "test_set_candidate_package":
+        requirement_analysis = payload.get("requirement_analysis")
+        strategy_draft = payload.get("strategy_draft")
+        test_set = payload.get("test_set")
+        test_sections = []
+        if isinstance(requirement_analysis, dict):
+            test_sections.extend(
+                [
+                    ("coverage_scope", len(requirement_analysis.get("coverage_scope", [])) if isinstance(requirement_analysis.get("coverage_scope"), list) else 0),
+                    ("risk_focus", len(requirement_analysis.get("risk_focus", [])) if isinstance(requirement_analysis.get("risk_focus"), list) else 0),
+                    ("coverage_exclusions", len(requirement_analysis.get("coverage_exclusions", [])) if isinstance(requirement_analysis.get("coverage_exclusions"), list) else 0),
+                ]
+            )
+        if isinstance(strategy_draft, dict):
+            test_sections.append(("test_units", len(strategy_draft.get("test_units", [])) if isinstance(strategy_draft.get("test_units"), list) else 0))
+        if isinstance(test_set, dict):
+            test_sections.extend(
+                [
+                    ("pass_criteria", len(test_set.get("pass_criteria", [])) if isinstance(test_set.get("pass_criteria"), list) else 0),
+                    ("environment_assumptions", len(test_set.get("environment_assumptions", [])) if isinstance(test_set.get("environment_assumptions"), list) else 0),
+                ]
+            )
+        if test_sections:
+            outline.append("TESTSET 主体块: " + ", ".join(f"{name}[{count}]" for name, count in test_sections if count))
+        selected_feat = payload.get("selected_feat")
+        if isinstance(selected_feat, dict):
+            title = str(selected_feat.get("title", "")).strip()
+            if title:
+                outline.append("Selected FEAT: " + title)
+        downstream_target = str(payload.get("downstream_target", "")).strip()
+        if downstream_target:
+            outline.append("下游执行目标: " + downstream_target)
+        return outline
+    if artifact_type == "feature_impl_candidate_package":
+        impl_sections = [
+            ("source_refs", _count_list(payload, "source_refs")),
+            ("implementation_steps", _count_list(payload, "implementation_steps")),
+        ]
+        outline.append("IMPL 主体块: " + ", ".join(f"{name}[{count}]" for name, count in impl_sections if count))
+        selected_scope = payload.get("selected_scope")
+        if isinstance(selected_scope, dict):
+            nested = [
+                ("scope", len(selected_scope.get("scope", [])) if isinstance(selected_scope.get("scope"), list) else 0),
+                ("constraints", len(selected_scope.get("constraints", [])) if isinstance(selected_scope.get("constraints"), list) else 0),
+                ("dependencies", len(selected_scope.get("dependencies", [])) if isinstance(selected_scope.get("dependencies"), list) else 0),
+            ]
+            outline.append("selected_scope 子块: " + ", ".join(f"{name}[{count}]" for name, count in nested if count))
+        downstream_handoff = payload.get("downstream_handoff")
+        if isinstance(downstream_handoff, dict):
+            phase_inputs = downstream_handoff.get("phase_inputs")
+            if isinstance(phase_inputs, dict):
+                phase_sections = [f"{name}[{len(value)}]" for name, value in phase_inputs.items() if isinstance(value, list) and value]
+                if phase_sections:
+                    outline.append("交付输入: " + ", ".join(phase_sections))
+        step_titles: list[str] = []
+        for entry in payload.get("implementation_steps", []) if isinstance(payload.get("implementation_steps"), list) else []:
+            if not isinstance(entry, dict):
+                continue
+            title = str(entry.get("title", "")).strip()
+            if title:
+                step_titles.append(title)
+            if len(step_titles) >= 4:
+                break
+        if step_titles:
+            outline.append("主要实施步骤: " + "；".join(step_titles))
         return outline
     top_sections = [
         ("target_users", _count_list(payload, "target_users")),
@@ -376,6 +568,24 @@ def ssot_review_points(payload: dict[str, Any]) -> list[str]:
         if _count_list(payload, "downstream_workflows") or _count_list(payload, "source_refs"):
             points.append("核对 downstream_workflows 与 source_refs 是否完整，确保后续 feat-to-tech / feat-to-testset 不会丢失权威继承链。")
         return points
+    if artifact_type == "tech_design_package":
+        points.append("核对 TECH 是否明确区分 handoff submission、gate pending visibility、decision return intake 三类实现责任，没有把 formalization/publication 混进来。")
+        points.append("核对 state_model 与 interface_contracts 是否闭合，尤其 duplicate_submission、decision_return、reentry 的幂等与 fail-closed 语义。")
+        points.append("核对 implementation_unit_mapping 是否把 carrier 放在统一 runtime，而不是散落到业务 skill 或 gate worker。")
+        points.append("核对 downstream_handoff 是否足够支撑 tech_to_impl，不要求实现层再猜 handoff/queue 规则。")
+        return points
+    if artifact_type == "test_set_candidate_package":
+        points.append("核对 TESTSET 是否只覆盖主链候选提交与交接流本身，没有越界去定义 formalization、admission 或 publication。")
+        points.append("核对 duplicate submission、payload mismatch、missing payload、empty pending 这些 fail-closed 边界是否都有测试单元覆盖。")
+        points.append("核对 acceptance_traceability 是否把每个 acceptance check 映射到至少一个可执行测试单元。")
+        points.append("核对 downstream_target 与 required_environment_inputs 是否足够支撑后续 test_exec，而不是一份空壳 testset。")
+        return points
+    if artifact_type == "feature_impl_candidate_package":
+        points.append("核对 IMPL 是否严格只实现 handoff submission、pending visibility、decision return intake 与 re-entry routing，没有越界把 formal publish 或 admission 混进来。")
+        points.append("核对 implementation_steps 与冻结 touch set 是否集中在统一 carrier 上，没有扩成新的平台层或把责任散落到业务 skill。")
+        points.append("核对 downstream_handoff、phase_inputs 与 acceptance_refs 是否足够支撑 feature delivery，而不是让下游再猜实现边界。")
+        points.append("核对 evidence / smoke gate 是否覆盖 authoritative handoff、returned decision 与 re-entry directive，而不是只给 happy path。")
+        return points
     if str(payload.get("problem_statement", "")).strip():
         points.append("核对 problem_statement 是否同时说明当前失控行为、为什么必须现在收敛、以及不收敛的后果。")
     if _count_list(payload, "key_constraints") or _count_list(payload, "governance_change_summary"):
@@ -434,6 +644,18 @@ def ssot_fulltext_markdown(payload: dict[str, Any]) -> str:
             return markdown
     if artifact_type == "feat_freeze_package":
         markdown = _feat_freeze_fulltext_markdown(payload)
+        if markdown:
+            return markdown
+    if artifact_type == "tech_design_package":
+        markdown = _tech_design_fulltext_markdown(payload)
+        if markdown:
+            return markdown
+    if artifact_type == "test_set_candidate_package":
+        markdown = _test_set_fulltext_markdown(payload)
+        if markdown:
+            return markdown
+    if artifact_type == "feature_impl_candidate_package":
+        markdown = _impl_bundle_fulltext_markdown(payload)
         if markdown:
             return markdown
     paragraphs: list[str] = []
@@ -616,6 +838,203 @@ def _feat_freeze_fulltext_markdown(payload: dict[str, Any]) -> str:
     if non_goals:
         lines.extend(["", "### 这组 FEAT 明确不应该漂向哪里", ""])
         lines.extend(f"- {item}" for item in non_goals)
+    return "\n".join(lines) + "\n"
+
+
+def _tech_design_fulltext_markdown(payload: dict[str, Any]) -> str:
+    lines = ["## Machine SSOT 人类友好全文", ""]
+    title = str(payload.get("title", "")).strip()
+    workflow_run_id = str(payload.get("workflow_run_id", "")).strip()
+    intro = "这是一份 `tech_design_package` 候选稿"
+    if title:
+        intro += f"，标题是“{title}”"
+    if workflow_run_id:
+        intro += f"，本次 run 是 `{workflow_run_id}`"
+    lines.append(intro + "。")
+    selected_feat = payload.get("selected_feat")
+    if isinstance(selected_feat, dict):
+        goal = str(selected_feat.get("goal", "")).strip()
+        if goal:
+            lines.extend(["", "它要落地的 FEAT 目标是：" + goal])
+    tech_design = payload.get("tech_design")
+    if isinstance(tech_design, dict):
+        design_focus = _first_items(tech_design, "design_focus", limit=2)
+        if design_focus:
+            lines.extend(["", "### 这份 TECH 主要在实现什么", ""])
+            lines.extend(f"- {item}" for item in design_focus)
+        architecture = _first_items(tech_design, "implementation_architecture", limit=3)
+        if architecture:
+            lines.extend(["", "### 实现边界与职责分工", ""])
+            lines.extend(f"- {item}" for item in architecture)
+        module_plan = _first_items(tech_design, "module_plan", limit=5)
+        if module_plan:
+            lines.extend(["", "### 计划落到哪些模块", ""])
+            lines.extend(f"- {item}" for item in module_plan)
+        state_model = _first_items(tech_design, "state_model", limit=4)
+        if state_model:
+            lines.extend(["", "### 核心状态机", ""])
+            lines.extend(f"- {item}" for item in state_model)
+        contracts = _first_items(tech_design, "interface_contracts", limit=3)
+        if contracts:
+            lines.extend(["", "### 关键接口合同", ""])
+            lines.extend(f"- {item}" for item in contracts)
+        strategy = _first_items(tech_design, "implementation_strategy", limit=3)
+        if strategy:
+            lines.extend(["", "### 实施顺序", ""])
+            lines.extend(f"- {item}" for item in strategy)
+    downstream = payload.get("downstream_handoff")
+    if isinstance(downstream, dict):
+        target_workflow = str(downstream.get("target_workflow", "")).strip()
+        if target_workflow:
+            lines.extend(["", f"下游会继续交接给 `{target_workflow}`。"])
+    return "\n".join(lines) + "\n"
+
+
+def _test_set_fulltext_markdown(payload: dict[str, Any]) -> str:
+    lines = ["## Machine SSOT 人类友好全文", ""]
+    title = str(payload.get("title", "")).strip()
+    workflow_run_id = str(payload.get("workflow_run_id", "")).strip()
+    intro = "这是一份 `test_set_candidate_package` 候选稿"
+    if title:
+        intro += f"，标题是“{title}”"
+    if workflow_run_id:
+        intro += f"，本次 run 是 `{workflow_run_id}`"
+    lines.append(intro + "。")
+    selected_feat = payload.get("selected_feat")
+    if isinstance(selected_feat, dict):
+        goal = str(selected_feat.get("goal", "")).strip()
+        if goal:
+            lines.extend(["", "它要验证的 FEAT 目标是：" + goal])
+    requirement_analysis = payload.get("requirement_analysis")
+    if isinstance(requirement_analysis, dict):
+        coverage_scope = _first_items(requirement_analysis, "coverage_scope", limit=3)
+        if coverage_scope:
+            lines.extend(["", "### 这份 TESTSET 要覆盖什么", ""])
+            lines.extend(f"- {item}" for item in coverage_scope)
+        exclusions = _first_items(requirement_analysis, "coverage_exclusions", limit=3)
+        if exclusions:
+            lines.extend(["", "### 明确不覆盖什么", ""])
+            lines.extend(f"- {item}" for item in exclusions)
+    strategy_draft = payload.get("strategy_draft")
+    if isinstance(strategy_draft, dict):
+        test_units = _test_unit_summaries(strategy_draft.get("test_units"), limit=6)
+        if test_units:
+            lines.extend(["", "### 关键测试单元", ""])
+            lines.extend(f"- {item}" for item in test_units)
+    test_set = payload.get("test_set")
+    if isinstance(test_set, dict):
+        pass_criteria = _first_items(test_set, "pass_criteria", limit=3)
+        if pass_criteria:
+            lines.extend(["", "### 通过标准", ""])
+            lines.extend(f"- {item}" for item in pass_criteria)
+        environment_assumptions = _first_items(test_set, "environment_assumptions", limit=4)
+        if environment_assumptions:
+            lines.extend(["", "### 执行前置环境假设", ""])
+            lines.extend(f"- {item}" for item in environment_assumptions)
+    downstream_target = str(payload.get("downstream_target", "")).strip()
+    if downstream_target:
+        lines.extend(["", f"下游执行目标是 `{downstream_target}`。"])
+    return "\n".join(lines) + "\n"
+
+
+def _impl_bundle_fulltext_markdown(payload: dict[str, Any]) -> str:
+    lines = ["## Machine SSOT 人类友好全文", ""]
+    title = str(payload.get("title", "")).strip()
+    workflow_run_id = str(payload.get("workflow_run_id", "")).strip()
+    intro = "这是一份 `feature_impl_candidate_package` 候选稿"
+    if title:
+        intro += f"，标题是“{title}”"
+    if workflow_run_id:
+        intro += f"，本次 run 是 `{workflow_run_id}`"
+    lines.append(intro + "。")
+
+    selected_scope = payload.get("selected_scope")
+    if isinstance(selected_scope, dict):
+        goal = str(selected_scope.get("goal", "")).strip()
+        if goal:
+            lines.extend(["", "它要落地的实现目标是：" + goal])
+        scope = _first_items(selected_scope, "scope", limit=4)
+        if scope:
+            lines.extend(["", "### 这份 IMPL 具体覆盖什么", ""])
+            lines.extend(f"- {item}" for item in scope)
+        constraints = _first_items(selected_scope, "constraints", limit=4)
+        if constraints:
+            lines.extend(["", "### 必须继承的实现约束", ""])
+            lines.extend(f"- {item}" for item in constraints)
+        dependencies = _first_items(selected_scope, "dependencies", limit=3)
+        if dependencies:
+            lines.extend(["", "### 与相邻对象的边界", ""])
+            lines.extend(f"- {item}" for item in dependencies)
+
+    workstream_assessment = payload.get("workstream_assessment")
+    if isinstance(workstream_assessment, dict):
+        lines.extend(["", "### 需要落到哪些执行面", ""])
+        lines.append(f"- frontend_required: {bool(workstream_assessment.get('frontend_required'))}")
+        lines.append(f"- backend_required: {bool(workstream_assessment.get('backend_required'))}")
+        lines.append(f"- migration_required: {bool(workstream_assessment.get('migration_required'))}")
+        rationale = workstream_assessment.get("rationale")
+        if isinstance(rationale, dict):
+            for label in ("frontend", "backend", "migration"):
+                items = rationale.get(label)
+                if isinstance(items, list):
+                    for item in items[:2]:
+                        if isinstance(item, str) and item.strip():
+                            lines.append(f"- {label}: {item.strip()}")
+
+    upstream_refs = payload.get("upstream_design_refs")
+    if isinstance(upstream_refs, dict):
+        frozen = upstream_refs.get("frozen_decisions")
+        if isinstance(frozen, dict):
+            unit_mapping = _first_items(frozen, "implementation_unit_mapping", limit=5)
+            if unit_mapping:
+                lines.extend(["", "### 计划落到哪些模块", ""])
+                lines.extend(f"- {item}" for item in unit_mapping)
+            state_model = _first_items(frozen, "state_model", limit=4)
+            if state_model:
+                lines.extend(["", "### 核心状态机", ""])
+                lines.extend(f"- {item}" for item in state_model)
+            contracts = _first_items(frozen, "interface_contracts", limit=3)
+            if contracts:
+                lines.extend(["", "### 冻结接口合同", ""])
+                lines.extend(f"- {item}" for item in contracts)
+            main_sequence = _first_items(frozen, "main_sequence", limit=6)
+            if main_sequence:
+                lines.extend(["", "### 主实施顺序", ""])
+                lines.extend(f"- {item}" for item in main_sequence)
+
+    implementation_steps = payload.get("implementation_steps")
+    if isinstance(implementation_steps, list) and implementation_steps:
+        lines.extend(["", "### 实施任务拆分", ""])
+        for entry in implementation_steps[:4]:
+            if not isinstance(entry, dict):
+                continue
+            title_text = str(entry.get("title", "")).strip()
+            work_text = str(entry.get("work", "")).strip()
+            if title_text and work_text:
+                lines.append(f"- {title_text}: {work_text}")
+            elif title_text:
+                lines.append(f"- {title_text}")
+
+    downstream = payload.get("downstream_handoff")
+    if isinstance(downstream, dict):
+        lines.extend(["", "### 交付与验收", ""])
+        template_id = str(downstream.get("target_template_id", "")).strip()
+        if template_id:
+            lines.append(f"- 目标交付模板: `{template_id}`")
+        primary_artifact = str(downstream.get("primary_artifact_ref", "")).strip()
+        if primary_artifact:
+            lines.append(f"- 主交付物: `{primary_artifact}`")
+        acceptance_refs = downstream.get("acceptance_refs")
+        if isinstance(acceptance_refs, list) and acceptance_refs:
+            labels = [str(item).strip() for item in acceptance_refs if str(item).strip()]
+            if labels:
+                lines.append(f"- 验收引用: {_join_items(labels)}")
+        phase_inputs = downstream.get("phase_inputs")
+        if isinstance(phase_inputs, dict):
+            visible_inputs = [f"{key}[{len(value)}]" for key, value in phase_inputs.items() if isinstance(value, list) and value]
+            if visible_inputs:
+                lines.append(f"- 交付输入: {', '.join(visible_inputs)}")
+
     return "\n".join(lines) + "\n"
 
 

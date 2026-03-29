@@ -10,7 +10,7 @@ from pathlib import Path
 from typing import Any
 
 from raw_to_src_bridge import acceptance_review, semantic_review
-from raw_to_src_common import WORKFLOW_KEY, find_duplicate_src
+from raw_to_src_common import WORKFLOW_KEY, find_duplicate_src, render_candidate_markdown
 from raw_to_src_gate_integration import create_gate_ready_package, submit_gate_pending
 from raw_to_src_records import (
     SEMANTIC_BUDGET,
@@ -38,6 +38,61 @@ def write_json(path: Path, data: Any) -> None:
     path.write_text(json.dumps(data, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
 
 
+def _semantic_patch_events(run_id: str, patches: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    return [
+        {
+            "patch_id": f"patch-{run_id}-semantic-{index}",
+            "stage_id": "semantic_fix_loop",
+            "actor_role": "supervisor",
+            "patch_scope": "semantic",
+            "patch_mode": "targeted_repair",
+            "issue_code": patch["code"],
+            "target_fields": patch["target_fields"],
+            "action": patch["action"],
+            "outcome": "applied",
+        }
+        for index, patch in enumerate(patches, start=1)
+    ]
+
+
+def _apply_semantic_patch(
+    candidate: dict[str, Any],
+    findings: list[dict[str, Any]],
+    *,
+    duplicate_path: Path | None,
+) -> tuple[dict[str, Any], list[dict[str, Any]]]:
+    working = json.loads(json.dumps(candidate, ensure_ascii=False))
+    applied: list[dict[str, Any]] = []
+    finding_types = {str(item.get("type") or "") for item in findings}
+
+    if "duplicate_title" in finding_types and duplicate_path is not None:
+        base_title = str(working.get("title") or "").strip()
+        if base_title and not base_title.endswith("修订版"):
+            working["title"] = f"{base_title} 修订版"
+            applied.append(
+                {
+                    "code": "duplicate_title",
+                    "action": f"Adjusted SRC title to avoid duplicate slug with {duplicate_path}.",
+                    "target_fields": ["title"],
+                }
+            )
+
+    if "layer_boundary" in finding_types:
+        working["problem_statement"] = (
+            "当前已落地的治理语义仍分散在 skill、runtime、contract 与测试中；"
+            "如果不把这些约束收敛成统一的 SRC 继承源，下游会继续各自重写输入边界、冻结条件与交接规则。"
+        )
+        applied.append(
+            {
+                "code": "layer_boundary",
+                "action": "Rewrote problem statement to stay at SRC governance boundary and avoid downstream artifact layers.",
+                "target_fields": ["problem_statement"],
+            }
+        )
+
+    return working, applied
+
+
 def supervisor_review(artifacts_dir: Path, repo_root: Path, run_id: str, allow_update: bool) -> dict[str, Any]:
     normalized_input = read_json(artifacts_dir / "normalized-input.json")
     document = normalized_input["document"]
@@ -49,7 +104,7 @@ def supervisor_review(artifacts_dir: Path, repo_root: Path, run_id: str, allow_u
     duplicate_path = find_duplicate_src(repo_root, candidate["title"])
     review, semantic_findings = semantic_review(
         candidate,
-        duplicate_path if not allow_update else None,
+        duplicate_path,
         document=document,
     )
     annotated_semantic_findings = [
@@ -73,6 +128,48 @@ def supervisor_review(artifacts_dir: Path, repo_root: Path, run_id: str, allow_u
         )
     ]
 
+    semantic_attempts: list[dict[str, Any]] = []
+    semantic_patch_events: list[dict[str, Any]] = []
+    semantic_patch_codes: list[str] = []
+    if annotated_semantic_findings:
+        semantic_attempts.append(
+            {
+                "loop": "semantic",
+                "attempt_number": 1,
+                "reason": annotated_semantic_findings[0]["type"],
+                "outcome": "retry_recommended",
+            }
+        )
+
+    if allow_update and annotated_semantic_findings:
+        patched_candidate, applied_patches = _apply_semantic_patch(
+            candidate,
+            annotated_semantic_findings,
+            duplicate_path=duplicate_path,
+        )
+        if applied_patches:
+            candidate = patched_candidate
+            write_json(artifacts_dir / "src-candidate.json", candidate)
+            candidate_path.write_text(render_candidate_markdown(candidate), encoding="utf-8")
+            semantic_patch_events = _semantic_patch_events(run_id, applied_patches)
+            semantic_patch_codes = [item["code"] for item in applied_patches]
+            semantic_attempts[-1]["outcome"] = "semantic_patch_applied"
+            patch_lineage = read_json(artifacts_dir / "patch-lineage.json")
+            patch_lineage["events"] = list(patch_lineage.get("events", [])) + semantic_patch_events
+            write_json(artifacts_dir / "patch-lineage.json", patch_lineage)
+            review, semantic_findings = semantic_review(candidate, None, document=document)
+            annotated_semantic_findings = [
+                {
+                    "finding_id": f"semantic-{run_id}-{index}",
+                    "source_stage": "semantic_recheck",
+                    "created_by_role": "supervisor",
+                    **finding,
+                }
+                for index, finding in enumerate(semantic_findings, start=1)
+            ]
+            if annotated_semantic_findings:
+                semantic_attempts[-1]["outcome"] = "retry_recommended"
+
     acceptance_report, acceptance_findings = acceptance_review(candidate, review)
     annotated_acceptance_findings = [
         {
@@ -84,16 +181,6 @@ def supervisor_review(artifacts_dir: Path, repo_root: Path, run_id: str, allow_u
         for index, finding in enumerate(acceptance_findings, start=1)
     ]
     defects = annotated_semantic_findings + annotated_acceptance_findings
-    semantic_attempts: list[dict[str, Any]] = []
-    if defects:
-        semantic_attempts.append(
-            {
-                "loop": "semantic",
-                "attempt_number": 1,
-                "reason": defects[0]["type"],
-                "outcome": "retry_recommended",
-            }
-        )
     supervisor_stages.extend(
         [
             stage(
@@ -107,9 +194,10 @@ def supervisor_review(artifacts_dir: Path, repo_root: Path, run_id: str, allow_u
             ),
             stage(
                 "semantic_fix_loop",
-                "completed",
-                "No semantic auto-rewrite performed.",
-                "executor",
+                "completed" if semantic_patch_codes else "skipped",
+                "Semantic targeted repair executed." if semantic_patch_codes else "No semantic auto-rewrite performed.",
+                "supervisor",
+                patches_applied=semantic_patch_codes,
             ),
             stage(
                 "semantic_recheck",
@@ -117,6 +205,7 @@ def supervisor_review(artifacts_dir: Path, repo_root: Path, run_id: str, allow_u
                 "Semantic recheck completed.",
                 "supervisor",
                 issues_found=[item["type"] for item in defects],
+                patches_applied=semantic_patch_codes,
                 revalidation_status="passed" if not defects else "failed",
             ),
         ]
@@ -183,7 +272,7 @@ def supervisor_review(artifacts_dir: Path, repo_root: Path, run_id: str, allow_u
     gate_ready_package_ref = None
     authoritative_handoff_ref = None
     gate_pending_ref = None
-    if action != "blocked" and handoff_ref is not None:
+    if action == "next_skill" and handoff_ref is not None:
         registry_record_ref = str(structural_report.get("cli_candidate_registry_record_ref", "")).strip()
         candidate_ref = f"raw-to-src.{run_id}.src-candidate"
         if registry_record_ref:

@@ -19,7 +19,7 @@ Use this skill when a raw requirement, ADR, business opportunity, or frozen busi
 
 1. Read `resources/upstream-workflow-analysis.md` for the migrated stage map.
 2. Read `ll.contract.yaml`, then `input/contract.yaml` and `output/contract.yaml`.
-3. Read runtime spec references under `spec/contracts/raw-to-src/` and `spec/governance/raw-to-src-runtime.md`.
+3. Read runtime contract references under `resources/contracts/raw-to-src/` and `resources/raw-to-src-runtime-contract.md`.
 4. Read `resources/checklists/acceptance-checklist.md` when running manual acceptance.
 5. Run structural validation with `scripts/validate_input.sh`.
 6. Run `python scripts/raw_to_src.py executor-run --input <path>` for the executor phase, then `python scripts/raw_to_src.py supervisor-review --artifacts-dir <dir>` for the supervisor phase.
