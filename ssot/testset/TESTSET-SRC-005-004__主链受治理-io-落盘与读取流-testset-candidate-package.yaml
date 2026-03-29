@@ -1,0 +1,329 @@
+id: TESTSET-SRC-005-004
+ssot_type: TESTSET
+workflow_key: qa.feat-to-testset
+template_id: template.qa.test_set_production
+template_workflow_key: workflow.qa.test_set_production_l3
+test_set_id: TS-SRC-005-004
+feat_ref: FEAT-SRC-005-004
+epic_ref: EPIC-SRC-005-001
+src_ref: SRC-005
+title: 主链受治理 IO 落盘与读取流 Test Set
+description: 主链受治理 IO 落盘与读取流 governed QA candidate package
+derived_slug: u4e3b-u94fe-u53d7-u6cbb-u7406-io-u843d-u76d8-u4e0e-u8bfb-u53d6-u6d41
+coverage_scope:
+- 定义 handoff、decision、formal output、evidence 的正式读写动作。
+- 定义业务调用点、正式 receipt / registry record 和 managed ref。
+- 定义被拒绝读写时对业务方可见的失败表现。
+recommended_coverage_scope_name:
+- governed io feature
+feature_owned_code_paths:
+- cli/lib/managed_gateway.py
+- cli/commands/artifact/command.py
+risk_focus:
+- 要求 every test unit 都能回链到 FEAT acceptance、governing ADR 与 expected downstream evidence。
+- 绕过 Path Policy 或 Gateway 产生自由写入
+- receipt / registry record 不可追溯
+preconditions:
+- 'Boundary to 对象分层与准入能力: 本 FEAT 定义对象落盘边界，不定义对象层级与消费资格本身。'
+- 'Boundary to 正式交接与物化能力: 本 FEAT 约束 formalization 的 IO/path 边界，但 formalization 决策语义仍属于正式交接
+  FEAT。'
+- 'Boundary to ADR-005 prerequisite foundation: 本 FEAT 只消费已交付的 Gateway / Path Policy
+  / Registry 能力，不在此重写其模块边界。'
+- Gateway / Path Policy / Registry 已接入主链。
+- managed write/read preflight 可独立输出 verdict。
+environment_assumptions:
+- 需要可解析 selected FEAT 所依赖的集成环境与上游 artifact lineage。
+- 需要能读取并追踪 FEAT、EPIC、SRC 与 governing ADR 引用。
+- 需要保留 execution evidence 与 supervision evidence 所要求的最小审计链。
+- 依赖服务或上游能力应以可观测、可判定的方式处于可用状态。
+- Gateway / Path Policy / Registry 必须在同一受治理链路中返回稳定 verdict。
+- receipt_ref、registry_record_ref 与 managed_artifact_ref 解析上下文必须可观测。
+required_environment_inputs:
+  environment:
+  - 可运行 selected FEAT 的集成环境
+  - 可解析 source_refs 的受治理 workspace 上下文
+  data:
+  - 覆盖 FEAT acceptance checks 所需的最小测试数据或 fixtures
+  - 可重建 analysis/strategy trace 的输入样本
+  - authoritative handoff submission
+  - pending_state
+  - receipt_ref / registry_record_ref / managed_artifact_ref fixture
+  services:
+  - selected FEAT 所依赖的集成服务或协作 consumer
+  - gateway / path policy verdict emitter
+  - registry writer / managed receipt builder
+  access:
+  - 读取 FEAT candidate / freeze lineage 所需权限
+  - 执行 QA evidence 采集与落盘所需权限
+  - handoff service identity、gateway service account 或等价账号材料
+  - registry token / receipt writer credential
+  feature_flags:
+  - selected FEAT 涉及的 gated rollout、cutover 或 guarded branch 开关
+  - policy deny strict mode / registry preflight guard
+  ui_or_integration_context:
+  - 驱动 FEAT acceptance checks 的 CLI 命令、接口调用或 integration context
+  - 受治理 IO receipt / registry / verdict integration context
+test_layers:
+- integration
+test_units:
+- unit_ref: TS-SRC-005-004-U01
+  title: commit-governed / read-governed 只允许经 gateway 的 managed 路径
+  priority: P0
+  input_preconditions:
+  - EPIC-SRC-005-001 requires handoff and formalization artifacts to be written
+  - gateway / path policy / registry 已启用。
+  trigger_action: A governed skill performs mainline IO
+  observation_points:
+  - gateway verdict
+  - receipt_ref / registry_record_ref / managed_artifact_ref。
+  pass_conditions:
+  - 所有写读都经 gateway 并返回 managed refs。
+  - 不出现自由写入或自由读取旁路。
+  fail_conditions:
+  - 绕过 gateway 仍成功写读。
+  - managed refs 缺失。
+  required_evidence:
+  - gateway verdict evidence
+  - receipt evidence
+  - registry record evidence
+  suggested_layers: &id001
+  - integration
+  supporting_refs:
+  - EPIC-SRC-005-001
+  - SRC-005
+  - product.raw-to-src::adr011-raw2src-fix-20260327-r1
+  - ADR-011
+  - ADR-001
+  - ADR-003
+  - ADR-004
+  - ADR-005
+  - ADR-006
+  - ADR-008
+  - ADR-009
+  - commit-governed
+  - read-governed
+  - policy_deny
+  - registry_prerequisite_failed
+  - receipt_pending
+  - receipt_ref
+  - registry_record_ref
+  - managed_artifact_ref
+  - FEAT-SRC-005-004
+  - mainline IO
+  - handoff
+  - formalization
+  - scope boundary
+  acceptance_ref: FEAT-SRC-005-004-AC-01
+- unit_ref: TS-SRC-005-004-U02
+  title: path policy 边界只覆盖 mainline governed IO，不扩张为仓库级总方案
+  priority: P0
+  input_preconditions:
+  - A downstream team proposes broader repository-wide directory rules
+  - scope boundary 已声明为 mainline governed IO。
+  trigger_action: That proposal is compared to this FEAT
+  observation_points:
+  - policy verdict scope
+  - 被拒绝操作的边界说明。
+  pass_conditions:
+  - 仅 mainline governed IO 被纳入受测边界。
+  - 全局文件治理扩展请求被拒绝。
+  fail_conditions:
+  - 测试边界覆盖仓库级全局治理。
+  - scope expansion 未被识别。
+  required_evidence:
+  - boundary denial evidence
+  - policy scope note
+  suggested_layers: *id001
+  supporting_refs:
+  - EPIC-SRC-005-001
+  - SRC-005
+  - product.raw-to-src::adr011-raw2src-fix-20260327-r1
+  - ADR-011
+  - ADR-001
+  - ADR-003
+  - ADR-004
+  - ADR-005
+  - ADR-006
+  - ADR-008
+  - ADR-009
+  - commit-governed
+  - read-governed
+  - policy_deny
+  - registry_prerequisite_failed
+  - receipt_pending
+  - receipt_ref
+  - registry_record_ref
+  - managed_artifact_ref
+  - FEAT-SRC-005-004
+  - global file governance
+  - scope expansion forbidden
+  - path boundary
+  acceptance_ref: FEAT-SRC-005-004-AC-02
+- unit_ref: TS-SRC-005-004-U03
+  title: policy_deny 时不得 silent fallback 到自由写入
+  priority: P0
+  input_preconditions:
+  - A mainline write hits a path or mode restriction
+  - preflight 结果为 policy_deny。
+  trigger_action: The write is retried
+  observation_points:
+  - write result status
+  - 是否存在自由写入旁路。
+  pass_conditions:
+  - policy_deny 返回可追溯 denied 结果。
+  - 不存在 free write fallback。
+  fail_conditions:
+  - policy_deny 后仍发生自由写入。
+  - 没有返回可审计 verdict。
+  required_evidence:
+  - policy_deny evidence
+  - blocked fallback trace
+  suggested_layers: *id001
+  supporting_refs:
+  - EPIC-SRC-005-001
+  - SRC-005
+  - product.raw-to-src::adr011-raw2src-fix-20260327-r1
+  - ADR-011
+  - ADR-001
+  - ADR-003
+  - ADR-004
+  - ADR-005
+  - ADR-006
+  - ADR-008
+  - ADR-009
+  - commit-governed
+  - read-governed
+  - policy_deny
+  - registry_prerequisite_failed
+  - receipt_pending
+  - receipt_ref
+  - registry_record_ref
+  - managed_artifact_ref
+  - FEAT-SRC-005-004
+  - path mode enforcement
+  - free write fallback
+  - formal write
+  acceptance_ref: FEAT-SRC-005-004-AC-03
+- unit_ref: TS-SRC-005-004-U04
+  title: registry_prerequisite_failed 与 receipt_pending 都必须留下可追溯结果
+  priority: P0
+  input_preconditions:
+  - registry bind 前置条件或 receipt build 可能失败。
+  trigger_action: 分别触发 registry_prerequisite_failed 与 receipt_pending 场景。
+  observation_points:
+  - partial success 标记
+  - 失败结果 evidence
+  - 重试/补偿上下文。
+  pass_conditions:
+  - registry_prerequisite_failed 与 receipt_pending 都可被追溯。
+  - 主链不会因部分成功而静默丢失 managed refs 上下文。
+  fail_conditions:
+  - 失败状态无 evidence。
+  - partial success 没有明确标记。
+  required_evidence:
+  - registry_prerequisite_failed evidence
+  - receipt_pending evidence
+  - compensation trace
+  suggested_layers: *id001
+  supporting_refs:
+  - EPIC-SRC-005-001
+  - SRC-005
+  - product.raw-to-src::adr011-raw2src-fix-20260327-r1
+  - ADR-011
+  - ADR-001
+  - ADR-003
+  - ADR-004
+  - ADR-005
+  - ADR-006
+  - ADR-008
+  - ADR-009
+  - commit-governed
+  - read-governed
+  - policy_deny
+  - registry_prerequisite_failed
+  - receipt_pending
+  - receipt_ref
+  - registry_record_ref
+  - managed_artifact_ref
+  acceptance_ref: FEAT-SRC-005-004-AC-03
+coverage_exclusions:
+- Do not define object qualification, candidate/formal authority, or consumer admission
+  semantics here.
+- Do not re-implement ADR-005 Gateway / Path Policy / Registry modules or widen them
+  into repository-wide governance here.
+pass_criteria:
+- 每条 acceptance check 都有至少一个可执行测试单元映射。
+- TESTSET 不越界覆盖相邻 FEAT 或新需求。
+- candidate package 在外置 approval 前保持 machine-readable traceability 与 gate subject
+  identity。
+- commit-governed / read-governed 成功路径必须返回 receipt_ref、registry_record_ref、managed_artifact_ref。
+- policy_deny / registry_prerequisite_failed / receipt_pending 必须留下可追溯结果且不得 fallback。
+evidence_required:
+- analysis 与 strategy 形成过程的 execution evidence
+- supervisor 对 TESTSET 与 traceability 的 review evidence
+- candidate package 的 machine-readable gate subject records
+- receipt_ref
+- registry_record_ref
+- managed_artifact_ref
+- policy_deny / registry_prerequisite_failed / receipt_pending evidence
+acceptance_traceability:
+- acceptance_ref: FEAT-SRC-005-004-AC-01
+  acceptance_scenario: Mainline IO boundary is explicit
+  given: EPIC-SRC-005-001 requires handoff and formalization artifacts to be written
+  when: A governed skill performs mainline IO
+  then: The FEAT must define which IO belongs to mainline handoff / materialization
+    and which IO is out of scope.
+  unit_refs:
+  - TS-SRC-005-004-U01
+  coverage_status: covered
+  coverage_notes: Acceptance is explicitly mapped to executable minimum coverage units.
+- acceptance_ref: FEAT-SRC-005-004-AC-02
+  acceptance_scenario: Path governance does not expand into global file governance
+  given: A downstream team proposes broader repository-wide directory rules
+  when: That proposal is compared to this FEAT
+  then: The FEAT must reject scope expansion beyond governed skill IO, handoff, and
+    materialization boundaries.
+  unit_refs:
+  - TS-SRC-005-004-U02
+  coverage_status: covered
+  coverage_notes: Acceptance is explicitly mapped to executable minimum coverage units.
+- acceptance_ref: FEAT-SRC-005-004-AC-03
+  acceptance_scenario: Formal writes cannot fall back to free writes
+  given: A mainline write hits a path or mode restriction
+  when: The write is retried
+  then: The FEAT must preserve governed path / mode enforcement and block silent fallback
+    to uncontrolled writes.
+  unit_refs:
+  - TS-SRC-005-004-U03
+  - TS-SRC-005-004-U04
+  coverage_status: covered
+  coverage_notes: Acceptance is explicitly mapped to executable minimum coverage units.
+source_refs:
+- product.epic-to-feat::adr011-raw2src-fix-20260327-r1
+- FEAT-SRC-005-004
+- EPIC-SRC-005-001
+- SRC-005
+- product.raw-to-src::adr011-raw2src-fix-20260327-r1
+- ADR-011
+- ADR-001
+- ADR-003
+- ADR-004
+- ADR-005
+- ADR-006
+- ADR-008
+- ADR-009
+- product.src-to-epic::adr011-raw2src-fix-20260327-r1
+governing_adrs:
+- ADR-011
+- ADR-001
+- ADR-003
+- ADR-004
+- ADR-005
+- ADR-006
+- ADR-008
+- ADR-009
+semantic_lock: {}
+status: frozen
+candidate_package_ref: artifacts/feat-to-testset/adr011-raw2src-fix-20260327-r1--feat-src-005-004
+gate_decision_ref: artifacts/active/gates/decisions/feat-to-testset-adr011-raw2src-fix-20260327-r1--feat-src-005-004-test-set-bundle-decision.json
+frozen_at: '2026-03-29T14:26:55Z'

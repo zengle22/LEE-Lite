@@ -1,0 +1,720 @@
+id: TESTSET-SRC-005-001
+ssot_type: TESTSET
+workflow_key: qa.feat-to-testset
+template_id: template.qa.test_set_production
+template_workflow_key: workflow.qa.test_set_production_l3
+test_set_id: TS-SRC-005-001
+feat_ref: FEAT-SRC-005-001
+epic_ref: EPIC-SRC-005-001
+src_ref: SRC-005
+title: 主链候选提交与交接流 Test Set
+description: 主链候选提交与交接流 governed QA candidate package
+derived_slug: u4e3b-u94fe-u5019-u9009-u63d0-u4ea4-u4e0e-u4ea4-u63a5-u6d41
+coverage_scope:
+- 定义 candidate package、proposal、evidence 在什么触发场景下被提交。
+- 定义提交后形成什么 authoritative handoff object。
+- 定义提交完成后对上游和 gate 分别暴露什么业务结果。
+recommended_coverage_scope_name:
+- mainline collaboration feature
+feature_owned_code_paths:
+- cli/lib/mainline_runtime.py
+- cli/lib/reentry.py
+- cli/lib/gate_collaboration_actions.py
+risk_focus:
+- 要求 every test unit 都能回链到 FEAT acceptance、governing ADR 与 expected downstream evidence。
+- queue / handoff / re-entry contract 漂移
+- duplicate_submission 不可判定或被错误覆盖
+preconditions:
+- 'Boundary to 正式交接与物化能力: 本 FEAT 只负责协作责任、状态流转与回流条件，不负责 formalization 语义、升级判定与物化结果。'
+- 'Boundary to 对象分层与准入能力: 本 FEAT 可以要求对象交接，但对象是否具备正式消费资格由对象分层 FEAT 决定。'
+environment_assumptions:
+- 需要可解析 selected FEAT 所依赖的集成环境与上游 artifact lineage。
+- 需要能读取并追踪 FEAT、EPIC、SRC 与 governing ADR 引用。
+- 需要保留 execution evidence 与 supervision evidence 所要求的最小审计链。
+- 依赖服务或上游能力应以可观测、可判定的方式处于可用状态。
+required_environment_inputs:
+  environment:
+  - 可运行 selected FEAT 的集成环境
+  - 可解析 source_refs 的受治理 workspace 上下文
+  data:
+  - 覆盖 FEAT acceptance checks 所需的最小测试数据或 fixtures
+  - 可重建 analysis/strategy trace 的输入样本
+  - authoritative handoff submission
+  - pending_state / gate_pending_ref / assigned_gate_queue fixture
+  - duplicate payload replay / mismatch failure samples
+  services:
+  - selected FEAT 所依赖的集成服务或协作 consumer
+  - handoff runtime
+  - pending visibility reader
+  - runtime re-entry writer
+  access:
+  - 读取 FEAT candidate / freeze lineage 所需权限
+  - 执行 QA evidence 采集与落盘所需权限
+  - handoff service identity 或等价账号材料
+  - 读取 trace_ref、canonical_payload_path、reentry_directive 的权限
+  feature_flags:
+  - selected FEAT 涉及的 gated rollout、cutover 或 guarded branch 开关
+  - idempotent replay guard / decision return routing guard
+  ui_or_integration_context:
+  - 驱动 FEAT acceptance checks 的 CLI 命令、接口调用或 integration context
+  - authoritative handoff / pending visibility integration context
+test_layers:
+- integration
+test_units:
+- unit_ref: TS-SRC-005-001-U01
+  title: candidate submit-mainline 明确 execution / gate / human loop 的责任边界
+  priority: P0
+  input_preconditions:
+  - candidate package 已就绪且准备进入主链 handoff。
+  - 'Boundary to 正式交接与物化能力: 本 FEAT 只负责协作责任、状态流转与回流条件，不负责 formalization 语义、升级判定与物化结果。'
+  - 'Boundary to 对象分层与准入能力: 本 FEAT 可以要求对象交接，但对象是否具备正式消费资格由对象分层 FEAT 决定。'
+  trigger_action: 执行 candidate package submit-mainline，并记录 execution loop、gate loop、human
+    loop 的 transition ownership。
+  observation_points:
+  - authoritative handoff submission
+  - loop ownership map
+  - return path / re-entry target
+  - decision-driven runtime routing boundary
+  pass_conditions:
+  - 每个 loop 只拥有一类明确 transition。
+  - handoff 不挟带 gate decision issuance 或 approval authority。
+  - revise/retry routing 由 runtime 持有而不是由业务 skill 私下拼接。
+  fail_conditions:
+  - loop ownership 重叠。
+  - candidate submit-mainline 暗含 gate decision / publication 职责。
+  required_evidence:
+  - handoff submission evidence
+  - loop transition trace
+  - ownership snapshot
+  suggested_layers: &id001
+  - integration
+  supporting_refs:
+  - EPIC-SRC-005-001
+  - SRC-005
+  - product.raw-to-src::adr011-raw2src-fix-20260327-r1
+  - ADR-011
+  - ADR-001
+  - ADR-003
+  - ADR-004
+  - ADR-005
+  - ADR-006
+  - ADR-008
+  - ADR-009
+  - candidate package
+  - handoff submission
+  - gate-consumable pending state
+  - revision / retry re-entry
+  - pending_state
+  - gate_pending_ref
+  - assigned_gate_queue
+  - trace_ref
+  - canonical_payload_path
+  - success envelope
+  - error envelope
+  - duplicate_submission
+  - retryable
+  - idempotent_replay
+  - decision_returned
+  - reentry_directive
+  - execution loop
+  - gate loop
+  - human loop
+  - responsibility split
+  acceptance_ref: FEAT-SRC-005-001-AC-01
+- unit_ref: TS-SRC-005-001-U02
+  title: authoritative handoff submission 必须形成单一 payload trace 与 canonical refs
+  priority: P0
+  input_preconditions:
+  - candidate package payload 与 trace context 已可解析。
+  - 'Boundary to 正式交接与物化能力: 本 FEAT 只负责协作责任、状态流转与回流条件，不负责 formalization 语义、升级判定与物化结果。'
+  - 'Boundary to 对象分层与准入能力: 本 FEAT 可以要求对象交接，但对象是否具备正式消费资格由对象分层 FEAT 决定。'
+  trigger_action: 完成一次 submit-mainline，并读取 handoff object、trace_ref 与 canonical_payload_path。
+  observation_points:
+  - handoff object
+  - trace_ref / canonical_payload_path
+  - authoritative payload identity
+  - single submission path
+  pass_conditions:
+  - handoff object 必须指向单一 authoritative payload path。
+  - trace_ref 与 canonical_payload_path 必须可追溯。
+  - candidate 提交不会生成第二套并行 payload identity。
+  fail_conditions:
+  - handoff object 缺少 canonical_payload_path 或 trace_ref。
+  - 同一次提交生成并行 payload identity。
+  required_evidence:
+  - handoff object evidence
+  - trace_ref evidence
+  - canonical payload path evidence
+  suggested_layers: *id001
+  supporting_refs:
+  - EPIC-SRC-005-001
+  - SRC-005
+  - product.raw-to-src::adr011-raw2src-fix-20260327-r1
+  - ADR-011
+  - ADR-001
+  - ADR-003
+  - ADR-004
+  - ADR-005
+  - ADR-006
+  - ADR-008
+  - ADR-009
+  - candidate package
+  - handoff submission
+  - gate-consumable pending state
+  - revision / retry re-entry
+  - pending_state
+  - gate_pending_ref
+  - assigned_gate_queue
+  - trace_ref
+  - canonical_payload_path
+  - success envelope
+  - error envelope
+  - duplicate_submission
+  - retryable
+  - idempotent_replay
+  - decision_returned
+  - reentry_directive
+  - handoff object
+  - trace_ref / canonical_payload_path
+  - authoritative payload identity
+  - single submission path
+  acceptance_ref: FEAT-SRC-005-001-AC-01
+- unit_ref: TS-SRC-005-001-U03
+  title: submission 完成后只暴露 authoritative handoff 与 pending-intake 结果
+  priority: P0
+  input_preconditions:
+  - A candidate package has been submitted into the mainline
+  - gate consumer 可以读取 handoff submission、pending_state 与 response envelope。
+  trigger_action: 完成一次 candidate 提交后，读取 authoritative handoff object 与 gate-consumable
+    pending state。
+  observation_points:
+  - handoff object
+  - pending_state / gate_pending_ref / assigned_gate_queue
+  - trace_ref / canonical_payload_path
+  - success envelope / error envelope
+  - upstream visible completion signal
+  pass_conditions:
+  - 上游只看到提交完成与 pending visibility。
+  - response envelope 必须携带 pending_state、gate_pending_ref、assigned_gate_queue、trace_ref、canonical_payload_path。
+  - duplicate_submission 必须维持 idempotent replay 语义，不得把提交完成误标成 approve 或 freeze。
+  fail_conditions:
+  - 提交完成被误标成 approval。
+  - 缺少 authoritative handoff object、pending_state 或 canonical refs。
+  - duplicate_submission 不能稳定映射到 idempotent replay。
+  required_evidence:
+  - submission completion evidence
+  - handoff object read trace
+  - pending visibility evidence
+  - response envelope snapshot
+  suggested_layers: *id001
+  supporting_refs:
+  - EPIC-SRC-005-001
+  - SRC-005
+  - product.raw-to-src::adr011-raw2src-fix-20260327-r1
+  - ADR-011
+  - ADR-001
+  - ADR-003
+  - ADR-004
+  - ADR-005
+  - ADR-006
+  - ADR-008
+  - ADR-009
+  - candidate package
+  - handoff submission
+  - gate-consumable pending state
+  - revision / retry re-entry
+  - pending_state
+  - gate_pending_ref
+  - assigned_gate_queue
+  - trace_ref
+  - canonical_payload_path
+  - success envelope
+  - error envelope
+  - duplicate_submission
+  - retryable
+  - idempotent_replay
+  - decision_returned
+  - reentry_directive
+  - handoff object
+  - pending_state / gate_pending_ref / assigned_gate_queue
+  - trace_ref / canonical_payload_path
+  - success envelope / error envelope
+  - upstream visible completion signal
+  acceptance_ref: FEAT-SRC-005-001-AC-02
+- unit_ref: TS-SRC-005-001-U04
+  title: duplicate_submission 相同 payload 必须返回 idempotent replay 结果
+  priority: P0
+  input_preconditions:
+  - A candidate package has been submitted into the mainline
+  - 同一 proposal_ref 与同一 payload 被再次提交。
+  trigger_action: 对同一 payload 重复执行 submit-mainline，并对比返回的 handoff_ref 与 replay 语义。
+  observation_points:
+  - handoff_ref stability
+  - retryable / idempotent_replay flags
+  - response envelope reuse
+  pass_conditions:
+  - 重复提交相同 payload 时必须复用同一 handoff_ref。
+  - response envelope 必须明确 retryable=true 与 idempotent_replay=true。
+  - 不得因重复提交生成第二个 pending queue item identity。
+  fail_conditions:
+  - 相同 payload 重复提交生成新的 handoff_ref。
+  - 缺少 retryable 或 idempotent_replay 标记。
+  required_evidence:
+  - duplicate submission evidence
+  - handoff_ref comparison
+  - idempotent replay response snapshot
+  suggested_layers: *id001
+  supporting_refs:
+  - EPIC-SRC-005-001
+  - SRC-005
+  - product.raw-to-src::adr011-raw2src-fix-20260327-r1
+  - ADR-011
+  - ADR-001
+  - ADR-003
+  - ADR-004
+  - ADR-005
+  - ADR-006
+  - ADR-008
+  - ADR-009
+  - candidate package
+  - handoff submission
+  - gate-consumable pending state
+  - revision / retry re-entry
+  - pending_state
+  - gate_pending_ref
+  - assigned_gate_queue
+  - trace_ref
+  - canonical_payload_path
+  - success envelope
+  - error envelope
+  - duplicate_submission
+  - retryable
+  - idempotent_replay
+  - decision_returned
+  - reentry_directive
+  - handoff_ref stability
+  - retryable / idempotent_replay flags
+  - response envelope reuse
+  acceptance_ref: FEAT-SRC-005-001-AC-02
+- unit_ref: TS-SRC-005-001-U05
+  title: duplicate_submission 不同 payload 必须 fail closed 而不是静默覆盖
+  priority: P0
+  input_preconditions:
+  - A candidate package has been submitted into the mainline
+  - 同一 proposal_ref 对应不同 payload digest。
+  trigger_action: 用相同 proposal_ref 但不同 payload 内容重复提交 candidate，并观察 submit-mainline
+    返回。
+  observation_points:
+  - payload digest comparison
+  - precondition failure verdict
+  - queue / handoff mutation result
+  pass_conditions:
+  - 不同 payload 的 duplicate_submission 必须被拒绝。
+  - 已有 handoff / pending identity 不得被静默覆盖。
+  - 错误结果必须保留可审计 verdict。
+  fail_conditions:
+  - 不同 payload 被当成 idempotent replay 接受。
+  - 已有 handoff / pending identity 被静默覆盖。
+  required_evidence:
+  - payload mismatch rejection evidence
+  - precondition failure verdict
+  - handoff mutation denial trace
+  suggested_layers: *id001
+  supporting_refs:
+  - EPIC-SRC-005-001
+  - SRC-005
+  - product.raw-to-src::adr011-raw2src-fix-20260327-r1
+  - ADR-011
+  - ADR-001
+  - ADR-003
+  - ADR-004
+  - ADR-005
+  - ADR-006
+  - ADR-008
+  - ADR-009
+  - candidate package
+  - handoff submission
+  - gate-consumable pending state
+  - revision / retry re-entry
+  - pending_state
+  - gate_pending_ref
+  - assigned_gate_queue
+  - trace_ref
+  - canonical_payload_path
+  - success envelope
+  - error envelope
+  - duplicate_submission
+  - retryable
+  - idempotent_replay
+  - decision_returned
+  - reentry_directive
+  - payload_digest
+  - precondition_failed
+  - path_resolution
+  acceptance_ref: FEAT-SRC-005-001-AC-02
+  derivation_basis:
+  - payload mismatch duplicate guard
+  - authoritative handoff immutability
+- unit_ref: TS-SRC-005-001-U06
+  title: revise / retry decision return 必须回到 runtime re-entry，而不是泄漏 approval 语义
+  priority: P0
+  input_preconditions:
+  - A candidate package has been submitted into the mainline
+  - handoff 已进入 gate decision 链。
+  trigger_action: 分别对已提交 handoff 触发 revise 与 retry decision，并读取 runtime return。
+  observation_points:
+  - reentry_directive_ref
+  - boundary_handoff_ref
+  - decision_type
+  - routing hint
+  pass_conditions:
+  - revise / retry 必须生成 runtime re-entry directive。
+  - response 不得泄漏 approve / freeze / publication 完成语义。
+  - decision return 必须保持与 handoff 同一条 authoritative trace。
+  fail_conditions:
+  - revise / retry 没有生成 reentry directive。
+  - decision return 被误标成 approve / freeze / publication 完成。
+  required_evidence:
+  - decision return evidence
+  - reentry directive snapshot
+  - routing boundary trace
+  suggested_layers: *id001
+  supporting_refs:
+  - EPIC-SRC-005-001
+  - SRC-005
+  - product.raw-to-src::adr011-raw2src-fix-20260327-r1
+  - ADR-011
+  - ADR-001
+  - ADR-003
+  - ADR-004
+  - ADR-005
+  - ADR-006
+  - ADR-008
+  - ADR-009
+  - candidate package
+  - handoff submission
+  - gate-consumable pending state
+  - revision / retry re-entry
+  - pending_state
+  - gate_pending_ref
+  - assigned_gate_queue
+  - trace_ref
+  - canonical_payload_path
+  - success envelope
+  - error envelope
+  - duplicate_submission
+  - retryable
+  - idempotent_replay
+  - decision_returned
+  - reentry_directive
+  acceptance_ref: FEAT-SRC-005-001-AC-02
+- unit_ref: TS-SRC-005-001-U07
+  title: 下游 workflow 继承同一套协作规则而不重建并行 queue / handoff 模型
+  priority: P0
+  input_preconditions:
+  - A downstream workflow consumes this FEAT
+  - 下游 workflow 已接入 authoritative handoff submission 消费链。
+  trigger_action: 让一个下游 workflow 消费 handoff submission，并校验其 queue、gate、human coordination
+    语义是否直接继承主链规则。
+  observation_points:
+  - downstream queue model
+  - handoff contract reuse
+  - re-entry / retry boundary
+  - retryable / idempotent_replay field semantics
+  pass_conditions:
+  - 下游直接继承主链 queue / handoff / gate 语义。
+  - 没有并行 handoff model 或额外 queue。
+  - 若上游已冻结 retryable / idempotent_replay 语义，下游必须直接复用；若上游尚未冻结完整 error mapping table，下游不得自创并行定义。
+  fail_conditions:
+  - 下游重新定义 handoff 规则。
+  - 出现并行 queue 或重写 re-entry 语义。
+  - 在没有上游 authoritative mapping table 时，下游自行发明 retryable / idempotent_replay 规则。
+  required_evidence:
+  - downstream integration evidence
+  - queue inheritance trace
+  - handoff contract comparison
+  - retryable / idempotent_replay semantics note
+  suggested_layers: *id001
+  supporting_refs:
+  - EPIC-SRC-005-001
+  - SRC-005
+  - product.raw-to-src::adr011-raw2src-fix-20260327-r1
+  - ADR-011
+  - ADR-001
+  - ADR-003
+  - ADR-004
+  - ADR-005
+  - ADR-006
+  - ADR-008
+  - ADR-009
+  - candidate package
+  - handoff submission
+  - gate-consumable pending state
+  - revision / retry re-entry
+  - pending_state
+  - gate_pending_ref
+  - assigned_gate_queue
+  - trace_ref
+  - canonical_payload_path
+  - success envelope
+  - error envelope
+  - duplicate_submission
+  - retryable
+  - idempotent_replay
+  - decision_returned
+  - reentry_directive
+  - downstream integration evidence
+  - queue inheritance trace
+  - handoff contract comparison
+  - retryable / idempotent_replay semantics note
+  acceptance_ref: FEAT-SRC-005-001-AC-03
+- unit_ref: TS-SRC-005-001-U08
+  title: 下游 workflow 必须直接复用 retryable / idempotent_replay / canonical refs 语义
+  priority: P0
+  input_preconditions:
+  - A downstream workflow consumes this FEAT
+  - 下游 workflow 会消费主链 handoff response envelope。
+  trigger_action: 让下游 workflow 消费已有 handoff response envelope，并校验 retryable / idempotent_replay
+    / canonical refs 是否被原样继承。
+  observation_points:
+  - retryable / idempotent_replay inheritance
+  - trace_ref reuse
+  - canonical_payload_path reuse
+  pass_conditions:
+  - 下游不得改写 retryable / idempotent_replay / canonical refs 语义。
+  - trace_ref 与 canonical_payload_path 必须保持与主链同源。
+  - 不能为同一 handoff 再造新的 queue / trace contract。
+  fail_conditions:
+  - 下游改写 retryable / idempotent_replay 字段定义。
+  - 下游为同一 handoff 生成新的 canonical refs 语义。
+  required_evidence:
+  - downstream response envelope comparison
+  - canonical refs inheritance trace
+  - queue model comparison
+  suggested_layers: *id001
+  supporting_refs:
+  - EPIC-SRC-005-001
+  - SRC-005
+  - product.raw-to-src::adr011-raw2src-fix-20260327-r1
+  - ADR-011
+  - ADR-001
+  - ADR-003
+  - ADR-004
+  - ADR-005
+  - ADR-006
+  - ADR-008
+  - ADR-009
+  - candidate package
+  - handoff submission
+  - gate-consumable pending state
+  - revision / retry re-entry
+  - pending_state
+  - gate_pending_ref
+  - assigned_gate_queue
+  - trace_ref
+  - canonical_payload_path
+  - success envelope
+  - error envelope
+  - duplicate_submission
+  - retryable
+  - idempotent_replay
+  - decision_returned
+  - reentry_directive
+  - retryable / idempotent_replay inheritance
+  - trace_ref reuse
+  - canonical_payload_path reuse
+  acceptance_ref: FEAT-SRC-005-001-AC-03
+- unit_ref: TS-SRC-005-001-U09
+  title: payload_ref 缺失或坏路径时 submit-mainline 必须 fail closed
+  priority: P0
+  input_preconditions:
+  - A candidate package has been submitted into the mainline
+  - payload_ref 缺失、不可读或无法解析到 candidate payload。
+  trigger_action: 提交缺失 payload_ref 或坏路径的 candidate，并读取 submit-mainline 结果。
+  observation_points:
+  - precondition failure verdict
+  - payload path resolution result
+  - handoff / pending side effects
+  pass_conditions:
+  - payload_ref 缺失或坏路径时必须返回 fail-closed verdict。
+  - 不得生成 handoff 或 pending item。
+  - 错误结果必须留下可追溯 precondition failure evidence。
+  fail_conditions:
+  - payload_ref 缺失时仍生成 handoff 或 pending item。
+  - 错误结果没有清晰 verdict 或 trace。
+  required_evidence:
+  - missing payload rejection evidence
+  - path resolution failure trace
+  - side effect absence evidence
+  suggested_layers: *id001
+  supporting_refs:
+  - EPIC-SRC-005-001
+  - SRC-005
+  - product.raw-to-src::adr011-raw2src-fix-20260327-r1
+  - ADR-011
+  - ADR-001
+  - ADR-003
+  - ADR-004
+  - ADR-005
+  - ADR-006
+  - ADR-008
+  - ADR-009
+  - candidate package
+  - handoff submission
+  - gate-consumable pending state
+  - revision / retry re-entry
+  - pending_state
+  - gate_pending_ref
+  - assigned_gate_queue
+  - trace_ref
+  - canonical_payload_path
+  - success envelope
+  - error envelope
+  - duplicate_submission
+  - retryable
+  - idempotent_replay
+  - decision_returned
+  - reentry_directive
+  - payload_ref
+  - precondition_failed
+  - path_resolution
+  acceptance_ref: FEAT-SRC-005-001-AC-02
+  derivation_basis:
+  - missing payload must fail closed
+  - authoritative handoff requires readable payload
+- unit_ref: TS-SRC-005-001-U10
+  title: 无待处理 handoff 时 pending visibility 不得伪造 queue 项
+  priority: P0
+  input_preconditions:
+  - A candidate package has been submitted into the mainline
+  - 当前 gate pending queue 为空。
+  trigger_action: 在没有任何 submission 的前提下读取 pending visibility。
+  observation_points:
+  - pending_count
+  - pending_items list
+  - queue visibility response
+  pass_conditions:
+  - pending_count 必须为 0。
+  - pending_items 为空时不得伪造 handoff / queue item。
+  - 空队列结果仍需保持 machine-readable response shape。
+  fail_conditions:
+  - 空队列被伪造为存在 pending item。
+  - 空队列结果缺少稳定 response shape。
+  required_evidence:
+  - empty pending evidence
+  - queue visibility response snapshot
+  suggested_layers: *id001
+  supporting_refs:
+  - EPIC-SRC-005-001
+  - SRC-005
+  - product.raw-to-src::adr011-raw2src-fix-20260327-r1
+  - ADR-011
+  - ADR-001
+  - ADR-003
+  - ADR-004
+  - ADR-005
+  - ADR-006
+  - ADR-008
+  - ADR-009
+  - candidate package
+  - handoff submission
+  - gate-consumable pending state
+  - revision / retry re-entry
+  - pending_state
+  - gate_pending_ref
+  - assigned_gate_queue
+  - trace_ref
+  - canonical_payload_path
+  - success envelope
+  - error envelope
+  - duplicate_submission
+  - retryable
+  - idempotent_replay
+  - decision_returned
+  - reentry_directive
+  - empty_pending
+  acceptance_ref: FEAT-SRC-005-001-AC-02
+  derivation_basis:
+  - pending visibility empty-state correctness
+  - queue result shape stability
+coverage_exclusions:
+- Do not define candidate -> formal upgrade semantics, gate decision authority, or
+  materialization outputs here.
+- Do not define object admission, formal-read eligibility, or path governance policy
+  here.
+pass_criteria:
+- 每条 acceptance check 都有至少一个可执行测试单元映射。
+- TESTSET 不越界覆盖相邻 FEAT 或新需求。
+- candidate package 在外置 approval 前保持 machine-readable traceability 与 gate subject
+  identity。
+evidence_required:
+- analysis 与 strategy 形成过程的 execution evidence
+- supervisor 对 TESTSET 与 traceability 的 review evidence
+- candidate package 的 machine-readable gate subject records
+acceptance_traceability:
+- acceptance_ref: FEAT-SRC-005-001-AC-01
+  acceptance_scenario: Loop responsibility split is explicit
+  given: EPIC-SRC-005-001 requires execution, gate, and human loops to cooperate
+  when: FEAT-SRC-005-001 is reviewed as a standalone capability
+  then: The FEAT must define which loop owns which transition, input object, and return
+    path without overlapping formalization responsibilities.
+  unit_refs:
+  - TS-SRC-005-001-U01
+  - TS-SRC-005-001-U02
+  coverage_status: covered
+  coverage_notes: Acceptance is explicitly mapped to executable minimum coverage units.
+- acceptance_ref: FEAT-SRC-005-001-AC-02
+  acceptance_scenario: Submission completion is visible without implying approval
+  given: A candidate package has been submitted into the mainline
+  when: Upstream and gate inspect the result of the submission
+  then: 提交完成后只暴露 authoritative handoff 与 pending visibility；decision-driven revise/retry
+    runtime routing 可以回流，但 gate decision issuance / approval 语义仍在本 FEAT 外。
+  unit_refs:
+  - TS-SRC-005-001-U03
+  - TS-SRC-005-001-U04
+  - TS-SRC-005-001-U05
+  - TS-SRC-005-001-U06
+  - TS-SRC-005-001-U09
+  - TS-SRC-005-001-U10
+  coverage_status: covered
+  coverage_notes: Acceptance is explicitly mapped to executable minimum coverage units.
+- acceptance_ref: FEAT-SRC-005-001-AC-03
+  acceptance_scenario: Downstream flows do not redefine collaboration rules
+  given: A downstream workflow consumes this FEAT
+  when: It needs queue, gate, or human coordination semantics
+  then: It must inherit the same collaboration rules instead of inventing a parallel
+    queue or handoff model.
+  unit_refs:
+  - TS-SRC-005-001-U07
+  - TS-SRC-005-001-U08
+  coverage_status: covered
+  coverage_notes: Acceptance is explicitly mapped to executable minimum coverage units.
+source_refs:
+- product.epic-to-feat::adr011-raw2src-fix-20260327-r1
+- FEAT-SRC-005-001
+- EPIC-SRC-005-001
+- SRC-005
+- product.raw-to-src::adr011-raw2src-fix-20260327-r1
+- ADR-011
+- ADR-001
+- ADR-003
+- ADR-004
+- ADR-005
+- ADR-006
+- ADR-008
+- ADR-009
+- product.src-to-epic::adr011-raw2src-fix-20260327-r1
+governing_adrs:
+- ADR-011
+- ADR-001
+- ADR-003
+- ADR-004
+- ADR-005
+- ADR-006
+- ADR-008
+- ADR-009
+semantic_lock: {}
+status: frozen
+candidate_package_ref: artifacts/feat-to-testset/adr011-raw2src-fix-20260327-r1--feat-src-005-001
+gate_decision_ref: artifacts/active/gates/decisions/gate-decision.json
+frozen_at: '2026-03-29T09:31:45Z'
