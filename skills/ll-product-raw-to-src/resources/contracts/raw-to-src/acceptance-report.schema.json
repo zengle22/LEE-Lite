@@ -1,0 +1,56 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Raw To SRC Acceptance Report",
+  "type": "object",
+  "required": [
+    "decision",
+    "dimensions",
+    "summary",
+    "acceptance_findings"
+  ],
+  "properties": {
+    "decision": {
+      "type": "string",
+      "enum": [
+        "approve",
+        "revise"
+      ]
+    },
+    "dimensions": {
+      "type": "object"
+    },
+    "summary": {
+      "type": "string"
+    },
+    "acceptance_findings": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "severity",
+          "type",
+          "description"
+        ],
+        "properties": {
+          "severity": {
+            "type": "string"
+          },
+          "type": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "linked_semantic_finding_types": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "additionalProperties": true
+      }
+    }
+  },
+  "additionalProperties": true
+}

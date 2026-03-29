@@ -1,0 +1,98 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Raw-to-SRC Job Proposal",
+  "type": "object",
+  "required": [
+    "job_id",
+    "job_type",
+    "from_skill",
+    "target_skill",
+    "handoff_ref",
+    "source_run_id",
+    "source_artifacts",
+    "reason",
+    "priority",
+    "status",
+    "created_at",
+    "queue_path",
+    "consumer_type",
+    "retry_count",
+    "retry_budget"
+  ],
+  "properties": {
+    "job_id": {
+      "type": "string"
+    },
+    "job_type": {
+      "type": "string",
+      "enum": [
+        "next_skill",
+        "retry",
+        "human_handoff",
+        "blocked"
+      ]
+    },
+    "from_skill": {
+      "type": "string",
+      "const": "ll-product-raw-to-src"
+    },
+    "target_skill": {
+      "type": "string"
+    },
+    "handoff_ref": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "source_run_id": {
+      "type": "string"
+    },
+    "source_artifacts": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "gate_decision_ref": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "reason": {
+      "type": "string"
+    },
+    "priority": {
+      "type": "string"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "proposed"
+      ]
+    },
+    "created_at": {
+      "type": "string"
+    },
+    "queue_path": {
+      "type": "string"
+    },
+    "consumer_type": {
+      "type": "string",
+      "enum": [
+        "skill_loop",
+        "human_loop"
+      ]
+    },
+    "retry_count": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "retry_budget": {
+      "type": "integer",
+      "minimum": 0
+    }
+  },
+  "additionalProperties": true
+}

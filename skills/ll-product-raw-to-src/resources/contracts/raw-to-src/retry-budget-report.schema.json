@@ -1,0 +1,82 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Raw-to-SRC Retry Budget Report",
+  "type": "object",
+  "required": [
+    "run_id",
+    "workflow_key",
+    "structural_fix_budget",
+    "semantic_fix_budget",
+    "total_repair_budget",
+    "structural_attempts_used",
+    "semantic_attempts_used",
+    "total_attempts_used",
+    "attempts"
+  ],
+  "properties": {
+    "run_id": {
+      "type": "string"
+    },
+    "workflow_key": {
+      "type": "string",
+      "const": "product.raw-to-src"
+    },
+    "structural_fix_budget": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "semantic_fix_budget": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "total_repair_budget": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "structural_attempts_used": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "semantic_attempts_used": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "total_attempts_used": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "attempts": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "loop",
+          "attempt_number",
+          "reason",
+          "outcome"
+        ],
+        "properties": {
+          "loop": {
+            "type": "string",
+            "enum": [
+              "structural",
+              "semantic"
+            ]
+          },
+          "attempt_number": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "reason": {
+            "type": "string"
+          },
+          "outcome": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": true
+      }
+    }
+  },
+  "additionalProperties": true
+}

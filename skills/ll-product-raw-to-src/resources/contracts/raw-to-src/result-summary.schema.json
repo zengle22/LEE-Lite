@@ -1,0 +1,76 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Raw-to-SRC Result Summary",
+  "type": "object",
+  "required": [
+    "workflow_key",
+    "run_id",
+    "status",
+    "primary_artifact_ref",
+    "artifacts_dir",
+    "recommended_action",
+    "recommended_target_skill",
+    "recommended_queue_path"
+  ],
+  "properties": {
+    "workflow_key": {
+      "type": "string",
+      "const": "product.raw-to-src"
+    },
+    "run_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "freeze_ready",
+        "retry_proposed",
+        "human_handoff_proposed",
+        "blocked"
+      ]
+    },
+    "primary_artifact_ref": {
+      "type": "string",
+      "minLength": 1
+    },
+    "artifacts_dir": {
+      "type": "string",
+      "minLength": 1
+    },
+    "recommended_action": {
+      "type": "string",
+      "enum": [
+        "next_skill",
+        "retry",
+        "human_handoff",
+        "blocked"
+      ]
+    },
+    "recommended_target_skill": {
+      "type": "string",
+      "minLength": 1
+    },
+    "recommended_queue_path": {
+      "type": "string",
+      "minLength": 1
+    },
+    "recommended_handoff_ref": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "stage_state": {
+      "type": "string"
+    },
+    "freeze_readiness": {
+      "type": "string",
+      "enum": [
+        "freeze_ready",
+        "not_ready"
+      ]
+    }
+  },
+  "additionalProperties": true
+}
