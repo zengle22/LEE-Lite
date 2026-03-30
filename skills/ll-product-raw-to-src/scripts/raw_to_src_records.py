@@ -170,7 +170,7 @@ def build_result_summary(
     gate_pending_ref: str | None = None,
     revision_request_ref: str = "",
 ) -> dict[str, Any]:
-    return {
+    summary = {
         "workflow_key": WORKFLOW_KEY,
         "run_id": run_id,
         "status": status,
@@ -185,8 +185,10 @@ def build_result_summary(
         "gate_ready_package_ref": gate_ready_package_ref or "",
         "authoritative_handoff_ref": authoritative_handoff_ref or "",
         "gate_pending_ref": gate_pending_ref or "",
-        "revision_request_ref": revision_request_ref,
     }
+    if revision_request_ref:
+        summary["revision_request_ref"] = revision_request_ref
+    return summary
 
 
 def build_run_state(
@@ -204,14 +206,16 @@ def build_run_state(
         }
         for item in stage_results
     ]
-    return {
+    payload = {
         "run_id": run_id,
         "workflow_key": WORKFLOW_KEY,
         "current_state": current_state,
         "recommended_action": action,
         "state_history": state_history,
-        "revision_request_ref": revision_request_ref,
     }
+    if revision_request_ref:
+        payload["revision_request_ref"] = revision_request_ref
+    return payload
 
 
 def build_patch_lineage(run_id: str, events: list[dict[str, Any]]) -> dict[str, Any]:
@@ -233,7 +237,7 @@ def build_package_manifest(
     gate_pending_ref: str | None = None,
     revision_request_ref: str = "",
 ) -> dict[str, Any]:
-    return {
+    manifest = {
         "artifacts_dir": str(artifacts_dir),
         "primary_artifact_ref": str(candidate_path),
         "result_summary_ref": str(artifacts_dir / "result-summary.json"),
@@ -246,6 +250,10 @@ def build_package_manifest(
         "acceptance_report_ref": str(artifacts_dir / "acceptance-report.json"),
         "semantic_inventory_ref": str(artifacts_dir / "semantic-inventory.json"),
         "source_provenance_map_ref": str(artifacts_dir / "source-provenance-map.json"),
+        "source_snapshot_mode": "embedded",
+        "frozen_input_dir": str(artifacts_dir / "input"),
+        "source_snapshot_ref": str(artifacts_dir / "source-snapshot.json"),
+        "frozen_input_snapshot_ref": str(artifacts_dir / "input" / "source-snapshot.json"),
         "contradiction_register_ref": str(artifacts_dir / "contradiction-register.json"),
         "normalization_decisions_ref": str(artifacts_dir / "normalization-decisions.json"),
         "omission_and_compression_report_ref": str(artifacts_dir / "omission-and-compression-report.json"),
@@ -256,8 +264,10 @@ def build_package_manifest(
         "gate_ready_package_ref": gate_ready_package_ref or "",
         "authoritative_handoff_ref": authoritative_handoff_ref or "",
         "gate_pending_ref": gate_pending_ref or "",
-        "revision_request_ref": revision_request_ref,
     }
+    if revision_request_ref:
+        manifest["revision_request_ref"] = revision_request_ref
+    return manifest
 
 
 def build_execution_evidence(
@@ -270,7 +280,7 @@ def build_execution_evidence(
     uncertainties: list[str],
     revision_request_ref: str = "",
 ) -> dict[str, Any]:
-    return {
+    evidence = {
         "skill_id": SKILL_ID,
         "run_id": run_id,
         "role": "executor",
@@ -281,9 +291,11 @@ def build_execution_evidence(
         "structural_results": structural_results,
         "key_decisions": decisions,
         "uncertainties": uncertainties,
-        "revision_request_ref": revision_request_ref,
         "created_artifacts": [str(path) for path in outputs],
     }
+    if revision_request_ref:
+        evidence["revision_request_ref"] = revision_request_ref
+    return evidence
 
 
 def build_supervision_evidence(
@@ -296,7 +308,7 @@ def build_supervision_evidence(
     revision_request_ref: str = "",
 ) -> dict[str, Any]:
     reason = "Candidate is freeze-ready for external gate." if action == "next_skill" else "External gate materialization is required before downstream flow."
-    return {
+    evidence = {
         "skill_id": SKILL_ID,
         "run_id": run_id,
         "role": "supervisor",
@@ -308,5 +320,7 @@ def build_supervision_evidence(
         "reason": reason,
         "readiness_recommendation": action,
         "ownership_scope": "read_only_review",
-        "revision_request_ref": revision_request_ref,
     }
+    if revision_request_ref:
+        evidence["revision_request_ref"] = revision_request_ref
+    return evidence

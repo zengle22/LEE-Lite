@@ -5,14 +5,16 @@ Executor phase for raw-to-src.
 
 from __future__ import annotations
 
+import hashlib
 import json
-from copy import deepcopy
+import shutil
 from pathlib import Path
 from typing import Any
 
 from raw_to_src_cli_integration import commit_candidate_markdown
 from raw_to_src_common import (
     apply_structural_patch,
+    iso_now,
     load_raw_input,
     normalize_candidate,
     render_candidate_markdown,
@@ -38,6 +40,42 @@ def write_json(path: Path, data: Any) -> None:
     path.write_text(json.dumps(data, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
 
 
+def persist_revision_request(
+    revision_request_path: Path | None,
+    repo_root: Path,
+    artifacts_dir: Path,
+) -> str:
+    if revision_request_path is None or not revision_request_path.exists():
+        return ""
+    target_path = artifacts_dir / "revision-request.json"
+    shutil.copy2(revision_request_path, target_path)
+    return str(target_path.resolve().relative_to(repo_root.resolve()).as_posix())
+
+
+def freeze_input_source(input_path: Path, repo_root: Path, artifacts_dir: Path, document: dict[str, Any]) -> dict[str, Any]:
+    input_dir = ensure_dir(artifacts_dir / "input")
+    frozen_name = f"source-input{input_path.suffix.lower()}"
+    frozen_path = input_dir / frozen_name
+    shutil.copy2(input_path, frozen_path)
+    digest = hashlib.sha256(frozen_path.read_bytes()).hexdigest()
+    metadata = {
+        "captured_by": "product.raw-to-src.executor",
+        "captured_at": document.get("captured_at") or document.get("metadata", {}).get("captured_at") or iso_now(),
+        "capture_mode": "run_frozen_copy",
+        "source_path": str(input_path),
+        "frozen_ref": str(frozen_path.resolve().relative_to(repo_root.resolve()).as_posix()),
+        "frozen_snapshot_ref": "",
+        "content_hash": digest,
+        "content_hash_algo": "sha256",
+        "source_size_bytes": frozen_path.stat().st_size,
+        "source_suffix": input_path.suffix.lower(),
+    }
+    snapshot_path = input_dir / "source-snapshot.json"
+    metadata["frozen_snapshot_ref"] = str(snapshot_path.resolve().relative_to(repo_root.resolve()).as_posix())
+    write_json(snapshot_path, metadata)
+    return metadata
+
+
 def _build_patch_events(run_id: str, stage_id: str, event_prefix: str, patches: list[dict[str, Any]]) -> list[dict[str, Any]]:
     return [
         {
@@ -55,29 +93,34 @@ def _build_patch_events(run_id: str, stage_id: str, event_prefix: str, patches: 
     ]
 
 
-def _materialize_revision_request(
-    artifacts_dir: Path,
-    revision_request_path: Path | None,
-) -> tuple[str, dict[str, Any] | None, list[dict[str, Any]]]:
-    destination = artifacts_dir / "revision-request.json"
-    source_path = revision_request_path or (destination if destination.exists() else None)
-    if source_path is None or not source_path.exists():
-        return "", None, []
-    revision_request = json.loads(source_path.read_text(encoding="utf-8"))
-    if source_path.resolve() != destination.resolve():
-        write_json(destination, revision_request)
-    event = {
-        "patch_id": f"patch-{revision_request.get('run_id') or revision_request.get('source_run_id') or 'revision'}-revision-request",
-        "stage_id": "revision_request",
-        "actor_role": "executor",
-        "patch_scope": "external_revision",
-        "patch_mode": "gate_revise_rerun",
-        "issue_code": str(revision_request.get("decision_type") or "revise"),
-        "target_fields": ["revision-request.json"],
-        "action": "Accepted external revision request as rerun context.",
-        "outcome": "applied",
-    }
-    return str(destination), deepcopy(revision_request), [event]
+def _apply_frozen_source_capture(candidate: dict[str, Any], snapshot_metadata: dict[str, Any]) -> dict[str, Any]:
+    source_snapshot = candidate.get("source_snapshot") or {}
+    capture_metadata = source_snapshot.get("capture_metadata") or {}
+    capture_metadata.update(snapshot_metadata)
+    source_snapshot["capture_metadata"] = capture_metadata
+    source_snapshot.setdefault("source_path", snapshot_metadata.get("source_path", ""))
+    candidate["source_snapshot"] = source_snapshot
+
+    provenance = list(candidate.get("source_provenance_map") or [])
+    updated = False
+    for row in provenance:
+        if row.get("target_field") == "source_snapshot":
+            row["preservation_mode"] = "frozen_snapshot"
+            row["frozen_ref"] = str(snapshot_metadata.get("frozen_ref", ""))
+            updated = True
+    if not updated:
+        provenance.append(
+            {
+                "target_field": "source_snapshot",
+                "source_ref": (candidate.get("source_refs") or [candidate.get("title", "source_snapshot")])[0],
+                "source_section": "source_snapshot",
+                "source_excerpt": str(source_snapshot.get("title") or candidate.get("title") or ""),
+                "preservation_mode": "frozen_snapshot",
+                "frozen_ref": str(snapshot_metadata.get("frozen_ref", "")),
+            }
+        )
+    candidate["source_provenance_map"] = provenance
+    return candidate
 
 
 def _run_input_flow(document: dict[str, Any], input_path: Path, artifacts_dir: Path, run_id: str) -> tuple[
@@ -201,6 +244,7 @@ def _persist_outputs(
     write_json(candidate_json_path, candidate)
     write_json(artifacts_dir / "semantic-inventory.json", candidate.get("semantic_inventory", {}))
     write_json(artifacts_dir / "source-provenance-map.json", candidate.get("source_provenance_map", []))
+    write_json(artifacts_dir / "source-snapshot.json", candidate.get("source_snapshot", {}))
     write_json(artifacts_dir / "contradiction-register.json", candidate.get("contradiction_register", []))
     write_json(artifacts_dir / "normalization-decisions.json", candidate.get("normalization_decisions", []))
     write_json(artifacts_dir / "omission-and-compression-report.json", candidate.get("omission_and_compression_report", {}))
@@ -210,7 +254,16 @@ def _persist_outputs(
             stage("structural_acceptance_check", "passed" if not structural_issues else "revise", "Structural check completed.", "executor", input_refs=[str(candidate_json_path)], issues_found=[item["code"] for item in structural_issues]),
         ]
     )
-    write_json(artifacts_dir / "normalized-input.json", {"document": document, "intake_validation": intake_validation, "applied_patches": intake_patches, "cli_candidate_commit_ref": str(cli_commit["response_path"])})
+    write_json(
+        artifacts_dir / "normalized-input.json",
+        {
+            "document": document,
+            "intake_validation": intake_validation,
+            "applied_patches": intake_patches,
+            "cli_candidate_commit_ref": str(cli_commit["response_path"]),
+            "source_snapshot_capture": document.get("source_snapshot_capture", {}),
+        },
+    )
     write_json(artifacts_dir / "input-validation.json", input_validation_report)
     write_json(
         artifacts_dir / "structural-report.json",
@@ -230,20 +283,26 @@ def _persist_outputs(
     return candidate_path
 
 
-def executor_run(input_path: Path, repo_root: Path, run_id: str, revision_request_path: Path | None = None) -> dict[str, Any]:
+def executor_run(
+    input_path: Path,
+    repo_root: Path,
+    run_id: str,
+    revision_request_path: Path | None = None,
+) -> dict[str, Any]:
     artifacts_dir = ensure_dir(repo_root / "artifacts" / "raw-to-src" / run_id)
     ensure_dir(repo_root / "ssot" / "src")
     document = load_raw_input(input_path)
     document["workflow_run_id"] = run_id
-    revision_request_ref, revision_request, revision_events = _materialize_revision_request(artifacts_dir, revision_request_path)
+    document["source_snapshot_capture"] = freeze_input_source(input_path, repo_root, artifacts_dir, document)
+    revision_request_ref = persist_revision_request(revision_request_path, repo_root, artifacts_dir)
 
     document, input_validation, stage_results, patch_events, structural_attempts, input_validation_report = _run_input_flow(document, input_path, artifacts_dir, run_id)
     document, intake_validation, intake_stages, intake_events, intake_report = _run_intake_flow(document, input_path, artifacts_dir, run_id, structural_attempts)
     candidate, structural_issues, structural_stages, structural_events, decisions, applied_fixes = _run_structural_flow(document, run_id, structural_attempts)
+    candidate = _apply_frozen_source_capture(candidate, document.get("source_snapshot_capture", {}))
 
     stage_results.extend(intake_stages)
     stage_results.extend(structural_stages)
-    patch_events.extend(revision_events)
     patch_events.extend(intake_events)
     patch_events.extend(structural_events)
     candidate_path = _persist_outputs(
@@ -272,8 +331,6 @@ def executor_run(input_path: Path, repo_root: Path, run_id: str, revision_reques
         candidate["uncertainties"],
         revision_request_ref=revision_request_ref,
     )
-    if revision_request is not None:
-        execution["revision_request"] = revision_request
     write_json(artifacts_dir / "execution-evidence.json", execution)
     return {
         "ok": True,
@@ -283,5 +340,4 @@ def executor_run(input_path: Path, repo_root: Path, run_id: str, revision_reques
         "structural_issues": structural_issues,
         "input_valid": input_validation["valid"],
         "intake_valid": intake_validation["valid"],
-        "revision_request_ref": revision_request_ref,
     }
