@@ -31,6 +31,8 @@ SKILL_CONFIG = {
     },
 }
 
+_COVERAGE_MODES = {"auto", "smoke", "qualification", "off"}
+
 
 def _as_list(value: Any) -> list[str]:
     if isinstance(value, list):
@@ -38,6 +40,11 @@ def _as_list(value: Any) -> list[str]:
     if value in (None, ""):
         return []
     return [str(value)]
+
+
+def _coverage_mode(environment: dict[str, Any]) -> str:
+    mode = str(environment.get("coverage_mode") or "auto").strip().lower()
+    return mode if mode in _COVERAGE_MODES else "auto"
 
 
 def load_yaml_document(ref_value: str, workspace_root: Path) -> dict[str, Any]:
@@ -102,9 +109,36 @@ def _validate_environment(action: str, environment: dict[str, Any]) -> None:
 
 def _apply_testset_coverage_defaults(test_set: dict[str, Any], environment: dict[str, Any]) -> dict[str, Any]:
     resolved = dict(environment)
+    mode = _coverage_mode(environment)
     feature_owned = _as_list(test_set.get("feature_owned_code_paths"))
     recommended_scope = _as_list(test_set.get("recommended_coverage_scope_name"))
     explicit_scope = bool(_as_list(environment.get("coverage_include")) or _as_list(environment.get("coverage_source")))
+    if mode == "off":
+        resolved["coverage_mode"] = "off"
+        resolved["coverage_enabled"] = False
+        resolved["coverage_scope_origin"] = "coverage_mode:off"
+        return resolved
+    if mode == "smoke":
+        resolved["coverage_mode"] = "smoke"
+        resolved["coverage_enabled"] = False
+        resolved["coverage_scope_origin"] = "coverage_mode:smoke"
+        return resolved
+    if mode == "qualification":
+        resolved["coverage_mode"] = "qualification"
+        resolved["coverage_enabled"] = True
+        if explicit_scope:
+            resolved["coverage_scope_origin"] = "environment"
+            return resolved
+        if feature_owned:
+            resolved["coverage_include"] = feature_owned
+            resolved["coverage_scope_name"] = recommended_scope or [str(test_set.get("title") or "feature coverage")]
+            resolved["coverage_scope_origin"] = "test_set.feature_owned_code_paths"
+            return resolved
+        ensure(
+            False,
+            "PRECONDITION_FAILED",
+            "coverage qualification requires coverage_include, coverage_source, or feature_owned_code_paths",
+        )
     if feature_owned and not explicit_scope:
         resolved["coverage_enabled"] = bool(environment.get("coverage_enabled", True))
         resolved["coverage_include"] = feature_owned
@@ -112,6 +146,7 @@ def _apply_testset_coverage_defaults(test_set: dict[str, Any], environment: dict
         resolved["coverage_scope_origin"] = "test_set.feature_owned_code_paths"
     else:
         resolved["coverage_scope_origin"] = "environment"
+    resolved["coverage_mode"] = "qualification" if resolved.get("coverage_enabled") else "smoke"
     return resolved
 
 

@@ -11,6 +11,7 @@ from typing import Any, Callable, Iterator
 
 from cli.lib.errors import CommandError, ensure
 from cli.lib.fs import load_json, write_json
+from cli.lib.skill_runtime_paths import resolve_skill_scripts_dir
 
 
 @contextmanager
@@ -50,7 +51,7 @@ class ExecutionReturnRoute:
 
     def invoke(self, context: "ExecutionReturnContext") -> dict[str, Any]:
         runtime_kwargs = self.build_runtime_kwargs(context)
-        scripts_dir = context.workspace_root / "skills" / self.scripts_subdir / "scripts"
+        scripts_dir = resolve_skill_scripts_dir(context.workspace_root, self.scripts_subdir)
         with _prepend_sys_path(scripts_dir):
             runtime_module = __import__(self.runtime_module, fromlist=["run_workflow"])
             run_workflow = getattr(runtime_module, "run_workflow")

@@ -106,6 +106,8 @@ def _coverage_command(command_entry: str, workspace_root: Path, coverage_ref: st
         tokens = []
     tokens = [token.strip('"') for token in tokens if token]
     if tokens and PurePath(tokens[0].strip('"')).name.lower().startswith("python"):
+        if len(tokens) > 1 and tokens[1] in {"-c", "/c"}:
+            return command_entry, True, "unsupported", "coverage-enabled execution does not support python -c; use a script or module entry"
         coverage_data_path = workspace_root / coverage_ref
         coverage_data_path.parent.mkdir(parents=True, exist_ok=True)
         return [tokens[0], "-m", "coverage", "run", f"--data-file={coverage_data_path}", *tokens[1:]], False, "enabled", ""
@@ -162,8 +164,7 @@ def execute_case(
     diagnostics: list[str] = []
     if coverage_enabled:
         run_command, run_with_shell, coverage_status, coverage_reason = _coverage_command(command_entry, workspace_root, refs["coverage_data_ref"])
-        if coverage_reason:
-            diagnostics.append(coverage_reason)
+        ensure(not coverage_reason, "PRECONDITION_FAILED", coverage_reason)
     stdout_text, stderr_text, exit_code, raw_status, run_diagnostics = _run_subprocess(
         run_command,
         run_with_shell,

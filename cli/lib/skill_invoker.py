@@ -9,6 +9,7 @@ from typing import Any, Iterator
 
 from cli.lib.errors import CommandError, ensure
 from cli.lib.execution_return_registry import invoke_execution_return_job
+from cli.lib.skill_runtime_paths import resolve_skill_scripts_dir
 
 
 @contextmanager
@@ -28,7 +29,7 @@ def _prepend_sys_path(path: Path) -> Iterator[None]:
 def _invoke_feat_to_tech(workspace_root: Path, job: dict[str, Any], payload: dict[str, Any]) -> dict[str, Any]:
     ensure(job.get("feat_ref"), "PRECONDITION_FAILED", "feat_to_tech job missing feat_ref")
     input_ref = _authoritative_input_ref(job)
-    scripts_dir = workspace_root / "skills" / "ll-dev-feat-to-tech" / "scripts"
+    scripts_dir = resolve_skill_scripts_dir(workspace_root, "ll-dev-feat-to-tech")
     with _prepend_sys_path(scripts_dir):
         from feat_to_tech_runtime import run_workflow
 
@@ -45,7 +46,7 @@ def _invoke_feat_to_tech(workspace_root: Path, job: dict[str, Any], payload: dic
 def _invoke_feat_to_ui(workspace_root: Path, job: dict[str, Any], payload: dict[str, Any]) -> dict[str, Any]:
     ensure(job.get("feat_ref"), "PRECONDITION_FAILED", "feat_to_ui job missing feat_ref")
     input_ref = _authoritative_input_ref(job)
-    scripts_dir = workspace_root / "skills" / "ll-dev-feat-to-ui" / "scripts"
+    scripts_dir = resolve_skill_scripts_dir(workspace_root, "ll-dev-feat-to-ui")
     with _prepend_sys_path(scripts_dir):
         from feat_to_ui import run_workflow
 
@@ -61,7 +62,7 @@ def _invoke_feat_to_ui(workspace_root: Path, job: dict[str, Any], payload: dict[
 
 def _invoke_src_to_epic(workspace_root: Path, job: dict[str, Any], payload: dict[str, Any]) -> dict[str, Any]:
     input_ref = _authoritative_input_ref(job)
-    scripts_dir = workspace_root / "skills" / "ll-product-src-to-epic" / "scripts"
+    scripts_dir = resolve_skill_scripts_dir(workspace_root, "ll-product-src-to-epic")
     with _prepend_sys_path(scripts_dir):
         from src_to_epic_runtime import run_workflow
 
@@ -76,7 +77,7 @@ def _invoke_src_to_epic(workspace_root: Path, job: dict[str, Any], payload: dict
 
 def _invoke_epic_to_feat(workspace_root: Path, job: dict[str, Any], payload: dict[str, Any]) -> dict[str, Any]:
     input_ref = _authoritative_input_ref(job)
-    scripts_dir = workspace_root / "skills" / "ll-product-epic-to-feat" / "scripts"
+    scripts_dir = resolve_skill_scripts_dir(workspace_root, "ll-product-epic-to-feat")
     with _prepend_sys_path(scripts_dir):
         from epic_to_feat_runtime import run_workflow
 
@@ -92,7 +93,7 @@ def _invoke_epic_to_feat(workspace_root: Path, job: dict[str, Any], payload: dic
 def _invoke_feat_to_testset(workspace_root: Path, job: dict[str, Any], payload: dict[str, Any]) -> dict[str, Any]:
     ensure(job.get("feat_ref"), "PRECONDITION_FAILED", "feat_to_testset job missing feat_ref")
     input_ref = _authoritative_input_ref(job)
-    scripts_dir = workspace_root / "skills" / "ll-qa-feat-to-testset" / "scripts"
+    scripts_dir = resolve_skill_scripts_dir(workspace_root, "ll-qa-feat-to-testset")
     with _prepend_sys_path(scripts_dir):
         from feat_to_testset_runtime import run_workflow
 
@@ -110,7 +111,7 @@ def _invoke_tech_to_impl(workspace_root: Path, job: dict[str, Any], payload: dic
     ensure(job.get("feat_ref"), "PRECONDITION_FAILED", "tech_to_impl job missing feat_ref")
     ensure(job.get("tech_ref"), "PRECONDITION_FAILED", "tech_to_impl job missing tech_ref")
     input_ref = _authoritative_input_ref(job)
-    scripts_dir = workspace_root / "skills" / "ll-dev-tech-to-impl" / "scripts"
+    scripts_dir = resolve_skill_scripts_dir(workspace_root, "ll-dev-tech-to-impl")
     with _prepend_sys_path(scripts_dir):
         from tech_to_impl_runtime import run_workflow
 
