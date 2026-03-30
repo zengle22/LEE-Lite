@@ -60,7 +60,7 @@
 
 同类产物可能被写入多个目录，例如：
 
-* `docs/spec/`
+* `ssot/src/`
 * `docs/output/`
 * `outputs/`
 * 临时目录
@@ -367,9 +367,9 @@ Path Policy 至少应禁止以下行为：
 
 Path Policy 必须显式规定不同产物类型的目标目录。例如：
 
-* `src_doc` → `docs/spec/src/`
-* `epic_doc` → `docs/spec/epic/`
-* `feat_doc` → `docs/spec/feat/`
+* `src_doc` → `ssot/src/`
+* `epic_doc` → `ssot/epic/`
+* `feat_doc` → `ssot/feat/`
 * `report` → `docs/reports/`
 * `guide` → `docs/guides/`
 * `evidence_bundle` → `.artifacts/evidence/`

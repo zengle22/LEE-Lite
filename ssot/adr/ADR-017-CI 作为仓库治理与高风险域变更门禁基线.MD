@@ -6,17 +6,20 @@
 * 适用范围：LEE Lite（LL）v0.x 仓库级持续集成、PR 门禁、变更分层校验
 * 相关 ADR：ADR-004、ADR-005、ADR-008、ADR-009、ADR-015、ADR-016
 
+更新说明（2026-03-29）：仓库已取消独立 `spec/` 层。凡本 ADR 中把 `spec/` 视为当前正式标准目录的表述，均以如下口径替代：repo-wide 规则归 `ssot/`，workflow-specific contract/schema/governance 归各自 skill，`docs/` 只保留说明入口。
+
 ---
 
 # 1. 背景
 
-当前仓库已经逐步形成五层稳定结构：
+当前仓库已经逐步形成六层稳定结构：
 
-* `spec/` 承载规则、契约与 schema；
-* `skills/` 承载 governed skill 定义与脚本；
+* `ssot/` 承载正式真相、仓库级治理规则与对象实例；
+* `skills/` 承载 governed skill 定义、脚本与 skill-local contract/schema；
 * `cli/` 承载 CLI-first file runtime；
 * `artifacts/` 承载评审输出、evidence 与 lineage；
-* `docs/` 承载面向人的长期说明。
+* `docs/` 承载面向人的长期说明与目录导览；
+* `knowledge/` 承载经验、模式与非规范性沉淀。
 
 ## 1.1 Canonical Repo Topology
 
@@ -25,29 +28,30 @@
 ### 正式路径名
 
 * `ssot/`：正式真相层，承载 `ADR`、`SRC`、`EPIC`、`FEAT`、`TECH`、`IMPL`、`TESTSET` 等对象实例与正式治理输入。
-* `spec/`：正式标准层，承载可复用 contract、schema、governance rule、skill standard、artifact standard 等“规则本身”。
-* `skills/`：正式 skill bundle 层，承载 governed workflow 的 contract、lifecycle、schema、prompt、脚本与 adapter 配置。
+* `skills/`：正式 skill bundle 层，承载 governed workflow 的 contract、lifecycle、schema、prompt、脚本、adapter 配置与 workflow-specific 规则资源。
 * `cli/`：正式 runtime interface 层，承载 CLI parser、command surface、runtime helper 与 protocol 实现。
 * `tests/`：正式验证层，承载 CI 可调用的测试、fixture、golden 与回归样例。
+* `docs/`、`knowledge/`：分别承载说明性文档与经验沉淀，不作为新的正式真相层。
 
 ### 历史兼容路径名
 
 * `docs/adr/` 可作为历史说明入口被引用，但不再作为正式 ADR 真相层；当前正式 ADR 以 `ssot/adr/` 为准。
+* `docs/repository-layout.md` 可作为当前仓库目录规则的说明入口，但不替代 `ssot/` 与各 skill 的正式约束。
 * `.local/raw-to-src-inputs/`、`.workflow/`、其他本地试验目录可保留历史材料或过程态输入，但不属于 merge 时的正式真相层。
 
-### `spec/` 与 `ssot/` 的关系
+### `ssot/`、`skills/`、`docs/` 的关系
 
-* `ssot/` 不是 `spec/` 的子集，也不是 `spec/` 的别名。
-* `ssot/` 表达“被治理的正式对象实例与正式决策”。
-* `spec/` 表达“约束这些对象与运行时的复用标准、schema、contract 与规则”。
-* CI 在“真相层路径”上以 `ssot/` 为准；CI 在“标准依赖路径”上同时消费 `spec/`。
-* 因此，`ssot-governance` 的 canonical target 是 `ssot/`，而 `spec/**` 的变更应通过依赖映射触发 `skill-governance`、`cli-governance` 或 `cross-domain-compat`，而不是把 `spec/` 混写成另一个 SSOT 目录。
+* `ssot/` 表达“被治理的正式对象实例、正式决策以及仓库级规则”。
+* `skills/` 表达“workflow-specific 的 contract、schema、runtime 与治理资源”。
+* `docs/` 只表达“面向人的说明与导览”，不得与 `ssot/` 或 skill-local rule source 形成双真相。
+* CI 在“真相层路径”上以 `ssot/` 为准；在 workflow-specific 标准依赖路径上消费对应 skill。
+* 因此，`ssot-governance` 的 canonical target 是 `ssot/`，skill-local contract/schema/rule 的变更应通过依赖映射触发 `skill-governance`、`cli-governance` 或 `cross-domain-compat`。
 
 ### 哪些路径参与治理，哪些只是说明或投影
 
-* 直接参与治理：`ssot/`、`spec/`、`skills/`、`cli/`、`tests/`
+* 直接参与治理：`ssot/`、`skills/`、`cli/`、`tests/`
 * 运行期输出与证据：`artifacts/`
-* 说明、导读、投影视图：`docs/`、`examples/`
+* 说明、导读、投影视图：`docs/`、`knowledge/`、`examples/`
 * 本地过程态或临时态：`.local/`、`.workflow/`、缓存目录、运行期 scratch
 
 后续 validator 必须遵守这组路径语义，不能自行发明“另一套正式目录解释”。
@@ -142,7 +146,7 @@ LL v0.x 正式采用以下 CI 基线：
 
 1. PR 阶段只阻塞快速、确定性强、与改动直接相关的检查。
 2. `ssot`、`skills`、`cli` 三个高风险域采用专项校验 job，而不是并入一个模糊的“lint/test”。
-3. `spec/` 作为正式标准依赖层，不单独宣称真相层，但其变更必须通过依赖映射触发下游治理校验。
+3. 仓库级规则以 `ssot/` 为准，workflow-specific 规则以下沉到 skill 的资源为准；相关变更必须通过依赖映射触发下游治理校验。
 4. 跨域改动或单域高影响改动都必须触发兼容性检查，防止 `SSOT -> skill -> CLI` 链路断裂。
 5. 更重的全量回归、端到端链路、golden drift 与 pilot 验证优先放在 nightly 或 manual dispatch。
 6. CI 结果必须输出清晰、可定位、可审计的失败原因，不能只给出笼统红灯。
@@ -244,7 +248,7 @@ CI 分为三层。
 
 当 PR 修改 `ssot/**` 时必触发并作为 required check。
 
-* `Input`：`ssot/**`、ADR-008 定义的 canonical object model、位于 `spec/` 下的 machine-readable object-kind registry 或等价 schema、ADR 文件最小元信息规则、对象引用解析规则。
+* `Input`：`ssot/**`、ADR-008 定义的 canonical object model、位于 `ssot/` 下的 machine-readable object-kind registry 或等价 schema、ADR 文件最小元信息规则、对象引用解析规则。
 * `Assertion`：
   * `ssot/` 下对象路径必须落在已接受的 canonical object kind 中。
   * 文件命名、对象 ID、文内主标识必须一致。
@@ -257,7 +261,7 @@ CI 分为三层。
 
 特别约束：
 
-* ADR-008 负责 canonical object model 的治理定义；`spec/` 下的 registry / schema 负责执行承载；CI 不得自行发明 object kind、path pattern 或最小字段规则。
+* ADR-008 负责 canonical object model 的治理定义；如需 machine-readable registry / schema，应由 `ssot/` 或对应 skill 的本地资源承载；CI 不得自行发明 object kind、path pattern 或最小字段规则。
 * `ssot/adr/**` 变更除 CI 通过外，必须要求人工 review。
 * `docs/` 中的说明性文档不作为正式 SSOT 校验入口，避免形成第二真相源。
 
@@ -311,7 +315,7 @@ CI 分为三层。
 影响面判定必须来自正式依赖映射，而不是只看目录 co-change。依赖映射的正式输入至少包括：
 
 * `ssot/**` 中的对象类型、对象引用、ADR 边界；
-* `spec/contracts/**`、`spec/governance/**`、`spec/skill-standard/**` 中的 contract / schema / rule；
+* `ssot/**` 中的仓库级 rule doc / registry / schema，以及 `skills/**/resources/**` 中的 workflow-specific contract / schema / rule；
 * `skills/**/ll.contract.yaml`、`skills/**/ll.lifecycle.yaml`、`input/output schema`、runtime command 声明；
 * `cli/ll.py` 与 `cli/commands/**` 暴露的 command/action surface；
 * `cli/lib/**` 中承载 protocol、runtime mapping、skill execution assumption 的模块。
@@ -435,9 +439,8 @@ nightly 或手动触发层优先承载较重回归。
 * `ssot/tech/**`
 * `ssot/impl/**`
 * `ssot/testset/**`
-* `spec/contracts/**`
-* `spec/governance/**`
-* `spec/skill-standard/**`
+* `docs/repository-layout.md`
+* `skills/**/resources/**`
 * `skills/**/ll.contract.yaml`
 * `skills/**/ll.lifecycle.yaml`
 * `skills/**/input/**`
