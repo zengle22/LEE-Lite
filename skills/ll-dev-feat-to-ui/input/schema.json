@@ -1,0 +1,59 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "ll-dev-feat-to-ui input",
+  "type": "object",
+  "required": [
+    "artifact_type",
+    "workflow_key",
+    "status",
+    "schema_version",
+    "feat_refs",
+    "features",
+    "source_refs"
+  ],
+  "properties": {
+    "artifact_type": {
+      "type": "string",
+      "const": "feat_freeze_package"
+    },
+    "workflow_key": {
+      "type": "string",
+      "const": "product.epic-to-feat"
+    },
+    "status": {
+      "type": "string"
+    },
+    "schema_version": {
+      "type": "string"
+    },
+    "feat_refs": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "source_refs": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "features": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "feat_ref",
+          "title",
+          "goal",
+          "scope",
+          "constraints",
+          "acceptance_checks",
+          "source_refs"
+        ],
+        "additionalProperties": true
+      }
+    }
+  },
+  "additionalProperties": true
+}

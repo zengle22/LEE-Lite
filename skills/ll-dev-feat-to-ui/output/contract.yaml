@@ -1,0 +1,43 @@
+artifact_type: ui_spec_package
+schema_version: 1.0.0
+required_runtime_artifacts:
+  - package-manifest.json
+  - ui-spec-bundle.md
+  - ui-spec-bundle.json
+  - ui-flow-map.md
+  - ui-spec-completeness-report.json
+  - ui-spec-review-report.json
+  - ui-spec-defect-list.json
+  - ui-spec-freeze-gate.json
+  - execution-evidence.json
+  - supervision-evidence.json
+required_source_refs:
+  - "product.epic-to-feat::<run_id>"
+  - "FEAT-*"
+  - "EPIC-*"
+  - "SRC-*"
+required_output_objects:
+  - UI_SPEC
+required_bundle_sections:
+  - Selected FEAT
+  - UI Spec Inventory
+  - Completeness Summary
+  - Artifact Relationship
+  - Traceability
+structural_checks:
+  - schema
+  - trace
+  - ui_spec_refs_present
+  - completeness_report_present
+  - freeze_gate_present
+semantic_gate:
+  required: true
+forbidden_content:
+  - pixel-perfect visual draft
+  - implementation-level code structure
+  - test-case detail
+  - unstated new requirements
+notes:
+  - One FEAT may produce one or more UI Spec markdown files. The bundle is the governed package; individual UI Spec files are its formal children.
+  - Conditional pass is allowed when the package is structurally complete but still carries explicit open questions for fields, touchpoints, or validation details.
+  - The package must include a package-level flow overview file so multi-page or multi-step UI Specs do not fragment into isolated single-page truths.

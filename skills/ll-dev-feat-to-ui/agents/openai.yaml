@@ -1,0 +1,4 @@
+interface:
+  display_name: "LL Dev Feat To Ui"
+  short_description: "Governed skill for LL Dev Feat To Ui"
+  default_prompt: "Use $ll-dev-feat-to-ui to run the governed ll-dev-feat-to-ui workflow."
