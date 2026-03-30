@@ -43,6 +43,7 @@ This skill is the governed gate workflow for turning one `gate_ready_package` in
   - the main focus points
   - the allowed reply formats
 - Default behavior: if the runtime returns `human_brief`, render the full markdown inline in the first reply for that pending item.
+- Do not ask whether to paste the brief first; paste it by default unless the user explicitly asked for a shorter summary-only mode.
 - Do not collapse to only `review_summary` or a short abstract unless the user explicitly asks for a shorter version.
 - If the runtime returns `review_summary`, summarize the key fields in plain Chinese before asking for a decision.
 - Default the human-facing brief to Chinese unless the user explicitly asks for another language.
