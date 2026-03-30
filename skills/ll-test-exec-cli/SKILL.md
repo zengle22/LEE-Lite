@@ -5,15 +5,16 @@ description: Governed QA execution skill for routing a formal TESTSET plus TestE
 
 # Test Exec CLI
 
-This is the formal governed skill wrapper for the ADR-007 CLI execution path. It does not create a second implementation. It routes into the canonical workspace runtime at `python -m cli.ll skill test-exec-cli`.
+This is the formal governed skill wrapper for the ADR-007 CLI execution path. It does not create a second implementation. It routes into the canonical workspace runtime at `python -m cli skill test-exec-cli`.
 
 ## Canonical Authority
 
 - ADR: `E:\ai\LEE-Lite-skill-first\ssot\adr\ADR-007-QA Test Execution Governed Skill 标准方案.MD`
 - Upstream producer: `ll-qa-feat-to-testset`
-- Canonical runtime command: `python -m cli.ll skill test-exec-cli --request <request.json> --response-out <response.json>`
+- Canonical runtime command: `python -m cli skill test-exec-cli --request <request.json> --response-out <response.json>`
 - Canonical runtime carrier: `E:\ai\LEE-Lite-skill-first\cli\lib\test_exec_runtime.py`
 - CLI execution loop: `E:\ai\LEE-Lite-skill-first\cli\lib\test_exec_execution.py`
+- Required working directory: repository root `E:\ai\LEE-Lite-skill-first`
 
 ## Required Read Order
 
@@ -30,9 +31,13 @@ This is the formal governed skill wrapper for the ADR-007 CLI execution path. It
 2. Validate the request envelope, payload boundary, and CLI-specific input requirements before execution.
 3. Require `payload.test_set_ref` to resolve to a formal `TESTSET` and `payload.test_environment_ref` to resolve to a `TestEnvironmentSpec` with `execution_modality: cli`.
 4. Require the environment contract to expose `command_entry` or `runner_command`.
-5. Run the canonical runtime command and let the workspace runtime derive `resolved_ssot_context`, `TestCasePack`, `ScriptPack`, `EvidenceBundle`, `TSE`, and governed candidate refs.
-6. Validate the response envelope structurally, then review the semantic boundary: run status, handoff presence, candidate refs, and execution artifact completeness.
-7. Freeze only after the response envelope is structurally valid, semantically reviewable, and not in `run_status=failed`.
+5. Distinguish between `smoke/acceptance` runs and `coverage qualification` runs.
+   - `smoke/acceptance` runs may set `coverage_enabled: false` and focus on governed flow, candidate registration, and handoff evidence.
+   - `coverage qualification` runs must use a real Python script or module entry that can be wrapped by coverage and must produce measurable coverage artifacts.
+6. Avoid `python -c` for coverage-enabled paths; prefer a script file such as `tools/run_case.py` or a module entry that coverage can instrument reliably.
+7. Run the canonical runtime command from repository root and let the workspace runtime derive `resolved_ssot_context`, `TestCasePack`, `ScriptPack`, `EvidenceBundle`, `TSE`, and governed candidate refs.
+8. Validate the response envelope structurally, then review the semantic boundary: run status, handoff presence, candidate refs, and execution artifact completeness.
+9. Freeze only after the response envelope is structurally valid, semantically reviewable, and not in `run_status=failed`.
 
 ## Workflow Boundary
 
@@ -43,6 +48,7 @@ This is the formal governed skill wrapper for the ADR-007 CLI execution path. It
 
 ## Non-Negotiable Rules
 
-- Do not bypass `python -m cli.ll skill test-exec-cli` with hand-written response files.
+- Do not bypass `python -m cli skill test-exec-cli` with hand-written response files.
 - Do not mutate command-execution results to turn failures into passes.
 - Do not let executor logic issue acceptance or closure decisions; gate consumers own those states.
+- Do not reuse the same `request_id` for a payload that changes meaning; payload changes require a new `request_id` or a new revision identifier.

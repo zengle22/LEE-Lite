@@ -15,6 +15,7 @@ required_payload_fields:
 optional_payload_fields:
   - proposal_ref
 optional_environment_fields:
+  - coverage_mode
   - coverage_enabled
   - coverage_scope_name
   - coverage_include
@@ -40,5 +41,7 @@ forbidden_inputs:
 notes:
   - test_set_ref must resolve to a formal TESTSET, usually emitted by ll-qa-feat-to-testset.
   - The CLI environment must expose a real executable entry instead of an informal note.
-  - coverage_enabled may be set to true to request real Python coverage collection for compatible command_entry values.
-  - When coverage_include is omitted, the skill may automatically adopt feature_owned_code_paths emitted by the TESTSET.
+  - coverage_mode, when present, should distinguish smoke_acceptance from coverage_qualification. Smoke/acceptance runs may disable coverage; qualification runs should require measurable coverage artifacts.
+  - coverage_enabled may be set to true only for compatible script or module command_entry values. Avoid python -c for coverage-enabled paths.
+  - When coverage_include is omitted, the skill may automatically adopt feature_owned_code_paths emitted by the TESTSET for coverage qualification runs only; smoke runs should not auto-enable coverage.
+  - If request payload meaning changes, the caller must use a new request_id. Reusing a request_id with different payload content is a hard failure, not a replay.

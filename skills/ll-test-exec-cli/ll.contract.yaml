@@ -6,7 +6,7 @@ workflow_key: qa.test-exec-cli
 authority:
   canonical_adr: E:\ai\LEE-Lite-skill-first\ssot\adr\ADR-007-QA Test Execution Governed Skill 标准方案.MD
   upstream_skill: ll-qa-feat-to-testset
-  runtime_entry: python -m cli.ll skill test-exec-cli
+  runtime_entry: python -m cli skill test-exec-cli
   runtime_carrier: E:\ai\LEE-Lite-skill-first\cli\lib\test_exec_runtime.py
   runner_carrier: E:\ai\LEE-Lite-skill-first\cli\lib\test_exec_execution.py
   downstream_workflow: governance.gate-human-orchestrator
@@ -23,8 +23,12 @@ roles:
 
 runtime:
   mode: lite_native
-  command: python -m cli.ll skill test-exec-cli --request <request.json> --response-out <response.json>
-  entry_script: python -m cli.ll
+  run_modes:
+    - smoke_acceptance
+    - coverage_qualification
+  command: python -m cli skill test-exec-cli --request <request.json> --response-out <response.json>
+  entry_script: python -m cli
+  working_directory: E:\ai\LEE-Lite-skill-first
   accepted_input_paths:
     - artifacts/feat-to-testset/<run_id>/test-set.yaml
     - ssot/test-env/<environment>.yaml
@@ -91,6 +95,7 @@ gate:
     - testset_not_formal
     - environment_modality_mismatch
     - missing_command_entry
+    - coverage_enabled_with_python_inline_command
     - required_runtime_refs_missing
     - response_envelope_inconsistent
     - required_evidence_missing

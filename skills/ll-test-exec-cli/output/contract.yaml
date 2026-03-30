@@ -50,3 +50,4 @@ notes:
   - The response envelope is the formal skill output; response.data carries the governed candidate and execution artifact refs.
   - A non-failed run may still require external review. Acceptance remains downstream of this skill.
   - coverage_summary_ref and coverage_report_ref must be present; when coverage is not enabled, they should still resolve to disabled-status artifacts.
+  - Smoke/acceptance runs may legitimately report disabled coverage, but coverage qualification runs must produce measurable coverage artifacts suitable for gate evaluation.
