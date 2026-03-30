@@ -286,8 +286,14 @@ class RunnerSkillEntryBundleTest(unittest.TestCase):
             self.assertEqual(installed.name, "ll-execution-loop-job-runner")
             skill_md = (installed / "SKILL.md").read_text(encoding="utf-8")
             openai_yaml = (installed / "agents" / "openai.yaml").read_text(encoding="utf-8")
+            manifest = read_json(installed / ".codex-adapter-manifest.json")
+            launcher_path = installed / "scripts" / "invoke_canonical_cli.py"
             self.assertIn("workspace-bound adapter", skill_md.lower())
             self.assertIn("ll-execution-loop-job-runner", openai_yaml)
+            self.assertEqual(manifest["canonical_workspace_root"], str(ROOT.resolve()))
+            self.assertEqual(manifest["canonical_skill_root"], str(SKILL_ROOT.resolve()))
+            self.assertTrue(launcher_path.exists())
+            self.assertIn(str(launcher_path), skill_md)
             installed_module = load_module(installed / "scripts" / "runner_operator_entry.py", "installed_runner_operator_entry")
             request = self.build_request(
                 {
@@ -298,6 +304,23 @@ class RunnerSkillEntryBundleTest(unittest.TestCase):
             request_path = self.request_path("installed-runner-validate.json")
             write_json(request_path, request)
             self.assertEqual(installed_module.main(["validate-input", "--request", str(request_path)]), 0)
+
+    def test_runner_skill_bundle_prefers_canonical_cli_root_over_request_workspace(self) -> None:
+        with tempfile.TemporaryDirectory() as dest_dir:
+            dest_root = Path(dest_dir)
+            installed = self.install_module.install_adapter(
+                source_skill_dir=SKILL_ROOT,
+                dest_root=dest_root,
+                workspace_root=ROOT,
+                replace=False,
+            )
+            installed_module = load_module(installed / "scripts" / "runner_operator_entry.py", "installed_runner_operator_entry_root")
+            external_workspace = self.workspace / "external-project"
+            (external_workspace / "cli").mkdir(parents=True)
+            (external_workspace / "cli" / "ll.py").write_text("raise RuntimeError('wrong cli root')\n", encoding="utf-8")
+
+            resolved = installed_module._resolve_cli_root(external_workspace)
+            self.assertEqual(resolved, ROOT.resolve())
 
 
 if __name__ == "__main__":
