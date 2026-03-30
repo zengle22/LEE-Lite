@@ -6,6 +6,7 @@ Executor phase for raw-to-src.
 from __future__ import annotations
 
 import json
+from copy import deepcopy
 from pathlib import Path
 from typing import Any
 
@@ -52,6 +53,31 @@ def _build_patch_events(run_id: str, stage_id: str, event_prefix: str, patches: 
         }
         for index, patch in enumerate(patches, start=1)
     ]
+
+
+def _materialize_revision_request(
+    artifacts_dir: Path,
+    revision_request_path: Path | None,
+) -> tuple[str, dict[str, Any] | None, list[dict[str, Any]]]:
+    destination = artifacts_dir / "revision-request.json"
+    source_path = revision_request_path or (destination if destination.exists() else None)
+    if source_path is None or not source_path.exists():
+        return "", None, []
+    revision_request = json.loads(source_path.read_text(encoding="utf-8"))
+    if source_path.resolve() != destination.resolve():
+        write_json(destination, revision_request)
+    event = {
+        "patch_id": f"patch-{revision_request.get('run_id') or revision_request.get('source_run_id') or 'revision'}-revision-request",
+        "stage_id": "revision_request",
+        "actor_role": "executor",
+        "patch_scope": "external_revision",
+        "patch_mode": "gate_revise_rerun",
+        "issue_code": str(revision_request.get("decision_type") or "revise"),
+        "target_fields": ["revision-request.json"],
+        "action": "Accepted external revision request as rerun context.",
+        "outcome": "applied",
+    }
+    return str(destination), deepcopy(revision_request), [event]
 
 
 def _run_input_flow(document: dict[str, Any], input_path: Path, artifacts_dir: Path, run_id: str) -> tuple[
@@ -204,11 +230,12 @@ def _persist_outputs(
     return candidate_path
 
 
-def executor_run(input_path: Path, repo_root: Path, run_id: str) -> dict[str, Any]:
+def executor_run(input_path: Path, repo_root: Path, run_id: str, revision_request_path: Path | None = None) -> dict[str, Any]:
     artifacts_dir = ensure_dir(repo_root / "artifacts" / "raw-to-src" / run_id)
     ensure_dir(repo_root / "ssot" / "src")
     document = load_raw_input(input_path)
     document["workflow_run_id"] = run_id
+    revision_request_ref, revision_request, revision_events = _materialize_revision_request(artifacts_dir, revision_request_path)
 
     document, input_validation, stage_results, patch_events, structural_attempts, input_validation_report = _run_input_flow(document, input_path, artifacts_dir, run_id)
     document, intake_validation, intake_stages, intake_events, intake_report = _run_intake_flow(document, input_path, artifacts_dir, run_id, structural_attempts)
@@ -216,6 +243,7 @@ def executor_run(input_path: Path, repo_root: Path, run_id: str) -> dict[str, An
 
     stage_results.extend(intake_stages)
     stage_results.extend(structural_stages)
+    patch_events.extend(revision_events)
     patch_events.extend(intake_events)
     patch_events.extend(structural_events)
     candidate_path = _persist_outputs(
@@ -242,7 +270,10 @@ def executor_run(input_path: Path, repo_root: Path, run_id: str) -> dict[str, An
         {"input_validation": input_validation, "intake_validation": intake_validation, "structural_issues": structural_issues},
         decisions,
         candidate["uncertainties"],
+        revision_request_ref=revision_request_ref,
     )
+    if revision_request is not None:
+        execution["revision_request"] = revision_request
     write_json(artifacts_dir / "execution-evidence.json", execution)
     return {
         "ok": True,
@@ -252,4 +283,5 @@ def executor_run(input_path: Path, repo_root: Path, run_id: str) -> dict[str, An
         "structural_issues": structural_issues,
         "input_valid": input_validation["valid"],
         "intake_valid": intake_validation["valid"],
+        "revision_request_ref": revision_request_ref,
     }

@@ -44,11 +44,13 @@ from src_to_epic_common import (
     extract_src_ref,
     guess_repo_root_from_input,
     load_json,
+    load_optional_json,
     load_src_package,
     normalize_semantic_lock,
     parse_markdown_frontmatter,
     resolve_formal_src_ref,
     resolve_input_artifacts_dir,
+    summarize_text,
     unique_strings,
     validate_input_package,
 )
@@ -95,6 +97,84 @@ def output_dir_for(repo_root: Path, run_id: str) -> Path:
 
 def repo_relative(repo_root: Path, path: Path) -> str:
     return path.resolve().relative_to(repo_root.resolve()).as_posix()
+
+
+def _revision_request_target_path(artifacts_dir: Path) -> Path:
+    return artifacts_dir / "revision-request.json"
+
+
+def _materialize_revision_request(
+    artifacts_dir: Path,
+    revision_request_path: str | Path | None,
+) -> tuple[str, dict[str, Any]]:
+    if revision_request_path:
+        source_path = Path(revision_request_path).resolve()
+    else:
+        source_path = _revision_request_target_path(artifacts_dir)
+    if not source_path.exists():
+        if revision_request_path:
+            raise FileNotFoundError(f"Revision request not found: {source_path}")
+        return "", {}
+    revision_request = load_optional_json(source_path)
+    target_path = _revision_request_target_path(artifacts_dir)
+    if source_path != target_path or not target_path.exists():
+        dump_json(target_path, revision_request)
+    else:
+        dump_json(target_path, revision_request)
+    return str(target_path), revision_request
+
+
+def _revision_summary(revision_request: dict[str, Any]) -> str:
+    decision_target = str(revision_request.get("decision_target") or "").strip()
+    decision_reason = str(revision_request.get("decision_reason") or revision_request.get("reason") or "").strip()
+    revision_round = str(revision_request.get("revision_round") or "").strip()
+    pieces: list[str] = []
+    if revision_round:
+        pieces.append(f"round {revision_round}")
+    if decision_target:
+        pieces.append(decision_target)
+    if decision_reason:
+        pieces.append(summarize_text(decision_reason, limit=180))
+    summary = " | ".join(pieces)
+    if not summary:
+        summary = "gate revise request"
+    return summarize_text(f"Gate revise: {summary}", limit=220)
+
+
+def _apply_revision_request(package: Any, revision_request_ref: str, revision_request: dict[str, Any]) -> str:
+    if not revision_request:
+        return ""
+
+    revision_summary = _revision_summary(revision_request)
+    candidate = package.src_candidate
+    revision_context = candidate.get("revision_context")
+    if not isinstance(revision_context, dict):
+        revision_context = {}
+    revision_context.update(
+        {
+            "revision_request_ref": revision_request_ref,
+            "workflow_key": str(revision_request.get("workflow_key") or "").strip(),
+            "run_id": str(revision_request.get("run_id") or "").strip(),
+            "source_run_id": str(revision_request.get("source_run_id") or "").strip(),
+            "decision_type": str(revision_request.get("decision_type") or "").strip(),
+            "decision_target": str(revision_request.get("decision_target") or "").strip(),
+            "decision_reason": str(revision_request.get("decision_reason") or revision_request.get("reason") or "").strip(),
+            "revision_round": revision_request.get("revision_round"),
+            "basis_refs": ensure_list(revision_request.get("basis_refs")),
+            "source_gate_decision_ref": str(revision_request.get("source_gate_decision_ref") or "").strip(),
+            "source_return_job_ref": str(revision_request.get("source_return_job_ref") or "").strip(),
+            "authoritative_input_ref": str(revision_request.get("authoritative_input_ref") or "").strip(),
+            "candidate_ref": str(revision_request.get("candidate_ref") or "").strip(),
+            "original_input_path": str(revision_request.get("original_input_path") or "").strip(),
+            "triggered_by_request_id": str(revision_request.get("triggered_by_request_id") or "").strip(),
+            "trace": revision_request.get("trace") if isinstance(revision_request.get("trace"), dict) else {},
+            "summary": revision_summary,
+        }
+    )
+    candidate["revision_context"] = revision_context
+    candidate["revision_request_ref"] = revision_request_ref
+    candidate["key_constraints"] = unique_strings(ensure_list(candidate.get("key_constraints")) + [revision_summary])
+    return revision_summary
 
 
 @dataclass
@@ -179,6 +259,9 @@ def build_semantic_drift_check(
 def build_epic_payload(package: Any, workflow_run_id: str | None = None) -> GeneratedEpic:
     active_run_id = workflow_run_id or package.run_id
     src_root_id = choose_src_root_id(package)
+    revision_context = package.src_candidate.get("revision_context") if isinstance(package.src_candidate.get("revision_context"), dict) else {}
+    revision_request_ref = str(revision_context.get("revision_request_ref") or package.src_candidate.get("revision_request_ref") or "").strip()
+    revision_summary = str(revision_context.get("summary") or "").strip()
     rollout_requirement, epic_freeze_ref, epic_title = assess_rollout_requirement(package), choose_epic_freeze_ref(package), derive_epic_title(package)
     capability_axes = derive_capability_axes(package, rollout_requirement)
     product_behavior_slices = derive_product_behavior_slices(package, rollout_requirement)
@@ -209,6 +292,8 @@ def build_epic_payload(package: Any, workflow_run_id: str | None = None) -> Gene
         "输出追溯链同时保留了 raw-to-src 批次引用、src_root_id 与原始 source_refs。",
         "Decomposition Rules 已显式给出产品行为切片、cross-cutting constraints 与 rollout overlay 规则。",
     ]
+    if revision_summary:
+        review_findings.append(f"Revision context absorbed: {revision_summary}.")
     if rollout_requirement["required"]:
         review_findings.append("该 SRC 命中 rollout/adoption 判定，主 EPIC 已显式包含 rollout 段落与 adoption/E2E FEAT 拆分要求。")
     review_risks = [] if multi_feat["is_multi_feat_ready"] else ["当前输入显示的独立能力边界不足，可能更适合直接落到 FEAT 层。"]
@@ -230,6 +315,8 @@ def build_epic_payload(package: Any, workflow_run_id: str | None = None) -> Gene
             else "当前 SRC 不需要单独的 rollout/adoption/E2E FEAT 族。",
         },
     }
+    if revision_summary:
+        acceptance_dimensions["revision_response"] = {"status": "pass", "note": revision_summary}
 
     defects: list[dict[str, Any]] = list(validation_findings)
     if semantic_drift_check["verdict"] == "reject":
@@ -288,6 +375,7 @@ def build_epic_payload(package: Any, workflow_run_id: str | None = None) -> Gene
         "epic_kind": "primary",
         "epic_freeze_ref": epic_freeze_ref,
         "src_root_id": src_root_id,
+        "revision_request_ref": revision_request_ref,
         "downstream_workflow": "product.epic-to-feat",
         "source_refs": source_refs,
         "epic_intent": epic_intent,
@@ -330,6 +418,9 @@ def build_epic_payload(package: Any, workflow_run_id: str | None = None) -> Gene
         "semantic_lock": semantic_lock(package) or None,
         "semantic_drift_check": semantic_drift_check,
     }
+    if revision_request_ref:
+        json_payload["revision_request_ref"] = revision_request_ref
+        json_payload["revision_context"] = revision_context or None
 
     frontmatter = {
         "artifact_type": "epic_freeze_package",
@@ -344,6 +435,9 @@ def build_epic_payload(package: Any, workflow_run_id: str | None = None) -> Gene
         "rollout_required": rollout_requirement["required"],
         "semantic_lock": semantic_lock(package) or None,
     }
+    if revision_request_ref:
+        frontmatter["revision_request_ref"] = revision_request_ref
+        frontmatter["revision_round"] = revision_context.get("revision_round") if revision_context else None
 
     rollout_lines = [f"- rollout_required: `{str(rollout_requirement['required']).lower()}`", f"- trigger_score: `{rollout_requirement['score']}`"]
     rollout_lines.extend(f"- {item}" for item in rollout_requirement["rationale"])
@@ -479,6 +573,7 @@ def validate_output_package(artifacts_dir: Path) -> tuple[list[str], dict[str, A
         errors.append("epic-freeze.json must include src_root_id.")
 
     source_refs = ensure_list(epic_json.get("source_refs"))
+    revision_request_ref = str(epic_json.get("revision_request_ref") or "").strip()
     semantic_lock_payload = normalize_semantic_lock(epic_json.get("semantic_lock"))
     is_review_projection = str((semantic_lock_payload or {}).get("domain_type") or "").strip().lower() == "review_projection_rule"
     is_execution_runner = str((semantic_lock_payload or {}).get("domain_type") or "").strip().lower() == "execution_runner_rule"
@@ -486,6 +581,8 @@ def validate_output_package(artifacts_dir: Path) -> tuple[list[str], dict[str, A
         errors.append("epic-freeze.json source_refs must include product.raw-to-src::<run_id>.")
     if not any(ref.startswith("SRC-") for ref in source_refs):
         errors.append("epic-freeze.json source_refs must include SRC-*.")
+    if revision_request_ref and not (artifacts_dir / "revision-request.json").exists():
+        errors.append("revision-request.json must exist when epic-freeze.json revision_request_ref is present.")
     drift_check = load_json(artifacts_dir / "semantic-drift-check.json")
     if drift_check.get("semantic_lock_present") and drift_check.get("semantic_lock_preserved") is not True:
         errors.append("semantic-drift-check.json must report semantic_lock_preserved=true when semantic_lock is present.")
@@ -581,7 +678,13 @@ def validate_package_readiness(artifacts_dir: Path) -> tuple[bool, list[str]]:
     return not readiness_errors, readiness_errors
 
 
-def executor_run(input_path: str | Path, repo_root: Path, run_id: str, allow_update: bool = False) -> dict[str, Any]:
+def executor_run(
+    input_path: str | Path,
+    repo_root: Path,
+    run_id: str,
+    allow_update: bool = False,
+    revision_request_path: str | Path | None = None,
+) -> dict[str, Any]:
     errors, validation = validate_input_package(input_path, repo_root)
     if errors:
         raise ValueError("; ".join(errors))
@@ -598,10 +701,14 @@ def executor_run(input_path: str | Path, repo_root: Path, run_id: str, allow_upd
     if resolved_src_ref:
         package.src_candidate["src_root_id"] = resolved_src_ref
     effective_run_id = run_id or package.run_id
-    generated = build_epic_payload(package, workflow_run_id=effective_run_id)
     output_dir = output_dir_for(repo_root, effective_run_id)
     if output_dir.exists() and not allow_update:
         raise FileExistsError(f"Output directory already exists: {output_dir}")
+    revision_request_ref, revision_request = _materialize_revision_request(output_dir, revision_request_path)
+    revision_summary = _apply_revision_request(package, revision_request_ref, revision_request)
+    if revision_summary:
+        package.src_candidate["revision_summary"] = revision_summary
+    generated = build_epic_payload(package, workflow_run_id=effective_run_id)
     write_executor_outputs(
         output_dir=output_dir,
         repo_root=repo_root,
@@ -619,10 +726,17 @@ def executor_run(input_path: str | Path, repo_root: Path, run_id: str, allow_upd
     }
 
 
-def supervisor_review(artifacts_dir: Path, repo_root: Path, run_id: str, allow_update: bool = False) -> dict[str, Any]:
+def supervisor_review(
+    artifacts_dir: Path,
+    repo_root: Path,
+    run_id: str,
+    allow_update: bool = False,
+    revision_request_path: str | Path | None = None,
+) -> dict[str, Any]:
     if not artifacts_dir.exists():
         raise FileNotFoundError(f"Artifacts directory not found: {artifacts_dir}")
 
+    revision_request_ref, revision_request = _materialize_revision_request(artifacts_dir, revision_request_path)
     package_manifest = load_json(artifacts_dir / "package-manifest.json")
     epic_json = load_json(artifacts_dir / "epic-freeze.json")
     input_run_id = run_id or str(epic_json.get("workflow_run_id") or package_manifest.get("status") or artifacts_dir.name)
@@ -640,6 +754,9 @@ def supervisor_review(artifacts_dir: Path, repo_root: Path, run_id: str, allow_u
     )
     if resolved_src_ref:
         package.src_candidate["src_root_id"] = resolved_src_ref
+    revision_summary = _apply_revision_request(package, revision_request_ref, revision_request)
+    if revision_summary:
+        package.src_candidate["revision_summary"] = revision_summary
     generated = build_epic_payload(package, workflow_run_id=input_run_id)
 
     supervision = build_supervision_evidence(package, artifacts_dir, generated)
@@ -691,12 +808,19 @@ def supervisor_review(artifacts_dir: Path, repo_root: Path, run_id: str, allow_u
     }
 
 
-def run_workflow(input_path: Path, repo_root: Path, run_id: str, allow_update: bool = False) -> dict[str, Any]:
+def run_workflow(
+    input_path: Path,
+    repo_root: Path,
+    run_id: str,
+    allow_update: bool = False,
+    revision_request_path: str | Path | None = None,
+) -> dict[str, Any]:
     executor_result = executor_run(
         input_path=input_path,
         repo_root=repo_root,
         run_id=run_id,
         allow_update=allow_update,
+        revision_request_path=revision_request_path,
     )
     artifacts_dir = Path(executor_result["artifacts_dir"])
     supervisor_result = supervisor_review(
@@ -704,6 +828,7 @@ def run_workflow(input_path: Path, repo_root: Path, run_id: str, allow_update: b
         repo_root=repo_root,
         run_id=run_id or executor_result["run_id"],
         allow_update=True,
+        revision_request_path=revision_request_path,
     )
     output_errors, output_result = validate_output_package(artifacts_dir)
     if output_errors:

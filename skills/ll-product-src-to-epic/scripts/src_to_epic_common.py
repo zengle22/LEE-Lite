@@ -44,6 +44,13 @@ def dump_json(path: Path, payload: Any) -> None:
     path.write_text(json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
 
 
+def load_optional_json(path: Path) -> dict[str, Any]:
+    if not path.exists():
+        return {}
+    payload = load_json(path)
+    return payload if isinstance(payload, dict) else {}
+
+
 def parse_markdown_frontmatter(markdown_text: str) -> tuple[dict[str, Any], str]:
     if not markdown_text.startswith("---\n"):
         return {}, markdown_text

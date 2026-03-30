@@ -195,6 +195,23 @@ def _matching_lines(body: str, patterns: list[str]) -> list[str]:
     return lines
 
 
+def _normalize_section_lines(text: str) -> list[str]:
+    lines: list[str] = []
+    for raw_line in text.splitlines():
+        line = re.sub(r"^#+\s*", "", raw_line).strip()
+        line = re.sub(r"^[*-]\s*", "", line).strip()
+        line = re.sub(r"^\d+(?:\.\d+)*\s*[：:.、-]\s*", "", line).strip()
+        line = re.sub(r"\s+", " ", line).strip()
+        if line:
+            lines.append(line)
+    return _dedupe_strings(lines)
+
+
+def _section_lines(document: dict[str, Any], section_name: str) -> list[str]:
+    sections = document.get("sections") or {}
+    return _normalize_section_lines(str(sections.get(section_name, "")).strip())
+
+
 def derive_operator_surface_inventory(document: dict[str, Any], candidate: dict[str, Any]) -> list[dict[str, Any]]:
     body = str(document.get("body", ""))
     source_refs = [str(item) for item in document.get("source_refs", [])]
@@ -430,6 +447,115 @@ def derive_omission_and_compression_report(document: dict[str, Any], candidate: 
     }
 
 
+def _project_onboarding_bridge_fields(document: dict[str, Any], candidate: dict[str, Any]) -> dict[str, Any]:
+    if candidate.get("source_kind") != "raw_requirement":
+        return candidate
+    source_text = " ".join(
+        [
+            str(candidate.get("title", "")),
+            str(candidate.get("problem_statement", "")),
+            " ".join(candidate.get("business_drivers", [])),
+            " ".join(candidate.get("key_constraints", [])),
+            " ".join(candidate.get("out_of_scope", [])),
+            " ".join(_normalize_list((candidate.get("semantic_inventory") or {}).get("states"))),
+        ]
+    ).lower()
+    if not any(token in source_text for token in ("最小建档", "onboarding", "running_level", "recent_injury_status", "capability flags", "设备绑定", "用户建档")):
+        return candidate
+
+    baseline_lines = _section_lines(document, "现状基线")
+    direction_lines = _section_lines(document, "建议方向")
+    hard_constraint_lines = _section_lines(document, "补充硬约束")
+    non_goal_lines = _section_lines(document, "非目标")
+
+    target_capability_objects = _dedupe_strings(
+        candidate.get("target_capability_objects", [])
+        + [
+            "最小建档页",
+            "running_level",
+            "recent_injury_status",
+            "主状态 + capability flags",
+            "设备绑定增强入口",
+            "users / user_physical_profile / runner_profiles",
+            "首页任务卡渐进补全",
+            "AI 首轮建议",
+        ]
+    )
+    expected_outcomes = _dedupe_strings(
+        candidate.get("expected_outcomes", [])
+        + [
+            "用户完成最小建档后可以立即进入首页，不再被设备绑定阻塞。",
+            "AI 首轮建议可输出训练建议级别、第一周行动建议、是否提示补充信息和是否提示连接设备。",
+            "running_level、recent_injury_status 与 capability flags 的语义边界保持稳定，不再混写训练阶段、当前能力和历史履历。",
+        ]
+    )
+    downstream_derivation_requirements = _dedupe_strings(
+        candidate.get("downstream_derivation_requirements", [])
+        + [
+            "下游 EPIC / FEAT / TASK 必须继承“单页最小建档 + 首页渐进补全”的链路边界。",
+            "running_level 必须保持单一训练基础轴，不得混入训练阶段或历史赛事经历。",
+            "recent_injury_status 必须作为首日风险门槛的单选字段。",
+            "主状态 + capability flags 必须用于表达真实完成情况，不能退回页面流转式状态机。",
+        ]
+    )
+    bridge_summary = _dedupe_strings(
+        candidate.get("bridge_summary", [])
+        + [
+            "首进链路从完整建档收敛为登录/注册后的最小建档页，目标是先拿到第一条可用 AI 建议。",
+            "设备绑定、扩展画像和训练计划后置为首页渐进补全，不再阻塞首日体验。",
+            "running_level 与 recent_injury_status 被固定为首日最小训练与风险语义，状态模型改为主状态 + capability flags。",
+        ]
+    )
+    governance_change_summary = _dedupe_strings(
+        candidate.get("governance_change_summary", [])
+        + [
+            "首日核心目标从完整建档调整为 1 分钟内获得第一条可用建议。",
+            "guide state 的页面流转职责与业务状态职责拆分为主状态 + capability flags。",
+            "users / user_physical_profile / runner_profiles 的去重边界与设备绑定后置策略同步冻结。",
+        ]
+    )
+    current_failure_modes = _dedupe_strings(
+        candidate.get("current_failure_modes", [])
+        + [
+            "首进路径过长，用户在感受到 AI 教练价值之前需要完成过多输入和跳转。",
+            "users 与 runner_profiles 存在双写和双真相源风险。",
+            "设备绑定仍处于主链路中，阻塞首次体验。",
+            "guide state 仍同时承担页面流转和业务状态职责。",
+        ]
+    )
+    bridge_context = candidate.get("bridge_context") or {}
+    bridge_context.update(
+        {
+            "governed_by_adrs": deepcopy(candidate["source_refs"]),
+            "change_scope": "登录/注册后的 onboarding 只保留最小建档与首轮建议入口，设备绑定和扩展画像后置到首页渐进补全。",
+            "governance_objects": target_capability_objects[:6],
+            "current_failure_modes": current_failure_modes,
+            "downstream_inheritance_requirements": downstream_derivation_requirements,
+            "expected_downstream_objects": [
+                "onboarding/minimal-profile",
+                "homepage task card",
+                "running-background profile update",
+                "device connect flow",
+            ],
+            "acceptance_impact": _dedupe_strings(
+                [
+                    "用户完成最小建档后可立即进入首页，不再被设备绑定阻塞。",
+                    "AI 首轮建议可以在最小输入下仍然给出安全可执行的训练建议。",
+                    "后续扩展画像和设备连接可以增量完成，不阻塞首日体验。",
+                ]
+            ),
+            "non_goals": deepcopy(non_goal_lines or candidate.get("out_of_scope", [])),
+        }
+    )
+    candidate["target_capability_objects"] = target_capability_objects
+    candidate["expected_outcomes"] = expected_outcomes
+    candidate["downstream_derivation_requirements"] = downstream_derivation_requirements
+    candidate["bridge_summary"] = bridge_summary
+    candidate["governance_change_summary"] = governance_change_summary
+    candidate["bridge_context"] = bridge_context
+    return candidate
+
+
 def enrich_high_fidelity_candidate(candidate: dict[str, Any], document: dict[str, Any]) -> dict[str, Any]:
     working = deepcopy(candidate)
     operator_surface_inventory = derive_operator_surface_inventory(document, working)
@@ -439,6 +565,7 @@ def enrich_high_fidelity_candidate(candidate: dict[str, Any], document: dict[str
     working["contradiction_register"] = derive_contradiction_register(document)
     working["normalization_decisions"] = derive_normalization_decisions(document, working, operator_surface_inventory)
     working["omission_and_compression_report"] = derive_omission_and_compression_report(document, working, operator_surface_inventory)
+    working = _project_onboarding_bridge_fields(document, working)
     return working
 
 

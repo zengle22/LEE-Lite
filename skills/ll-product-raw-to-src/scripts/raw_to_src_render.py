@@ -102,7 +102,7 @@ def _governance_sections(candidate: dict[str, Any]) -> list[str]:
     if candidate.get("expected_outcomes"):
         lines.extend(["", "## 成功结果", ""])
         lines.extend(f"- {one_line(item)}" for item in candidate["expected_outcomes"])
-    if candidate["source_kind"] == "governance_bridge_src" and candidate.get("governance_change_summary"):
+    if candidate.get("governance_change_summary"):
         lines.extend(["", "## 治理变更摘要", ""])
         lines.extend(f"- {one_line(item)}" for item in candidate["governance_change_summary"])
     if candidate.get("semantic_lock"):
@@ -130,10 +130,10 @@ def _boundary_sections(candidate: dict[str, Any]) -> list[str]:
     lines.extend(["", "## 来源追溯", ""])
     lines.append(f"- Source refs: {', '.join(candidate['source_refs'])}")
     lines.append(f"- Input type: {candidate['input_type']}")
-    if candidate["source_kind"] == "governance_bridge_src" and candidate.get("bridge_context"):
-        if candidate.get("bridge_summary"):
-            lines.extend(["", "## 桥接摘要", ""])
-            lines.extend(f"- {one_line(item)}" for item in candidate["bridge_summary"])
+    if candidate.get("bridge_summary"):
+        lines.extend(["", "## 桥接摘要", ""])
+        lines.extend(f"- {one_line(item)}" for item in candidate["bridge_summary"])
+    if candidate.get("bridge_context"):
         bridge = candidate["bridge_context"]
         lines.extend(["", "## Bridge Context", ""])
         lines.append("- 结构化继承元数据区：本节仅用于机器消费与下游继承，不承担正文展开解释。")

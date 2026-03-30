@@ -168,6 +168,7 @@ def build_result_summary(
     gate_ready_package_ref: str | None = None,
     authoritative_handoff_ref: str | None = None,
     gate_pending_ref: str | None = None,
+    revision_request_ref: str = "",
 ) -> dict[str, Any]:
     return {
         "workflow_key": WORKFLOW_KEY,
@@ -184,10 +185,17 @@ def build_result_summary(
         "gate_ready_package_ref": gate_ready_package_ref or "",
         "authoritative_handoff_ref": authoritative_handoff_ref or "",
         "gate_pending_ref": gate_pending_ref or "",
+        "revision_request_ref": revision_request_ref,
     }
 
 
-def build_run_state(run_id: str, current_state: str, action: str, stage_results: list[dict[str, Any]]) -> dict[str, Any]:
+def build_run_state(
+    run_id: str,
+    current_state: str,
+    action: str,
+    stage_results: list[dict[str, Any]],
+    revision_request_ref: str = "",
+) -> dict[str, Any]:
     state_history = [
         {
             "state": item["status"],
@@ -202,6 +210,7 @@ def build_run_state(run_id: str, current_state: str, action: str, stage_results:
         "current_state": current_state,
         "recommended_action": action,
         "state_history": state_history,
+        "revision_request_ref": revision_request_ref,
     }
 
 
@@ -222,6 +231,7 @@ def build_package_manifest(
     gate_ready_package_ref: str | None = None,
     authoritative_handoff_ref: str | None = None,
     gate_pending_ref: str | None = None,
+    revision_request_ref: str = "",
 ) -> dict[str, Any]:
     return {
         "artifacts_dir": str(artifacts_dir),
@@ -246,6 +256,7 @@ def build_package_manifest(
         "gate_ready_package_ref": gate_ready_package_ref or "",
         "authoritative_handoff_ref": authoritative_handoff_ref or "",
         "gate_pending_ref": gate_pending_ref or "",
+        "revision_request_ref": revision_request_ref,
     }
 
 
@@ -257,6 +268,7 @@ def build_execution_evidence(
     structural_results: dict[str, Any],
     decisions: list[str],
     uncertainties: list[str],
+    revision_request_ref: str = "",
 ) -> dict[str, Any]:
     return {
         "skill_id": SKILL_ID,
@@ -269,6 +281,7 @@ def build_execution_evidence(
         "structural_results": structural_results,
         "key_decisions": decisions,
         "uncertainties": uncertainties,
+        "revision_request_ref": revision_request_ref,
         "created_artifacts": [str(path) for path in outputs],
     }
 
@@ -280,6 +293,7 @@ def build_supervision_evidence(
     acceptance_report: dict[str, Any],
     semantic_findings: list[dict[str, Any]],
     action: str,
+    revision_request_ref: str = "",
 ) -> dict[str, Any]:
     reason = "Candidate is freeze-ready for external gate." if action == "next_skill" else "External gate materialization is required before downstream flow."
     return {
@@ -294,4 +308,5 @@ def build_supervision_evidence(
         "reason": reason,
         "readiness_recommendation": action,
         "ownership_scope": "read_only_review",
+        "revision_request_ref": revision_request_ref,
     }

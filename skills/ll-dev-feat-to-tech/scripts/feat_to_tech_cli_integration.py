@@ -58,6 +58,7 @@ def write_markdown(path: Path, frontmatter: dict[str, Any], body: str) -> None:
 
 
 def write_executor_outputs(output_dir: Path, repo_root: Path, package: Any, generated: Any, command_name: str) -> None:
+    revision_context = generated.json_payload.get("revision_context") or {}
     output_dir.mkdir(parents=True, exist_ok=True)
     arch_path = output_dir / "arch-design.md"
     api_path = output_dir / "api-contract.md"
@@ -99,6 +100,14 @@ def write_executor_outputs(output_dir: Path, repo_root: Path, package: Any, gene
             "supervision_evidence_ref": str(output_dir / "supervision-evidence.json"),
             "status": generated.json_payload["status"],
             "cli_executor_commit_ref": str(cli_commit["response_path"]),
+            **(
+                {
+                    "revision_request_ref": revision_context.get("revision_request_ref", ""),
+                    "revision_summary": revision_context.get("summary", ""),
+                }
+                if revision_context
+                else {}
+            ),
         },
     )
     outputs = [
@@ -133,12 +142,14 @@ def write_executor_outputs(output_dir: Path, repo_root: Path, package: Any, gene
             },
             "key_decisions": generated.execution_decisions,
             "uncertainties": generated.execution_uncertainties,
+            **({"revision_context": revision_context} if revision_context else {}),
         },
     )
 
 
 def build_supervision_evidence(artifacts_dir: Path, generated: Any) -> dict[str, Any]:
     decision = "pass" if not generated.defect_list else "revise"
+    revision_context = generated.json_payload.get("revision_context") or {}
     findings = [
         {
             "title": "TECH package aligned to selected FEAT" if decision == "pass" else "TECH package requires revision",
@@ -155,11 +166,13 @@ def build_supervision_evidence(artifacts_dir: Path, generated: Any) -> dict[str,
         "semantic_findings": findings,
         "decision": decision,
         "reason": "TECH package passed semantic review." if decision == "pass" else "TECH package needs revision before freeze.",
+        **({"revision_context": revision_context} if revision_context else {}),
     }
 
 
 def build_gate_result(generated: Any, supervision_evidence: dict[str, Any]) -> dict[str, Any]:
     consistency = generated.json_payload["design_consistency_check"]
+    revision_context = generated.json_payload.get("revision_context") or {}
     checks = {
         "execution_evidence_present": True,
         "supervision_evidence_present": True,
@@ -179,6 +192,7 @@ def build_gate_result(generated: Any, supervision_evidence: dict[str, Any]) -> d
         "arch_required": generated.json_payload["arch_required"],
         "api_required": generated.json_payload["api_required"],
         "checks": checks,
+        **({"revision_context": revision_context} if revision_context else {}),
     }
 
 
@@ -192,6 +206,7 @@ def update_supervisor_outputs(
     bundle_json = load_json(artifacts_dir / "tech-design-bundle.json")
     updated_json = dict(bundle_json)
     updated_json["status"] = "accepted" if supervision["decision"] == "pass" else "revised"
+    revision_context = updated_json.get("revision_context") or {}
     markdown_text = (artifacts_dir / "tech-design-bundle.md").read_text(encoding="utf-8")
     frontmatter, body = parse_markdown_frontmatter(markdown_text)
     frontmatter["status"] = updated_json["status"]
@@ -213,6 +228,9 @@ def update_supervisor_outputs(
     manifest = load_json(artifacts_dir / "package-manifest.json")
     manifest["status"] = updated_json["status"]
     manifest["cli_supervisor_commit_ref"] = str(cli_commit["response_path"])
+    if revision_context:
+        manifest["revision_request_ref"] = revision_context.get("revision_request_ref", "")
+        manifest["revision_summary"] = revision_context.get("summary", "")
     dump_json(artifacts_dir / "package-manifest.json", manifest)
     for doc_name in ["tech-spec.md", "arch-design.md", "api-contract.md"]:
         doc_path = artifacts_dir / doc_name
@@ -227,6 +245,8 @@ def collect_evidence_report(artifacts_dir: Path) -> Path:
     execution = load_json(artifacts_dir / "execution-evidence.json")
     supervision = load_json(artifacts_dir / "supervision-evidence.json")
     gate = load_json(artifacts_dir / "tech-freeze-gate.json")
+    bundle = load_json(artifacts_dir / "tech-design-bundle.json")
+    revision_context = bundle.get("revision_context") or {}
     report_path = artifacts_dir / "evidence-report.md"
     report_path.write_text(
         "\n".join(
@@ -238,6 +258,7 @@ def collect_evidence_report(artifacts_dir: Path) -> Path:
                 f"- run_id: {execution.get('run_id')}",
                 f"- feat_ref: {execution.get('inputs', ['', ''])[-1]}",
                 f"- output_dir: {artifacts_dir}",
+                f"- revision_request_ref: {revision_context.get('revision_request_ref', '') or 'None'}",
                 "",
                 "## Execution Evidence",
                 "",

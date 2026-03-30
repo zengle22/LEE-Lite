@@ -61,6 +61,7 @@ class GeneratedTechPackage:
     semantic_drift_check: dict[str, Any]
     execution_decisions: list[str]
     execution_uncertainties: list[str]
+    revision_context: dict[str, Any] | None
 
 
 def build_semantic_drift_check(feature: dict[str, Any], generated_text_parts: list[str]) -> dict[str, Any]:
@@ -124,12 +125,45 @@ def collect_anchor_matches(feature: dict[str, Any], lock: dict[str, Any], genera
     return matches
 
 
-def build_tech_package(package: Any, feature: dict[str, Any], feat_ref: str, run_id: str, utc_now_fn) -> GeneratedTechPackage:
+def _build_revision_context(revision_request: dict[str, Any] | None) -> dict[str, Any] | None:
+    if not revision_request:
+        return None
+    revision_round = revision_request.get("revision_round")
+    decision_target = str(revision_request.get("decision_target") or "").strip()
+    decision_reason = str(revision_request.get("decision_reason") or "").strip()
+    revision_note = "Revision request received."
+    if revision_round not in (None, ""):
+        revision_note = f"Revision round {revision_round}: {decision_reason or 'apply reviewer feedback.'}"
+    elif decision_target or decision_reason:
+        revision_note = ": ".join(part for part in [decision_target, decision_reason] if part) or revision_note
+    context = {
+        "revision_request_ref": str(revision_request.get("revision_request_ref") or ""),
+        "revision_round": revision_round,
+        "decision_type": str(revision_request.get("decision_type") or "").strip(),
+        "decision_target": decision_target,
+        "decision_reason": decision_reason,
+        "source_gate_decision_ref": str(revision_request.get("source_gate_decision_ref") or "").strip(),
+        "source_return_job_ref": str(revision_request.get("source_return_job_ref") or "").strip(),
+        "authoritative_input_ref": str(revision_request.get("authoritative_input_ref") or "").strip(),
+        "summary": revision_note,
+    }
+    return context
+
+
+def build_tech_package(
+    package: Any,
+    feature: dict[str, Any],
+    feat_ref: str,
+    run_id: str,
+    utc_now_fn,
+    revision_request: dict[str, Any] | None = None,
+) -> GeneratedTechPackage:
     feature = dict(feature)
     feature["semantic_lock"] = normalize_semantic_lock(feature.get("semantic_lock") or package.semantic_lock)
     refs = build_refs(feature, package)
     assessment = assess_optional_artifacts(feature, package)
-    context = build_design_context(package, feature, refs, assessment)
+    revision_context = _build_revision_context(revision_request)
+    context = build_design_context(package, feature, refs, assessment, revision_context)
     source_refs = build_source_refs(package, refs, feature)
     semantic_drift_check = build_semantic_drift_check(
         feature,
@@ -148,8 +182,19 @@ def build_tech_package(package: Any, feature: dict[str, Any], feat_ref: str, run
     defects = build_defects(context["focus"], context["consistency"], semantic_drift_check)
     artifact_refs = build_artifact_refs(assessment)
     handoff = build_handoff(run_id, refs, assessment, utc_now_fn)
-    json_payload = build_json_payload(run_id, feature, refs, source_refs, assessment, context, handoff, semantic_drift_check, artifact_refs)
-    frontmatter = build_frontmatter(run_id, refs, assessment, source_refs, feature, json_payload["status"])
+    json_payload = build_json_payload(
+        run_id,
+        feature,
+        refs,
+        source_refs,
+        assessment,
+        context,
+        handoff,
+        semantic_drift_check,
+        artifact_refs,
+        revision_context,
+    )
+    frontmatter = build_frontmatter(run_id, refs, assessment, source_refs, feature, json_payload["status"], revision_context)
     markdown_body = build_markdown_body(
         json_payload,
         feature,
@@ -177,9 +222,15 @@ def build_tech_package(package: Any, feature: dict[str, Any], feat_ref: str, run
     tech_frontmatter, tech_body = build_tech_docs(refs, source_refs, feature, context["focus"], context["rules"], context["nfrs"], context["implementation_arch"], context["runtime_view"], context["states"], context["modules"], context["strategy"], context["unit_mapping"], context["contracts"], context["sequence_steps"], context["main_flow_diagram"], context["exception_rules"], context["integrations"], context["skeleton"], context["traceability"], json_payload)
     arch_frontmatter, arch_body = build_arch_docs(feature, refs, source_refs, assessment, context["arch_diagram"], json_payload)
     api_frontmatter, api_body = build_api_docs(refs, source_refs, assessment, feature, context["api_specs"], json_payload)
+    if revision_context:
+        for block in [frontmatter, tech_frontmatter, arch_frontmatter, api_frontmatter]:
+            if block is None:
+                continue
+            block["revision_request_ref"] = revision_context["revision_request_ref"]
+            block["revision_summary"] = revision_context["summary"]
     review_report = build_review_report(run_id, refs, defects, utc_now_fn)
     acceptance_report = build_acceptance_report(defects, context["consistency"], utc_now_fn)
-    execution_decisions = build_execution_decisions(package, refs, assessment)
+    execution_decisions = build_execution_decisions(package, refs, assessment, revision_context)
     return GeneratedTechPackage(
         run_id=run_id,
         frontmatter=frontmatter,
@@ -198,13 +249,17 @@ def build_tech_package(package: Any, feature: dict[str, Any], feat_ref: str, run
         semantic_drift_check=semantic_drift_check,
         execution_decisions=execution_decisions,
         execution_uncertainties=context["consistency"]["issues"][:],
+        revision_context=revision_context,
     )
 
 
-def build_design_context(package, feature, refs, assessment):
+def build_design_context(package, feature, refs, assessment, revision_context=None):
+    rules = implementation_rules(feature)
+    if revision_context and revision_context.get("summary"):
+        rules = unique_strings(rules + [f"Revision constraint: {revision_context['summary']}"])
     return {
         "focus": ensure_list(design_focus(feature)),
-        "rules": implementation_rules(feature),
+        "rules": rules,
         "nfrs": non_functional_requirements(feature, package),
         "implementation_arch": implementation_architecture(feature),
         "modules": implementation_modules(feature),
@@ -277,7 +332,7 @@ def build_handoff(run_id, refs, assessment, utc_now_fn):
     }
 
 
-def build_json_payload(run_id, feature, refs, source_refs, assessment, context, handoff, semantic_drift_check, artifact_refs):
+def build_json_payload(run_id, feature, refs, source_refs, assessment, context, handoff, semantic_drift_check, artifact_refs, revision_context=None):
     return {
         "artifact_type": "tech_design_package",
         "workflow_key": "dev.feat-to-tech",
@@ -305,6 +360,7 @@ def build_json_payload(run_id, feature, refs, source_refs, assessment, context, 
         "downstream_handoff": handoff,
         "traceability": context["traceability"],
         "semantic_drift_check": semantic_drift_check,
+        "revision_context": revision_context,
     }
 
 
@@ -356,7 +412,7 @@ def build_optional_api_block(feature, refs, assessment, api_specs):
     }
 
 
-def build_frontmatter(run_id, refs, assessment, source_refs, feature, status):
+def build_frontmatter(run_id, refs, assessment, source_refs, feature, status, revision_context=None):
     return {
         "artifact_type": "tech_design_package",
         "workflow_key": "dev.feat-to-tech",
@@ -369,6 +425,14 @@ def build_frontmatter(run_id, refs, assessment, source_refs, feature, status):
         "api_required": assessment["api_required"],
         "source_refs": source_refs,
         "semantic_lock": feature["semantic_lock"],
+        **(
+            {
+                "revision_request_ref": revision_context["revision_request_ref"],
+                "revision_summary": revision_context["summary"],
+            }
+            if revision_context
+            else {}
+        ),
     }
 
 
@@ -415,10 +479,13 @@ def build_acceptance_report(defects, consistency, utc_now_fn):
     }
 
 
-def build_execution_decisions(package, refs, assessment):
-    return [
+def build_execution_decisions(package, refs, assessment, revision_context=None):
+    decisions = [
         f"Selected FEAT {refs['feat_ref']} from upstream run {package.run_id}.",
         f"ARCH required: {assessment['arch_required']}.",
         f"API required: {assessment['api_required']}.",
         f"Prepared downstream handoff to {DOWNSTREAM_WORKFLOW}.",
     ]
+    if revision_context and revision_context.get("summary"):
+        decisions.append(f"Applied revision context: {revision_context['summary']}")
+    return decisions

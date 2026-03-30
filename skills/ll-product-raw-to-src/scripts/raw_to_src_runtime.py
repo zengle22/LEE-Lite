@@ -15,8 +15,19 @@ def repo_root_from(arg: str | None) -> Path:
     return Path(arg).resolve() if arg else Path(__file__).resolve().parents[3]
 
 
-def run_workflow(input_path: Path, repo_root: Path, run_id: str, allow_update: bool) -> dict[str, object]:
-    executor_result = executor_run(input_path=input_path, repo_root=repo_root, run_id=run_id)
+def run_workflow(
+    input_path: Path,
+    repo_root: Path,
+    run_id: str,
+    allow_update: bool,
+    revision_request_path: Path | None = None,
+) -> dict[str, object]:
+    executor_result = executor_run(
+        input_path=input_path,
+        repo_root=repo_root,
+        run_id=run_id,
+        revision_request_path=revision_request_path,
+    )
     return supervisor_review(
         artifacts_dir=Path(executor_result["artifacts_dir"]),
         repo_root=repo_root,

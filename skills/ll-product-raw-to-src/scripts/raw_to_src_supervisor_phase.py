@@ -55,6 +55,151 @@ def _semantic_patch_events(run_id: str, patches: list[dict[str, Any]]) -> list[d
     ]
 
 
+def _append_unique(items: list[str], additions: list[str]) -> list[str]:
+    seen = {str(item).strip() for item in items if str(item).strip()}
+    merged = list(items)
+    for item in additions:
+        text = str(item).strip()
+        if not text or text in seen:
+            continue
+        seen.add(text)
+        merged.append(text)
+    return merged
+
+
+def _apply_revision_request(
+    candidate: dict[str, Any],
+    revision_request: dict[str, Any],
+    *,
+    revision_request_ref: str,
+) -> tuple[dict[str, Any], list[dict[str, Any]]]:
+    working = json.loads(json.dumps(candidate, ensure_ascii=False))
+    applied: list[dict[str, Any]] = []
+    decision_reason = str(revision_request.get("decision_reason") or "").strip()
+    if not decision_reason:
+        return working, applied
+
+    lower_reason = decision_reason.lower()
+    key_constraints = list(working.get("key_constraints", []))
+    business_drivers = list(working.get("business_drivers", []))
+    in_scope = list(working.get("in_scope", []))
+    source_refs = list(working.get("source_refs", []))
+    semantic_inventory = working.setdefault("semantic_inventory", {})
+    semantic_constraints = list(semantic_inventory.get("constraints", []))
+
+    source_ref_updates = [revision_request_ref, str(revision_request.get("source_gate_decision_ref") or "").strip()]
+    updated_source_refs = _append_unique(source_refs, source_ref_updates)
+    if updated_source_refs != source_refs:
+        working["source_refs"] = updated_source_refs
+        applied.append(
+            {
+                "code": "revision_source_refs",
+                "action": "Appended gate revision references into source_refs for traceability.",
+                "target_fields": ["source_refs"],
+            }
+        )
+
+    if any(token in lower_reason for token in ("running_level", "starter", "can_run_5k", "race_finisher", "训练基础轴")):
+        additions = [
+            "最小分层字段 `running_level` 必须收敛为单一训练基础轴，不得混合训练阶段、当前能力与历史赛事经历三种口径。",
+            "正式比赛经历不属于最小建档必填项，应下沉到扩展画像中补充。",
+        ]
+        updated_constraints = _append_unique(key_constraints, additions)
+        updated_semantic_constraints = _append_unique(semantic_constraints, additions)
+        if updated_constraints != key_constraints or updated_semantic_constraints != semantic_constraints:
+            working["key_constraints"] = updated_constraints
+            semantic_inventory["constraints"] = updated_semantic_constraints
+            applied.append(
+                {
+                    "code": "revision_running_level_axis",
+                    "action": "Normalized running_level constraints into a single training-base axis.",
+                    "target_fields": ["key_constraints", "semantic_inventory.constraints"],
+                }
+            )
+            key_constraints = updated_constraints
+            semantic_constraints = updated_semantic_constraints
+
+    if any(token in lower_reason for token in ("recent_injury_status", "伤病", "疼痛", "无伤优先")):
+        additions = [
+            "最小建档必填字段至少包括 `gender / birthday / height_cm / weight_kg / running_level / recent_injury_status`，用于支撑首轮建议的安全门槛。",
+            "AI 首轮建议必须以“无伤优先”为前置约束；若存在明显疼痛或恢复中状态，不得直接进入强度课建议。",
+        ]
+        updated_constraints = _append_unique(key_constraints, additions)
+        updated_drivers = _append_unique(business_drivers, ["首轮建议必须先拿到最小风险输入，再决定训练强度与恢复建议。"])
+        updated_semantic_constraints = _append_unique(semantic_constraints, additions)
+        if updated_constraints != key_constraints or updated_drivers != business_drivers or updated_semantic_constraints != semantic_constraints:
+            working["key_constraints"] = updated_constraints
+            working["business_drivers"] = updated_drivers
+            semantic_inventory["constraints"] = updated_semantic_constraints
+            applied.append(
+                {
+                    "code": "revision_minimal_risk_input",
+                    "action": "Added recent_injury_status and injury-first recommendation guardrails into the SRC constraints.",
+                    "target_fields": ["key_constraints", "business_drivers", "semantic_inventory.constraints"],
+                }
+            )
+            key_constraints = updated_constraints
+            business_drivers = updated_drivers
+            semantic_constraints = updated_semantic_constraints
+
+    if any(token in lower_reason for token in ("extended_profile_completed", "device_connected", "initial_plan_ready", "组合化", "capability flags")):
+        additions = [
+            "状态模型应区分主阶段状态与独立 capability flags；`extended_profile_completed`、`device_connected`、`initial_plan_ready` 不得被建模为严格串行阶段。",
+            "设备连接、扩展画像补全与初始计划准备应允许独立完成，避免把非阻塞能力错误建模成单线状态流。",
+        ]
+        updated_constraints = _append_unique(key_constraints, additions)
+        updated_semantic_constraints = _append_unique(semantic_constraints, additions)
+        if updated_constraints != key_constraints or updated_semantic_constraints != semantic_constraints:
+            working["key_constraints"] = updated_constraints
+            semantic_inventory["constraints"] = updated_semantic_constraints
+            applied.append(
+                {
+                    "code": "revision_state_capabilities",
+                    "action": "Reframed state semantics into stage state plus independent capability flags.",
+                    "target_fields": ["key_constraints", "semantic_inventory.constraints"],
+                }
+            )
+            key_constraints = updated_constraints
+            semantic_constraints = updated_semantic_constraints
+
+    hard_constraint_markers = (
+        "一个提交动作",
+        "首页任务卡",
+        "增量更新",
+        "最低输出目标",
+        "第一周行动建议",
+        "连接设备",
+    )
+    if any(marker in decision_reason for marker in hard_constraint_markers):
+        additions = [
+            "最小建档页不得拆成多页向导；用户填写后应一次提交并直接进入首页。",
+            "首页任务卡只用于增强，不得阻塞首次 AI 可用体验。",
+            "扩展画像应支持增量更新，不要求用户一次性完成全量补充。",
+            "AI 首轮建议至少应包含当前训练建议级别、第一周行动建议、是否提示补充更多信息、是否提示连接设备。",
+        ]
+        updated_constraints = _append_unique(key_constraints, additions)
+        updated_scope = _append_unique(
+            in_scope,
+            [
+                "定义最小建档单次提交边界、首页任务卡非阻塞边界，以及首轮建议的最低输出要求。",
+            ],
+        )
+        updated_semantic_constraints = _append_unique(semantic_constraints, additions)
+        if updated_constraints != key_constraints or updated_scope != in_scope or updated_semantic_constraints != semantic_constraints:
+            working["key_constraints"] = updated_constraints
+            working["in_scope"] = updated_scope
+            semantic_inventory["constraints"] = updated_semantic_constraints
+            applied.append(
+                {
+                    "code": "revision_non_blocking_onboarding",
+                    "action": "Added non-blocking onboarding and minimum first-recommendation constraints from the gate revise request.",
+                    "target_fields": ["key_constraints", "in_scope", "semantic_inventory.constraints"],
+                }
+            )
+
+    return working, applied
+
+
 def _apply_semantic_patch(
     candidate: dict[str, Any],
     findings: list[dict[str, Any]],
@@ -100,6 +245,25 @@ def supervisor_review(artifacts_dir: Path, repo_root: Path, run_id: str, allow_u
     candidate_path = artifacts_dir / "src-candidate.md"
     structural_report = read_json(artifacts_dir / "structural-report.json")
     execution = read_json(artifacts_dir / "execution-evidence.json")
+    revision_request_path = artifacts_dir / "revision-request.json"
+    revision_request_ref = str(revision_request_path) if revision_request_path.exists() else ""
+    revision_request = read_json(revision_request_path) if revision_request_ref else {}
+
+    revision_patch_codes: list[str] = []
+    if allow_update and revision_request:
+        revised_candidate, revision_patches = _apply_revision_request(
+            candidate,
+            revision_request,
+            revision_request_ref=revision_request_ref,
+        )
+        if revision_patches:
+            candidate = revised_candidate
+            write_json(artifacts_dir / "src-candidate.json", candidate)
+            candidate_path.write_text(render_candidate_markdown(candidate), encoding="utf-8")
+            revision_patch_codes = [item["code"] for item in revision_patches]
+            patch_lineage = read_json(artifacts_dir / "patch-lineage.json")
+            patch_lineage["events"] = list(patch_lineage.get("events", [])) + _semantic_patch_events(run_id, revision_patches)
+            write_json(artifacts_dir / "patch-lineage.json", patch_lineage)
 
     duplicate_path = find_duplicate_src(repo_root, candidate["title"])
     review, semantic_findings = semantic_review(
@@ -130,7 +294,7 @@ def supervisor_review(artifacts_dir: Path, repo_root: Path, run_id: str, allow_u
 
     semantic_attempts: list[dict[str, Any]] = []
     semantic_patch_events: list[dict[str, Any]] = []
-    semantic_patch_codes: list[str] = []
+    semantic_patch_codes: list[str] = list(revision_patch_codes)
     if annotated_semantic_findings:
         semantic_attempts.append(
             {
@@ -152,7 +316,7 @@ def supervisor_review(artifacts_dir: Path, repo_root: Path, run_id: str, allow_u
             write_json(artifacts_dir / "src-candidate.json", candidate)
             candidate_path.write_text(render_candidate_markdown(candidate), encoding="utf-8")
             semantic_patch_events = _semantic_patch_events(run_id, applied_patches)
-            semantic_patch_codes = [item["code"] for item in applied_patches]
+            semantic_patch_codes.extend(item["code"] for item in applied_patches)
             semantic_attempts[-1]["outcome"] = "semantic_patch_applied"
             patch_lineage = read_json(artifacts_dir / "patch-lineage.json")
             patch_lineage["events"] = list(patch_lineage.get("events", [])) + semantic_patch_events
@@ -328,9 +492,10 @@ def supervisor_review(artifacts_dir: Path, repo_root: Path, run_id: str, allow_u
         gate_ready_package_ref=gate_ready_package_ref,
         authoritative_handoff_ref=authoritative_handoff_ref,
         gate_pending_ref=gate_pending_ref,
+        revision_request_ref=revision_request_ref,
     )
     combined_stages = execution["stage_results"] + supervisor_stages
-    run_state = build_run_state(run_id, stage_state, action, combined_stages)
+    run_state = build_run_state(run_id, stage_state, action, combined_stages, revision_request_ref=revision_request_ref)
     supervision = build_supervision_evidence(
         run_id,
         Path(document["path"]),
@@ -338,6 +503,7 @@ def supervisor_review(artifacts_dir: Path, repo_root: Path, run_id: str, allow_u
         acceptance_report,
         annotated_semantic_findings,
         action,
+        revision_request_ref=revision_request_ref,
     )
     write_json(artifacts_dir / "supervision-evidence.json", supervision)
     manifest = build_package_manifest(
@@ -349,6 +515,7 @@ def supervisor_review(artifacts_dir: Path, repo_root: Path, run_id: str, allow_u
         gate_ready_package_ref=gate_ready_package_ref,
         authoritative_handoff_ref=authoritative_handoff_ref,
         gate_pending_ref=gate_pending_ref,
+        revision_request_ref=revision_request_ref,
     )
 
     write_json(artifacts_dir / "job-proposal.json", job)
@@ -372,5 +539,6 @@ def supervisor_review(artifacts_dir: Path, repo_root: Path, run_id: str, allow_u
         "gate_ready_package_ref": gate_ready_package_ref,
         "authoritative_handoff_ref": authoritative_handoff_ref,
         "gate_pending_ref": gate_pending_ref,
+        "revision_request_ref": revision_request_ref,
         "input_issues": execution["structural_results"]["input_validation"]["issues"],
     }

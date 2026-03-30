@@ -28,6 +28,7 @@ def command_run(args: argparse.Namespace) -> int:
         repo_root=repo_root_from(args.repo_root, args.input),
         run_id=args.run_id or "",
         allow_update=args.allow_update,
+        revision_request_path=args.revision_request or None,
     )
     print(json.dumps(result, ensure_ascii=False))
     return 0 if result.get("ok") else 1
@@ -39,6 +40,7 @@ def command_executor_run(args: argparse.Namespace) -> int:
         repo_root=repo_root_from(args.repo_root, args.input),
         run_id=args.run_id or "",
         allow_update=args.allow_update,
+        revision_request_path=args.revision_request or None,
     )
     print(json.dumps(result, ensure_ascii=False))
     return 0
@@ -50,6 +52,7 @@ def command_supervisor_review(args: argparse.Namespace) -> int:
         repo_root=repo_root_from(args.repo_root, Path(args.artifacts_dir).resolve()),
         run_id=args.run_id or "",
         allow_update=args.allow_update,
+        revision_request_path=args.revision_request or None,
     )
     print(json.dumps(result, ensure_ascii=False))
     return 0 if result.get("freeze_ready") else 1
@@ -92,6 +95,7 @@ def build_parser() -> argparse.ArgumentParser:
     run_parser.add_argument("--repo-root")
     run_parser.add_argument("--run-id")
     run_parser.add_argument("--allow-update", action="store_true")
+    run_parser.add_argument("--revision-request")
     run_parser.set_defaults(func=command_run)
 
     executor_parser = subparsers.add_parser("executor-run")
@@ -99,6 +103,7 @@ def build_parser() -> argparse.ArgumentParser:
     executor_parser.add_argument("--repo-root")
     executor_parser.add_argument("--run-id")
     executor_parser.add_argument("--allow-update", action="store_true")
+    executor_parser.add_argument("--revision-request")
     executor_parser.set_defaults(func=command_executor_run)
 
     supervisor_parser = subparsers.add_parser("supervisor-review")
@@ -106,6 +111,7 @@ def build_parser() -> argparse.ArgumentParser:
     supervisor_parser.add_argument("--repo-root")
     supervisor_parser.add_argument("--run-id")
     supervisor_parser.add_argument("--allow-update", action="store_true")
+    supervisor_parser.add_argument("--revision-request")
     supervisor_parser.set_defaults(func=command_supervisor_review)
 
     validate_input_parser = subparsers.add_parser("validate-input")

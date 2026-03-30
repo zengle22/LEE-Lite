@@ -92,6 +92,7 @@ def build_supervision_evidence(artifacts_dir: Path) -> dict[str, Any]:
     test_set_yaml = yaml_load(artifacts_dir / "test-set.yaml")
     handoff = load_json(artifacts_dir / "handoff-to-test-execution.json")
     semantic_drift_check = load_json(artifacts_dir / "semantic-drift-check.json")
+    revision_context = bundle_json.get("revision_context") or {}
     findings = _build_findings(test_set_yaml, handoff)
     if semantic_drift_check.get("semantic_lock_present") and semantic_drift_check.get("semantic_lock_preserved") is not True:
         findings.append(
@@ -120,6 +121,7 @@ def build_supervision_evidence(artifacts_dir: Path) -> dict[str, Any]:
             if decision == "pass"
             else "TESTSET candidate package requires revision before external approval."
         ),
+        **({"revision_context": revision_context} if revision_context else {}),
     }
 
 
@@ -420,6 +422,8 @@ def collect_evidence_report(artifacts_dir: Path) -> Path:
     execution = load_json(artifacts_dir / "execution-evidence.json")
     supervision = load_json(artifacts_dir / "supervision-evidence.json")
     gate = load_json(artifacts_dir / "test-set-freeze-gate.json")
+    bundle = load_json(artifacts_dir / "test-set-bundle.json")
+    revision_context = bundle.get("revision_context") or {}
     report_path = artifacts_dir / "evidence-report.md"
     report_path.write_text(
         "\n".join(
@@ -431,6 +435,7 @@ def collect_evidence_report(artifacts_dir: Path) -> Path:
                 f"- run_id: {execution.get('run_id')}",
                 f"- feat_ref: {execution.get('inputs', ['', ''])[-1]}",
                 f"- output_dir: {artifacts_dir}",
+                f"- revision_request_ref: {revision_context.get('revision_request_ref', '') or 'None'}",
                 "",
                 "## Execution Evidence",
                 "",

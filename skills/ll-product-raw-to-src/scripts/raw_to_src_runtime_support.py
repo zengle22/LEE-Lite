@@ -34,6 +34,8 @@ def collect_evidence_report(artifacts_dir: Path) -> Path:
         "## Stage Results",
         "",
     ]
+    if execution.get("revision_request_ref"):
+        lines[8:8] = [f"- revision_request_ref: {execution['revision_request_ref']}", ""]
     lines.extend(f"- {item['stage_id']}: {item['status']}" for item in execution["stage_results"])
     lines.extend(["", "## Proposed Action", "", f"- action: {actions['recommended_action']}", f"- target_skill: {actions['recommended_target_skill']}"])
     if (artifacts_dir / "run-state.json").exists():

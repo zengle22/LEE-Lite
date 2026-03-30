@@ -55,6 +55,8 @@ def _commit_markdown(repo_root: Path, artifacts_dir: Path, run_id: str, markdown
 def write_executor_outputs(output_dir: Path, repo_root: Path, package: Any, generated: Any, command_name: str) -> None:
     output_dir.mkdir(parents=True, exist_ok=True)
     run_id = output_dir.name
+    revision_context = generated.json_payload.get("revision_context") if isinstance(generated.json_payload.get("revision_context"), dict) else {}
+    revision_request_ref = str(revision_context.get("revision_request_ref") or "").strip()
     markdown_text = render_markdown(generated.frontmatter, generated.markdown_body)
     cli_commit = _commit_markdown(repo_root, output_dir, run_id, markdown_text, "feat-freeze-executor-commit")
     dump_json(output_dir / "feat-freeze-bundle.json", generated.json_payload)
@@ -80,6 +82,7 @@ def write_executor_outputs(output_dir: Path, repo_root: Path, package: Any, gene
             "supervision_evidence_ref": str(output_dir / "supervision-evidence.json"),
             "status": generated.json_payload["status"],
             "cli_executor_commit_ref": str(cli_commit["response_path"]),
+            **({"revision_request_ref": revision_request_ref} if revision_request_ref else {}),
         },
     )
     dump_json(
@@ -112,12 +115,16 @@ def write_executor_outputs(output_dir: Path, repo_root: Path, package: Any, gene
                 f"Generated {len(generated.frontmatter['feat_refs'])} FEAT refs for downstream governed TECH and TESTSET workflows.",
             ],
             "uncertainties": [],
+            **({"revision_request_ref": revision_request_ref} if revision_request_ref else {}),
         },
     )
 
 
 def build_supervision_evidence(artifacts_dir: Path, generated: Any) -> dict[str, Any]:
     decision = "pass" if not generated.defect_list else "revise"
+    revision_context = generated.json_payload.get("revision_context") if isinstance(generated.json_payload.get("revision_context"), dict) else {}
+    revision_request_ref = str(revision_context.get("revision_request_ref") or "").strip()
+    revision_summary = str(revision_context.get("summary") or "").strip()
     findings = [
         {
             "title": "FEAT boundary preserved" if decision == "pass" else "FEAT boundary needs revision",
@@ -125,6 +132,8 @@ def build_supervision_evidence(artifacts_dir: Path, generated: Any) -> dict[str,
         }
     ]
     findings.extend({"title": defect["title"], "detail": defect["detail"]} for defect in generated.defect_list)
+    if revision_summary:
+        findings.append({"title": "Revision context absorbed", "detail": revision_summary})
     return {
         "skill_id": "ll-product-epic-to-feat",
         "run_id": generated.frontmatter["workflow_run_id"],
@@ -133,13 +142,21 @@ def build_supervision_evidence(artifacts_dir: Path, generated: Any) -> dict[str,
         "reviewed_outputs": [str(artifacts_dir / "feat-freeze-bundle.md"), str(artifacts_dir / "feat-freeze-bundle.json")],
         "semantic_findings": findings,
         "decision": decision,
-        "reason": "FEAT bundle passed semantic review." if decision == "pass" else "FEAT bundle needs revision before freeze.",
+        "reason": (
+            "FEAT bundle passed semantic review."
+            if decision == "pass"
+            else "FEAT bundle needs revision before freeze."
+        )
+        + (f" Revision context: {revision_summary}" if revision_summary else ""),
         "created_at": generated.acceptance_report["created_at"],
+        **({"revision_request_ref": revision_request_ref} if revision_request_ref else {}),
     }
 
 
 def build_gate_result(generated: Any, supervision_evidence: dict[str, Any]) -> dict[str, Any]:
     pass_gate = supervision_evidence["decision"] == "pass" and not generated.defect_list
+    revision_context = generated.json_payload.get("revision_context") if isinstance(generated.json_payload.get("revision_context"), dict) else {}
+    revision_request_ref = str(revision_context.get("revision_request_ref") or supervision_evidence.get("revision_request_ref") or "").strip()
     return {
         "workflow_key": "product.epic-to-feat",
         "decision": "pass" if pass_gate else "revise",
@@ -147,6 +164,7 @@ def build_gate_result(generated: Any, supervision_evidence: dict[str, Any]) -> d
         "epic_freeze_ref": generated.frontmatter["epic_freeze_ref"],
         "src_root_id": generated.frontmatter["src_root_id"],
         "feat_refs": generated.frontmatter["feat_refs"],
+        **({"revision_request_ref": revision_request_ref} if revision_request_ref else {}),
         "checks": {
             "execution_evidence_present": True,
             "supervision_evidence_present": True,
@@ -155,6 +173,7 @@ def build_gate_result(generated: Any, supervision_evidence: dict[str, Any]) -> d
             "structured_acceptance_checks_complete": not generated.defect_list,
             "feat_count_valid": len(generated.frontmatter["feat_refs"]) >= 2,
             "semantic_lock_preserved": generated.semantic_drift_check.get("semantic_lock_preserved", True),
+            **({"revision_request_present": True} if revision_request_ref else {}),
         },
         "created_at": generated.acceptance_report["created_at"],
     }
@@ -165,6 +184,8 @@ def update_supervisor_outputs(artifacts_dir: Path, repo_root: Path, generated: A
     bundle_json = load_json(artifacts_dir / "feat-freeze-bundle.json")
     updated_json = dict(bundle_json)
     updated_json["status"] = "accepted" if supervision["decision"] == "pass" else "revised"
+    revision_context = updated_json.get("revision_context") if isinstance(updated_json.get("revision_context"), dict) else {}
+    revision_request_ref = str(revision_context.get("revision_request_ref") or gate.get("revision_request_ref") or supervision.get("revision_request_ref") or "").strip()
     markdown_text = (artifacts_dir / "feat-freeze-bundle.md").read_text(encoding="utf-8")
     frontmatter, body = parse_markdown_frontmatter(markdown_text)
     frontmatter["status"] = updated_json["status"]
@@ -177,6 +198,8 @@ def update_supervisor_outputs(artifacts_dir: Path, repo_root: Path, generated: A
     dump_json(artifacts_dir / "feat-freeze-gate.json", gate)
     manifest = load_json(artifacts_dir / "package-manifest.json")
     manifest["cli_supervisor_commit_ref"] = str(cli_commit["response_path"])
+    if revision_request_ref:
+        manifest["revision_request_ref"] = revision_request_ref
     dump_json(artifacts_dir / "package-manifest.json", manifest)
 
 
@@ -184,6 +207,7 @@ def collect_evidence_report(artifacts_dir: Path) -> Path:
     execution = load_json(artifacts_dir / "execution-evidence.json")
     supervision = load_json(artifacts_dir / "supervision-evidence.json")
     gate = load_json(artifacts_dir / "feat-freeze-gate.json")
+    revision_request_ref = str(execution.get("revision_request_ref") or supervision.get("revision_request_ref") or gate.get("revision_request_ref") or "").strip()
     report_path = artifacts_dir / "evidence-report.md"
     report_path.write_text(
         "\n".join(
@@ -194,6 +218,7 @@ def collect_evidence_report(artifacts_dir: Path) -> Path:
                 "",
                 f"- run_id: {execution.get('run_id')}",
                 f"- output_dir: {artifacts_dir}",
+                *([f"- revision_request_ref: {revision_request_ref}"] if revision_request_ref else []),
                 "",
                 "## Execution Evidence",
                 "",

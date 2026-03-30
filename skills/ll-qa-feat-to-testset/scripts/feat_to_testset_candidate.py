@@ -84,6 +84,7 @@ class GeneratedCandidatePackage:
     semantic_drift_check: dict[str, Any]
     execution_decisions: list[str]
     execution_uncertainties: list[str]
+    revision_context: dict[str, Any] | None
 
 
 def _format_field_list(label: str, values: list[str]) -> list[str]:
@@ -127,10 +128,40 @@ def _format_acceptance_traceability(rows: list[dict[str, Any]]) -> list[str]:
     return lines
 
 
-def _build_candidate_context(package: Any, feature: dict[str, Any], run_id: str) -> dict[str, Any]:
+def _build_revision_context(revision_request: dict[str, Any] | None) -> dict[str, Any] | None:
+    if not revision_request:
+        return None
+    revision_round = revision_request.get("revision_round")
+    decision_target = str(revision_request.get("decision_target") or "").strip()
+    decision_reason = str(revision_request.get("decision_reason") or "").strip()
+    summary = decision_reason
+    if revision_round not in (None, ""):
+        summary = f"Revision round {revision_round}: {decision_reason or decision_target or 'apply reviewer feedback.'}"
+    elif decision_target and decision_reason:
+        summary = f"{decision_target}: {decision_reason}"
+    elif decision_target:
+        summary = decision_target
+    elif not summary:
+        summary = "Revision request received."
+    return {
+        "revision_request_ref": str(revision_request.get("revision_request_ref") or ""),
+        "revision_round": revision_round,
+        "decision_type": str(revision_request.get("decision_type") or "").strip(),
+        "decision_target": decision_target,
+        "decision_reason": decision_reason,
+        "source_gate_decision_ref": str(revision_request.get("source_gate_decision_ref") or "").strip(),
+        "source_return_job_ref": str(revision_request.get("source_return_job_ref") or "").strip(),
+        "authoritative_input_ref": str(revision_request.get("authoritative_input_ref") or "").strip(),
+        "summary": summary,
+    }
+
+
+def _build_candidate_context(package: Any, feature: dict[str, Any], run_id: str, revision_context: dict[str, Any] | None = None) -> dict[str, Any]:
     feature = dict(feature)
     feature["semantic_lock"] = normalize_semantic_lock(feature.get("semantic_lock") or package.semantic_lock)
     test_set_yaml = build_test_set_yaml(feature, package.feat_json)
+    if revision_context and revision_context.get("summary"):
+        test_set_yaml["preconditions"] = unique_strings(ensure_list(test_set_yaml.get("preconditions")) + [f"Revision constraint: {revision_context['summary']}"])
     strategy_yaml = derive_strategy_yaml(feature, package.feat_json)
     analysis_markdown = derive_analysis_markdown(feature, package.feat_json, slugify(str(feature.get("title") or feature.get("feat_ref") or run_id)))
     gate_subjects = build_gate_subjects(run_id, str(feature.get("feat_ref") or ""))
@@ -167,11 +198,12 @@ def _build_candidate_context(package: Any, feature: dict[str, Any], run_id: str)
         ),
         "downstream_skill": derive_downstream_target_skill(feature, test_layers),
         "test_set_ref": str(test_set_yaml.get("id") or ""),
+        "revision_context": revision_context,
         "package": package,
     }
 
 
-def _build_candidate_documents(run_id: str, context: dict[str, Any]) -> dict[str, Any]:
+def _build_candidate_documents(run_id: str, context: dict[str, Any], revision_context: dict[str, Any] | None = None) -> dict[str, Any]:
     feature = context["feature"]
     test_set_yaml = context["test_set_yaml"]
     test_set_ref = context["test_set_ref"]
@@ -187,6 +219,7 @@ def _build_candidate_documents(run_id: str, context: dict[str, Any]) -> dict[str
         "summary": "Pending supervisor review for analysis and strategy quality.",
         "findings": [],
         "created_at": derive_now(),
+        **({"revision_context": revision_context} if revision_context else {}),
     }
     acceptance_report = {
         "report_id": f"test-set-acceptance-{run_id}",
@@ -200,6 +233,7 @@ def _build_candidate_documents(run_id: str, context: dict[str, Any]) -> dict[str
         "summary": "Pending supervisor acceptance review.",
         "acceptance_findings": [],
         "created_at": derive_now(),
+        **({"revision_context": revision_context} if revision_context else {}),
     }
     freeze_gate = {
         "gate_id": f"test-set-freeze-gate-{run_id}",
@@ -220,6 +254,7 @@ def _build_candidate_documents(run_id: str, context: dict[str, Any]) -> dict[str
             "required_environment_inputs_present": True,
         },
         "created_at": derive_now(),
+        **({"revision_context": revision_context} if revision_context else {}),
     }
     gate_subjects = context["gate_subjects"]
     handoff = {
@@ -242,6 +277,7 @@ def _build_candidate_documents(run_id: str, context: dict[str, Any]) -> dict[str
         ],
         "required_environment_inputs": context["required_environment_inputs"],
         "created_at": derive_now(),
+        **({"revision_context": revision_context} if revision_context else {}),
     }
     return {
         "review_report": review_report,
@@ -288,8 +324,12 @@ def _build_candidate_package_body(context: dict[str, Any], documents: dict[str, 
         "artifact_refs": artifact_refs,
         "gate_subject_refs": gate_subject_refs,
         "downstream_target": downstream_skill,
+        **({"revision_context": context["revision_context"]} if context.get("revision_context") else {}),
     }
     bundle_frontmatter = {key: bundle_json[key] for key in ["artifact_type", "workflow_key", "workflow_run_id", "status", "package_role", "schema_version", "feat_ref", "test_set_ref", "derived_slug", "source_refs", "semantic_lock"]}
+    if context.get("revision_context"):
+        bundle_frontmatter["revision_request_ref"] = context["revision_context"].get("revision_request_ref", "")
+        bundle_frontmatter["revision_summary"] = context["revision_context"].get("summary", "")
     bundle_body = "\n\n".join(
         [
             f"# {bundle_json['title']}",
@@ -321,10 +361,17 @@ def _build_candidate_package_body(context: dict[str, Any], documents: dict[str, 
     }
 
 
-def build_candidate_package(package: Any, feature: dict[str, Any], feat_ref: str, run_id: str) -> GeneratedCandidatePackage:
+def build_candidate_package(
+    package: Any,
+    feature: dict[str, Any],
+    feat_ref: str,
+    run_id: str,
+    revision_request: dict[str, Any] | None = None,
+) -> GeneratedCandidatePackage:
     del feat_ref
-    context = _build_candidate_context(package, feature, run_id)
-    documents = _build_candidate_documents(run_id, context)
+    revision_context = _build_revision_context(revision_request)
+    context = _build_candidate_context(package, feature, run_id, revision_context)
+    documents = _build_candidate_documents(run_id, context, revision_context)
     bundle_json, bundle_frontmatter, bundle_body, payload = _build_candidate_package_body(context, documents)
     defect_list: list[dict[str, Any]] = []
     if payload["semantic_drift_check"]["verdict"] == "reject":
@@ -335,6 +382,8 @@ def build_candidate_package(package: Any, feature: dict[str, Any], feat_ref: str
         "Kept analysis and strategy as companion artifacts, not parallel SSOT objects.",
         f"Prepared downstream handoff to {context['downstream_skill']}.",
     ]
+    if revision_context and revision_context.get("summary"):
+        execution_decisions.append(f"Applied revision context: {revision_context['summary']}")
     execution_uncertainties = []
     if not ensure_list(context["test_set_yaml"].get("governing_adrs")):
         execution_uncertainties.append("No governing ADR refs were inherited into the TESTSET candidate package.")
@@ -356,10 +405,12 @@ def build_candidate_package(package: Any, feature: dict[str, Any], feat_ref: str
         semantic_drift_check=payload["semantic_drift_check"],
         execution_decisions=execution_decisions,
         execution_uncertainties=execution_uncertainties,
+        revision_context=revision_context,
     )
 
 
 def write_executor_outputs(output_dir, repo_root, package, generated: GeneratedCandidatePackage, command_name: str) -> None:
+    revision_context = generated.revision_context or generated.bundle_json.get("revision_context") or {}
     output_dir.mkdir(parents=True, exist_ok=True)
     bundle_markdown = render_markdown(generated.bundle_frontmatter, generated.bundle_body)
     (output_dir / "test-set-bundle.md").write_text(bundle_markdown, encoding="utf-8")
@@ -398,7 +449,15 @@ def write_executor_outputs(output_dir, repo_root, package, generated: GeneratedC
             "execution_evidence_ref": str(output_dir / "execution-evidence.json"),
             "supervision_evidence_ref": str(output_dir / "supervision-evidence.json"),
             "cli_executor_commit_ref": str(cli_commit["response_path"]),
-            },
+            **(
+                {
+                    "revision_request_ref": revision_context.get("revision_request_ref", ""),
+                    "revision_summary": revision_context.get("summary", ""),
+                }
+                if revision_context
+                else {}
+            ),
+        },
     )
     dump_json(
         output_dir / "execution-evidence.json",
@@ -423,6 +482,7 @@ def write_executor_outputs(output_dir, repo_root, package, generated: GeneratedC
             },
             "key_decisions": generated.execution_decisions,
             "uncertainties": generated.execution_uncertainties,
+            **({"revision_context": revision_context} if revision_context else {}),
         },
     )
     dump_json(
@@ -436,6 +496,7 @@ def write_executor_outputs(output_dir, repo_root, package, generated: GeneratedC
             "semantic_findings": [],
             "decision": "revise",
             "reason": "Pending supervisor review.",
+            **({"revision_context": revision_context} if revision_context else {}),
         },
     )
 

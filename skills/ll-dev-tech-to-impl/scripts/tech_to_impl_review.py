@@ -15,8 +15,33 @@ def write_markdown(path: Path, frontmatter: dict[str, Any], body: str) -> None:
     path.write_text(render_markdown(frontmatter, body), encoding="utf-8")
 
 
+def _revision_metadata(generated: dict[str, Any]) -> dict[str, Any]:
+    bundle_json = generated.get("bundle_json") if isinstance(generated.get("bundle_json"), dict) else {}
+    revision_context = bundle_json.get("revision_context") if isinstance(bundle_json, dict) else {}
+    if not isinstance(revision_context, dict):
+        revision_context = {}
+    revision_request_ref = str(
+        generated.get("revision_request_ref")
+        or revision_context.get("revision_request_ref")
+        or ""
+    ).strip()
+    revision_round = int(generated.get("revision_round") or revision_context.get("revision_round") or 0)
+    revision_summary = str(
+        generated.get("revision_summary")
+        or revision_context.get("summary")
+        or ""
+    ).strip()
+    payload = {
+        "revision_request_ref": revision_request_ref,
+        "revision_round": revision_round,
+        "revision_summary": revision_summary,
+    }
+    return {key: value for key, value in payload.items() if value not in {"", 0}}
+
+
 def write_executor_outputs(output_dir: Path, package: Any, generated: dict[str, Any], command_name: str) -> None:
     output_dir.mkdir(parents=True, exist_ok=True)
+    revision_metadata = _revision_metadata(generated)
     write_markdown(output_dir / "impl-bundle.md", generated["bundle_frontmatter"], generated["bundle_body"])
     dump_json(output_dir / "impl-bundle.json", generated["bundle_json"])
     write_markdown(output_dir / "impl-task.md", generated["impl_task_frontmatter"], generated["impl_task_body"])
@@ -29,6 +54,8 @@ def write_executor_outputs(output_dir: Path, package: Any, generated: dict[str, 
     dump_json(output_dir / "impl-defect-list.json", generated["defect_list"])
     dump_json(output_dir / "handoff-to-feature-delivery.json", generated["handoff"])
     dump_json(output_dir / "semantic-drift-check.json", generated["semantic_drift_check"])
+    if revision_metadata:
+        dump_json(output_dir / "revision-request.json", generated["revision_request"])
 
     optional_markdown = [
         ("frontend-workstream.md", generated["frontend_frontmatter"], generated["frontend_body"]),
@@ -46,6 +73,8 @@ def write_executor_outputs(output_dir: Path, package: Any, generated: dict[str, 
     for name, frontmatter, _ in optional_markdown:
         if frontmatter:
             outputs.append(str(output_dir / name))
+    if revision_metadata:
+        outputs.append(str(output_dir / "revision-request.json"))
 
     dump_json(
         output_dir / "package-manifest.json",
@@ -67,6 +96,7 @@ def write_executor_outputs(output_dir: Path, package: Any, generated: dict[str, 
             "semantic_drift_check_ref": str(output_dir / "semantic-drift-check.json"),
             "execution_evidence_ref": str(output_dir / "execution-evidence.json"),
             "supervision_evidence_ref": str(output_dir / "supervision-evidence.json"),
+            **revision_metadata,
         },
     )
     dump_json(
@@ -78,6 +108,7 @@ def write_executor_outputs(output_dir: Path, package: Any, generated: dict[str, 
             "inputs": [str(package.artifacts_dir), generated["bundle_json"]["feat_ref"], generated["bundle_json"]["tech_ref"]],
             "outputs": outputs,
             "commands_run": [command_name],
+            **revision_metadata,
             "structural_results": {
                 "input_validation": "pass",
                 "impl_task_present": True,
@@ -104,6 +135,7 @@ def write_executor_outputs(output_dir: Path, package: Any, generated: dict[str, 
             "semantic_findings": [],
             "decision": "revise",
             "reason": "Pending supervisor review.",
+            **revision_metadata,
         },
     )
 
@@ -189,6 +221,7 @@ def update_supervisor_outputs(artifacts_dir: Path, supervision: dict[str, Any]) 
     acceptance_report = load_json(artifacts_dir / "impl-acceptance-report.json")
     smoke_gate_subject = load_json(artifacts_dir / "smoke-gate-subject.json")
     evidence_plan = load_json(artifacts_dir / "dev-evidence-plan.json")
+    revision_metadata = _revision_metadata({"bundle_json": bundle_json, **supervision})
 
     blocking = [item for item in supervision.get("semantic_findings") or [] if str(item.get("severity") or "") in {"P0", "P1"}]
     passed = supervision.get("decision") == "pass"
@@ -197,6 +230,10 @@ def update_supervisor_outputs(artifacts_dir: Path, supervision: dict[str, Any]) 
     bundle_json["status"] = bundle_status
     bundle_json["status_model"] = {"package": bundle_status, "smoke_gate": "pending_execution" if passed else "blocked"}
     manifest["status"] = bundle_status
+    if revision_metadata:
+        bundle_json["revision_context"] = bundle_json.get("revision_context") or {}
+        bundle_json["revision_context"].update(revision_metadata)
+        manifest.update(revision_metadata)
 
     review_report.update(
         {
@@ -204,6 +241,7 @@ def update_supervisor_outputs(artifacts_dir: Path, supervision: dict[str, Any]) 
             "decision": "pass" if passed else "revise",
             "summary": "Implementation task review passed." if passed else "Implementation task review requires revision.",
             "findings": supervision.get("semantic_findings") or [],
+            **revision_metadata,
         }
     )
     acceptance_report.update(
@@ -212,6 +250,7 @@ def update_supervisor_outputs(artifacts_dir: Path, supervision: dict[str, Any]) 
             "decision": "approve" if passed else "revise",
             "summary": "Candidate package satisfies downstream execution entry conditions." if passed else "Candidate package does not yet satisfy downstream execution entry conditions.",
             "acceptance_findings": blocking,
+            **revision_metadata,
         }
     )
     smoke_gate_subject.update(
@@ -219,12 +258,17 @@ def update_supervisor_outputs(artifacts_dir: Path, supervision: dict[str, Any]) 
             "status": "pending_execution" if passed else "blocked",
             "decision": "ready" if passed else "revise",
             "ready_for_execution": passed,
+            **revision_metadata,
         }
     )
     evidence_plan["status"] = bundle_status
+    if revision_metadata:
+        evidence_plan.update(revision_metadata)
 
     frontmatter, body = parse_markdown_frontmatter((artifacts_dir / "impl-bundle.md").read_text(encoding="utf-8"))
     frontmatter["status"] = bundle_status
+    if revision_metadata:
+        frontmatter.update(revision_metadata)
     (artifacts_dir / "impl-bundle.md").write_text(render_markdown(frontmatter, body), encoding="utf-8")
     for name in [
         "impl-task.md",
@@ -238,6 +282,8 @@ def update_supervisor_outputs(artifacts_dir: Path, supervision: dict[str, Any]) 
             continue
         frontmatter, body = parse_markdown_frontmatter(path.read_text(encoding="utf-8"))
         frontmatter["status"] = bundle_status
+        if revision_metadata:
+            frontmatter.update(revision_metadata)
         path.write_text(render_markdown(frontmatter, body), encoding="utf-8")
 
     dump_json(artifacts_dir / "impl-bundle.json", bundle_json)
@@ -275,6 +321,9 @@ def collect_evidence_report(artifacts_dir: Path) -> Path:
                 "## Run Summary",
                 "",
                 f"- run_id: {execution.get('run_id')}",
+                f"- revision_request_ref: {execution.get('revision_request_ref') or supervision.get('revision_request_ref') or ''}",
+                f"- revision_round: {execution.get('revision_round') or supervision.get('revision_round') or ''}",
+                f"- revision_summary: {execution.get('revision_summary') or supervision.get('revision_summary') or ''}",
                 f"- inputs: {', '.join(str(item) for item in execution.get('inputs', []))}",
                 f"- output_dir: {artifacts_dir}",
                 "",

@@ -49,6 +49,8 @@ def load_ssot_brief(repo_root: Path, machine_ssot_ref: str) -> dict[str, Any]:
             excerpt.append(f"标题: {title.strip()}")
         for line in _artifact_specific_excerpt(payload):
             _append_unique_line(excerpt, line)
+        for line in _semantic_inventory_excerpt(payload):
+            _append_unique_line(excerpt, line)
         problem_statement = payload.get("problem_statement")
         if isinstance(problem_statement, str) and problem_statement.strip():
             _append_unique_line(excerpt, f"问题: {problem_statement.strip()[:160]}")
@@ -141,6 +143,61 @@ def _append_unique_line(target: list[str], line: str) -> None:
     text = str(line or "").strip()
     if text and text not in target:
         target.append(text)
+
+
+def _semantic_inventory(payload: dict[str, Any]) -> dict[str, Any]:
+    value = payload.get("semantic_inventory")
+    return value if isinstance(value, dict) else {}
+
+
+def _semantic_inventory_items(raw_value: object, *, limit: int) -> list[str]:
+    if not isinstance(raw_value, list):
+        return []
+    items: list[str] = []
+    for raw in raw_value:
+        if not isinstance(raw, str):
+            continue
+        text = raw.strip()
+        if not text:
+            continue
+        if text[:2] in {"- ", "* "}:
+            text = text[2:].strip()
+        items.append(text)
+        if len(items) >= limit:
+            break
+    return items
+
+
+def _semantic_inventory_excerpt(payload: dict[str, Any]) -> list[str]:
+    semantic_inventory = _semantic_inventory(payload)
+    if not semantic_inventory:
+        return []
+    lines: list[str] = []
+    actors = _semantic_inventory_items(semantic_inventory.get("actors"), limit=2)
+    if actors:
+        _append_unique_line(lines, "语义角色: " + _join_items(actors))
+    capability_objects = _semantic_inventory_items(payload.get("target_capability_objects"), limit=3)
+    if not capability_objects:
+        capability_objects = _semantic_inventory_items(semantic_inventory.get("product_surfaces"), limit=3)
+    if capability_objects:
+        _append_unique_line(lines, "能力对象: " + _join_items(capability_objects))
+    states = _semantic_inventory_items(semantic_inventory.get("states"), limit=2)
+    if states:
+        _append_unique_line(lines, "状态/能力轴: " + _join_items(states))
+    interface_items: list[str] = []
+    for field in ("operator_surfaces", "entry_points", "commands", "runtime_objects", "observability_surfaces"):
+        interface_items.extend(_semantic_inventory_items(semantic_inventory.get(field), limit=2))
+    top_operator_surfaces = _semantic_inventory_items(payload.get("operator_surface_inventory"), limit=2)
+    if top_operator_surfaces:
+        interface_items.extend(top_operator_surfaces)
+    if interface_items:
+        _append_unique_line(lines, "关键接口: " + _join_items(interface_items[:4]))
+    else:
+        _append_unique_line(lines, "关键接口: 暂无显式条目（commands / runtime_objects / operator_surfaces 仍为空）")
+    constraints = _semantic_inventory_items(semantic_inventory.get("constraints"), limit=2)
+    if constraints:
+        _append_unique_line(lines, "语义约束: " + _join_items(constraints))
+    return lines[:5]
 
 
 def _count_list(payload: dict[str, Any], field: str) -> int:
@@ -526,6 +583,24 @@ def ssot_outline(payload: dict[str, Any]) -> list[str]:
     governance_summary = payload.get("governance_change_summary")
     if isinstance(governance_summary, list) and governance_summary:
         outline.append("治理变化主线: " + " | ".join(str(item).strip() for item in governance_summary[:2] if str(item).strip()))
+    semantic_inventory = payload.get("semantic_inventory")
+    if isinstance(semantic_inventory, dict):
+        semantic_sections = [
+            ("actors", _count_list(semantic_inventory, "actors")),
+            ("product_surfaces", _count_list(semantic_inventory, "product_surfaces")),
+            ("operator_surfaces", _count_list(semantic_inventory, "operator_surfaces")),
+            ("entry_points", _count_list(semantic_inventory, "entry_points")),
+            ("commands", _count_list(semantic_inventory, "commands")),
+            ("runtime_objects", _count_list(semantic_inventory, "runtime_objects")),
+            ("states", _count_list(semantic_inventory, "states")),
+            ("observability_surfaces", _count_list(semantic_inventory, "observability_surfaces")),
+            ("constraints", _count_list(semantic_inventory, "constraints")),
+            ("non_goals", _count_list(semantic_inventory, "non_goals")),
+        ]
+        outline.append("semantic_inventory 主体块: " + ", ".join(f"{name}[{count}]" for name, count in semantic_sections))
+        state_focus = _semantic_inventory_items(semantic_inventory.get("states"), limit=2)
+        if state_focus:
+            outline.append("semantic_inventory 状态焦点: " + "；".join(state_focus))
     if not outline:
         visible_keys = [key for key, value in payload.items() if value not in (None, "", [], {})]
         if visible_keys:
@@ -588,6 +663,21 @@ def ssot_review_points(payload: dict[str, Any]) -> list[str]:
         return points
     if str(payload.get("problem_statement", "")).strip():
         points.append("核对 problem_statement 是否同时说明当前失控行为、为什么必须现在收敛、以及不收敛的后果。")
+    semantic_inventory = payload.get("semantic_inventory")
+    if isinstance(semantic_inventory, dict):
+        states = _semantic_inventory_items(semantic_inventory.get("states"), limit=3)
+        if states:
+            points.append("核对 semantic_inventory.states 是否把 running_level、profile_minimal_done、initial_plan_ready 这类状态口径拆清，不要混入训练阶段、当前能力或历史经历。")
+        interfaces: list[str] = []
+        for field in ("product_surfaces", "operator_surfaces", "entry_points", "commands", "runtime_objects", "observability_surfaces"):
+            interfaces.extend(_semantic_inventory_items(semantic_inventory.get(field), limit=2))
+        interfaces.extend(_semantic_inventory_items(payload.get("operator_surface_inventory"), limit=2))
+        if interfaces:
+            points.append("核对 semantic_inventory 的产品/操作者/命令面是否已显式列出关键接口边界，避免 brief 只看见状态修复却看不见可执行入口。")
+        else:
+            points.append("当前 semantic_inventory 里的产品/操作者/命令面仍然很空；如果本轮修复涉及接口边界，请补到显式列表里，否则 brief 只能读到状态而读不到执行面。")
+        if _semantic_inventory_items(semantic_inventory.get("constraints"), limit=1):
+            points.append("核对 semantic_inventory.constraints 是否与 key_constraints / out_of_scope 保持同一口径，避免语义层与治理层打架。")
     if _count_list(payload, "key_constraints") or _count_list(payload, "governance_change_summary"):
         points.append("核对 key_constraints、governance_change_summary、bridge_context.downstream_inheritance_requirements 三者是否表达一致，没有互相打架。")
     if _count_list(payload, "downstream_derivation_requirements"):
@@ -679,6 +769,9 @@ def ssot_fulltext_markdown(payload: dict[str, Any]) -> str:
     problem_statement = str(payload.get("problem_statement", "")).strip()
     if problem_statement:
         paragraphs.append("它要解决的问题是：" + problem_statement)
+    semantic_inventory_paragraphs = _semantic_inventory_excerpt(payload)
+    if semantic_inventory_paragraphs:
+        paragraphs.append("另外，语义清单已经补进了这些修复信号：" + "；".join(semantic_inventory_paragraphs) + "。")
 
     target_users = _first_items(payload, "target_users", limit=5)
     trigger_scenarios = _first_items(payload, "trigger_scenarios", limit=3)

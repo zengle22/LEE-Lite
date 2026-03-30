@@ -55,6 +55,7 @@ def _commit_markdown(repo_root: Path, artifacts_dir: Path, run_id: str, markdown
 def write_executor_outputs(output_dir: Path, repo_root: Path, package: Any, generated: Any, command_name: str) -> None:
     output_dir.mkdir(parents=True, exist_ok=True)
     run_id = output_dir.name
+    revision_request_ref = str(generated.json_payload.get("revision_request_ref") or "").strip()
     markdown_text = render_markdown(generated.frontmatter, generated.markdown_body)
     cli_commit = _commit_markdown(repo_root, output_dir, run_id, markdown_text, "epic-freeze-executor-commit")
     dump_json(output_dir / "epic-freeze.json", generated.json_payload)
@@ -80,6 +81,10 @@ def write_executor_outputs(output_dir: Path, repo_root: Path, package: Any, gene
             "cli_executor_commit_ref": str(cli_commit["response_path"]),
         },
     )
+    if revision_request_ref:
+        package_manifest = load_json(output_dir / "package-manifest.json")
+        package_manifest["revision_request_ref"] = revision_request_ref
+        dump_json(output_dir / "package-manifest.json", package_manifest)
     dump_json(
         output_dir / "execution-evidence.json",
         {
@@ -113,10 +118,15 @@ def write_executor_outputs(output_dir: Path, repo_root: Path, package: Any, gene
             "uncertainties": [],
         },
     )
+    if revision_request_ref:
+        execution_evidence = load_json(output_dir / "execution-evidence.json")
+        execution_evidence["revision_request_ref"] = revision_request_ref
+        dump_json(output_dir / "execution-evidence.json", execution_evidence)
 
 
 def build_supervision_evidence(package: Any, output_dir: Path, generated: Any) -> dict[str, Any]:
     decision = "pass" if not generated.defect_list else "revise"
+    revision_request_ref = str(generated.json_payload.get("revision_request_ref") or "").strip()
     findings = [
         {
             "title": "Multi-FEAT boundary preserved" if decision == "pass" else "Multi-FEAT boundary weak",
@@ -124,7 +134,7 @@ def build_supervision_evidence(package: Any, output_dir: Path, generated: Any) -
         }
     ]
     findings.extend({"title": defect["title"], "detail": defect["detail"]} for defect in generated.defect_list)
-    return {
+    result = {
         "skill_id": "ll-product-src-to-epic",
         "run_id": package.run_id,
         "role": "supervisor",
@@ -135,6 +145,9 @@ def build_supervision_evidence(package: Any, output_dir: Path, generated: Any) -
         "reason": "EPIC package passed semantic review." if decision == "pass" else "EPIC package needs revision before freeze.",
         "created_at": generated.acceptance_report["created_at"],
     }
+    if revision_request_ref:
+        result["revision_request_ref"] = revision_request_ref
+    return result
 
 
 def build_gate_result(generated: Any, supervision_evidence: dict[str, Any]) -> dict[str, Any]:
@@ -145,6 +158,7 @@ def build_gate_result(generated: Any, supervision_evidence: dict[str, Any]) -> d
         "freeze_ready": pass_gate,
         "epic_freeze_ref": generated.frontmatter["epic_freeze_ref"],
         "src_root_id": generated.frontmatter["src_root_id"],
+        **({"revision_request_ref": str(generated.json_payload.get("revision_request_ref") or "").strip()} if str(generated.json_payload.get("revision_request_ref") or "").strip() else {}),
         "checks": {
             "execution_evidence_present": True,
             "supervision_evidence_present": True,
@@ -164,9 +178,14 @@ def update_supervisor_outputs(artifacts_dir: Path, repo_root: Path, package: Any
     epic_json = load_json(artifacts_dir / "epic-freeze.json")
     updated_json = dict(epic_json)
     updated_json["status"] = "accepted" if supervision["decision"] == "pass" else "revised"
+    revision_request_ref = str(generated.json_payload.get("revision_request_ref") or "").strip()
+    if revision_request_ref:
+        updated_json["revision_request_ref"] = revision_request_ref
     markdown_text = (artifacts_dir / "epic-freeze.md").read_text(encoding="utf-8")
     frontmatter, body = parse_markdown_frontmatter(markdown_text)
     frontmatter["status"] = updated_json["status"]
+    if revision_request_ref:
+        frontmatter["revision_request_ref"] = revision_request_ref
     cli_commit = _commit_markdown(repo_root, artifacts_dir, run_id, render_markdown(frontmatter, body), "epic-freeze-supervisor-commit")
     dump_json(artifacts_dir / "epic-freeze.json", updated_json)
     dump_json(artifacts_dir / "epic-review-report.json", generated.review_report)
@@ -176,6 +195,8 @@ def update_supervisor_outputs(artifacts_dir: Path, repo_root: Path, package: Any
     dump_json(artifacts_dir / "epic-freeze-gate.json", gate)
     manifest = load_json(artifacts_dir / "package-manifest.json")
     manifest["cli_supervisor_commit_ref"] = str(cli_commit["response_path"])
+    if revision_request_ref:
+        manifest["revision_request_ref"] = revision_request_ref
     dump_json(artifacts_dir / "package-manifest.json", manifest)
 
 
@@ -184,6 +205,7 @@ def collect_evidence_report(artifacts_dir: Path) -> Path:
     supervision = load_json(artifacts_dir / "supervision-evidence.json")
     gate = load_json(artifacts_dir / "epic-freeze-gate.json")
     report_path = artifacts_dir / "evidence-report.md"
+    revision_request_ref = str(execution.get("revision_request_ref") or supervision.get("revision_request_ref") or gate.get("revision_request_ref") or "").strip()
     report_path.write_text(
         "\n".join(
             [
@@ -193,6 +215,7 @@ def collect_evidence_report(artifacts_dir: Path) -> Path:
                 "",
                 f"- run_id: {execution.get('run_id')}",
                 f"- output_dir: {artifacts_dir}",
+                *([f"- revision_request_ref: {revision_request_ref}"] if revision_request_ref else []),
                 "",
                 "## Execution Evidence",
                 "",

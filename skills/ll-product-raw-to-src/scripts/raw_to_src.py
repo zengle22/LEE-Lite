@@ -27,6 +27,7 @@ def command_run(args: argparse.Namespace) -> int:
         repo_root=repo_root_from(args.repo_root),
         run_id=args.run_id or "",
         allow_update=args.allow_update,
+        revision_request_path=Path(args.revision_request).resolve() if args.revision_request else None,
     )
     print(json.dumps(result, ensure_ascii=False))
     return 0
@@ -37,6 +38,7 @@ def command_executor_run(args: argparse.Namespace) -> int:
         input_path=Path(args.input).resolve(),
         repo_root=repo_root_from(args.repo_root),
         run_id=args.run_id or "",
+        revision_request_path=Path(args.revision_request).resolve() if args.revision_request else None,
     )
     print(json.dumps(result, ensure_ascii=False))
     return 0
@@ -91,12 +93,14 @@ def build_parser() -> argparse.ArgumentParser:
     run_parser.add_argument("--repo-root")
     run_parser.add_argument("--run-id")
     run_parser.add_argument("--allow-update", action="store_true")
+    run_parser.add_argument("--revision-request")
     run_parser.set_defaults(func=command_run)
 
     executor_parser = subparsers.add_parser("executor-run")
     executor_parser.add_argument("--input", required=True)
     executor_parser.add_argument("--repo-root")
     executor_parser.add_argument("--run-id")
+    executor_parser.add_argument("--revision-request")
     executor_parser.set_defaults(func=command_executor_run)
 
     supervisor_parser = subparsers.add_parser("supervisor-review")
