@@ -8,6 +8,7 @@ required_runtime_artifacts:
   - src-candidate.json
   - semantic-inventory.json
   - source-provenance-map.json
+  - source-snapshot.json
   - contradiction-register.json
   - normalization-decisions.json
   - omission-and-compression-report.json
@@ -33,17 +34,29 @@ required_candidate_frontmatter_fields:
   - status
   - source_kind
   - source_refs
+  - source_snapshot_mode
 required_candidate_sections:
   - 问题陈述
   - 目标用户
   - 触发场景
   - 业务动因
+  - 冻结输入与需求源快照
+  - 文档语义层级
+  - Frozen Contracts
+  - 结构化对象契约
+  - 枚举冻结
+  - 内嵌需求源快照
   - 关键约束
   - 范围边界
   - 来源追溯
 optional_runtime_artifacts:
   - handoff-proposal.json
   - review-report.md
+  - input/source-input.md
+  - input/source-input.json
+  - input/source-input.yaml
+  - input/source-input.yml
+  - input/source-snapshot.json
   - input/gate-ready-package.json
   - materialized-handoff.json
   - materialized-job.json
@@ -68,6 +81,11 @@ notes:
   - The skill emits a candidate package and submits an authoritative gate-pending handoff; final freeze and queue materialization remain external-gate actions.
   - If the recommended action is not `blocked`, `handoff-proposal.json` must exist.
   - `source-semantic-findings.json` and `acceptance-report.json` must remain distinct artifacts and may not be collapsed into a single review object.
+  - The candidate must carry a self-contained, embedded source snapshot in the markdown frontmatter/body. `source_refs` are lineage pointers only and must not be the sole basis for review.
+  - The run directory must freeze the raw source input under `artifacts/raw-to-src/<run_id>/input/` and record capture metadata in `input/source-snapshot.json`.
+  - Facet-aware projector selection is a first-class candidate field; `facet_inference`, `facet_bundle_recommendation`, `selected_facets`, and `projector_selection` must be non-empty for freeze-ready high-fidelity bundles.
+  - Product raw requirements that freeze stable object/state/enum boundaries, such as onboarding-like or training-plan-like candidates, must explicitly separate `source_layer`, `bridge_layer`, and `meta_layer`, and the precedence order must keep `source_layer` authoritative.
+  - Product raw requirements that carry machine-contract seams, such as onboarding-like or training-plan-like candidates, must expose frozen contracts, structured object contracts, and enum freezes as machine-readable sections instead of leaving key constraints scattered across prose.
   - For `governance_bridge_src`, the candidate must include a governance summary section and a non-generic Bridge Context.
   - The package must include high-fidelity source artifacts for semantic inventory, provenance, contradiction capture, normalization decisions, and omission/compression reporting.
-  - ADR-derived key sections must not remain at placeholder density or title-rewrite density when the package is marked freeze-ready.
+  - ADR-derived key sections and raw-requirement bundle sections must not remain at placeholder density or title-rewrite density when the package is marked freeze-ready.

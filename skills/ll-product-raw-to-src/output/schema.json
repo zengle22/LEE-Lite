@@ -34,6 +34,21 @@
     "source_semantic_findings_ref": {
       "type": "string"
     },
+    "source_snapshot_mode": {
+      "type": "string",
+      "enum": [
+        "embedded"
+      ]
+    },
+    "frozen_input_dir": {
+      "type": "string"
+    },
+    "source_snapshot_ref": {
+      "type": "string"
+    },
+    "frozen_input_snapshot_ref": {
+      "type": "string"
+    },
     "acceptance_report_ref": {
       "type": "string"
     },

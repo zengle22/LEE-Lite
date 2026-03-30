@@ -48,8 +48,14 @@ REQUIRED_CANDIDATE_SECTIONS = [
     "标准化决策",
     "压缩与省略说明",
     "用户入口与控制面",
+    "冻结输入与需求源快照",
+    "文档语义层级",
+    "Frozen Contracts",
+    "结构化对象契约",
+    "枚举冻结",
     "关键约束",
     "范围边界",
+    "内嵌需求源快照",
     "来源追溯",
 ]
 
@@ -217,6 +223,32 @@ def build_structured_body(payload: Any) -> str:
     return "\n\n".join(str(item).strip() for item in candidates if isinstance(item, str) and item.strip())
 
 
+def build_source_snapshot(document: dict[str, Any]) -> dict[str, Any]:
+    source_path = str(document.get("path", ""))
+    sections = deepcopy(document.get("sections") or {})
+    capture_metadata = {
+        "captured_at": iso_now(),
+        "captured_by": WORKFLOW_KEY,
+        "capture_mode": "normalized_source_snapshot",
+        "source_path": source_path,
+        "frozen_ref": "",
+        "frozen_snapshot_ref": "",
+        "content_hash": "",
+        "content_hash_algo": "sha256",
+        "source_size_bytes": None,
+        "source_suffix": Path(source_path).suffix.lower() if source_path else "",
+    }
+    return {
+        "title": str(document.get("title", "")).strip(),
+        "input_type": str(document.get("input_type", "")).strip(),
+        "body": str(document.get("body", "")),
+        "sections": sections,
+        "source_refs": deepcopy(document.get("source_refs") or []),
+        "source_path": source_path,
+        "capture_metadata": capture_metadata,
+    }
+
+
 def load_raw_input(path: Path) -> dict[str, Any]:
     text = read_text(path)
     metadata: dict[str, Any] = {}
@@ -288,8 +320,8 @@ def load_raw_input(path: Path) -> dict[str, Any]:
         "target_users": normalize_list(find_nested(payload, "target_users", "requirement_overview.target_users", "business_output.requirement_overview.target_users")) or normalize_list(sections.get("目标用户")),
         "trigger_scenarios": normalize_list(find_nested(payload, "trigger_scenarios", "scenarios")) or normalize_list(sections.get("触发场景")),
         "business_drivers": normalize_list(find_nested(payload, "business_drivers", "key_designs.value_chain.direct_value.description", "business_output.key_designs.value_chain.direct_value.description", "context", "requirement_overview.context", "business_output.requirement_overview.context")) or normalize_list(sections.get("业务动因")),
-        "key_constraints": normalize_list(find_nested(payload, "constraints", "key_designs.risks_and_boundaries.dependencies", "business_output.key_designs.risks_and_boundaries.dependencies")) or normalize_list(sections.get("关键约束")),
-        "non_goals": normalize_list(find_nested(payload, "non_goals", "key_designs.risks_and_boundaries.out_of_scope", "business_output.key_designs.risks_and_boundaries.out_of_scope")) or normalize_list(sections.get("非目标")),
+        "key_constraints": normalize_list(metadata.get("constraints")) or normalize_list(find_nested(payload, "constraints", "key_designs.risks_and_boundaries.dependencies", "business_output.key_designs.risks_and_boundaries.dependencies")) or normalize_list(sections.get("关键约束")),
+        "non_goals": normalize_list(metadata.get("non_goals")) or normalize_list(find_nested(payload, "non_goals", "key_designs.risks_and_boundaries.out_of_scope", "business_output.key_designs.risks_and_boundaries.out_of_scope")) or normalize_list(sections.get("非目标")),
     }
 
 
@@ -359,6 +391,11 @@ def normalize_candidate(document: dict[str, Any]) -> dict[str, Any]:
         "expected_outcomes": normalize_list(document.get("metadata", {}).get("expected_outcomes")) or normalize_list(heading_sections(document["body"]).get("成功结果")),
         "downstream_derivation_requirements": normalize_list(document.get("metadata", {}).get("downstream_derivation_requirements")) or normalize_list(heading_sections(document["body"]).get("下游派生要求")),
         "bridge_summary": normalize_list(document.get("metadata", {}).get("bridge_summary")) or normalize_list(heading_sections(document["body"]).get("桥接摘要")),
+        "facet_inference": [],
+        "facet_bundle_recommendation": [],
+        "selected_facets": [],
+        "projector_selection": None,
+        "source_snapshot": build_source_snapshot(document),
         "in_scope": [f"围绕《{document['title']}》建立稳定、可追溯的需求源。"],
         "out_of_scope": deepcopy(document["non_goals"]),
         "source_refs": deepcopy(document["source_refs"]),
@@ -464,7 +501,7 @@ def validate_candidate_markdown(path: Path) -> tuple[list[str], dict[str, Any]]:
     frontmatter, body = parse_frontmatter(read_text(path))
     sections = heading_sections(body)
     errors: list[str] = []
-    required_fields = ["artifact_type", "workflow_key", "workflow_run_id", "title", "status", "source_kind", "source_refs"]
+    required_fields = ["artifact_type", "workflow_key", "workflow_run_id", "title", "status", "source_kind", "source_refs", "source_snapshot_mode"]
     for field in required_fields:
         if field not in frontmatter:
             errors.append(f"Missing frontmatter field: {field}")

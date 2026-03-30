@@ -36,6 +36,52 @@ GENERIC_PHRASES = {
     "保持与原始输入同题，不扩展到 EPIC、FEAT、TASK 或实现设计。",
 }
 META_PREFIXES = ("状态：", "日期：", "决策者：", "适用范围：", "相关 ADR：")
+ONBOARDING_DOCUMENT_MARKERS = (
+    "用户建档",
+    "user-onboarding",
+    "onboarding",
+    "最小建档页",
+    "首页任务卡",
+    "首轮 ai 建议",
+    "profile_minimal_done",
+    "device_connected",
+    "initial_plan_ready",
+)
+ONBOARDING_PROJECTION_OBJECTS = {
+    "minimal_onboarding_page",
+    "running_level",
+    "recent_injury_status",
+    "onboarding_state_model",
+    "first_ai_advice_output",
+    "profile_storage_boundary",
+    "device_connect_entry",
+}
+EMPTY_TEXT_MARKERS = {"none", "none.", "null", "n/a", "na", "未检测到", "未定义", "无"}
+TRAINING_PLAN_DOCUMENT_MARKERS = (
+    "训练计划",
+    "training plan",
+    "current_training_state",
+    "risk gate",
+    "plan_draft",
+    "today_session",
+    "body_checkin",
+    "session_feedback",
+    "micro_adjustment",
+    "daily adjust",
+    "今日训练卡",
+    "微调",
+)
+TRAINING_PLAN_PROJECTION_OBJECTS = {
+    "min_profile",
+    "current_training_state",
+    "risk_gate_result",
+    "plan_draft",
+    "today_session",
+    "body_checkin",
+    "session_feedback",
+    "micro_adjustment",
+    "plan_lifecycle",
+}
 
 
 def _find_nested(payload: Any, *paths: str) -> Any:
@@ -73,6 +119,103 @@ def _unique(items: list[str]) -> list[str]:
         seen.add(key)
         ordered.append(text)
     return ordered
+
+
+def _is_effectively_empty(value: Any) -> bool:
+    if value is None:
+        return True
+    if isinstance(value, str):
+        text = value.strip().casefold()
+        return not text or text in EMPTY_TEXT_MARKERS
+    if isinstance(value, dict):
+        return all(_is_effectively_empty(item) for item in value.values())
+    if isinstance(value, list):
+        return all(_is_effectively_empty(item) for item in value)
+    return False
+
+
+def _has_meaningful_entries(value: Any) -> bool:
+    if _is_effectively_empty(value):
+        return False
+    if isinstance(value, list):
+        return any(not _is_effectively_empty(item) for item in value)
+    if isinstance(value, dict):
+        return any(not _is_effectively_empty(item) for item in value.values())
+    return True
+
+
+def _bundle_density_findings(candidate: dict[str, Any]) -> list[dict[str, Any]]:
+    findings: list[dict[str, Any]] = []
+    projector_selection = candidate.get("projector_selection") or {}
+    selected_facets = candidate.get("selected_facets") or projector_selection.get("selected_facets") or []
+    bundle_kind = str(projector_selection.get("bundle_kind", "")).strip()
+    if not projector_selection:
+        findings.append(
+            {
+                "severity": "P1",
+                "type": "projector_selection_missing",
+                "description": "Facet-aware projector selection is required before a candidate can be freeze-ready.",
+            }
+        )
+    if not selected_facets:
+        findings.append(
+            {
+                "severity": "P1",
+                "type": "selected_facets_missing",
+                "description": "Facet-aware candidate must expose selected_facets so downstream composition can inherit the selected bundle.",
+            }
+        )
+    if not candidate.get("facet_bundle_recommendation"):
+        findings.append(
+            {
+                "severity": "P1",
+                "type": "facet_bundle_recommendation_missing",
+                "description": "Facet bundle recommendation is required so review can select the final high-fidelity bundle.",
+            }
+        )
+    if not candidate.get("facet_inference"):
+        findings.append(
+            {
+                "severity": "P1",
+                "type": "facet_inference_missing",
+                "description": "Facet inference is required so the bundle recommender has a non-empty semantic basis.",
+            }
+        )
+
+    bridge_fields = ["target_capability_objects", "expected_outcomes", "downstream_derivation_requirements", "bridge_summary"]
+    meaningful_bridge_fields = [field for field in bridge_fields if _has_meaningful_entries(candidate.get(field))]
+    if len(meaningful_bridge_fields) < 4:
+        findings.append(
+            {
+                "severity": "P1",
+                "type": "semantic_density_insufficient",
+                "description": "High-fidelity candidate must keep bridge summary, target objects, expected outcomes, and downstream requirements non-empty.",
+            }
+        )
+
+    semantic_inventory = candidate.get("semantic_inventory") or {}
+    inventory_fields = ["core_objects", "product_surfaces", "runtime_objects", "states", "entry_points", "commands", "constraints"]
+    inventory_score = sum(1 for field in inventory_fields if _has_meaningful_entries(semantic_inventory.get(field)))
+    if inventory_score < 4:
+        findings.append(
+            {
+                "severity": "P1",
+                "type": "semantic_inventory_too_thin",
+                "description": "semantic_inventory is too thin; core_objects, product_surfaces, runtime_objects, states and commands must not collapse to empty shells.",
+            }
+        )
+
+    if bundle_kind in {"onboarding", "training-plan"}:
+        contract_fields = ["semantic_layer_declaration", "frozen_contracts", "structured_object_contracts", "enum_freezes"]
+        if any(_is_effectively_empty(candidate.get(field)) for field in contract_fields):
+            findings.append(
+                {
+                    "severity": "P1",
+                    "type": "frozen_contract_density_insufficient",
+                    "description": f"{bundle_kind} bundle must expose semantic_layer_declaration, frozen_contracts, structured_object_contracts, and enum_freezes as non-empty machine contracts.",
+                }
+            )
+    return findings
 
 
 def _normalized(value: str) -> str:
@@ -368,6 +511,73 @@ def _derive_acceptance_impact(_: list[str], __: list[str]) -> list[str]:
         ]
     )
 
+
+def _is_onboarding_document_evidence(document: dict[str, Any] | None) -> bool:
+    if not document:
+        return False
+    text = " ".join(
+        [
+            str(document.get("title", "")),
+            str(document.get("problem_statement", "")),
+            str(document.get("body", "")),
+        ]
+    ).lower()
+    title_text = str(document.get("title", "")).lower()
+    if "用户建档" in title_text or "user-onboarding" in title_text or "onboarding" in title_text:
+        return True
+    return sum(1 for token in ONBOARDING_DOCUMENT_MARKERS if token in text) >= 2
+
+
+def _has_onboarding_projection(candidate: dict[str, Any]) -> bool:
+    object_names = {
+        str(item.get("object", "")).strip()
+        for item in candidate.get("structured_object_contracts", [])
+        if isinstance(item, dict)
+    }
+    applies_to = {
+        str(value).strip()
+        for contract in candidate.get("frozen_contracts", [])
+        if isinstance(contract, dict)
+        for value in contract.get("applies_to", [])
+    }
+    semantic_objects = {str(value).strip() for value in (candidate.get("semantic_inventory") or {}).get("core_objects", [])}
+    target_objects = {str(value).strip() for value in candidate.get("target_capability_objects", [])}
+    return bool((object_names | applies_to | semantic_objects | target_objects) & ONBOARDING_PROJECTION_OBJECTS)
+
+
+def _is_training_plan_document_evidence(document: dict[str, Any] | None) -> bool:
+    if not document:
+        return False
+    text = " ".join(
+        [
+            str(document.get("title", "")),
+            str(document.get("problem_statement", "")),
+            str(document.get("body", "")),
+        ]
+    ).lower()
+    title_text = str(document.get("title", "")).lower()
+    if "训练计划" in title_text or "training plan" in title_text:
+        return True
+    return sum(1 for token in TRAINING_PLAN_DOCUMENT_MARKERS if token in text) >= 3
+
+
+def _has_training_plan_projection(candidate: dict[str, Any]) -> bool:
+    object_names = {
+        str(item.get("object", "")).strip()
+        for item in candidate.get("structured_object_contracts", [])
+        if isinstance(item, dict)
+    }
+    applies_to = {
+        str(value).strip()
+        for contract in candidate.get("frozen_contracts", [])
+        if isinstance(contract, dict)
+        for value in contract.get("applies_to", [])
+    }
+    semantic_objects = {str(value).strip() for value in (candidate.get("semantic_inventory") or {}).get("core_objects", [])}
+    target_objects = {str(value).strip() for value in candidate.get("target_capability_objects", [])}
+    return bool((object_names | applies_to | semantic_objects | target_objects) & TRAINING_PLAN_PROJECTION_OBJECTS)
+
+
 def _append_missing(items: list[str], additions: list[str]) -> list[str]:
     existing = {item.strip() for item in items}; return items + [item for item in additions if item.strip() not in existing]
 
@@ -390,6 +600,311 @@ def _is_execution_runner_bridge(document: dict[str, Any], governance_objects: li
         or ("自动推进" in text and "job" in text)
     )
     return runner_markers
+
+
+def _document_is_onboarding_like(document: dict[str, Any] | None) -> bool:
+    if document is None:
+        return False
+    text = " ".join(
+        [
+            str(document.get("title", "")),
+            str(document.get("problem_statement", "")),
+            str(document.get("body", "")),
+            " ".join(str(item) for item in document.get("source_refs", [])),
+        ]
+    ).lower()
+    if not any(token in text for token in ("用户建档", "最小建档", "onboarding", "minimal-profile")):
+        return False
+    return any(token in text for token in ("running_level", "recent_injury_status", "capability flags", "首轮建议"))
+
+
+def _candidate_contains_onboarding_projection(candidate: dict[str, Any]) -> bool:
+    fields: list[str] = []
+    fields.extend(str(item) for item in candidate.get("target_capability_objects", []))
+    fields.extend(str(item.get("statement", "")) for item in candidate.get("frozen_contracts", []))
+    fields.extend(str(item.get("object", "")) for item in candidate.get("structured_object_contracts", []))
+    fields.extend(str(item) for item in (candidate.get("semantic_inventory") or {}).get("core_objects", []))
+    fields.extend(str(item) for item in (candidate.get("semantic_inventory") or {}).get("product_surfaces", []))
+    text = " ".join(fields).lower()
+    return any(
+        token in text
+        for token in (
+            "minimal_onboarding_page",
+            "onboarding_state_model",
+            "first_ai_advice_output",
+            "device_connect_entry",
+            "running_level",
+            "recent_injury_status",
+            "user_physical_profile",
+        )
+    )
+
+
+def _document_is_training_plan_like(document: dict[str, Any] | None) -> bool:
+    if document is None:
+        return False
+    text = " ".join(
+        [
+            str(document.get("title", "")),
+            str(document.get("problem_statement", "")),
+            str(document.get("body", "")),
+            " ".join(str(item) for item in document.get("source_refs", [])),
+        ]
+    ).lower()
+    if "训练计划" in text or "training plan" in text:
+        return True
+    return sum(1 for token in TRAINING_PLAN_DOCUMENT_MARKERS if token in text) >= 3
+
+
+def _candidate_contains_training_plan_projection(candidate: dict[str, Any]) -> bool:
+    fields: list[str] = []
+    fields.extend(str(item) for item in candidate.get("target_capability_objects", []))
+    fields.extend(str(item.get("statement", "")) for item in candidate.get("frozen_contracts", []))
+    fields.extend(str(item.get("object", "")) for item in candidate.get("structured_object_contracts", []))
+    fields.extend(str(item) for item in (candidate.get("semantic_inventory") or {}).get("core_objects", []))
+    fields.extend(str(item) for item in (candidate.get("semantic_inventory") or {}).get("runtime_objects", []))
+    text = " ".join(fields).lower()
+    return any(token in text for token in TRAINING_PLAN_PROJECTION_OBJECTS)
+
+
+def _meaningful_list(values: Any) -> list[str]:
+    items: list[str] = []
+    if isinstance(values, list):
+        for value in values:
+            text = str(value).strip()
+            if text and text.lower() != "none":
+                items.append(text)
+    return items
+
+
+def _object_contract(candidate: dict[str, Any], object_name: str) -> dict[str, Any]:
+    for item in candidate.get("structured_object_contracts", []):
+        if isinstance(item, dict) and str(item.get("object", "")).strip() == object_name:
+            return item
+    return {}
+
+
+def _looks_like_object_token(value: str) -> bool:
+    text = value.strip()
+    if not text:
+        return False
+    if len(text) > 48:
+        return False
+    return bool(re.fullmatch(r"[a-z0-9_:-]+", text))
+
+
+def _machine_contract_section_empty(candidate: dict[str, Any], field: str) -> bool:
+    value = candidate.get(field)
+    if isinstance(value, dict):
+        return not any(item not in (None, "", [], {}, "None") for item in value.values())
+    if isinstance(value, list):
+        return not any(str(item).strip() and str(item).strip().lower() != "none" for item in value)
+    return value in (None, "", "None")
+
+
+def _append_training_plan_density_findings(candidate: dict[str, Any], findings: list[dict[str, Any]]) -> None:
+    required_sections = ["semantic_layer_declaration", "frozen_contracts", "structured_object_contracts", "enum_freezes"]
+    missing_sections = [field for field in required_sections if _machine_contract_section_empty(candidate, field)]
+    if missing_sections:
+        findings.append(
+            {
+                "severity": "P1",
+                "type": "machine_contracts_missing",
+                "description": f"Training-plan SRC is missing machine-contract sections: {', '.join(missing_sections)}.",
+            }
+        )
+    semantic_inventory = candidate.get("semantic_inventory") or {}
+    thin_fields = [
+        field
+        for field in ["core_objects", "product_surfaces", "entry_points", "runtime_objects", "states", "core_outputs"]
+        if not _meaningful_list(semantic_inventory.get(field))
+    ]
+    if thin_fields:
+        findings.append(
+            {
+                "severity": "P1",
+                "type": "semantic_inventory_too_thin",
+                "description": f"Training-plan semantic inventory is too thin in: {', '.join(thin_fields)}.",
+            }
+        )
+    downstream_fields = [
+        field
+        for field in ["target_capability_objects", "expected_outcomes", "downstream_derivation_requirements", "bridge_summary"]
+        if not _meaningful_list(candidate.get(field))
+    ]
+    if downstream_fields:
+        findings.append(
+            {
+                "severity": "P1",
+                "type": "downstream_actionability_insufficient",
+                "description": f"Training-plan SRC does not yet expose enough downstream actionability in: {', '.join(downstream_fields)}.",
+            }
+        )
+    required_object_names = {
+        "min_profile",
+        "current_training_state",
+        "risk_gate_result",
+        "plan_draft",
+        "today_session",
+        "body_checkin",
+        "session_feedback",
+        "micro_adjustment",
+        "plan_generation_guardrail",
+        "plan_lifecycle",
+    }
+    object_names = {
+        str(item.get("object", "")).strip()
+        for item in candidate.get("structured_object_contracts", [])
+        if isinstance(item, dict)
+    }
+    missing_objects = sorted(required_object_names - object_names)
+    if missing_objects:
+        findings.append(
+            {
+                "severity": "P1",
+                "type": "training_plan_objects_missing",
+                "description": f"Training-plan object contracts are missing: {', '.join(missing_objects)}.",
+            }
+        )
+    body_checkin = _object_contract(candidate, "body_checkin")
+    body_required = set(_meaningful_list(body_checkin.get("required_fields")))
+    missing_body_fields = sorted({"pain_trend", "readiness_to_train"} - body_required)
+    if missing_body_fields:
+        findings.append(
+            {
+                "severity": "P1",
+                "type": "body_checkin_decision_fields_missing",
+                "description": f"body_checkin is missing decision-critical required fields: {', '.join(missing_body_fields)}.",
+            }
+        )
+    session_feedback = _object_contract(candidate, "session_feedback")
+    session_optional = set(_meaningful_list(session_feedback.get("optional_fields")))
+    conditional_required = session_feedback.get("conditional_required_fields") or {}
+    if "deviation_reason" not in session_optional and "deviation_reason" not in _meaningful_list(session_feedback.get("required_fields")):
+        findings.append(
+            {
+                "severity": "P1",
+                "type": "session_feedback_deviation_reason_missing",
+                "description": "session_feedback must preserve deviation_reason so unfinished sessions can drive different micro-adjustment decisions.",
+            }
+        )
+    if "completed=false" not in conditional_required:
+        findings.append(
+            {
+                "severity": "P1",
+                "type": "session_feedback_condition_rule_missing",
+                "description": "session_feedback must declare that completed=false requires deviation_reason.",
+            }
+        )
+    min_profile = _object_contract(candidate, "min_profile")
+    if not _meaningful_list(min_profile.get("bridge_split_recommendation")):
+        findings.append(
+            {
+                "severity": "P1",
+                "type": "min_profile_split_recommendation_missing",
+                "description": "min_profile still looks overloaded; bridge-level split recommendation is missing.",
+            }
+        )
+    plan_lifecycle = _object_contract(candidate, "plan_lifecycle")
+    lifecycle_constraints = " ".join(_meaningful_list(plan_lifecycle.get("constraints"))).lower()
+    if "intake runtime state" not in lifecycle_constraints and "ui page step" not in lifecycle_constraints:
+        findings.append(
+            {
+                "severity": "P1",
+                "type": "plan_lifecycle_onboarding_clarity_missing",
+                "description": "plan_lifecycle must clarify that onboarding is an intake runtime state, not a UI page step.",
+            }
+        )
+    guardrail = _object_contract(candidate, "plan_generation_guardrail")
+    if not guardrail:
+        findings.append(
+            {
+                "severity": "P1",
+                "type": "guardrail_object_missing",
+                "description": "Training-plan SRC must objectize plan_generation_guardrail instead of leaving guardrails only in prose contracts.",
+            }
+        )
+    else:
+        for field in ["minimum_checks", "failure_behavior", "output_contract"]:
+            if not _meaningful_list(guardrail.get(field)):
+                findings.append(
+                    {
+                        "severity": "P1",
+                        "type": "guardrail_contract_incomplete",
+                        "description": f"plan_generation_guardrail must declare {field} as a non-empty machine-readable field.",
+                    }
+                )
+    bridge = candidate.get("bridge_context") or {}
+    recommended_split = _meaningful_list(bridge.get("recommended_min_profile_split"))
+    if len(recommended_split) < 4:
+        findings.append(
+            {
+                "severity": "P1",
+                "type": "bridge_split_recommendation_missing",
+                "description": "Bridge context should recommend how min_profile can be decomposed downstream.",
+            }
+        )
+    governance_objects = _meaningful_list(bridge.get("governance_objects"))
+    if not governance_objects or not all(_looks_like_object_token(item) for item in governance_objects):
+        findings.append(
+            {
+                "severity": "P1",
+                "type": "bridge_governance_objects_invalid",
+                "description": "bridge_context.governance_objects must be an object-name list, not copied prose constraints.",
+            }
+        )
+    target_objects = set(_meaningful_list(candidate.get("target_capability_objects")))
+    if recommended_split and target_objects & set(recommended_split):
+        findings.append(
+            {
+                "severity": "P1",
+                "type": "bridge_split_objects_mixed_into_target_objects",
+                "description": "target_capability_objects should keep source/bridge core objects only; bridge split recommendation objects must stay in bridge_context.recommended_min_profile_split.",
+            }
+        )
+    current_api_anchors = _meaningful_list(bridge.get("current_api_anchors"))
+    if not current_api_anchors:
+        findings.append(
+            {
+                "severity": "P1",
+                "type": "current_api_anchors_missing",
+                "description": "bridge_context.current_api_anchors must preserve current route anchors as bridge-level compatibility metadata.",
+            }
+        )
+    core_apis = _meaningful_list((candidate.get("semantic_inventory") or {}).get("core_apis"))
+    if core_apis and any(not item.startswith("current_api_anchor:") for item in core_apis):
+        findings.append(
+            {
+                "severity": "P1",
+                "type": "current_api_anchor_label_missing",
+                "description": "Training-plan API references must be labeled as current_api_anchor values, not rendered as final authoritative API specs.",
+            }
+        )
+    commands = _meaningful_list((candidate.get("semantic_inventory") or {}).get("commands"))
+    normalized_api_anchors = {item.replace("current_api_anchor: ", "", 1).strip() for item in core_apis}
+    normalized_commands = {
+        item.replace("candidate_command_surface: ", "", 1).replace("derived_command_candidate: ", "", 1).strip()
+        for item in commands
+    }
+    if normalized_api_anchors and normalized_commands and normalized_api_anchors == normalized_commands:
+        findings.append(
+            {
+                "severity": "P1",
+                "type": "duplicate_api_command_surfaces",
+                "description": "Current API anchors and candidate command surfaces currently duplicate the same route set and should not both be frozen in semantic_inventory.",
+            }
+        )
+    risk_gate = _object_contract(candidate, "risk_gate_result")
+    risk_gate_required = set(_meaningful_list(risk_gate.get("required_fields")))
+    enum_freezes = candidate.get("enum_freezes") or {}
+    if "risk_gate_result" in enum_freezes and {"result", "outcome"} & risk_gate_required:
+        findings.append(
+            {
+                "severity": "P1",
+                "type": "risk_gate_naming_collision",
+                "description": "risk_gate_result is used as both object name and enum field name; rename the enum field or object field to avoid downstream ambiguity.",
+            }
+        )
 
 
 def _execution_runner_semantic_lock() -> dict[str, Any]:
@@ -531,6 +1046,39 @@ def semantic_review(candidate: dict[str, Any], duplicate_path: Any, document: di
                 "description": "SRC candidate is missing omission_and_compression_report, so compressed or omitted semantics are not explicit.",
             }
         )
+    findings.extend(_bundle_density_findings(candidate))
+    if _candidate_contains_onboarding_projection(candidate) and not _document_is_onboarding_like(document):
+        findings.append(
+            {
+                "severity": "P0",
+                "type": "source_topic_drift",
+                "description": "Candidate introduces onboarding-specific contracts or objects that are not supported by the raw source topic.",
+            }
+        )
+    if _has_onboarding_projection(candidate) and not _is_onboarding_document_evidence(document):
+        findings.append(
+            {
+                "severity": "P0",
+                "type": "domain_projection_mismatch",
+                "description": "Candidate contains onboarding-specific contracts or objects, but the raw input does not provide onboarding-specific evidence.",
+            }
+        )
+    if _candidate_contains_training_plan_projection(candidate) and not _document_is_training_plan_like(document):
+        findings.append(
+            {
+                "severity": "P0",
+                "type": "source_topic_drift",
+                "description": "Candidate introduces training-plan-specific contracts or objects that are not supported by the raw source topic.",
+            }
+        )
+    if _has_training_plan_projection(candidate) and not _is_training_plan_document_evidence(document):
+        findings.append(
+            {
+                "severity": "P0",
+                "type": "domain_projection_mismatch",
+                "description": "Candidate contains training-plan-specific contracts or objects, but the raw input does not provide training-plan evidence.",
+            }
+        )
     contradiction_register = candidate.get("contradiction_register")
     if contradiction_register is None:
         findings.append(
@@ -540,6 +1088,8 @@ def semantic_review(candidate: dict[str, Any], duplicate_path: Any, document: di
                 "description": "SRC candidate is missing contradiction_register, so unresolved conflicts are not explicit.",
             }
         )
+    if _document_is_training_plan_like(document) or _has_training_plan_projection(candidate):
+        _append_training_plan_density_findings(candidate, findings)
     if candidate["source_kind"] == "governance_bridge_src":
         bridge = candidate.get("bridge_context") or {}
         if not bridge:
@@ -713,6 +1263,7 @@ def acceptance_review(candidate: dict[str, Any], source_review: dict[str, Any]) 
     source_findings = deepcopy(source_review["findings"])
     acceptance_findings: list[dict[str, Any]] = []
     dimensions = {name: {"status": "pass", "note": "No blocking issue detected."} for name in ACCEPTANCE_DIMENSIONS}
+    source_findings.extend(_bundle_density_findings(candidate))
     if candidate["source_kind"] == "governance_bridge_src":
         dimensions.update({name: {"status": "pass", "note": "Bridge density is acceptable."} for name in BRIDGE_ACCEPTANCE_DIMENSIONS})
         bridge_acceptance_findings = _bridge_acceptance_findings(candidate)
@@ -753,6 +1304,13 @@ def acceptance_review(candidate: dict[str, Any], source_review: dict[str, Any]) 
             dimensions["compression_risk"] = {"status": "revise", "note": "Compression risk is not explicit or remains too high."}
         if any(item["type"] in {"semantic_inventory_missing", "source_provenance_missing", "normalization_decisions_missing"} for item in source_findings):
             dimensions["semantic_preservation"] = {"status": "revise", "note": "High-fidelity source semantics are not preserved well enough."}
+        if any(item["type"] in {"projector_selection_missing", "selected_facets_missing", "facet_bundle_recommendation_missing", "facet_inference_missing", "semantic_density_insufficient", "semantic_inventory_too_thin", "frozen_contract_density_insufficient"} for item in source_findings):
+            dimensions["feature_completeness"] = {"status": "revise", "note": "Facet-aware candidate remains too thin to be freeze-ready."}
+            dimensions["semantic_preservation"] = {"status": "revise", "note": "Facet-aware inherited semantics are still not dense enough."}
+        if any(item["type"] in {"machine_contracts_missing", "semantic_inventory_too_thin"} for item in source_findings):
+            dimensions["semantic_preservation"] = {"status": "revise", "note": "Machine-contract sections or semantic inventory are too thin for stable downstream derivation."}
+        if any(item["type"] in {"downstream_actionability_insufficient"} for item in source_findings):
+            dimensions["feature_completeness"] = {"status": "revise", "note": "Downstream inheritance requirements are still too thin for stable consumption."}
         acceptance_findings.append(
             {
                 "severity": "P1",
