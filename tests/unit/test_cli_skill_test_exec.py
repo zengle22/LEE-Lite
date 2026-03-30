@@ -95,6 +95,63 @@ class TestCliExecSkillRuntime(SkillRuntimeHarness):
         summary = read_json(self.resolve_ref(payload["results_summary_ref"]))
         self.assertEqual(summary["blocked"], 5)
 
+    def test_cli_skill_can_run_smoke_mode_with_python_inline_command(self) -> None:
+        command = python_command("import os; print(os.environ['LEE_TEST_CASE_ID'])")
+        env_ref = self.write_env_spec(
+            "cli-smoke-env.yaml",
+            "execution_modality: cli\n"
+            "coverage_mode: smoke\n"
+            "command_entry: >-\n"
+            f"  {command}\n"
+            "workdir: .\n",
+        )
+        request = self.build_request(
+            "skill.test-exec-cli",
+            {
+                "test_set_ref": self.feat_testset_path("005"),
+                "test_environment_ref": env_ref,
+                "proposal_ref": "proposal-cli-smoke-001",
+            },
+        )
+        req = self.request_path("skill-cli-smoke.json")
+        write_json(req, request)
+        response = self.response_path("skill-cli-smoke.response.json")
+        self.assertEqual(self.run_cli("skill", "test-exec-cli", "--request", str(req), "--response-out", str(response)), 0)
+        payload = read_json(response)["data"]
+        self.assert_execution_outputs(payload, expected_cases=5, expected_status="completed")
+        coverage_summary = read_json(self.resolve_ref(payload["coverage_summary_ref"]))
+        self.assertEqual(coverage_summary["status"], "disabled")
+
+    def test_cli_skill_rejects_python_inline_command_when_coverage_is_enabled(self) -> None:
+        command = python_command("import os; print(os.environ['LEE_TEST_CASE_ID'])")
+        env_ref = self.write_env_spec(
+            "cli-qualification-inline-env.yaml",
+            "execution_modality: cli\n"
+            "coverage_mode: qualification\n"
+            "coverage_scope_name:\n"
+            "  - qualification inline rejection\n"
+            "coverage_include:\n"
+            f"  - {(self.workspace / 'tools' / 'qualification_inline_target.py').as_posix()}\n"
+            "command_entry: >-\n"
+            f"  {command}\n"
+            "workdir: .\n",
+        )
+        request = self.build_request(
+            "skill.test-exec-cli",
+            {
+                "test_set_ref": self.feat_testset_path("005"),
+                "test_environment_ref": env_ref,
+                "proposal_ref": "proposal-cli-inline-reject-001",
+            },
+        )
+        req = self.request_path("skill-cli-inline-reject.json")
+        write_json(req, request)
+        response = self.response_path("skill-cli-inline-reject.response.json")
+        self.assertNotEqual(self.run_cli("skill", "test-exec-cli", "--request", str(req), "--response-out", str(response)), 0)
+        payload = read_json(response)
+        self.assertEqual(payload["status_code"], "PRECONDITION_FAILED")
+        self.assertIn("python -c", payload["message"])
+
     def test_cli_skill_pilot_integration_flow(self) -> None:
         command = python_command("import os; assert os.environ['LEE_EXECUTION_MODALITY'] == 'cli'; print(os.environ['LEE_TEST_CASE_ID'])")
         env_ref = self.write_env_spec(
@@ -187,6 +244,7 @@ class TestCliExecSkillRuntime(SkillRuntimeHarness):
         env_ref = self.write_env_spec(
             "cli-coverage-env.yaml",
             "execution_modality: cli\n"
+            "coverage_mode: qualification\n"
             "coverage_enabled: true\n"
             "coverage_scope_name:\n"
             "  - collaboration-cli-runtime\n"

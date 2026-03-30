@@ -4,6 +4,7 @@ import json
 import re
 import sys
 import tempfile
+import textwrap
 import types
 import unittest
 from pathlib import Path
@@ -14,6 +15,7 @@ from cli.lib.execution_return_registry import ExecutionReturnRoute, resolve_exec
 from cli.lib.execution_runner import run_job
 from cli.lib.job_outcome import complete_job
 from cli.lib.job_queue import claim_job
+from cli.lib.skill_runtime_paths import resolve_skill_scripts_dir
 from cli.ll import main
 from cli.lib.skill_invoker import invoke_target
 
@@ -907,3 +909,51 @@ class CliRunnerRuntimeTest(unittest.TestCase):
             )
         self.assertEqual(captured["input_path"], "ssot/src/SRC-001__demo.md")
         self.assertTrue(result["ok"])
+
+    def test_resolve_skill_scripts_dir_falls_back_to_canonical_cli_root(self) -> None:
+        with tempfile.TemporaryDirectory() as canonical_dir:
+            canonical_root = Path(canonical_dir)
+            scripts_dir = canonical_root / "skills" / "ll-product-src-to-epic" / "scripts"
+            scripts_dir.mkdir(parents=True)
+            with patch("cli.lib.skill_runtime_paths.canonical_cli_root", return_value=canonical_root):
+                resolved = resolve_skill_scripts_dir(self.workspace, "ll-product-src-to-epic")
+        self.assertEqual(resolved, scripts_dir)
+
+    def test_invoke_src_to_epic_falls_back_to_canonical_scripts_when_workspace_has_no_skills(self) -> None:
+        with tempfile.TemporaryDirectory() as canonical_dir:
+            canonical_root = Path(canonical_dir)
+            scripts_dir = canonical_root / "skills" / "ll-product-src-to-epic" / "scripts"
+            scripts_dir.mkdir(parents=True)
+            module_path = scripts_dir / "src_to_epic_runtime.py"
+            module_path.write_text(
+                textwrap.dedent(
+                    """
+                    def run_workflow(*, input_path, repo_root, run_id, allow_update):
+                        return {
+                            "ok": True,
+                            "input_path": input_path,
+                            "repo_root": str(repo_root),
+                            "run_id": run_id,
+                            "allow_update": allow_update,
+                        }
+                    """
+                ).strip()
+                + "\n",
+                encoding="utf-8",
+            )
+            with patch("cli.lib.skill_runtime_paths.canonical_cli_root", return_value=canonical_root):
+                sys.modules.pop("src_to_epic_runtime", None)
+                result = invoke_target(
+                    workspace_root=self.workspace,
+                    trace={},
+                    request_id="req-src-fallback",
+                    job={
+                        "target_skill": "workflow.product.src_to_epic",
+                        "formal_ref": "formal.src.demo",
+                        "authoritative_input_ref": "ssot/src/SRC-001__demo.md",
+                    },
+                )
+                sys.modules.pop("src_to_epic_runtime", None)
+        self.assertTrue(result["ok"])
+        self.assertEqual(result["result"]["input_path"], "ssot/src/SRC-001__demo.md")
+        self.assertEqual(result["result"]["repo_root"], str(self.workspace))
