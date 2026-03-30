@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import Any
 
 from cli.lib.errors import CommandError, ensure
+from cli.lib.execution_return_registry import resolve_execution_return_route
 from cli.lib.fs import canonical_to_path, load_json, to_canonical_path, write_json
 from cli.lib.formalization import materialize_formal
 from cli.lib.gate_collaboration_actions import collaboration_handlers
@@ -173,6 +174,25 @@ def _raw_to_src_package_dir(ctx: CommandContext, candidate_ref: str) -> Path | N
     if not managed_artifact_ref:
         return None
     return canonical_to_path(managed_artifact_ref, ctx.workspace_root).parent
+
+
+def _resolve_execution_return_dispatch(decision: dict[str, Any]) -> tuple[str, str, str]:
+    candidate_ref = str(decision.get("candidate_ref") or "").strip()
+    decision_target = str(decision.get("decision_target") or candidate_ref).strip()
+    synthetic_job = {
+        "candidate_ref": candidate_ref,
+        "decision_target": decision_target,
+        "payload_ref": decision_target,
+        "authoritative_input_ref": decision_target or candidate_ref,
+    }
+    try:
+        resolution = resolve_execution_return_route(synthetic_job, decision)
+    except CommandError as exc:
+        if exc.status_code == "REGISTRY_MISS":
+            return "", decision_target or candidate_ref, ""
+        raise
+    authoritative_input_ref = resolution.matched_ref or candidate_ref or decision_target
+    return resolution.source_run_id, authoritative_input_ref, resolution.route.workflow_key
 
 
 def _ensure_raw_to_src_gate_ready(ctx: CommandContext, candidate_ref: str) -> None:
@@ -572,6 +592,7 @@ def _dispatch_action(ctx: CommandContext):
         )
     elif dispatch_target == "execution_return":
         materialized_job_ref = f"artifacts/jobs/waiting-human/{Path(decision_ref).stem}-return.json"
+        source_run_id, authoritative_input_ref, workflow_key = _resolve_execution_return_dispatch(decision)
         write_json(
             _artifact_path(ctx, materialized_job_ref),
             {
@@ -584,10 +605,12 @@ def _dispatch_action(ctx: CommandContext):
                 "target_skill": "execution.return",
                 "payload_ref": str(decision.get("decision_target", "")),
                 "input_refs": [decision_ref, str(decision.get("decision_target", ""))],
-                "authoritative_input_ref": str(decision.get("decision_target", "")),
+                "authoritative_input_ref": authoritative_input_ref,
+                "source_run_id": source_run_id,
                 "decision_type": decision_type,
                 "created_at": _utc_now(),
                 "reason": "gate requested execution-side revision before resubmission",
+                **({"workflow_key": workflow_key} if workflow_key else {}),
             },
         )
     else:

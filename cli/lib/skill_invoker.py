@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import Any, Iterator
 
 from cli.lib.errors import CommandError, ensure
+from cli.lib.execution_return_registry import invoke_execution_return_job
 
 
 @contextmanager
@@ -30,6 +31,23 @@ def _invoke_feat_to_tech(workspace_root: Path, job: dict[str, Any], payload: dic
     scripts_dir = workspace_root / "skills" / "ll-dev-feat-to-tech" / "scripts"
     with _prepend_sys_path(scripts_dir):
         from feat_to_tech_runtime import run_workflow
+
+        result = run_workflow(
+            input_path=input_ref,
+            feat_ref=str(job["feat_ref"]),
+            repo_root=workspace_root,
+            run_id=str(payload.get("downstream_run_id") or ""),
+            allow_update=True,
+        )
+    return {"ok": bool(result.get("ok", True)), "target_skill": job["target_skill"], "result": result}
+
+
+def _invoke_feat_to_ui(workspace_root: Path, job: dict[str, Any], payload: dict[str, Any]) -> dict[str, Any]:
+    ensure(job.get("feat_ref"), "PRECONDITION_FAILED", "feat_to_ui job missing feat_ref")
+    input_ref = _authoritative_input_ref(job)
+    scripts_dir = workspace_root / "skills" / "ll-dev-feat-to-ui" / "scripts"
+    with _prepend_sys_path(scripts_dir):
+        from feat_to_ui import run_workflow
 
         result = run_workflow(
             input_path=input_ref,
@@ -148,15 +166,20 @@ def invoke_target(
     request_id: str,
     job: dict[str, Any],
     payload: dict[str, Any] | None = None,
+    job_ref: str | None = None,
 ) -> dict[str, Any]:
     payload = payload or {}
     target_skill = str(job.get("target_skill") or "").strip()
     ensure(target_skill, "PRECONDITION_FAILED", "job missing target_skill")
     try:
+        if target_skill == "execution.return":
+            return invoke_execution_return_job(workspace_root, trace, request_id, job_ref, job, payload)
         if target_skill == "workflow.product.src_to_epic":
             return _invoke_src_to_epic(workspace_root, job, payload)
         if target_skill == "workflow.product.epic_to_feat":
             return _invoke_epic_to_feat(workspace_root, job, payload)
+        if target_skill == "workflow.dev.feat_to_ui":
+            return _invoke_feat_to_ui(workspace_root, job, payload)
         if target_skill == "workflow.dev.feat_to_tech":
             return _invoke_feat_to_tech(workspace_root, job, payload)
         if target_skill == "workflow.qa.feat_to_testset":

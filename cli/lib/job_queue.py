@@ -192,3 +192,35 @@ def release_hold_job(
         "queue_path": released_job.get("queue_path", released_ref),
         "progression_mode": released_job.get("progression_mode", ""),
     }
+
+
+def release_waiting_human_job(
+    workspace_root: Path,
+    job_ref: str,
+    *,
+    actor_ref: str,
+    note: str | None = None,
+    updates: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    _, payload = load_job_record(workspace_root, job_ref)
+    ensure(str(payload.get("status") or "").strip() == "waiting-human", "PRECONDITION_FAILED", f"job is not on hold: {job_ref}")
+    released_ref, released_job = transition_job(
+        workspace_root,
+        job_ref,
+        "ready",
+        actor_ref=actor_ref,
+        note=note or "operator released waiting-human job to ready",
+        updates={
+            **(updates or {}),
+            "released_at": claimed_job_time(),
+            "released_by": actor_ref,
+        },
+    )
+    return {
+        "canonical_path": released_ref,
+        "job_ref": released_ref,
+        "released_job_ref": released_ref,
+        "job_id": released_job["job_id"],
+        "status": released_job["status"],
+        "queue_path": released_job.get("queue_path", released_ref),
+    }

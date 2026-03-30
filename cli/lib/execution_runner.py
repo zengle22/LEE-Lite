@@ -50,7 +50,7 @@ def run_job(
     )
     attempt_ref = f"artifacts/evidence/execution/{running_job['job_id']}-attempt.json"
     try:
-        dispatch_result = invoke_target(workspace_root, trace, request_id, running_job, payload)
+        dispatch_result = invoke_target(workspace_root, trace, request_id, running_job, payload, job_ref=running_ref)
         recommended_outcome = "done" if dispatch_result.get("ok") else "failed"
         error_message = ""
     except CommandError as exc:

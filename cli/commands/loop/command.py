@@ -8,7 +8,7 @@ from typing import Any
 from cli.lib.errors import ensure, parse_int
 from cli.lib.execution_runner import run_job
 from cli.lib.job_outcome import complete_job, fail_job
-from cli.lib.job_queue import claim_job, list_ready_jobs
+from cli.lib.job_queue import claim_job, list_jobs, list_ready_jobs, release_waiting_human_job
 from cli.lib.protocol import CommandContext, ExecutionRunnerStartRequest, run_with_protocol
 from cli.lib.runner_entry import bootstrap_runner_entry
 from cli.lib.runner_monitor import write_recovery_snapshot, write_status_snapshot
@@ -32,10 +32,44 @@ def _recovery_action(payload: dict[str, Any]) -> str | None:
     return None
 
 
+def _release_execution_return_jobs(
+    ctx: CommandContext,
+    *,
+    actor_ref: str,
+    requested_job_ref: str = "",
+) -> tuple[list[dict[str, Any]], str]:
+    released: list[dict[str, Any]] = []
+    remapped_requested_ref = requested_job_ref
+    for item in list_jobs(ctx.workspace_root, "waiting-human"):
+        if item["target_skill"] != "execution.return":
+            continue
+        result = release_waiting_human_job(
+            ctx.workspace_root,
+            item["job_ref"],
+            actor_ref=actor_ref,
+            note="runner auto-released execution.return job for revision-aware rerun",
+            updates={
+                "released_reason": "execution.return routed to upstream workflow rerun",
+                "decision_target": item["payload"].get("decision_target", ""),
+            },
+        )
+        released.append(
+            {
+                "job_ref": result["released_job_ref"],
+                "job_id": result["job_id"],
+                "target_skill": item["target_skill"],
+            }
+        )
+        if requested_job_ref and item["job_ref"] == requested_job_ref:
+            remapped_requested_ref = result["released_job_ref"]
+    return released, remapped_requested_ref
+
+
 def _run_execution(ctx: CommandContext):
     payload = ctx.payload
     actor_ref = str(ctx.request.get("actor_ref") or "runner.operator")
     owner_ref = str(payload.get("runner_id") or actor_ref)
+    requested_job_ref = str(payload.get("ready_job_ref") or "")
     entry_request = ExecutionRunnerStartRequest.from_command_context(
         ctx,
         default_entry_mode="resume" if ctx.action == "resume-execution" else None,
@@ -47,11 +81,16 @@ def _run_execution(ctx: CommandContext):
             actor_ref=actor_ref,
             trace=ctx.trace,
             start_request=entry_request,
-        )
+            )
         if entry_request
         else None
     )
-    ready_jobs = [{"job_ref": str(payload["ready_job_ref"])}] if payload.get("ready_job_ref") else list_ready_jobs(ctx.workspace_root)
+    released_return_jobs, requested_job_ref = _release_execution_return_jobs(
+        ctx,
+        actor_ref=actor_ref,
+        requested_job_ref=requested_job_ref,
+    )
+    ready_jobs = [{"job_ref": requested_job_ref}] if requested_job_ref else list_ready_jobs(ctx.workspace_root)
     processed: list[dict[str, Any]] = []
     for item in ready_jobs[: _max_jobs(payload, ready_jobs)]:
         claimed = claim_job(
@@ -119,6 +158,7 @@ def _run_execution(ctx: CommandContext):
         "runner_run_ref": report_ref,
         "processed_count": len(processed),
         "processed_jobs": processed,
+        "released_execution_return_jobs": released_return_jobs,
         "post_run_snapshot_ref": post_run_snapshot["snapshot_ref"],
         "post_run_counts": post_run_snapshot["counts"],
         "post_run_queue_summary": post_run_snapshot["queue_summary"],
