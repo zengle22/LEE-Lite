@@ -176,6 +176,91 @@ class FeatToTechWorkflowTests(FeatToTechWorkflowHarness):
             self.assertIsNone(design["artifact_refs"]["api_spec"])
             self.assertEqual(design["artifact_refs"]["tech_spec"], "tech-spec.md")
 
+    def test_revision_request_rerun_persists_revision_context_and_constraints(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            repo_root = Path(temp_dir)
+            feature = {
+                "feat_ref": "FEAT-SRC-001-REVISION",
+                "title": "回流修订感知 TECH 流",
+                "goal": "验证 allow-update 复跑时会吸收 revision request 并保留 lineage。",
+                "scope": [
+                    "将 revision request 物化到 artifacts 目录。",
+                    "把 revision summary 吸收到 TECH constraints。",
+                    "让 manifest 与 evidence 记录 revision lineage。",
+                ],
+                "constraints": [
+                    "不得重写整份 TECH 设计。",
+                    "只能做最小约束补丁。",
+                    "必须支持同 run_id allow-update 复跑。",
+                ],
+                "dependencies": [
+                    "上游 feat_freeze_package 已可 freeze。",
+                ],
+                "outputs": ["revision-aware tech candidate"],
+                "acceptance_checks": [
+                    {"scenario": "revision request is materialized", "given": "rerun input", "when": "invoke run with revision request", "then": "revision-request.json 会写入 artifacts"},
+                    {"scenario": "constraints absorb revision", "given": "revision request", "when": "build tech design", "then": "implementation_rules 会保留 revision summary"},
+                    {"scenario": "lineage is visible", "given": "manifest and evidence", "when": "inspect outputs", "then": "revision_request_ref 可追溯"},
+                ],
+                "source_refs": ["FEAT-SRC-001-REVISION", "EPIC-SRC-001-001", "SRC-001"],
+            }
+            bundle = self.make_bundle_json(feature, run_id="feat-tech-revision-input")
+            input_dir = self.make_feat_package(repo_root, "feat-tech-revision-input", bundle)
+
+            initial = self.run_cmd("run", "--input", str(input_dir), "--feat-ref", "FEAT-SRC-001-REVISION", "--repo-root", str(repo_root), "--run-id", "tech-revision")
+            self.assertEqual(initial.returncode, 0, initial.stderr)
+            artifacts_dir = Path(json.loads(initial.stdout)["artifacts_dir"])
+
+            revision_request = {
+                "workflow_key": "dev.feat-to-tech",
+                "run_id": "tech-revision",
+                "source_run_id": "feat-tech-revision-input",
+                "decision_type": "revise",
+                "decision_target": "implementation_rules",
+                "decision_reason": "Add the minimal recovery guardrail before freeze.",
+                "revision_round": 2,
+                "source_gate_decision_ref": "artifacts/gate-human-orchestrator/revision-decision.json",
+                "source_return_job_ref": "artifacts/jobs/waiting-human/tech-revision-return.json",
+                "authoritative_input_ref": "artifacts/epic-to-feat/feat-tech-revision-input/feat-freeze-package.json",
+            }
+            revision_request_path = repo_root / "revision-request.json"
+            revision_request_path.write_text(json.dumps(revision_request, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+
+            rerun = self.run_cmd(
+                "run",
+                "--input",
+                str(input_dir),
+                "--feat-ref",
+                "FEAT-SRC-001-REVISION",
+                "--repo-root",
+                str(repo_root),
+                "--run-id",
+                "tech-revision",
+                "--allow-update",
+                "--revision-request",
+                str(revision_request_path),
+            )
+            self.assertEqual(rerun.returncode, 0, rerun.stderr)
+
+            design = json.loads((artifacts_dir / "tech-design-bundle.json").read_text(encoding="utf-8"))
+            manifest = json.loads((artifacts_dir / "package-manifest.json").read_text(encoding="utf-8"))
+            execution = json.loads((artifacts_dir / "execution-evidence.json").read_text(encoding="utf-8"))
+            supervision = json.loads((artifacts_dir / "supervision-evidence.json").read_text(encoding="utf-8"))
+            freeze_gate = json.loads((artifacts_dir / "tech-freeze-gate.json").read_text(encoding="utf-8"))
+            revision_materialized = json.loads((artifacts_dir / "revision-request.json").read_text(encoding="utf-8"))
+
+            self.assertEqual(revision_materialized["decision_reason"], revision_request["decision_reason"])
+            self.assertEqual(design["revision_context"]["revision_request_ref"], "revision-request.json")
+            self.assertEqual(manifest["revision_request_ref"], "revision-request.json")
+            self.assertEqual(execution["revision_context"]["revision_request_ref"], "revision-request.json")
+            self.assertEqual(supervision["revision_context"]["revision_request_ref"], "revision-request.json")
+            self.assertEqual(freeze_gate["revision_context"]["revision_request_ref"], "revision-request.json")
+            self.assertTrue(
+                any("Revision constraint:" in item and revision_request["decision_reason"] in item for item in design["tech_design"]["implementation_rules"])
+            )
+            self.assertTrue(any("Applied revision context:" in item for item in execution["key_decisions"]))
+            self.assertTrue((artifacts_dir / "evidence-report.md").read_text(encoding="utf-8").find("revision_request_ref: revision-request.json") >= 0)
+
     def test_io_path_governance_feat_emits_api_contract(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             repo_root = Path(temp_dir)

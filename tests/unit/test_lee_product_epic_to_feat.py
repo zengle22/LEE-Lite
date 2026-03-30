@@ -89,6 +89,31 @@ class EpicToFeatWorkflowTests(unittest.TestCase):
             (package_dir / name).write_text(json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
         return package_dir
 
+    def make_revision_request(self, root: Path, run_id: str, source_run_id: str, reason: str) -> Path:
+        revision_request = {
+            "workflow_key": "product.epic-to-feat",
+            "run_id": run_id,
+            "source_run_id": source_run_id,
+            "decision_type": "revise",
+            "decision_reason": reason,
+            "decision_target": f"epic-to-feat.{run_id}.feat-freeze-bundle",
+            "basis_refs": ["feat-review-report.json", "feat-acceptance-report.json"],
+            "revision_round": 1,
+            "source_gate_decision_ref": "artifacts/active/gates/decisions/gate-decision.json",
+            "source_return_job_ref": "artifacts/jobs/waiting-human/epic-to-feat-return.json",
+            "authoritative_input_ref": f"artifacts/src-to-epic/{source_run_id}",
+            "candidate_ref": f"epic-to-feat.{run_id}.feat-freeze-bundle",
+            "original_input_path": str(root / "artifacts" / "src-to-epic" / source_run_id),
+            "triggered_by_request_id": f"req-{run_id}-revise",
+            "trace": {
+                "run_ref": run_id,
+                "workflow_key": "product.epic-to-feat",
+            },
+        }
+        revision_path = root / "revision-request.json"
+        revision_path.write_text(json.dumps(revision_request, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+        return revision_path
+
     def base_epic_json(self) -> dict[str, object]:
         return {
             "artifact_type": "epic_freeze_package",
@@ -270,6 +295,56 @@ class EpicToFeatWorkflowTests(unittest.TestCase):
 
             validate = self.run_cmd("validate-output", "--artifacts-dir", str(artifacts_dir))
             self.assertEqual(validate.returncode, 0, validate.stderr)
+
+    def test_revision_request_rerun_materializes_revision_trace_and_updates_evidence(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            repo_root = Path(temp_dir)
+            epic = self.base_epic_json()
+            input_dir = self.make_epic_package(repo_root, "epic-revise-input", epic)
+
+            first_result = self.run_cmd("run", "--input", str(input_dir), "--repo-root", str(repo_root), "--run-id", "feat-revise")
+            self.assertEqual(first_result.returncode, 0, first_result.stderr)
+
+            revision_request_path = self.make_revision_request(
+                repo_root,
+                run_id="feat-revise",
+                source_run_id="epic-revise-input",
+                reason="保留下游 FEAT 边界，但把 revise 上下文显式写入 bundle / evidence / gate。",
+            )
+            rerun_result = self.run_cmd(
+                "run",
+                "--input",
+                str(input_dir),
+                "--repo-root",
+                str(repo_root),
+                "--run-id",
+                "feat-revise",
+                "--allow-update",
+                "--revision-request",
+                str(revision_request_path),
+            )
+            self.assertEqual(rerun_result.returncode, 0, rerun_result.stderr)
+
+            payload = json.loads(rerun_result.stdout)
+            artifacts_dir = Path(payload["artifacts_dir"])
+            bundle = json.loads((artifacts_dir / "feat-freeze-bundle.json").read_text(encoding="utf-8"))
+            manifest = json.loads((artifacts_dir / "package-manifest.json").read_text(encoding="utf-8"))
+            execution = json.loads((artifacts_dir / "execution-evidence.json").read_text(encoding="utf-8"))
+            supervision = json.loads((artifacts_dir / "supervision-evidence.json").read_text(encoding="utf-8"))
+            gate = json.loads((artifacts_dir / "feat-freeze-gate.json").read_text(encoding="utf-8"))
+            revision_materialized = json.loads((artifacts_dir / "revision-request.json").read_text(encoding="utf-8"))
+            report = (artifacts_dir / "evidence-report.md").read_text(encoding="utf-8")
+
+            self.assertEqual(revision_materialized["revision_round"], 1)
+            self.assertEqual(revision_materialized["workflow_key"], "product.epic-to-feat")
+            self.assertEqual(bundle["revision_context"]["revision_request_ref"], str(artifacts_dir / "revision-request.json"))
+            self.assertIn("Gate revise:", bundle["revision_context"]["summary"])
+            self.assertEqual(manifest["revision_request_ref"], str(artifacts_dir / "revision-request.json"))
+            self.assertEqual(execution["revision_request_ref"], str(artifacts_dir / "revision-request.json"))
+            self.assertEqual(supervision["revision_request_ref"], str(artifacts_dir / "revision-request.json"))
+            self.assertEqual(gate["revision_request_ref"], str(artifacts_dir / "revision-request.json"))
+            self.assertIn("Revision context absorbed", "\n".join(item["title"] for item in supervision["semantic_findings"]))
+            self.assertIn("revision_request_ref", report)
 
     def test_formal_epic_ref_is_admissible_input_for_epic_to_feat(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:

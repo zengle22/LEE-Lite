@@ -697,6 +697,79 @@ class RawToSrcWorkflowTests(unittest.TestCase):
             self.assertTrue((artifacts_dir / "input" / "gate-ready-package.json").exists())
             self.assertTrue(payload["gate_ready_package_ref"])
 
+    def test_revision_request_updates_candidate_constraints_and_evidence(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            repo_root = Path(temp_dir)
+            self.make_repo(repo_root)
+            revision_request = repo_root / "revision-request.json"
+            revision_request.write_text(
+                json.dumps(
+                    {
+                        "workflow_key": "product.raw-to-src",
+                        "run_id": "test-run-revision",
+                        "source_run_id": "test-run-revision",
+                        "decision_type": "revise",
+                        "decision_reason": (
+                            "补丁一：running_level 应收敛为单一训练基础轴；"
+                            "补丁二：最小建档加入 recent_injury_status；"
+                            "补丁三：状态模型改成阶段状态加 capability flags；"
+                            "并补充最小建档单次提交、首页任务卡不阻塞、扩展画像增量更新、AI 首轮建议最低输出目标。"
+                        ),
+                        "decision_target": "raw-to-src.test-run-revision.src-candidate",
+                        "basis_refs": ["artifacts/active/gates/decisions/gate-decision.json"],
+                        "revision_round": 1,
+                        "source_gate_decision_ref": "artifacts/active/gates/decisions/gate-decision.json",
+                        "source_return_job_ref": "artifacts/jobs/ready/job-return.json",
+                        "authoritative_input_ref": "raw-to-src.test-run-revision.src-candidate",
+                    },
+                    ensure_ascii=False,
+                    indent=2,
+                ),
+                encoding="utf-8",
+            )
+
+            result = self.run_cmd(
+                "run",
+                "--input",
+                str(FIXTURES / "raw-requirement.md"),
+                "--repo-root",
+                str(repo_root),
+                "--run-id",
+                "test-run-revision",
+                "--allow-update",
+                "--revision-request",
+                str(revision_request),
+            )
+            self.assertEqual(result.returncode, 0, result.stderr)
+            payload = json.loads(result.stdout)
+            artifacts_dir = Path(payload["artifacts_dir"])
+
+            candidate = json.loads((artifacts_dir / "src-candidate.json").read_text(encoding="utf-8"))
+            constraints = candidate["key_constraints"]
+            self.assertTrue(any("running_level" in item and "单一训练基础轴" in item for item in constraints))
+            self.assertTrue(any("recent_injury_status" in item for item in constraints))
+            self.assertTrue(any("capability flags" in item for item in constraints))
+            self.assertTrue(any("首页任务卡只用于增强" in item for item in constraints))
+            self.assertTrue(any("AI 首轮建议至少应包含" in item for item in constraints))
+            self.assertIn(str(artifacts_dir / "revision-request.json"), candidate["source_refs"])
+
+            execution = json.loads((artifacts_dir / "execution-evidence.json").read_text(encoding="utf-8"))
+            supervision = json.loads((artifacts_dir / "supervision-evidence.json").read_text(encoding="utf-8"))
+            summary = json.loads((artifacts_dir / "result-summary.json").read_text(encoding="utf-8"))
+            manifest = json.loads((artifacts_dir / "package-manifest.json").read_text(encoding="utf-8"))
+            self.assertEqual(execution["revision_request_ref"], str(artifacts_dir / "revision-request.json"))
+            self.assertEqual(supervision["revision_request_ref"], str(artifacts_dir / "revision-request.json"))
+            self.assertEqual(summary["revision_request_ref"], str(artifacts_dir / "revision-request.json"))
+            self.assertEqual(manifest["revision_request_ref"], str(artifacts_dir / "revision-request.json"))
+
+            patch_lineage = json.loads((artifacts_dir / "patch-lineage.json").read_text(encoding="utf-8"))
+            patch_codes = {item["issue_code"] for item in patch_lineage["events"]}
+            self.assertIn("revise", patch_codes)
+            self.assertIn("revision_running_level_axis", patch_codes)
+            self.assertIn("revision_minimal_risk_input", patch_codes)
+            self.assertIn("revision_state_capabilities", patch_codes)
+            self.assertIn("revision_non_blocking_onboarding", patch_codes)
+
     def test_executor_and_supervisor_commands_respect_boundary(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             repo_root = Path(temp_dir)

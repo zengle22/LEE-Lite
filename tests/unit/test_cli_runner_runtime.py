@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import re
 import sys
 import tempfile
 import types
@@ -9,6 +10,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 from cli.lib.errors import CommandError
+from cli.lib.execution_return_registry import ExecutionReturnRoute, resolve_execution_return_route
 from cli.lib.execution_runner import run_job
 from cli.lib.job_outcome import complete_job
 from cli.lib.job_queue import claim_job
@@ -76,6 +78,252 @@ class CliRunnerRuntimeTest(unittest.TestCase):
                 "retry_budget": 1,
                 "created_at": "2026-03-26T00:00:00Z",
                 "feat_ref": "FEAT-DEMO-001",
+            },
+        )
+        return job_ref
+
+    def create_execution_return_job(
+        self,
+        name: str = "job-return.json",
+        *,
+        run_id: str = "user-onboarding-v2-20260330",
+        candidate_ref: str | None = None,
+        authoritative_input_ref: str | None = None,
+        decision_target: str | None = None,
+    ) -> str:
+        source_artifacts_dir = self.workspace / "artifacts" / "raw-to-src" / run_id
+        source_artifacts_dir.mkdir(parents=True, exist_ok=True)
+        raw_input_path = self.workspace / "artifacts" / "raw-to-src" / f"{run_id}-raw-requirement.md"
+        raw_input_path.write_text("# raw requirement\n\nrevision fixture\n", encoding="utf-8")
+        write_json(
+            source_artifacts_dir / "execution-evidence.json",
+            {
+                "run_id": run_id,
+                "input_path": str(raw_input_path),
+            },
+        )
+        write_json(
+            self.workspace / "artifacts" / "active" / "gates" / "decisions" / "gate-decision.json",
+            {
+                "decision_type": "revise",
+                "decision_reason": "补充 recent_injury_status，并把 running_level 收敛为单一训练基础轴。",
+                "candidate_ref": candidate_ref or f"raw-to-src.{run_id}.src-candidate",
+                "decision_target": decision_target or candidate_ref or f"raw-to-src.{run_id}.src-candidate",
+                "decision_basis_refs": [
+                    f"artifacts/raw-to-src/{run_id}/supervision-evidence.json",
+                ],
+            },
+        )
+        job_ref = f"artifacts/jobs/waiting-human/{name}"
+        write_json(
+            self.workspace / job_ref,
+            {
+                "job_id": Path(name).stem,
+                "job_type": "execution_return",
+                "status": "waiting-human",
+                "queue_path": job_ref,
+                "target_skill": "execution.return",
+                "gate_decision_ref": "artifacts/active/gates/decisions/gate-decision.json",
+                "payload_ref": candidate_ref or f"raw-to-src.{run_id}.src-candidate",
+                "input_refs": [
+                    "artifacts/active/gates/decisions/gate-decision.json",
+                    candidate_ref or f"raw-to-src.{run_id}.src-candidate",
+                ],
+                "authoritative_input_ref": authoritative_input_ref or candidate_ref or f"raw-to-src.{run_id}.src-candidate",
+                "decision_type": "revise",
+                "reason": "gate requested execution-side revision before resubmission",
+                "source_run_id": run_id,
+                "created_at": "2026-03-30T00:00:00Z",
+            },
+        )
+        return job_ref
+
+    def create_src_to_epic_execution_return_job(
+        self,
+        name: str = "job-src-to-epic-return.json",
+        *,
+        run_id: str = "epic-user-onboarding-v2-20260330",
+        source_src_run_id: str = "user-onboarding-v2-20260330",
+    ) -> str:
+        source_artifacts_dir = self.workspace / "artifacts" / "src-to-epic" / run_id
+        source_artifacts_dir.mkdir(parents=True, exist_ok=True)
+        source_input_dir = self.workspace / "artifacts" / "raw-to-src" / source_src_run_id
+        source_input_dir.mkdir(parents=True, exist_ok=True)
+        write_json(
+            source_artifacts_dir / "execution-evidence.json",
+            {
+                "run_id": run_id,
+                "input_path": str(source_input_dir),
+            },
+        )
+        write_json(
+            self.workspace / "artifacts" / "active" / "gates" / "decisions" / "gate-decision.json",
+            {
+                "decision_type": "revise",
+                "decision_reason": "请把 revise 上下文显式保留到 epic constraints，并通过 revision_request 落盘。",
+                "candidate_ref": f"src-to-epic.{run_id}.epic-freeze",
+                "decision_target": f"src-to-epic.{run_id}.epic-freeze",
+                "decision_basis_refs": [
+                    f"artifacts/src-to-epic/{run_id}/supervision-evidence.json",
+                ],
+            },
+        )
+        job_ref = f"artifacts/jobs/waiting-human/{name}"
+        write_json(
+            self.workspace / job_ref,
+            {
+                "job_id": Path(name).stem,
+                "job_type": "execution_return",
+                "status": "waiting-human",
+                "queue_path": job_ref,
+                "target_skill": "execution.return",
+                "gate_decision_ref": "artifacts/active/gates/decisions/gate-decision.json",
+                "payload_ref": f"src-to-epic.{run_id}.epic-freeze",
+                "input_refs": [
+                    "artifacts/active/gates/decisions/gate-decision.json",
+                    f"src-to-epic.{run_id}.epic-freeze",
+                ],
+                "authoritative_input_ref": f"src-to-epic.{run_id}.epic-freeze",
+                "source_run_id": run_id,
+                "decision_type": "revise",
+                "reason": "gate requested execution-side revision before resubmission",
+                "created_at": "2026-03-30T00:00:00Z",
+            },
+        )
+        return job_ref
+
+    def create_feat_to_tech_execution_return_job(
+        self,
+        name: str = "job-feat-to-tech-return.json",
+        *,
+        run_id: str = "tech-user-onboarding-v2-20260330",
+        feat_source_run_id: str = "feat-user-onboarding-v2-20260330",
+        feat_ref: str = "FEAT-SRC-001-201",
+    ) -> str:
+        source_artifacts_dir = self.workspace / "artifacts" / "feat-to-tech" / run_id
+        source_artifacts_dir.mkdir(parents=True, exist_ok=True)
+        source_input_dir = self.workspace / "artifacts" / "epic-to-feat" / feat_source_run_id
+        source_input_dir.mkdir(parents=True, exist_ok=True)
+        write_json(source_artifacts_dir / "package-manifest.json", {"run_id": run_id, "feat_ref": feat_ref})
+        write_json(source_artifacts_dir / "tech-design-bundle.json", {"feat_ref": feat_ref, "tech_ref": "TECH-SRC-001-201"})
+        write_json(source_artifacts_dir / "execution-evidence.json", {"run_id": run_id, "input_path": str(source_input_dir)})
+        write_json(
+            self.workspace / "artifacts" / "active" / "gates" / "decisions" / "gate-decision.json",
+            {
+                "decision_type": "revise",
+                "decision_reason": "请保留 revision context 并约束 tech design 的补丁式更新。",
+                "candidate_ref": f"feat-to-tech.{run_id}.tech-design-bundle",
+                "decision_target": f"feat-to-tech.{run_id}.tech-design-bundle",
+            },
+        )
+        job_ref = f"artifacts/jobs/waiting-human/{name}"
+        write_json(
+            self.workspace / job_ref,
+            {
+                "job_id": Path(name).stem,
+                "job_type": "execution_return",
+                "status": "waiting-human",
+                "queue_path": job_ref,
+                "target_skill": "execution.return",
+                "gate_decision_ref": "artifacts/active/gates/decisions/gate-decision.json",
+                "payload_ref": f"feat-to-tech.{run_id}.tech-design-bundle",
+                "input_refs": ["artifacts/active/gates/decisions/gate-decision.json", f"feat-to-tech.{run_id}.tech-design-bundle"],
+                "authoritative_input_ref": f"feat-to-tech.{run_id}.tech-design-bundle",
+                "source_run_id": run_id,
+                "decision_type": "revise",
+                "reason": "gate requested execution-side revision before resubmission",
+                "created_at": "2026-03-30T00:00:00Z",
+            },
+        )
+        return job_ref
+
+    def create_feat_to_testset_execution_return_job(
+        self,
+        name: str = "job-feat-to-testset-return.json",
+        *,
+        run_id: str = "testset-user-onboarding-v2-20260330",
+        feat_source_run_id: str = "feat-user-onboarding-v2-20260330",
+        feat_ref: str = "FEAT-SRC-001-202",
+    ) -> str:
+        source_artifacts_dir = self.workspace / "artifacts" / "feat-to-testset" / run_id
+        source_artifacts_dir.mkdir(parents=True, exist_ok=True)
+        source_input_dir = self.workspace / "artifacts" / "epic-to-feat" / feat_source_run_id
+        source_input_dir.mkdir(parents=True, exist_ok=True)
+        write_json(source_artifacts_dir / "package-manifest.json", {"run_id": run_id, "feat_ref": feat_ref})
+        write_json(source_artifacts_dir / "test-set-bundle.json", {"feat_ref": feat_ref, "test_set_ref": "TESTSET-SRC-001-202"})
+        write_json(source_artifacts_dir / "execution-evidence.json", {"run_id": run_id, "input_path": str(source_input_dir)})
+        write_json(
+            self.workspace / "artifacts" / "active" / "gates" / "decisions" / "gate-decision.json",
+            {
+                "decision_type": "revise",
+                "decision_reason": "请保留 revision context 并对 test set 做最小补丁修订。",
+                "candidate_ref": f"feat-to-testset.{run_id}.test-set-bundle",
+                "decision_target": f"feat-to-testset.{run_id}.test-set-bundle",
+            },
+        )
+        job_ref = f"artifacts/jobs/waiting-human/{name}"
+        write_json(
+            self.workspace / job_ref,
+            {
+                "job_id": Path(name).stem,
+                "job_type": "execution_return",
+                "status": "waiting-human",
+                "queue_path": job_ref,
+                "target_skill": "execution.return",
+                "gate_decision_ref": "artifacts/active/gates/decisions/gate-decision.json",
+                "payload_ref": f"feat-to-testset.{run_id}.test-set-bundle",
+                "input_refs": ["artifacts/active/gates/decisions/gate-decision.json", f"feat-to-testset.{run_id}.test-set-bundle"],
+                "authoritative_input_ref": f"feat-to-testset.{run_id}.test-set-bundle",
+                "source_run_id": run_id,
+                "decision_type": "revise",
+                "reason": "gate requested execution-side revision before resubmission",
+                "created_at": "2026-03-30T00:00:00Z",
+            },
+        )
+        return job_ref
+
+    def create_tech_to_impl_execution_return_job(
+        self,
+        name: str = "job-tech-to-impl-return.json",
+        *,
+        run_id: str = "impl-user-onboarding-v2-20260330",
+        tech_source_run_id: str = "tech-user-onboarding-v2-20260330",
+        feat_ref: str = "FEAT-SRC-001-401",
+        tech_ref: str = "TECH-SRC-001-401",
+    ) -> str:
+        source_artifacts_dir = self.workspace / "artifacts" / "tech-to-impl" / run_id
+        source_artifacts_dir.mkdir(parents=True, exist_ok=True)
+        source_input_dir = self.workspace / "artifacts" / "feat-to-tech" / tech_source_run_id
+        source_input_dir.mkdir(parents=True, exist_ok=True)
+        write_json(source_artifacts_dir / "package-manifest.json", {"run_id": run_id, "feat_ref": feat_ref, "tech_ref": tech_ref})
+        write_json(source_artifacts_dir / "impl-bundle.json", {"feat_ref": feat_ref, "tech_ref": tech_ref, "impl_ref": "IMPL-SRC-001-401"})
+        write_json(source_artifacts_dir / "execution-evidence.json", {"run_id": run_id, "input_path": str(source_input_dir)})
+        write_json(
+            self.workspace / "artifacts" / "active" / "gates" / "decisions" / "gate-decision.json",
+            {
+                "decision_type": "revise",
+                "decision_reason": "请保留 revision context 并对 impl bundle 做最小补丁修订。",
+                "candidate_ref": f"tech-to-impl.{run_id}.impl-bundle",
+                "decision_target": f"tech-to-impl.{run_id}.impl-bundle",
+            },
+        )
+        job_ref = f"artifacts/jobs/waiting-human/{name}"
+        write_json(
+            self.workspace / job_ref,
+            {
+                "job_id": Path(name).stem,
+                "job_type": "execution_return",
+                "status": "waiting-human",
+                "queue_path": job_ref,
+                "target_skill": "execution.return",
+                "gate_decision_ref": "artifacts/active/gates/decisions/gate-decision.json",
+                "payload_ref": f"tech-to-impl.{run_id}.impl-bundle",
+                "input_refs": ["artifacts/active/gates/decisions/gate-decision.json", f"tech-to-impl.{run_id}.impl-bundle"],
+                "authoritative_input_ref": f"tech-to-impl.{run_id}.impl-bundle",
+                "source_run_id": run_id,
+                "decision_type": "revise",
+                "reason": "gate requested execution-side revision before resubmission",
+                "created_at": "2026-03-30T00:00:00Z",
             },
         )
         return job_ref
@@ -336,6 +584,243 @@ class CliRunnerRuntimeTest(unittest.TestCase):
         self.assertEqual(job["status"], "waiting-human")
         self.assertEqual(job["authoritative_input_ref"], "artifacts/impl/run-001")
         self.assertFalse((self.workspace / "artifacts" / "jobs" / "ready" / "gate-decision-return.json").exists())
+
+    def test_gate_dispatch_execution_return_derives_registered_workflow_source_run_id(self) -> None:
+        decision_ref = "artifacts/active/gates/decisions/gate-decision.json"
+        write_json(
+            self.workspace / decision_ref,
+            {
+                "decision_type": "revise",
+                "candidate_ref": "src-to-epic.epic-user-onboarding-v2-20260330.epic-freeze",
+                "decision_target": "src-to-epic.epic-user-onboarding-v2-20260330.epic-freeze",
+            },
+        )
+        dispatch_request = self.build_request("gate.dispatch", {"gate_decision_ref": decision_ref})
+        dispatch_path = self.request_path("gate-dispatch-src-to-epic-return.json")
+        write_json(dispatch_path, dispatch_request)
+        dispatch_response = self.response_path("gate-dispatch-src-to-epic-return.response.json")
+        self.assertEqual(self.run_cli("gate", "dispatch", "--request", str(dispatch_path), "--response-out", str(dispatch_response)), 0)
+
+        payload = read_json(dispatch_response)
+        job = read_json(self.workspace / payload["data"]["materialized_job_ref"])
+        self.assertEqual(job["status"], "waiting-human")
+        self.assertEqual(job["authoritative_input_ref"], "src-to-epic.epic-user-onboarding-v2-20260330.epic-freeze")
+        self.assertEqual(job["source_run_id"], "epic-user-onboarding-v2-20260330")
+        self.assertEqual(job["workflow_key"], "product.src-to-epic")
+
+    def test_invoke_target_supports_execution_return(self) -> None:
+        source_run_id = "user-onboarding-v2-20260330"
+        repo_root = Path(__file__).resolve().parents[2]
+        raw_src_scripts = repo_root / "skills" / "ll-product-raw-to-src" / "scripts"
+        if str(raw_src_scripts) not in sys.path:
+            sys.path.insert(0, str(raw_src_scripts))
+            self.addCleanup(lambda: sys.path.remove(str(raw_src_scripts)) if str(raw_src_scripts) in sys.path else None)
+        job_ref = self.create_execution_return_job(run_id=source_run_id)
+        job = read_json(self.workspace / job_ref)
+        with patch("raw_to_src_runtime.run_workflow", return_value={"ok": True, "artifacts_dir": str(self.workspace / "artifacts" / "raw-to-src" / source_run_id)}) as run_mock:
+            result = invoke_target(
+                workspace_root=self.workspace,
+                trace={"run_ref": "RUN-RUNNER-001"},
+                request_id="req-return",
+                job=job,
+                job_ref=job_ref,
+            )
+        run_mock.assert_called_once()
+        kwargs = run_mock.call_args.kwargs
+        self.assertEqual(kwargs["run_id"], source_run_id)
+        self.assertTrue(kwargs["allow_update"])
+        self.assertEqual(Path(kwargs["input_path"]), self.workspace / "artifacts" / "raw-to-src" / f"{source_run_id}-raw-requirement.md")
+        self.assertEqual(Path(kwargs["revision_request_path"]), self.workspace / "artifacts" / "raw-to-src" / source_run_id / "revision-request.json")
+        self.assertEqual(result["target_skill"], "execution.return")
+        revision_request = read_json(self.workspace / "artifacts" / "raw-to-src" / source_run_id / "revision-request.json")
+        self.assertEqual(revision_request["revision_round"], 1)
+        self.assertEqual(revision_request["source_return_job_ref"], job_ref)
+        self.assertEqual(revision_request["source_run_id"], source_run_id)
+        self.assertEqual(revision_request["decision_reason"], "补充 recent_injury_status，并把 running_level 收敛为单一训练基础轴。")
+        self.assertIn(f"artifacts/raw-to-src/{source_run_id}/supervision-evidence.json", revision_request["basis_refs"])
+
+    def test_invoke_target_supports_execution_return_for_src_to_epic(self) -> None:
+        source_run_id = "epic-user-onboarding-v2-20260330"
+        repo_root = Path(__file__).resolve().parents[2]
+        src_to_epic_scripts = repo_root / "skills" / "ll-product-src-to-epic" / "scripts"
+        if str(src_to_epic_scripts) not in sys.path:
+            sys.path.insert(0, str(src_to_epic_scripts))
+            self.addCleanup(lambda: sys.path.remove(str(src_to_epic_scripts)) if str(src_to_epic_scripts) in sys.path else None)
+        job_ref = self.create_src_to_epic_execution_return_job(run_id=source_run_id)
+        job = read_json(self.workspace / job_ref)
+        with patch("src_to_epic_runtime.run_workflow", return_value={"ok": True, "artifacts_dir": str(self.workspace / "artifacts" / "src-to-epic" / source_run_id)}) as run_mock:
+            result = invoke_target(
+                workspace_root=self.workspace,
+                trace={"run_ref": "RUN-RUNNER-002"},
+                request_id="req-return-src-to-epic",
+                job=job,
+                job_ref=job_ref,
+            )
+        run_mock.assert_called_once()
+        kwargs = run_mock.call_args.kwargs
+        self.assertEqual(kwargs["run_id"], source_run_id)
+        self.assertTrue(kwargs["allow_update"])
+        self.assertEqual(Path(kwargs["input_path"]), self.workspace / "artifacts" / "raw-to-src" / "user-onboarding-v2-20260330")
+        self.assertEqual(Path(kwargs["revision_request_path"]), self.workspace / "artifacts" / "src-to-epic" / source_run_id / "revision-request.json")
+        self.assertEqual(result["workflow_key"], "product.src-to-epic")
+        revision_request = read_json(self.workspace / "artifacts" / "src-to-epic" / source_run_id / "revision-request.json")
+        self.assertEqual(revision_request["source_run_id"], source_run_id)
+        self.assertEqual(revision_request["candidate_ref"], f"src-to-epic.{source_run_id}.epic-freeze")
+        self.assertEqual(revision_request["decision_reason"], "请把 revise 上下文显式保留到 epic constraints，并通过 revision_request 落盘。")
+
+    def test_invoke_target_supports_execution_return_for_feat_to_tech(self) -> None:
+        source_run_id = "tech-user-onboarding-v2-20260330"
+        repo_root = Path(__file__).resolve().parents[2]
+        scripts_dir = repo_root / "skills" / "ll-dev-feat-to-tech" / "scripts"
+        if str(scripts_dir) not in sys.path:
+            sys.path.insert(0, str(scripts_dir))
+            self.addCleanup(lambda: sys.path.remove(str(scripts_dir)) if str(scripts_dir) in sys.path else None)
+        job_ref = self.create_feat_to_tech_execution_return_job(run_id=source_run_id)
+        job = read_json(self.workspace / job_ref)
+        with patch("feat_to_tech_runtime.run_workflow", return_value={"ok": True, "artifacts_dir": str(self.workspace / "artifacts" / "feat-to-tech" / source_run_id)}) as run_mock:
+            result = invoke_target(
+                workspace_root=self.workspace,
+                trace={"run_ref": "RUN-RUNNER-003"},
+                request_id="req-return-feat-to-tech",
+                job=job,
+                job_ref=job_ref,
+            )
+        kwargs = run_mock.call_args.kwargs
+        self.assertEqual(kwargs["run_id"], source_run_id)
+        self.assertEqual(kwargs["feat_ref"], "FEAT-SRC-001-201")
+        self.assertEqual(Path(kwargs["input_path"]), self.workspace / "artifacts" / "epic-to-feat" / "feat-user-onboarding-v2-20260330")
+        self.assertEqual(Path(kwargs["revision_request_path"]), self.workspace / "artifacts" / "feat-to-tech" / source_run_id / "revision-request.json")
+        self.assertEqual(result["workflow_key"], "dev.feat-to-tech")
+
+    def test_invoke_target_supports_execution_return_for_feat_to_testset(self) -> None:
+        source_run_id = "testset-user-onboarding-v2-20260330"
+        repo_root = Path(__file__).resolve().parents[2]
+        scripts_dir = repo_root / "skills" / "ll-qa-feat-to-testset" / "scripts"
+        if str(scripts_dir) not in sys.path:
+            sys.path.insert(0, str(scripts_dir))
+            self.addCleanup(lambda: sys.path.remove(str(scripts_dir)) if str(scripts_dir) in sys.path else None)
+        job_ref = self.create_feat_to_testset_execution_return_job(run_id=source_run_id)
+        job = read_json(self.workspace / job_ref)
+        with patch("feat_to_testset_runtime.run_workflow", return_value={"ok": True, "artifacts_dir": str(self.workspace / "artifacts" / "feat-to-testset" / source_run_id)}) as run_mock:
+            result = invoke_target(
+                workspace_root=self.workspace,
+                trace={"run_ref": "RUN-RUNNER-004"},
+                request_id="req-return-feat-to-testset",
+                job=job,
+                job_ref=job_ref,
+            )
+        kwargs = run_mock.call_args.kwargs
+        self.assertEqual(kwargs["run_id"], source_run_id)
+        self.assertEqual(kwargs["feat_ref"], "FEAT-SRC-001-202")
+        self.assertEqual(Path(kwargs["input_path"]), self.workspace / "artifacts" / "epic-to-feat" / "feat-user-onboarding-v2-20260330")
+        self.assertEqual(Path(kwargs["revision_request_path"]), self.workspace / "artifacts" / "feat-to-testset" / source_run_id / "revision-request.json")
+        self.assertEqual(result["workflow_key"], "qa.feat-to-testset")
+
+    def test_invoke_target_supports_execution_return_for_tech_to_impl(self) -> None:
+        source_run_id = "impl-user-onboarding-v2-20260330"
+        repo_root = Path(__file__).resolve().parents[2]
+        scripts_dir = repo_root / "skills" / "ll-dev-tech-to-impl" / "scripts"
+        if str(scripts_dir) not in sys.path:
+            sys.path.insert(0, str(scripts_dir))
+            self.addCleanup(lambda: sys.path.remove(str(scripts_dir)) if str(scripts_dir) in sys.path else None)
+        job_ref = self.create_tech_to_impl_execution_return_job(run_id=source_run_id)
+        job = read_json(self.workspace / job_ref)
+        with patch("tech_to_impl_runtime.run_workflow", return_value={"ok": True, "artifacts_dir": str(self.workspace / "artifacts" / "tech-to-impl" / source_run_id)}) as run_mock:
+            result = invoke_target(
+                workspace_root=self.workspace,
+                trace={"run_ref": "RUN-RUNNER-005"},
+                request_id="req-return-tech-to-impl",
+                job=job,
+                job_ref=job_ref,
+            )
+        kwargs = run_mock.call_args.kwargs
+        self.assertEqual(kwargs["run_id"], source_run_id)
+        self.assertEqual(kwargs["feat_ref"], "FEAT-SRC-001-401")
+        self.assertEqual(kwargs["tech_ref"], "TECH-SRC-001-401")
+        self.assertEqual(Path(kwargs["input_path"]), self.workspace / "artifacts" / "feat-to-tech" / "tech-user-onboarding-v2-20260330")
+        self.assertEqual(Path(kwargs["revision_request_path"]), self.workspace / "artifacts" / "tech-to-impl" / source_run_id / "revision-request.json")
+        self.assertEqual(result["workflow_key"], "dev.tech-to-impl")
+
+    def test_execution_return_route_registry_resolves_by_candidate_ref(self) -> None:
+        job = {
+            "candidate_ref": "raw-to-src.demo-run.src-candidate",
+            "authoritative_input_ref": "raw-to-src.demo-run.src-candidate",
+        }
+        decision = {
+            "candidate_ref": "raw-to-src.demo-run.src-candidate",
+            "decision_target": "raw-to-src.demo-run.src-candidate",
+        }
+        resolution = resolve_execution_return_route(job, decision)
+        self.assertEqual(resolution.route.workflow_key, "product.raw-to-src")
+        self.assertEqual(resolution.matched_field, "candidate_ref")
+        self.assertEqual(resolution.source_run_id, "demo-run")
+
+    def test_execution_return_route_registry_prefers_authoritative_input_ref_when_candidate_missing(self) -> None:
+        fake_route = ExecutionReturnRoute(
+            workflow_key="workflow.product.fake",
+            artifacts_subdir="fake-workflow",
+            scripts_subdir="fake-workflow",
+            runtime_module="fake_runtime",
+            candidate_ref_patterns=(re.compile(r"^fake-workflow\.(?P<run_id>.+)\.candidate$"),),
+            build_runtime_kwargs=lambda context: {},
+            authoritative_ref_patterns=(re.compile(r"^fake-workflow\.(?P<run_id>.+)\.candidate$"),),
+        )
+        job = {"authoritative_input_ref": "fake-workflow.demo.candidate"}
+        decision = {"candidate_ref": "", "decision_target": "", "decision_reason": "revise"}
+        with patch("cli.lib.execution_return_registry._EXECUTION_RETURN_ROUTES", [fake_route]):
+            resolution = resolve_execution_return_route(job, decision)
+        self.assertEqual(resolution.route.workflow_key, "workflow.product.fake")
+        self.assertEqual(resolution.matched_field, "authoritative_input_ref")
+        self.assertEqual(resolution.source_run_id, "demo")
+
+    def test_execution_return_route_registry_resolves_feat_to_tech_candidate(self) -> None:
+        job = {
+            "candidate_ref": "feat-to-tech.demo-run.tech-design-bundle",
+            "authoritative_input_ref": "feat-to-tech.demo-run.tech-design-bundle",
+        }
+        decision = {
+            "candidate_ref": "feat-to-tech.demo-run.tech-design-bundle",
+            "decision_target": "feat-to-tech.demo-run.tech-design-bundle",
+        }
+        resolution = resolve_execution_return_route(job, decision)
+        self.assertEqual(resolution.route.workflow_key, "dev.feat-to-tech")
+        self.assertEqual(resolution.source_run_id, "demo-run")
+
+    def test_execution_return_route_registry_resolves_tech_to_impl_candidate(self) -> None:
+        job = {
+            "candidate_ref": "tech-to-impl.demo-run.impl-bundle",
+            "authoritative_input_ref": "tech-to-impl.demo-run.impl-bundle",
+        }
+        decision = {
+            "candidate_ref": "tech-to-impl.demo-run.impl-bundle",
+            "decision_target": "tech-to-impl.demo-run.impl-bundle",
+        }
+        resolution = resolve_execution_return_route(job, decision)
+        self.assertEqual(resolution.route.workflow_key, "dev.tech-to-impl")
+        self.assertEqual(resolution.source_run_id, "demo-run")
+
+    def test_loop_run_execution_releases_and_consumes_execution_return_job(self) -> None:
+        job_ref = self.create_execution_return_job(name="job-return-loop.json")
+        request = self.build_request("loop.run-execution", {"consume_all": True})
+        request_path = self.request_path("loop-run-return.json")
+        write_json(request_path, request)
+        response_path = self.response_path("loop-run-return.response.json")
+        repo_root = Path(__file__).resolve().parents[2]
+        raw_src_scripts = repo_root / "skills" / "ll-product-raw-to-src" / "scripts"
+        if str(raw_src_scripts) not in sys.path:
+            sys.path.insert(0, str(raw_src_scripts))
+            self.addCleanup(lambda: sys.path.remove(str(raw_src_scripts)) if str(raw_src_scripts) in sys.path else None)
+        with patch("raw_to_src_runtime.run_workflow", return_value={"ok": True, "artifacts_dir": str(self.workspace / "artifacts" / "raw-to-src" / "user-onboarding-v2-20260330")}) as run_mock:
+            self.assertEqual(self.run_cli("loop", "run-execution", "--request", str(request_path), "--response-out", str(response_path)), 0)
+        payload = read_json(response_path)["data"]
+        self.assertEqual(payload["processed_count"], 1)
+        self.assertEqual(len(payload["released_execution_return_jobs"]), 1)
+        processed = payload["processed_jobs"][0]
+        final_job = read_json(self.workspace / processed["final_job_ref"])
+        self.assertEqual(final_job["status"], "done")
+        self.assertFalse((self.workspace / "artifacts" / "jobs" / "waiting-human" / "job-return-loop.json").exists())
+        self.assertTrue((self.workspace / "artifacts" / "jobs" / "done" / "job-return-loop.json").exists())
+        run_mock.assert_called_once()
 
     def test_invoke_target_supports_product_runner_targets(self) -> None:
         with patch("cli.lib.skill_invoker._invoke_src_to_epic", return_value={"ok": True, "target_skill": "workflow.product.src_to_epic"}) as src_mock:

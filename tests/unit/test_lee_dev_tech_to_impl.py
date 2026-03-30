@@ -76,15 +76,126 @@ class TechToImplWorkflowTests(TechToImplWorkflowHarness):
             self.assertTrue(any("decision-driven revise/retry routing stays in runtime" in item for item in frozen_decisions["implementation_rules"]))
             self.assertFalse(any("keeping approval and re-entry semantics outside this FEAT" in item for item in frozen_decisions["implementation_rules"]))
             self.assertEqual(manifest["gate_ready_package_ref"], f"artifacts/tech-to-impl/{artifacts_dir.name}/input/gate-ready-package.json")
+            self.assertTrue(manifest["candidate_registry_ref"].startswith("artifacts/registry/"))
             self.assertTrue(manifest["authoritative_handoff_ref"].startswith("artifacts/active/gates/handoffs/"))
             self.assertTrue(manifest["gate_pending_ref"].startswith("artifacts/active/gates/pending/"))
             self.assertEqual(gate_ready_package["payload"]["candidate_ref"], f"tech-to-impl.{artifacts_dir.name}.impl-bundle")
             self.assertEqual(gate_ready_package["payload"]["machine_ssot_ref"], f"artifacts/tech-to-impl/{artifacts_dir.name}/impl-bundle.json")
             self.assertTrue((repo_root / manifest["authoritative_handoff_ref"]).exists())
             self.assertTrue((repo_root / manifest["gate_pending_ref"]).exists())
+            registry_record = json.loads((repo_root / manifest["candidate_registry_ref"]).read_text(encoding="utf-8"))
+            self.assertEqual(registry_record["artifact_ref"], f"tech-to-impl.{artifacts_dir.name}.impl-bundle")
+            self.assertEqual(registry_record["managed_artifact_ref"], f"artifacts/tech-to-impl/{artifacts_dir.name}/impl-bundle.json")
+            self.assertEqual(registry_record["status"], "committed")
+            self.assertEqual(registry_record["metadata"]["layer"], "candidate")
+            self.assertEqual(registry_record["metadata"]["source_package_ref"], f"artifacts/tech-to-impl/{artifacts_dir.name}")
 
             validate = self.run_cmd("validate-output", "--artifacts-dir", str(artifacts_dir))
             self.assertEqual(validate.returncode, 0, validate.stderr)
+            readiness = self.run_cmd("validate-package-readiness", "--artifacts-dir", str(artifacts_dir))
+            self.assertEqual(readiness.returncode, 0, readiness.stderr)
+
+    def test_run_reuses_revision_request_on_allow_update_rerun(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            repo_root = Path(temp_dir)
+            feature = {
+                "feat_ref": "FEAT-SRC-001-201-R",
+                "title": "配置中心页面与发布主链联动能力",
+                "goal": "让配置中心页面、接口和发布 gate 在一次实施单内协同落地。",
+                "scope": [
+                    "新增配置中心页面和交互反馈。",
+                    "新增 request/response API contract。",
+                    "补充发布 gate 和 handoff 语义。",
+                ],
+                "constraints": [
+                    "不得改写上游 TECH 设计。",
+                    "必须保留 smoke gate subject。",
+                    "前后端必须共享配置状态语义。",
+                ],
+                "dependencies": [
+                    "consumer/provider coordination with publish workflow",
+                    "release gate review dependency",
+                ],
+                "acceptance_checks": [
+                    {"scenario": "页面展示配置项", "then": "配置中心页面可正确渲染"},
+                    {"scenario": "接口提交配置变更", "then": "request/response contract 稳定"},
+                    {"scenario": "发布 gate 可读实施包", "then": "handoff 和 smoke subject 完整"},
+                ],
+            }
+            bundle = self.make_bundle_json(feature, run_id="tech-impl-revise", arch_required=True, api_required=True)
+            input_dir = self.make_tech_package(repo_root, "tech-impl-revise", bundle)
+
+            first_pass = self.run_cmd(
+                "run",
+                "--input",
+                str(input_dir),
+                "--feat-ref",
+                feature["feat_ref"],
+                "--tech-ref",
+                bundle["tech_ref"],
+                "--repo-root",
+                str(repo_root),
+            )
+            self.assertEqual(first_pass.returncode, 0, first_pass.stderr)
+            artifacts_dir = Path(json.loads(first_pass.stdout)["artifacts_dir"])
+
+            revision_request_path = repo_root / "revision-request.json"
+            revision_request = {
+                "workflow_key": "dev.tech-to-impl",
+                "run_id": artifacts_dir.name,
+                "source_run_id": "tech-impl-revise",
+                "decision_type": "revise",
+                "decision_target": "dev.tech-to-impl",
+                "decision_reason": "Gate requested execution-side revision before resubmission.",
+                "basis_refs": [
+                    f"artifacts/tech-to-impl/{artifacts_dir.name}/impl-bundle.json",
+                    f"artifacts/tech-to-impl/{artifacts_dir.name}/package-manifest.json",
+                ],
+                "source_gate_decision_ref": "artifacts/gate-human-orchestrator/fake/gate-decision-bundle.json",
+                "source_return_job_ref": "artifacts/jobs/waiting-human/fake-execution-return.json",
+                "authoritative_input_ref": f"dev.tech-to-impl.{artifacts_dir.name}.impl-bundle",
+                "candidate_ref": f"tech-to-impl.{artifacts_dir.name}.impl-bundle",
+                "original_input_path": str(input_dir),
+                "triggered_by_request_id": "return-job-001",
+                "revision_round": 1,
+            }
+            revision_request_path.write_text(json.dumps(revision_request, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+
+            second_pass = self.run_cmd(
+                "run",
+                "--input",
+                str(input_dir),
+                "--feat-ref",
+                feature["feat_ref"],
+                "--tech-ref",
+                bundle["tech_ref"],
+                "--repo-root",
+                str(repo_root),
+                "--allow-update",
+                "--revision-request",
+                str(revision_request_path),
+            )
+            self.assertEqual(second_pass.returncode, 0, second_pass.stderr)
+            rerun_payload = json.loads(second_pass.stdout)
+            self.assertEqual(rerun_payload["revision_round"], 1)
+            self.assertTrue(rerun_payload["revision_request_ref"].endswith("revision-request.json"))
+
+            impl_bundle = json.loads((artifacts_dir / "impl-bundle.json").read_text(encoding="utf-8"))
+            manifest = json.loads((artifacts_dir / "package-manifest.json").read_text(encoding="utf-8"))
+            execution_evidence = json.loads((artifacts_dir / "execution-evidence.json").read_text(encoding="utf-8"))
+            supervision_evidence = json.loads((artifacts_dir / "supervision-evidence.json").read_text(encoding="utf-8"))
+            revision_file = json.loads((artifacts_dir / "revision-request.json").read_text(encoding="utf-8"))
+
+            self.assertEqual(revision_file["decision_reason"], revision_request["decision_reason"])
+            self.assertEqual(impl_bundle["revision_context"]["decision_reason"], revision_request["decision_reason"])
+            self.assertEqual(impl_bundle["revision_context"]["revision_round"], 1)
+            self.assertIn("Gate revise:", impl_bundle["selected_scope"]["constraints"][-1])
+            self.assertEqual(manifest["revision_request_ref"], execution_evidence["revision_request_ref"])
+            self.assertEqual(manifest["revision_request_ref"], supervision_evidence["revision_request_ref"])
+            self.assertEqual(manifest["revision_round"], 1)
+            self.assertEqual(execution_evidence["revision_summary"], supervision_evidence["revision_summary"])
+            self.assertTrue(any(str(path).endswith("revision-request.json") for path in execution_evidence["outputs"]))
+
             readiness = self.run_cmd("validate-package-readiness", "--artifacts-dir", str(artifacts_dir))
             self.assertEqual(readiness.returncode, 0, readiness.stderr)
 

@@ -69,6 +69,31 @@ class SrcToEpicWorkflowTests(unittest.TestCase):
             (package_dir / name).write_text(json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
         return package_dir
 
+    def make_revision_request(self, root: Path, run_id: str, source_run_id: str, original_input_path: Path) -> Path:
+        revision_request = {
+            "workflow_key": "product.src-to-epic",
+            "run_id": run_id,
+            "source_run_id": source_run_id,
+            "decision_type": "revise",
+            "decision_reason": "请把 gate revise 上下文显式落盘到 EPIC 约束层，并保持最小补丁而不是整篇重写。",
+            "decision_target": "epic_freeze_package",
+            "basis_refs": ["epic-review-report.json", "epic-acceptance-report.json"],
+            "revision_round": 2,
+            "source_gate_decision_ref": "artifacts/active/gates/decisions/gate-decision.json",
+            "source_return_job_ref": "artifacts/jobs/waiting-human/src-to-epic-return.json",
+            "authoritative_input_ref": f"artifacts/raw-to-src/{source_run_id}",
+            "candidate_ref": f"src-to-epic.{run_id}.epic-freeze",
+            "original_input_path": str(original_input_path),
+            "triggered_by_request_id": f"req-{run_id}-revise",
+            "trace": {
+                "run_ref": run_id,
+                "workflow_key": "product.src-to-epic",
+            },
+        }
+        revision_path = root / "revision-request.json"
+        revision_path.write_text(json.dumps(revision_request, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+        return revision_path
+
     def test_standard_src_stays_single_epic_without_rollout_feat_track(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             repo_root = Path(temp_dir)
@@ -500,6 +525,77 @@ class SrcToEpicWorkflowTests(unittest.TestCase):
             self.assertIn("### Epic-level constraints", markdown)
             self.assertIn("### Authoritative inherited constraints", markdown)
             self.assertIn("### Downstream preservation rules", markdown)
+
+            validate = self.run_cmd("validate-output", "--artifacts-dir", str(artifacts_dir))
+            self.assertEqual(validate.returncode, 0, validate.stderr)
+
+    def test_revision_request_rerun_materializes_revision_trace_and_updates_constraints(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            repo_root = Path(temp_dir)
+            candidate = {
+                "artifact_type": "src_candidate_package",
+                "workflow_key": "product.raw-to-src",
+                "workflow_run_id": "src-revise",
+                "title": "ADR-007 QA Test Execution Governed Skill 标准方案",
+                "status": "freeze_ready",
+                "source_kind": "governance_bridge_src",
+                "source_refs": ["SRC-ADR007", "ADR-007"],
+                "problem_statement": "当前 test execution 相关治理已形成上游对象模型，但下游 EPIC 容易继续围绕 QA 对象级细节拆分，导致主链治理边界被打平。",
+                "target_users": ["workflow 设计者", "skill 作者", "reviewer"],
+                "trigger_scenarios": ["把 ADR-007 继续下传到 epic-to-feat 时", "需要在主链层统一 handoff、gate 与 formal materialization 时"],
+                "business_drivers": ["把 QA execution 源约束收敛为可复用的主链治理闭环，而不是继续平移源对象。"],
+                "key_constraints": [
+                    "必须保留 TestEnvironmentSpec contract。",
+                    "必须保留 TestCasePack / ScriptPack freeze 与 revision 语义。",
+                    "必须保留 skill.qa.test_exec_web_e2e 与 skill.runner.test_e2e 的 authoritative source refs。",
+                    "必须保留 invalid_run / acceptance_status 等状态语义。",
+                ],
+                "in_scope": ["定义 QA test execution governed skill 的对象模型、状态语义、冻结链、证据规则与下游继承边界。"],
+                "out_of_scope": ["直接展开 runner 脚本实现。"],
+                "bridge_context": {
+                    "governance_objects": ["loop / handoff / gate 协作", "candidate -> formal materialization", "对象分层与准入", "主链 IO 与路径边界"],
+                    "current_failure_modes": ["EPIC 标题已升维，但约束主体仍停留在 QA execution 对象层。", "能力轴与 rollout families 主次不清。"],
+                    "downstream_inheritance_requirements": ["下游 FEAT 不得改写上游对象语义。", "源对象级规则仅能作为 inherited authoritative constraints 保留。"],
+                    "expected_downstream_objects": ["EPIC", "FEAT", "TASK"],
+                    "acceptance_impact": ["EPIC 必须给出 pilot chain、materialization、adoption/cutover/fallback 完成定义。"],
+                },
+            }
+            input_dir = self.make_src_package(repo_root, "src-revise", candidate)
+            initial = self.run_cmd("run", "--input", str(input_dir), "--repo-root", str(repo_root), "--run-id", "epic-revise")
+            self.assertEqual(initial.returncode, 0, initial.stderr)
+            artifacts_dir = Path(json.loads(initial.stdout)["artifacts_dir"])
+            revision_path = self.make_revision_request(repo_root, "epic-revise", "src-revise", input_dir)
+
+            rerun = self.run_cmd(
+                "run",
+                "--input",
+                str(input_dir),
+                "--repo-root",
+                str(repo_root),
+                "--run-id",
+                "epic-revise",
+                "--allow-update",
+                "--revision-request",
+                str(revision_path),
+            )
+            self.assertEqual(rerun.returncode, 0, rerun.stderr)
+
+            epic = json.loads((artifacts_dir / "epic-freeze.json").read_text(encoding="utf-8"))
+            manifest = json.loads((artifacts_dir / "package-manifest.json").read_text(encoding="utf-8"))
+            execution = json.loads((artifacts_dir / "execution-evidence.json").read_text(encoding="utf-8"))
+            supervision = json.loads((artifacts_dir / "supervision-evidence.json").read_text(encoding="utf-8"))
+            gate = json.loads((artifacts_dir / "epic-freeze-gate.json").read_text(encoding="utf-8"))
+            markdown = (artifacts_dir / "epic-freeze.md").read_text(encoding="utf-8")
+            revision_ref = str(artifacts_dir / "revision-request.json")
+            group_map = {group["name"]: group["items"] for group in epic["constraint_groups"]}
+
+            self.assertEqual(epic["revision_request_ref"], revision_ref)
+            self.assertEqual(manifest["revision_request_ref"], revision_ref)
+            self.assertEqual(execution["revision_request_ref"], revision_ref)
+            self.assertEqual(supervision["revision_request_ref"], revision_ref)
+            self.assertEqual(gate["revision_request_ref"], revision_ref)
+            self.assertTrue(any("Gate revise:" in item for item in group_map["Authoritative inherited constraints"]))
+            self.assertIn("Gate revise:", markdown)
 
             validate = self.run_cmd("validate-output", "--artifacts-dir", str(artifacts_dir))
             self.assertEqual(validate.returncode, 0, validate.stderr)
