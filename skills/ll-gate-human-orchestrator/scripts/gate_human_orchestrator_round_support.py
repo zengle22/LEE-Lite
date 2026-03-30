@@ -73,6 +73,24 @@ def load_ssot_brief(repo_root: Path, machine_ssot_ref: str) -> dict[str, Any]:
             ("范围", "in_scope"),
         ):
             _append_labeled_items(excerpt, payload.get(field), label, limit=1)
+        semantic_layers = _semantic_layer_declaration(payload)
+        precedence = semantic_layers.get("precedence_order")
+        if isinstance(precedence, list) and precedence:
+            labels = [str(item).strip() for item in precedence if str(item).strip()]
+            if labels:
+                _append_unique_line(excerpt, "语义分层: " + " > ".join(labels))
+        frozen_contracts = _first_dict_items(payload.get("frozen_contracts"), limit=2)
+        for entry in frozen_contracts:
+            contract_id = str(entry.get("id", "")).strip()
+            statement = str(entry.get("statement", "")).strip()
+            if contract_id and statement:
+                _append_unique_line(excerpt, f"冻结契约: {contract_id} {statement}")
+        structured_contracts = _structured_object_contract_summaries(payload, limit=2)
+        if structured_contracts:
+            _append_unique_line(excerpt, "对象契约: " + "；".join(structured_contracts))
+        enum_summaries = _enum_freeze_summaries(payload, limit=2)
+        if enum_summaries:
+            _append_unique_line(excerpt, "枚举冻结: " + "；".join(enum_summaries))
         for label, field in (
             ("产品摘要", "product_summary"),
             ("完成态", "completed_state"),
@@ -83,7 +101,7 @@ def load_ssot_brief(repo_root: Path, machine_ssot_ref: str) -> dict[str, Any]:
             if isinstance(value, str) and value.strip():
                 _append_unique_line(excerpt, f"{label}: {value.strip()}")
         return {
-            "excerpt": excerpt[:6],
+            "excerpt": excerpt[:8],
             "outline": outline[:8],
             "review_points": review_points[:8],
             "fulltext_markdown": fulltext_markdown,
@@ -178,14 +196,18 @@ def _semantic_inventory_excerpt(payload: dict[str, Any]) -> list[str]:
         _append_unique_line(lines, "语义角色: " + _join_items(actors))
     capability_objects = _semantic_inventory_items(payload.get("target_capability_objects"), limit=3)
     if not capability_objects:
+        capability_objects = _semantic_inventory_items(semantic_inventory.get("core_objects"), limit=3)
+    if not capability_objects:
         capability_objects = _semantic_inventory_items(semantic_inventory.get("product_surfaces"), limit=3)
     if capability_objects:
         _append_unique_line(lines, "能力对象: " + _join_items(capability_objects))
-    states = _semantic_inventory_items(semantic_inventory.get("states"), limit=2)
+    states = _semantic_inventory_items(semantic_inventory.get("core_states"), limit=2)
+    if not states:
+        states = _semantic_inventory_items(semantic_inventory.get("states"), limit=2)
     if states:
         _append_unique_line(lines, "状态/能力轴: " + _join_items(states))
     interface_items: list[str] = []
-    for field in ("operator_surfaces", "entry_points", "commands", "runtime_objects", "observability_surfaces"):
+    for field in ("core_apis", "core_outputs", "operator_surfaces", "entry_points", "commands", "runtime_objects", "observability_surfaces"):
         interface_items.extend(_semantic_inventory_items(semantic_inventory.get(field), limit=2))
     top_operator_surfaces = _semantic_inventory_items(payload.get("operator_surface_inventory"), limit=2)
     if top_operator_surfaces:
@@ -198,6 +220,76 @@ def _semantic_inventory_excerpt(payload: dict[str, Any]) -> list[str]:
     if constraints:
         _append_unique_line(lines, "语义约束: " + _join_items(constraints))
     return lines[:5]
+
+
+def _semantic_layer_declaration(payload: dict[str, Any]) -> dict[str, Any]:
+    value = payload.get("semantic_layer_declaration")
+    return value if isinstance(value, dict) else {}
+
+
+def _enum_freezes(payload: dict[str, Any]) -> dict[str, Any]:
+    value = payload.get("enum_freezes")
+    return value if isinstance(value, dict) else {}
+
+
+def _render_mapping_items(raw_value: object) -> str:
+    if isinstance(raw_value, dict):
+        parts = []
+        for key, value in raw_value.items():
+            key_text = str(key).strip()
+            value_text = str(value).strip()
+            if key_text and value_text:
+                parts.append(f"{key_text}={value_text}")
+        return ", ".join(parts)
+    if isinstance(raw_value, list):
+        parts = [str(item).strip() for item in raw_value if str(item).strip()]
+        return ", ".join(parts)
+    if raw_value not in (None, ""):
+        return str(raw_value).strip()
+    return ""
+
+
+def _structured_object_contract_summaries(payload: dict[str, Any], *, limit: int = 4) -> list[str]:
+    summaries: list[str] = []
+    for entry in _first_dict_items(payload.get("structured_object_contracts"), limit=limit):
+        object_name = str(entry.get("object", "")).strip()
+        if not object_name:
+            continue
+        parts = [f"object={object_name}"]
+        for field in ("purpose", "semantic_axis", "canonical_owner"):
+            text = str(entry.get(field, "")).strip()
+            if text:
+                parts.append(f"{field}={text}")
+        required_fields = _render_mapping_items(entry.get("required_fields"))
+        if required_fields:
+            parts.append(f"required_fields={required_fields}")
+        allowed_values = _render_mapping_items(entry.get("allowed_values"))
+        if allowed_values:
+            parts.append(f"allowed_values={allowed_values}")
+        conflict_rule = str(entry.get("authoritative_conflict_rule", "")).strip()
+        if conflict_rule:
+            parts.append(f"conflict_rule={conflict_rule}")
+        summaries.append(" | ".join(parts))
+    return summaries
+
+
+def _enum_freeze_summaries(payload: dict[str, Any], *, limit: int = 3) -> list[str]:
+    summaries: list[str] = []
+    for field_name, details in list(_enum_freezes(payload).items())[:limit]:
+        if not isinstance(details, dict):
+            continue
+        parts = [f"field={field_name}"]
+        semantic_axis = str(details.get("semantic_axis", "")).strip()
+        if semantic_axis:
+            parts.append(f"semantic_axis={semantic_axis}")
+        allowed_values = _render_mapping_items(details.get("allowed_values"))
+        if allowed_values:
+            parts.append(f"allowed_values={allowed_values}")
+        used_for = _render_mapping_items(details.get("used_for"))
+        if used_for:
+            parts.append(f"used_for={used_for}")
+        summaries.append(" | ".join(parts))
+    return summaries
 
 
 def _count_list(payload: dict[str, Any], field: str) -> int:
@@ -583,10 +675,37 @@ def ssot_outline(payload: dict[str, Any]) -> list[str]:
     governance_summary = payload.get("governance_change_summary")
     if isinstance(governance_summary, list) and governance_summary:
         outline.append("治理变化主线: " + " | ".join(str(item).strip() for item in governance_summary[:2] if str(item).strip()))
+    semantic_layers = _semantic_layer_declaration(payload)
+    if semantic_layers:
+        precedence = semantic_layers.get("precedence_order")
+        if isinstance(precedence, list) and precedence:
+            order = [str(item).strip() for item in precedence if str(item).strip()]
+            if order:
+                outline.append("文档语义层级: " + " > ".join(order))
+        override_rule = str(semantic_layers.get("override_rule", "")).strip()
+        if override_rule:
+            outline.append("层级覆盖规则: " + override_rule)
+    frozen_contracts = payload.get("frozen_contracts")
+    if isinstance(frozen_contracts, list) and frozen_contracts:
+        outline.append(f"Frozen Contracts: {len(frozen_contracts)} 条")
+    structured_contracts = payload.get("structured_object_contracts")
+    if isinstance(structured_contracts, list) and structured_contracts:
+        outline.append("结构化对象契约: " + ", ".join(
+            str(entry.get("object", "")).strip()
+            for entry in structured_contracts[:6]
+            if isinstance(entry, dict) and str(entry.get("object", "")).strip()
+        ))
+    enum_freezes = _enum_freezes(payload)
+    if enum_freezes:
+        outline.append("枚举冻结: " + ", ".join(str(key).strip() for key in list(enum_freezes.keys())[:6] if str(key).strip()))
     semantic_inventory = payload.get("semantic_inventory")
     if isinstance(semantic_inventory, dict):
         semantic_sections = [
             ("actors", _count_list(semantic_inventory, "actors")),
+            ("core_objects", _count_list(semantic_inventory, "core_objects")),
+            ("core_states", _count_list(semantic_inventory, "core_states")),
+            ("core_apis", _count_list(semantic_inventory, "core_apis")),
+            ("core_outputs", _count_list(semantic_inventory, "core_outputs")),
             ("product_surfaces", _count_list(semantic_inventory, "product_surfaces")),
             ("operator_surfaces", _count_list(semantic_inventory, "operator_surfaces")),
             ("entry_points", _count_list(semantic_inventory, "entry_points")),
@@ -597,8 +716,10 @@ def ssot_outline(payload: dict[str, Any]) -> list[str]:
             ("constraints", _count_list(semantic_inventory, "constraints")),
             ("non_goals", _count_list(semantic_inventory, "non_goals")),
         ]
-        outline.append("semantic_inventory 主体块: " + ", ".join(f"{name}[{count}]" for name, count in semantic_sections))
-        state_focus = _semantic_inventory_items(semantic_inventory.get("states"), limit=2)
+        outline.append("semantic_inventory 主体块: " + ", ".join(f"{name}[{count}]" for name, count in semantic_sections if count))
+        state_focus = _semantic_inventory_items(semantic_inventory.get("core_states"), limit=2)
+        if not state_focus:
+            state_focus = _semantic_inventory_items(semantic_inventory.get("states"), limit=2)
         if state_focus:
             outline.append("semantic_inventory 状态焦点: " + "；".join(state_focus))
     if not outline:
@@ -619,16 +740,53 @@ def ssot_review_points(payload: dict[str, Any]) -> list[str]:
     points: list[str] = []
     artifact_type = str(payload.get("artifact_type", "")).strip()
     if artifact_type == "epic_freeze_package":
+        semantic_lock = payload.get("semantic_lock")
+        domain_type = ""
+        if isinstance(semantic_lock, dict):
+            domain_type = str(semantic_lock.get("domain_type", "")).strip().lower()
+        source_refs = [str(item).strip() for item in payload.get("source_refs", []) if str(item).strip()] if isinstance(payload.get("source_refs"), list) else []
+        decomposition_rules = [str(item).strip() for item in payload.get("decomposition_rules", []) if str(item).strip()] if isinstance(payload.get("decomposition_rules"), list) else []
+        success_criteria = [str(item).strip() for item in payload.get("epic_success_criteria", []) if str(item).strip()] if isinstance(payload.get("epic_success_criteria"), list) else []
+        product_slices = [str(item.get("name", "")).strip() for item in payload.get("product_behavior_slices", []) if isinstance(item, dict) and str(item.get("name", "")).strip()] if isinstance(payload.get("product_behavior_slices"), list) else []
+        non_goals = [str(item).strip() for item in payload.get("non_goals", []) if str(item).strip()] if isinstance(payload.get("non_goals"), list) else []
+        review_projection_epic = domain_type == "review_projection_rule"
+        execution_runner_epic = domain_type == "execution_runner_rule"
+        governance_runtime_epic = (
+            bool((payload.get("rollout_requirement") or {}).get("required"))
+            or any("ADR-018" in ref for ref in source_refs)
+            or any(token in " ".join(product_slices + decomposition_rules + success_criteria).lower() for token in ("runner", "handoff", "formal publish", "governed skill", "adoption_e2e"))
+        )
+        if review_projection_epic:
+            points.append("核对 product_behavior_slices 是否完整覆盖 Projection 生成、Authoritative Snapshot、Review Focus/Risk 提示与反馈回写，而不是混入新的 SSOT 真相源。")
+            points.append("核对 actors_and_roles 是否把 reviewer、SSOT owner、projection generator 与 downstream designer 的职责边界讲清楚。")
+            points.append("核对 decomposition_rules 是否明确要求下游围绕审核视图切片拆分，而不是扩张到 handoff orchestration 或 formal publication。")
+            points.append("核对 epic_success_criteria 是否强调 Projection derived-only、non-authoritative、可回写但不可继承。")
+            points.append("核对 source_refs 是否仍然锚定当前 Machine SSOT 与 gate 审核来源，没有把 Projection 自己变成权威来源。")
+            return points
+        if execution_runner_epic or governance_runtime_epic:
+            if _count_list(payload, "product_behavior_slices"):
+                points.append("核对 product_behavior_slices 是否完整覆盖用户入口、控制面、取件、派发、回写、监控等产品切片，而不是只剩抽象 runtime 结论。")
+            if _count_list(payload, "actors_and_roles"):
+                points.append("核对 actors_and_roles 是否把 gate owner、runner owner、CLI operator、workflow operator 的责任边界讲清楚。")
+            if _count_list(payload, "decomposition_rules"):
+                points.append("核对 decomposition_rules 是否明确要求下游按独立验收 FEAT 切片拆分，而不是回退成技术轴或实现顺序。")
+            if _count_list(payload, "epic_success_criteria"):
+                points.append("核对 epic_success_criteria 是否仍然锚定 approve -> ready job -> runner claim -> next skill invocation 这条主链。")
+            if _count_list(payload, "source_refs"):
+                points.append("核对 source_refs 是否仍完整覆盖 ADR-018 及其依赖 ADR，避免下游继承时丢来源。")
+            return points
         if _count_list(payload, "product_behavior_slices"):
-            points.append("核对 product_behavior_slices 是否完整覆盖用户入口、控制面、取件、派发、回写、监控等产品切片，而不是只剩抽象 runtime 结论。")
+            points.append("核对 product_behavior_slices 是否准确覆盖最小建档主链、首轮建议释放、扩展画像渐进补全、设备连接后置与状态/存储边界统一这些产品行为切片。")
         if _count_list(payload, "actors_and_roles"):
-            points.append("核对 actors_and_roles 是否把 gate owner、runner owner、CLI operator、workflow operator 的责任边界讲清楚。")
+            points.append("核对 actors_and_roles 是否仍然服务于当前建档题的用户角色，没有混入 gate owner、runner owner、CLI operator 等 runtime 模板角色。")
         if _count_list(payload, "decomposition_rules"):
-            points.append("核对 decomposition_rules 是否明确要求下游按独立验收 FEAT 切片拆分，而不是回退成技术轴或实现顺序。")
+            points.append("核对 Product Positioning、Capability Scope 与 decomposition_rules 是否都坚持产品能力抽象，没有退回“建立需求源”或其他 SRC 层语言。")
         if _count_list(payload, "epic_success_criteria"):
-            points.append("核对 epic_success_criteria 是否仍然锚定 approve -> ready job -> runner claim -> next skill invocation 这条主链。")
+            points.append("核对 epic_success_criteria 是否锚定首日最小建档、首轮建议释放与增量补全这些业务结果，而不是 runtime 主链。")
+        if non_goals:
+            points.append("核对 non_goals 是否只保留建档题内边界，没有混入 rollout、migration、runner 或治理底座改造模板。")
         if _count_list(payload, "source_refs"):
-            points.append("核对 source_refs 是否仍完整覆盖 ADR-018 及其依赖 ADR，避免下游继承时丢来源。")
+            points.append("核对 source_refs 是否完整覆盖当前 SRC 与本轮审批来源，没有引用与当前产品题无关的 ADR/runtime 模板来源。")
         return points
     if artifact_type == "feat_freeze_package":
         if str(payload.get("bundle_intent", "")).strip():
@@ -663,13 +821,24 @@ def ssot_review_points(payload: dict[str, Any]) -> list[str]:
         return points
     if str(payload.get("problem_statement", "")).strip():
         points.append("核对 problem_statement 是否同时说明当前失控行为、为什么必须现在收敛、以及不收敛的后果。")
+    semantic_layers = _semantic_layer_declaration(payload)
+    if semantic_layers:
+        points.append("核对文档语义层级是否显式声明 source_layer / bridge_layer / meta_layer，并确认 bridge_layer 不会覆盖 source_layer。")
+    if _count_list(payload, "frozen_contracts"):
+        points.append("核对 Frozen Contracts 是否已经把首进主链、设备不阻塞、单轴 running_level、injury 风险门槛、增量补全等硬约束集中冻结。")
+    if _count_list(payload, "structured_object_contracts"):
+        points.append("核对结构化对象契约是否把 minimal_onboarding_page、running_level、recent_injury_status、onboarding_state_model 等对象写成机器可继承的固定结构。")
+    if _enum_freezes(payload):
+        points.append("核对枚举冻结是否已经给 running_level / recent_injury_status 提供稳定枚举和值语义，避免下游名称不变但语义漂移。")
     semantic_inventory = payload.get("semantic_inventory")
     if isinstance(semantic_inventory, dict):
-        states = _semantic_inventory_items(semantic_inventory.get("states"), limit=3)
+        states = _semantic_inventory_items(semantic_inventory.get("core_states"), limit=3)
+        if not states:
+            states = _semantic_inventory_items(semantic_inventory.get("states"), limit=3)
         if states:
             points.append("核对 semantic_inventory.states 是否把 running_level、profile_minimal_done、initial_plan_ready 这类状态口径拆清，不要混入训练阶段、当前能力或历史经历。")
         interfaces: list[str] = []
-        for field in ("product_surfaces", "operator_surfaces", "entry_points", "commands", "runtime_objects", "observability_surfaces"):
+        for field in ("core_apis", "core_outputs", "product_surfaces", "operator_surfaces", "entry_points", "commands", "runtime_objects", "observability_surfaces"):
             interfaces.extend(_semantic_inventory_items(semantic_inventory.get(field), limit=2))
         interfaces.extend(_semantic_inventory_items(payload.get("operator_surface_inventory"), limit=2))
         if interfaces:
@@ -724,6 +893,121 @@ def _first_items(payload: dict[str, Any], field: str, *, limit: int = 3) -> list
 
 def _join_items(items: list[str]) -> str:
     return "；".join(items)
+
+
+def _semantic_layer_markdown(payload: dict[str, Any]) -> list[str]:
+    layers = _semantic_layer_declaration(payload)
+    if not layers:
+        return []
+    lines = ["### 文档语义层级", ""]
+    for layer_name in ("source_layer", "bridge_layer", "meta_layer"):
+        details = layers.get(layer_name)
+        if not isinstance(details, dict):
+            continue
+        role = str(details.get("role", "")).strip()
+        if role:
+            lines.append(f"- {layer_name}: {role}")
+        authoritative_fields = _render_mapping_items(details.get("authoritative_fields"))
+        if authoritative_fields:
+            lines.append(f"  authoritative_fields: {authoritative_fields}")
+        derived_fields = _render_mapping_items(details.get("derived_fields"))
+        if derived_fields:
+            lines.append(f"  derived_fields: {derived_fields}")
+        fields = _render_mapping_items(details.get("fields"))
+        if fields:
+            lines.append(f"  fields: {fields}")
+        rule = str(details.get("consumption_rule", "")).strip()
+        if rule:
+            lines.append(f"  consumption_rule: {rule}")
+    precedence = _render_mapping_items(layers.get("precedence_order"))
+    if precedence:
+        lines.append(f"- precedence_order: {precedence}")
+    override_rule = str(layers.get("override_rule", "")).strip()
+    if override_rule:
+        lines.append(f"- override_rule: {override_rule}")
+    return lines
+
+
+def _frozen_contracts_markdown(payload: dict[str, Any]) -> list[str]:
+    contracts = payload.get("frozen_contracts")
+    if not isinstance(contracts, list) or not contracts:
+        return []
+    lines = ["### Frozen Contracts", ""]
+    for entry in contracts:
+        if not isinstance(entry, dict):
+            continue
+        contract_id = str(entry.get("id", "")).strip()
+        statement = str(entry.get("statement", "")).strip()
+        if contract_id and statement:
+            lines.append(f"- {contract_id}: {statement}")
+        applies_to = _render_mapping_items(entry.get("applies_to"))
+        if applies_to:
+            lines.append(f"  applies_to: {applies_to}")
+        authoritative_layer = str(entry.get("authoritative_layer", "")).strip()
+        if authoritative_layer:
+            lines.append(f"  authoritative_layer: {authoritative_layer}")
+    return lines
+
+
+def _structured_object_contracts_markdown(payload: dict[str, Any]) -> list[str]:
+    contracts = payload.get("structured_object_contracts")
+    if not isinstance(contracts, list) or not contracts:
+        return []
+    lines = ["### 结构化对象契约", ""]
+    field_order = (
+        "purpose",
+        "required_fields",
+        "optional_fields",
+        "canonical_field_policy",
+        "transitional_input_aliases",
+        "semantic_axis",
+        "allowed_values",
+        "value_definitions",
+        "forbidden_semantics",
+        "required_for_first_advice",
+        "cannot_be_deferred",
+        "downstream_usage",
+        "primary_state",
+        "capability_flags",
+        "constraints",
+        "minimum_outputs",
+        "blocked_by",
+        "deferred_inputs",
+        "canonical_owner",
+        "physical_fields",
+        "forbidden_duplication",
+        "authoritative_conflict_rule",
+        "forbidden_fields",
+        "completion_effect",
+    )
+    for entry in contracts:
+        if not isinstance(entry, dict):
+            continue
+        object_name = str(entry.get("object", "")).strip()
+        if not object_name:
+            continue
+        lines.append(f"- object: {object_name}")
+        for field in field_order:
+            rendered = _render_mapping_items(entry.get(field))
+            if rendered:
+                lines.append(f"  {field}: {rendered}")
+    return lines
+
+
+def _enum_freezes_markdown(payload: dict[str, Any]) -> list[str]:
+    freezes = _enum_freezes(payload)
+    if not freezes:
+        return []
+    lines = ["### 枚举冻结", ""]
+    for field_name, details in freezes.items():
+        if not isinstance(details, dict):
+            continue
+        lines.append(f"- field: {field_name}")
+        for key in ("semantic_axis", "allowed_values", "value_definitions", "forbidden_semantics", "used_for"):
+            rendered = _render_mapping_items(details.get(key))
+            if rendered:
+                lines.append(f"  {key}: {rendered}")
+    return lines
 
 
 def ssot_fulltext_markdown(payload: dict[str, Any]) -> str:
@@ -837,6 +1121,15 @@ def ssot_fulltext_markdown(payload: dict[str, Any]) -> str:
 
     lines = ["## Machine SSOT 人类友好全文", ""]
     lines.extend(paragraphs)
+    extra_sections = [
+        _semantic_layer_markdown(payload),
+        _frozen_contracts_markdown(payload),
+        _structured_object_contracts_markdown(payload),
+        _enum_freezes_markdown(payload),
+    ]
+    for section in extra_sections:
+        if section:
+            lines.extend(["", *section])
     return "\n\n".join(lines) + "\n"
 
 

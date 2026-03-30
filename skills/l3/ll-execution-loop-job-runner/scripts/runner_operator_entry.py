@@ -12,6 +12,7 @@ from typing import Any
 SKILL_COMMAND = "skill.execution-loop-job-runner"
 SKILL_REF = "skill.execution_loop_job_runner"
 RUNNER_SKILL_REF = "skill.runner.execution_loop_job_runner"
+ADAPTER_MANIFEST_NAME = ".codex-adapter-manifest.json"
 
 
 def _load_json(path: Path) -> dict[str, Any]:
@@ -23,9 +24,39 @@ def _write_json(path: Path, payload: dict[str, Any]) -> None:
     path.write_text(json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
 
 
+def _adapter_manifest_path() -> Path:
+    return Path(__file__).resolve().parents[1] / ADAPTER_MANIFEST_NAME
+
+
+def _canonical_cli_root_from_manifest() -> Path | None:
+    manifest_path = _adapter_manifest_path()
+    if not manifest_path.exists():
+        return None
+    payload = _load_json(manifest_path)
+    root = payload.get("canonical_workspace_root")
+    if not isinstance(root, str) or not root.strip():
+        return None
+    return Path(root).resolve()
+
+
+def _canonical_cli_root_from_source_tree() -> Path | None:
+    for candidate in Path(__file__).resolve().parents:
+        if (candidate / "cli" / "ll.py").exists():
+            return candidate
+    return None
+
+
 def _resolve_workspace_root(request_root: str | None, arg_root: str | None, request_path: Path) -> Path:
     root_value = arg_root or request_root or str(request_path.parent)
     return Path(root_value).resolve()
+
+
+def _resolve_cli_root(workspace_root: Path) -> Path:
+    return (
+        _canonical_cli_root_from_manifest()
+        or _canonical_cli_root_from_source_tree()
+        or workspace_root
+    )
 
 
 def _to_canonical_path(path: Path, workspace_root: Path) -> str:
@@ -118,8 +149,9 @@ def _invoke(args: argparse.Namespace) -> int:
     action = _delegated_action(request)
     import sys
 
-    if str(workspace_root) not in sys.path:
-        sys.path.insert(0, str(workspace_root))
+    cli_root = _resolve_cli_root(workspace_root)
+    if str(cli_root) not in sys.path:
+        sys.path.insert(0, str(cli_root))
     from cli.ll import main as ll_main
 
     with tempfile.TemporaryDirectory() as temp_dir:

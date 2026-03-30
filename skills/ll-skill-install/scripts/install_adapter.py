@@ -6,6 +6,7 @@ Install a canonical workflow skill into Codex as a workspace-bound adapter.
 from __future__ import annotations
 
 import argparse
+import json
 import os
 import re
 import shutil
@@ -16,6 +17,8 @@ import yaml
 
 
 IGNORE_NAMES = shutil.ignore_patterns("__pycache__", "*.pyc", "*.pyo")
+ADAPTER_MANIFEST_NAME = ".codex-adapter-manifest.json"
+CLI_LAUNCHER_NAME = "invoke_canonical_cli.py"
 
 
 def default_skills_dir() -> Path:
@@ -34,6 +37,10 @@ def write_text(path: Path, content: str) -> None:
     path.write_text(content, encoding="utf-8")
 
 
+def write_json(path: Path, payload: dict) -> None:
+    write_text(path, json.dumps(payload, ensure_ascii=False, indent=2) + "\n")
+
+
 def load_yaml(path: Path):
     return yaml.safe_load(read_text(path))
 
@@ -45,6 +52,10 @@ def dump_yaml(data: dict) -> str:
 def quote_yaml(value: str) -> str:
     escaped = value.replace("\\", "\\\\").replace('"', '\\"')
     return f'"{escaped}"'
+
+
+def quote_shell_path(path: Path) -> str:
+    return f'"{path}"'
 
 
 def parse_frontmatter(skill_md_path: Path) -> dict:
@@ -134,6 +145,68 @@ def adapter_description(workspace_root: Path, frontmatter: dict, contract: dict,
     )
 
 
+def adapter_manifest(source_skill_dir: Path, workspace_root: Path) -> dict:
+    return {
+        "canonical_workspace_root": str(workspace_root),
+        "canonical_skill_root": str(source_skill_dir),
+    }
+
+
+def cli_launcher_path(dest_root: Path, skill_name: str) -> Path:
+    return dest_root / skill_name / "scripts" / CLI_LAUNCHER_NAME
+
+
+def render_cli_launcher() -> str:
+    return """#!/usr/bin/env python3
+from __future__ import annotations
+
+import json
+import sys
+from pathlib import Path
+
+
+ADAPTER_MANIFEST_NAME = ".codex-adapter-manifest.json"
+
+
+def _manifest_path() -> Path:
+    return Path(__file__).resolve().parents[1] / ADAPTER_MANIFEST_NAME
+
+
+def _canonical_workspace_root() -> Path:
+    payload = json.loads(_manifest_path().read_text(encoding="utf-8"))
+    root = payload.get("canonical_workspace_root")
+    if not isinstance(root, str) or not root.strip():
+        raise RuntimeError("adapter manifest is missing canonical_workspace_root")
+    return Path(root).resolve()
+
+
+def main(argv: list[str] | None = None) -> int:
+    cli_root = _canonical_workspace_root()
+    if str(cli_root) not in sys.path:
+        sys.path.insert(0, str(cli_root))
+    from cli.ll import main as ll_main
+
+    return int(ll_main(list(sys.argv[1:] if argv is None else argv)))
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
+"""
+
+
+def rewrite_runtime_command(command: str, launcher_path: Path) -> str:
+    normalized = command.strip()
+    python_prefix = "python -m cli.ll"
+    ll_prefix = "ll "
+    if normalized.startswith(python_prefix):
+        suffix = normalized[len(python_prefix) :].strip()
+        return f"python {quote_shell_path(launcher_path)} {suffix}".rstrip()
+    if normalized.startswith(ll_prefix):
+        suffix = normalized[len(ll_prefix) :].strip()
+        return f"python {quote_shell_path(launcher_path)} {suffix}".rstrip()
+    return command
+
+
 def adapter_body(
     source_skill_dir: Path,
     workspace_root: Path,
@@ -151,6 +224,7 @@ def adapter_body(
     upstream = authority.get("upstream_skill")
     downstream = authority.get("downstream_workflow", "unspecified")
     template = authority.get("canonical_template")
+    launcher_path = cli_launcher_path(dest_root, skill_name)
 
     upstream_line = ""
     if upstream:
@@ -176,7 +250,11 @@ def adapter_body(
     command = runtime.get("command")
     if command:
         runtime_lines.append("- Canonical workflow command:")
-        runtime_lines.append(f"  - `{command}`")
+        runtime_lines.append(f"  - `{rewrite_runtime_command(command, launcher_path)}`")
+    runtime_lines.append("- Canonical CLI root:")
+    runtime_lines.append(f"  - `{workspace_root}`")
+    runtime_lines.append("- Installed CLI launcher:")
+    runtime_lines.append(f"  - `python {quote_shell_path(launcher_path)} <ll-args>`")
     helper_lines = []
     for helper in ["validate_input.sh", "validate_output.sh", "freeze_guard.sh"]:
         helper_path = source_skill_dir / "scripts" / helper
@@ -227,8 +305,8 @@ def adapter_body(
     body.extend(
         [
             "",
-            f"Use this skill only when operating inside `{workspace_root}` or an equivalent checkout "
-            "with the same canonical paths.",
+            f"This adapter pins CLI imports to `{workspace_root}` even when the active project is different.",
+            "Keep request and artifact paths scoped to the target project, but keep CLI execution pinned to the canonical workspace.",
             "",
             "## Required Read Order",
             "",
@@ -334,6 +412,8 @@ def install_adapter(
         shutil.rmtree(dest_dir)
 
     shutil.copytree(source_skill_dir, dest_dir, ignore=IGNORE_NAMES)
+    write_json(dest_dir / ADAPTER_MANIFEST_NAME, adapter_manifest(source_skill_dir, workspace_root))
+    write_text(dest_dir / "scripts" / CLI_LAUNCHER_NAME, render_cli_launcher())
 
     write_text(
         dest_dir / "SKILL.md",
