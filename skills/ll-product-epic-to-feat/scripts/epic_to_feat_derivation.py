@@ -46,6 +46,214 @@ def choose_epic_ref(package: Any) -> str:
     return f"EPIC-{shorten_identifier(title, limit=40)}"
 
 
+def _generic_axis_name(axis: dict[str, Any]) -> str:
+    return str(axis.get("name") or axis.get("product_surface") or axis.get("feat_axis") or "该 FEAT").strip()
+
+
+def _generic_axis_surface(axis: dict[str, Any]) -> str:
+    return str(axis.get("product_surface") or axis.get("business_deliverable") or _generic_axis_name(axis)).strip()
+
+
+def _generic_axis_deliverable(axis: dict[str, Any]) -> str:
+    return str(axis.get("business_deliverable") or axis.get("product_surface") or _generic_axis_name(axis)).strip()
+
+
+def _generic_axis_completed_state(axis: dict[str, Any]) -> str:
+    completed = str(axis.get("completed_state") or "").strip()
+    if completed:
+        return completed
+    return f"{_generic_axis_name(axis)} 的业务完成态已对上下游清晰可见。"
+
+
+def _generic_axis_scope_items(axis: dict[str, Any]) -> list[str]:
+    items = [str(item).strip() for item in ensure_list(axis.get("scope")) if str(item).strip()]
+    return items or [_generic_axis_surface(axis)]
+
+
+def _generic_axis_capability_summary(axis: dict[str, Any]) -> str:
+    capabilities = [str(item).strip() for item in ensure_list(axis.get("capability_axes")) if str(item).strip()]
+    return "、".join(capabilities[:3])
+
+
+def _generic_scope_fallback(axis: dict[str, Any]) -> list[str]:
+    name = _generic_axis_name(axis)
+    deliverable = _generic_axis_deliverable(axis)
+    completed = _generic_axis_completed_state(axis)
+    capabilities = _generic_axis_capability_summary(axis)
+    bullets = _generic_axis_scope_items(axis)
+    bullets.append(f"冻结 {name} 这一独立产品行为切片，并把它保持在产品层边界内。")
+    if capabilities:
+        bullets.append(f"该切片继承 {capabilities} 的统一约束，但不把 capability axis 直接下沉成实现任务。")
+    bullets.append(f"对外交付 {deliverable}，供下游能力直接继承。")
+    bullets.append(f"完成态：{completed}")
+    return unique_strings(bullets)[:5]
+
+
+def _generic_main_flow(axis: dict[str, Any]) -> list[str]:
+    name = _generic_axis_name(axis)
+    scope = _generic_axis_scope_items(axis)[0]
+    surface = _generic_axis_surface(axis)
+    deliverable = _generic_axis_deliverable(axis)
+    completed = _generic_axis_completed_state(axis)
+    return [
+        f"用户或系统进入 {name} 对应的产品场景，并围绕 {surface} 启动该切片。",
+        f"系统执行“{scope}”所要求的关键业务处理，并校验该切片成立所需的最小条件。",
+        f"系统产出 {deliverable}，并把结果暴露为可被上下游观察的 authoritative 产品结果。",
+        f"业务完成态收敛到：{completed}",
+    ]
+
+
+def _generic_acceptance_checks(feat_ref: str, axis: dict[str, Any]) -> list[dict[str, Any]]:
+    name = _generic_axis_name(axis)
+    scope = _generic_axis_scope_items(axis)[0]
+    surface = _generic_axis_surface(axis)
+    deliverable = _generic_axis_deliverable(axis)
+    completed = _generic_axis_completed_state(axis)
+    return [
+        {
+            "id": f"{feat_ref}-AC-01",
+            "scenario": f"{name} happy path reaches the declared completed state",
+            "given": f"{name} 对应的业务场景已经被触发",
+            "when": f"用户或系统沿着 {surface} 完成该切片要求的关键步骤",
+            "then": completed,
+            "trace_hints": [feat_ref, name, surface, "completed_state"],
+        },
+        {
+            "id": f"{feat_ref}-AC-02",
+            "scenario": f"{name} keeps its declared product boundary",
+            "given": "相邻 FEAT 或下游实现尝试把额外能力并入当前切片",
+            "when": f"该 FEAT 的业务边界被审查",
+            "then": f"该 FEAT 只覆盖“{scope}”及其直接完成结果，不吸收相邻产品切片、实现任务或测试执行细节。",
+            "trace_hints": [feat_ref, name, "scope boundary", scope],
+        },
+        {
+            "id": f"{feat_ref}-AC-03",
+            "scenario": f"{name} hands downstream one authoritative product deliverable",
+            "given": "下游 TECH 或 TESTSET 需要继承该 FEAT 的产品语义",
+            "when": f"{name} 被作为 authoritative 输入消费",
+            "then": f"下游必须围绕 {deliverable} 继承该 FEAT 的产品语义，而不是重新猜测完成条件、补写边界或改写验收口径。",
+            "trace_hints": [feat_ref, name, deliverable, "downstream inheritance"],
+        },
+    ]
+
+
+def _generic_business_sequence(axis: dict[str, Any]) -> str:
+    name = _generic_axis_name(axis)
+    deliverable = _generic_axis_deliverable(axis)
+    return "\n".join(
+        [
+            "```text",
+            f"[Trigger] -> [{name}] -> [{deliverable}] -> [Completed State Visible]",
+            "```",
+        ]
+    )
+
+
+def _generic_loop_gate_human_involvement(axis: dict[str, Any]) -> list[str]:
+    name = _generic_axis_name(axis)
+    deliverable = _generic_axis_deliverable(axis)
+    return [
+        f"Primary product actor 触发 {name} 的业务场景并提供必要输入。",
+        f"System / runtime 负责把 {name} 收敛为 {deliverable} 并记录完成结果。",
+        "Gate / human 只在边界冲突、风险升级或需要人工裁决时介入。",
+    ]
+
+
+def _generic_constraints(axis: dict[str, Any], package: Any) -> list[str]:
+    name = _generic_axis_name(axis)
+    deliverable = _generic_axis_deliverable(axis)
+    completed = _generic_axis_completed_state(axis)
+    selected = select_constraints(package, [name, _generic_axis_surface(axis), deliverable], fallback_count=2)
+    specialized = [
+        f"{name} 必须保持为独立可验收的产品切片，不能退化为页面字段清单、接口清单或实现任务。",
+        f"{name} 的完成态必须与“{completed}”对齐，不能只输出中间态、占位态或内部处理结果。",
+        f"下游继承 {name} 时必须保留 {deliverable} 这一 authoritative product deliverable，不能自行改写产品边界。",
+    ]
+    capabilities = _generic_axis_capability_summary(axis)
+    if capabilities:
+        specialized.append(f"{name} 必须继续受 {capabilities} 的统一约束约束，而不是在下游重新发明同题语义。")
+    return unique_strings(selected + specialized)[:6]
+
+
+def _generic_frozen_product_shape(axis: dict[str, Any]) -> list[str]:
+    return [
+        f"冻结 {_generic_axis_surface(axis)} 这一产品界面的核心结果形态。",
+        f"冻结 {_generic_axis_deliverable(axis)} 作为下游 authoritative 输入的交付形态。",
+    ]
+
+
+def _generic_frozen_business_semantics(axis: dict[str, Any]) -> list[str]:
+    return [
+        f"{_generic_axis_name(axis)} 的完成态必须以“{_generic_axis_completed_state(axis)}”为准，而不是以中间占位状态替代。",
+        f"下游继承 {_generic_axis_name(axis)} 时必须保留该切片的 scope 与 deliverable 边界。",
+    ]
+
+
+def _generic_open_technical_decisions(axis: dict[str, Any]) -> list[str]:
+    name = _generic_axis_name(axis)
+    return [
+        f"{name} 的 supporting data / state schema",
+        f"{name} 的 automation / service interface",
+        f"{name} 的 observability / instrumentation surface",
+    ]
+
+
+def _generic_explicit_non_decisions(axis: dict[str, Any]) -> list[str]:
+    name = _generic_axis_name(axis)
+    return [
+        f"不在本 FEAT 内直接决定 {name} 的技术实现细节、接口命名或存储结构。",
+        "不在本 FEAT 内把相邻产品切片、下游 TECH 设计或测试执行方案合并进来。",
+    ]
+
+
+def _generic_input_objects(axis: dict[str, Any]) -> list[str]:
+    return [
+        f"{_generic_axis_name(axis)} trigger context",
+        "authoritative user or business input",
+        "inherited epic constraints and source refs",
+    ]
+
+
+def _generic_output_objects(axis: dict[str, Any]) -> list[str]:
+    return [
+        _generic_axis_deliverable(axis),
+        "completed state marker",
+        f"{_generic_axis_name(axis)} traceable result",
+    ]
+
+
+def _generic_required_deliverables(axis: dict[str, Any]) -> list[str]:
+    return [
+        _generic_axis_deliverable(axis),
+        "authoritative product result",
+        "downstream inheritance notes",
+    ]
+
+
+def _generic_role_split(axis: dict[str, Any]) -> list[str]:
+    return [
+        f"Primary product actor 负责触发 {_generic_axis_name(axis)} 的业务场景并提交必要输入。",
+        f"Product / system owner 负责把 {_generic_axis_name(axis)} 收敛成稳定的产品结果。",
+        "Downstream FEAT / TECH / TESTSET 只消费 authoritative 输出，不重写当前 FEAT 的产品语义。",
+    ]
+
+
+def _generic_handoff_points(axis: dict[str, Any]) -> list[str]:
+    return [
+        f"trigger context -> {_generic_axis_surface(axis)}",
+        f"{_generic_axis_deliverable(axis)} -> downstream inheritance",
+    ]
+
+
+def _generic_interaction_timeline(axis: dict[str, Any]) -> list[str]:
+    return [
+        f"1. 触发 {_generic_axis_name(axis)} 对应场景",
+        "2. 收集并校验成立该切片所需的最小信息",
+        f"3. 产出 {_generic_axis_deliverable(axis)}",
+        "4. 对外暴露可观察的 completed state",
+    ]
+
+
 def axis_key(axis: dict[str, str]) -> str:
     raw = str(axis.get("id") or "").strip().lower()
     if raw:
@@ -380,8 +588,7 @@ def feat_goal(axis: dict[str, str], package: Any) -> str:
 
 def feat_scope(axis: dict[str, str], package: Any | None = None) -> list[str]:
     explicit_scope = ensure_list(axis.get("scope"))
-    if explicit_scope:
-        return explicit_scope
+    key = axis_key(axis)
     scopes = {
         "collaboration-loop": [
             "定义 governed skill 在什么触发场景下提交 candidate package、proposal 和 evidence，以及提交后形成什么 authoritative handoff object。",
@@ -419,13 +626,15 @@ def feat_scope(axis: dict[str, str], package: Any | None = None) -> list[str]:
             "明确本 FEAT 只面向本主链治理能力涉及的 governed skill 接入与验证，不扩大为仓库级全局文件治理改造。",
         ],
     }
-    key = axis_key(axis)
+    if explicit_scope:
+        if len(explicit_scope) >= 3:
+            return explicit_scope
+        if key in scopes:
+            return unique_strings(explicit_scope + scopes[key])[:5]
+        return _generic_scope_fallback(axis)
     if key in scopes:
         return scopes[key]
-    return [
-        str(axis.get("scope") or axis.get("feat_axis") or axis.get("name") or "").strip(),
-        f"Derived axis: {axis.get('feat_axis') or axis.get('name')}",
-    ]
+    return _generic_scope_fallback(axis)
 
 
 def feat_non_goals(axis: dict[str, str], package: Any) -> list[str]:
@@ -560,8 +769,7 @@ def feat_postconditions(axis: dict[str, str]) -> list[str]:
 
 def feat_main_flow(axis: dict[str, str]) -> list[str]:
     explicit = ensure_list(axis.get("main_flow"))
-    if explicit:
-        return explicit
+    key = axis_key(axis)
     flows = {
         "collaboration-loop": [
             "execution loop 收到业务完成信号后整理 candidate package、proposal、evidence。",
@@ -594,7 +802,12 @@ def feat_main_flow(axis: dict[str, str]) -> list[str]:
             "通过的波次进入下一轮扩大接入范围。",
         ],
     }
-    return flows.get(axis_key(axis), ["定义该 FEAT 的主要业务流。"])
+    fallback = flows.get(key, _generic_main_flow(axis))
+    if explicit:
+        if len(explicit) >= 3:
+            return explicit
+        return unique_strings(explicit + fallback)[:5]
+    return fallback
 
 
 def feat_alternate_flows(axis: dict[str, str]) -> list[str]:
@@ -682,7 +895,7 @@ def feat_input_objects(axis: dict[str, str]) -> list[str]:
         "artifact-io-governance": ["handoff write request", "decision evidence write request", "formal output write/read request"],
         "skill-adoption-e2e": ["skill onboarding matrix entry", "pilot target chain", "cutover directive"],
     }
-    return mapping.get(axis_key(axis), [])
+    return mapping.get(axis_key(axis), _generic_input_objects(axis))
 
 
 def feat_output_objects(axis: dict[str, str]) -> list[str]:
@@ -696,7 +909,7 @@ def feat_output_objects(axis: dict[str, str]) -> list[str]:
         "artifact-io-governance": ["managed artifact ref", "registry record", "write/read receipt"],
         "skill-adoption-e2e": ["integration matrix", "pilot evidence", "cutover or fallback decision"],
     }
-    return mapping.get(axis_key(axis), [])
+    return mapping.get(axis_key(axis), _generic_output_objects(axis))
 
 
 def feat_required_deliverables(axis: dict[str, str]) -> list[str]:
@@ -710,7 +923,7 @@ def feat_required_deliverables(axis: dict[str, str]) -> list[str]:
         "artifact-io-governance": ["governed write/read receipt", "registry record / managed ref", "rejected write/read result"],
         "skill-adoption-e2e": ["onboarding matrix", "pilot chain 定义", "pilot evidence 要求", "cutover / fallback 规则"],
     }
-    return mapping.get(axis_key(axis), [])
+    return mapping.get(axis_key(axis), _generic_required_deliverables(axis))
 
 
 def feat_authoritative_output(axis: dict[str, str]) -> str:
@@ -752,7 +965,7 @@ def feat_role_responsibility_split(axis: dict[str, str]) -> list[str]:
         "artifact-io-governance": ["业务动作发起方负责声明读写意图。", "governed IO 边界负责校验和记录。", "registry / audit 消费方负责提供 authoritative readback。"],
         "skill-adoption-e2e": ["rollout owner 负责 wave 和 pilot 范围。", "skill owner 负责接入和回退执行。", "audit / gate owner 负责判断 pilot 是否成立。"],
     }
-    return mapping.get(axis_key(axis), [])
+    return mapping.get(axis_key(axis), _generic_role_split(axis))
 
 
 def feat_handoff_points(axis: dict[str, str]) -> list[str]:
@@ -766,7 +979,7 @@ def feat_handoff_points(axis: dict[str, str]) -> list[str]:
         "artifact-io-governance": ["business write request -> governed receipt", "managed artifact ref -> downstream read"],
         "skill-adoption-e2e": ["onboarding directive -> pilot activation", "pilot evidence -> cutover / fallback decision"],
     }
-    return mapping.get(axis_key(axis), [])
+    return mapping.get(axis_key(axis), _generic_handoff_points(axis))
 
 
 def feat_interaction_timeline(axis: dict[str, str]) -> list[str]:
@@ -780,7 +993,7 @@ def feat_interaction_timeline(axis: dict[str, str]) -> list[str]:
         "artifact-io-governance": ["1. 声明读写意图", "2. governed IO 校验", "3. 生成 receipt / record", "4. 返回 managed ref 或拒绝结果"],
         "skill-adoption-e2e": ["1. 选定 pilot wave", "2. 接入 producer / consumer", "3. 收集 audit / gate evidence", "4. 决定 cutover 或 fallback"],
     }
-    return mapping.get(axis_key(axis), [])
+    return mapping.get(axis_key(axis), _generic_interaction_timeline(axis))
 
 
 def feat_business_sequence(axis: dict[str, str]) -> str:
@@ -820,7 +1033,7 @@ def feat_business_sequence(axis: dict[str, str]) -> str:
             "```",
         ]),
     }
-    return diagrams.get(axis_key(axis), "")
+    return diagrams.get(axis_key(axis), _generic_business_sequence(axis))
 
 
 def feat_observable_outcomes(axis: dict[str, str]) -> list[str]:
@@ -902,7 +1115,7 @@ def feat_frozen_product_shape(axis: dict[str, str]) -> list[str]:
         "artifact-io-governance": ["冻结哪些业务动作必须 governed write/read。", "冻结主链正式落盘与读取的 authoritative 边界。"],
         "skill-adoption-e2e": ["冻结 onboarding wave / pilot / cutover / fallback 的产品形态。", "冻结真实 pilot evidence 的存在要求。"],
     }
-    return mapping.get(axis_key(axis), [])
+    return mapping.get(axis_key(axis), _generic_frozen_product_shape(axis))
 
 
 def feat_frozen_business_semantics(axis: dict[str, str]) -> list[str]:
@@ -916,7 +1129,7 @@ def feat_frozen_business_semantics(axis: dict[str, str]) -> list[str]:
         "artifact-io-governance": ["正式主链读写必须遵循 governed IO 边界。", "未通过治理的写入不算正式输出。"],
         "skill-adoption-e2e": ["pilot 成功是 cutover 的前置业务语义。", "fallback 是正式定义的业务结果，不是临时补救动作。"],
     }
-    return mapping.get(axis_key(axis), [])
+    return mapping.get(axis_key(axis), _generic_frozen_business_semantics(axis))
 
 
 def feat_open_technical_decisions(axis: dict[str, str]) -> list[str]:
@@ -930,7 +1143,7 @@ def feat_open_technical_decisions(axis: dict[str, str]) -> list[str]:
         "artifact-io-governance": ["Gateway / Path Policy / Registry 的具体调用接口", "receipt schema", "路径物理目录布局"],
         "skill-adoption-e2e": ["onboarding CLI / config surface", "pilot evidence schema", "rollout automation 方式"],
     }
-    return mapping.get(axis_key(axis), [])
+    return mapping.get(axis_key(axis), _generic_open_technical_decisions(axis))
 
 
 def feat_explicit_non_decisions(axis: dict[str, str]) -> list[str]:
@@ -944,7 +1157,7 @@ def feat_explicit_non_decisions(axis: dict[str, str]) -> list[str]:
         "artifact-io-governance": ["不在本 FEAT 重新实现 ADR-005 模块。", "不在本 FEAT 决定对象层级和 gate 裁决语义。"],
         "skill-adoption-e2e": ["不在本 FEAT 重写 foundation FEAT 的能力定义。", "不在本 FEAT 直接做 release / task 排期。"],
     }
-    return mapping.get(axis_key(axis), [])
+    return mapping.get(axis_key(axis), _generic_explicit_non_decisions(axis))
 
 
 def feat_product_interface(axis: dict[str, str]) -> str:
@@ -1002,8 +1215,7 @@ def feat_governance_intermediates(axis: dict[str, str]) -> list[str]:
 
 def feat_loop_gate_human_involvement(axis: dict[str, str]) -> list[str]:
     explicit = ensure_list(axis.get("loop_gate_human_involvement"))
-    if explicit:
-        return explicit
+    key = axis_key(axis)
     mapping = {
         "collaboration-loop": [
             "Execution loop 在 candidate 整理和提交时介入。",
@@ -1031,7 +1243,12 @@ def feat_loop_gate_human_involvement(axis: dict[str, str]) -> list[str]:
             "Human involvement 点集中在 pilot 放量、fallback 触发和 scope 调整。",
         ],
     }
-    return mapping.get(axis_key(axis), [])
+    fallback = mapping.get(key, _generic_loop_gate_human_involvement(axis))
+    if explicit:
+        if len(explicit) >= 1:
+            return explicit
+        return unique_strings(explicit + fallback)[:3]
+    return fallback
 
 
 def bundle_shared_non_goals(package: Any) -> list[str]:
@@ -1063,8 +1280,6 @@ def select_constraints(package: Any, keywords: list[str], fallback_count: int = 
 
 def feat_constraints(axis: dict[str, str], package: Any) -> list[str]:
     explicit = ensure_list(axis.get("constraints"))
-    if explicit:
-        return explicit
     key = axis_key(axis)
     selected = {
         "collaboration-loop": select_constraints(package, ["双会话双队列", "execution loop", "human loop", "queue"], fallback_count=3),
@@ -1072,7 +1287,7 @@ def feat_constraints(axis: dict[str, str], package: Any) -> list[str]:
         "object-layering": select_constraints(package, ["business skill", "formal object", "formal refs", "lineage", "consumer"], fallback_count=3),
         "artifact-io-governance": select_constraints(package, ["路径与目录治理", "governed skill io", "formal materialization", "handoff"], fallback_count=3),
         "skill-adoption-e2e": select_constraints(package, ["integration matrix", "onboarding", "migration", "cutover", "fallback", "producer -> consumer -> audit -> gate", "e2e"], fallback_count=3),
-    }.get(key, select_constraints(package, [str(axis.get("name") or "")], fallback_count=3))
+    }.get(key)
 
     specialized = {
         "collaboration-loop": [
@@ -1100,7 +1315,12 @@ def feat_constraints(axis: dict[str, str], package: Any) -> list[str]:
             "真实闭环成立必须以 pilot E2E evidence 证明，不得把组件内自测当成唯一成立依据。",
         ],
     }.get(key, [])
-    return unique_strings(selected + specialized)[:6]
+    fallback = unique_strings((selected or _generic_constraints(axis, package)) + specialized)[:6]
+    if explicit:
+        if len(explicit) >= 4:
+            return explicit
+        return unique_strings(explicit + fallback)[:6]
+    return fallback
 
 
 def feat_dependencies(axis: dict[str, str], package: Any | None = None) -> list[str]:
@@ -1348,7 +1568,7 @@ def build_acceptance_checks(feat_ref: str, epic_ref: str, axis: dict[str, str]) 
                 "trace_hints": [feat_ref, "observability boundary", "control separation", "decision support"],
             },
         ],
-    }.get(key, [])
+    }.get(key, _generic_acceptance_checks(feat_ref, axis))
     if isinstance(explicit, list) and explicit:
         if len(explicit) >= 3:
             return explicit

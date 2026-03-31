@@ -91,6 +91,7 @@ def write_executor_outputs(output_dir: Path, repo_root: Path, package: Any, gene
             "skill_id": "ll-product-epic-to-feat",
             "run_id": package.run_id,
             "role": "executor",
+            "input_path": str(package.artifacts_dir),
             "inputs": [str(package.artifacts_dir)],
             "outputs": [str(output_dir / "feat-freeze-bundle.md"), str(output_dir / "feat-freeze-bundle.json")],
             "commands_run": [command_name],

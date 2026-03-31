@@ -296,6 +296,73 @@ class EpicToFeatWorkflowTests(unittest.TestCase):
             validate = self.run_cmd("validate-output", "--artifacts-dir", str(artifacts_dir))
             self.assertEqual(validate.returncode, 0, validate.stderr)
 
+    def test_sparse_legacy_product_behavior_slices_are_backfilled_to_valid_feat_bundle(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            repo_root = Path(temp_dir)
+            epic = self.base_epic_json()
+            epic["title"] = "用户建档 2.0 最小 MVP 重构 统一能力"
+            epic["business_goal"] = "将首日核心目标从“完整建档”调整为“1 分钟内获得第一条可用建议”。"
+            epic["source_refs"] = [
+                "product.src-to-epic::user-onboarding-v2-20260330",
+                "EPIC-SRC-001-001",
+                "SRC-001",
+                "docs/baseline1.0/user-onboarding-prd.md",
+            ]
+            epic["constraints_and_dependencies"] = [
+                "最小建档主链不能被设备连接阻塞。",
+                "首轮 AI 建议必须在最小输入下也能给出安全结果。",
+                "扩展画像与设备连接必须允许后置渐进补全。",
+                "身体字段冲突时必须维持唯一事实源边界。",
+            ]
+            epic["product_behavior_slices"] = [
+                {
+                    "id": "minimal-onboarding-flow",
+                    "name": "最小建档主链能力",
+                    "track": "foundation",
+                    "goal": "冻结最小建档主链能力。",
+                    "scope": "把首进链路收敛为 登录/注册 -> 最小建档页 -> 首页；最小建档页必须单页完成，并稳定收集首日必要输入。",
+                    "product_surface": "单页最小建档主链与完成态",
+                    "completed_state": "用户提交最小建档后立即允许进入首页，且设备绑定不再阻塞首进链路。",
+                    "business_deliverable": "单页最小建档主链与完成态",
+                    "capability_axes": ["最小建档主链能力"],
+                },
+                {
+                    "id": "first-ai-advice-release",
+                    "name": "首轮 AI 建议释放能力",
+                    "track": "foundation",
+                    "goal": "冻结首轮 AI 建议释放能力。",
+                    "scope": "确保用户在最小输入下即可获得首轮 AI 建议，并以 running_level 与 recent_injury_status 作为风险门槛。",
+                    "product_surface": "首轮 AI 建议输出与风险门槛",
+                    "completed_state": "完成最小建档后即可产出安全可执行的首轮建议，而不要求先补齐扩展画像或设备数据。",
+                    "business_deliverable": "首轮 AI 建议输出与风险门槛",
+                    "capability_axes": ["首轮 AI 建议释放能力"],
+                },
+            ]
+
+            input_dir = self.make_epic_package(repo_root, "epic-legacy-sparse", epic)
+            result = self.run_cmd("run", "--input", str(input_dir), "--repo-root", str(repo_root), "--run-id", "feat-legacy-sparse")
+            self.assertEqual(result.returncode, 0, result.stderr)
+
+            artifacts_dir = Path(json.loads(result.stdout)["artifacts_dir"])
+            bundle = json.loads((artifacts_dir / "feat-freeze-bundle.json").read_text(encoding="utf-8"))
+            execution = json.loads((artifacts_dir / "execution-evidence.json").read_text(encoding="utf-8"))
+            first_feat = bundle["features"][0]
+
+            self.assertGreaterEqual(len(first_feat["acceptance_checks"]), 3)
+            self.assertGreaterEqual(len(first_feat["constraints"]), 4)
+            self.assertGreaterEqual(len(first_feat["scope"]), 3)
+            self.assertGreaterEqual(len(first_feat["business_flow"]["main_flow"]), 3)
+            self.assertTrue(first_feat["collaboration_and_timeline"]["business_sequence"])
+            self.assertGreaterEqual(len(first_feat["collaboration_and_timeline"]["loop_gate_human_involvement"]), 1)
+            self.assertGreaterEqual(len(first_feat["frozen_downstream_boundary"]["frozen_product_shape"]), 1)
+            self.assertGreaterEqual(len(first_feat["frozen_downstream_boundary"]["open_technical_decisions"]), 1)
+            self.assertTrue(first_feat["product_objects_and_deliverables"]["output_objects"])
+            self.assertTrue(first_feat["product_objects_and_deliverables"]["required_deliverables"])
+            self.assertEqual(execution["input_path"], str(input_dir))
+
+            validate = self.run_cmd("validate-output", "--artifacts-dir", str(artifacts_dir))
+            self.assertEqual(validate.returncode, 0, validate.stderr)
+
     def test_revision_request_rerun_materializes_revision_trace_and_updates_evidence(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             repo_root = Path(temp_dir)
