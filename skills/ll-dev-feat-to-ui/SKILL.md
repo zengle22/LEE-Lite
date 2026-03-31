@@ -15,6 +15,7 @@ This skill converts one selected frozen FEAT into one governed `ui_spec_package`
 4. Convert FEAT semantics into UI unit scope, user path, ASCII wireframe, state model, and technical boundaries.
 5. Always emit a `UI Spec Completeness Check` result with `pass | conditional_pass | fail`.
 6. Only treat the package as ready when `python scripts/feat_to_ui.py freeze-guard --artifacts-dir <ui-package-dir>` succeeds.
+7. When external gate returns `revise` or `retry`, rerun `run`, `executor-run`, or `supervisor-review` with `--revision-request <revision-request.json>` so the rebuilt UI package preserves normalized revision context and evidence.
 
 
 ## Role Split

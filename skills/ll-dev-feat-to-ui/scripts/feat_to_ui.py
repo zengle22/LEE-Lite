@@ -9,6 +9,12 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
+WORKSPACE_ROOT = Path(__file__).resolve().parents[3]
+if str(WORKSPACE_ROOT) not in sys.path:
+    sys.path.insert(0, str(WORKSPACE_ROOT))
+
+from cli.lib.workflow_revision import load_revision_request, materialize_revision_request, normalize_revision_context
+
 INPUT_FILES = [
     "package-manifest.json",
     "feat-freeze-bundle.md",
@@ -33,20 +39,12 @@ OUTPUT_FILES = [
     "execution-evidence.json",
     "supervision-evidence.json",
 ]
-
-
 def utc_now() -> str:
     return datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
-
-
 def slugify(text: str) -> str:
     return re.sub(r"-{2,}", "-", re.sub(r"[^a-zA-Z0-9\u4e00-\u9fff]+", "-", str(text or "").strip())).strip("-").lower() or "main"
-
-
 def repo_root_from(repo_root: str | None) -> Path:
     return Path(repo_root).resolve() if repo_root else Path.cwd().resolve()
-
-
 def s_list(value: Any) -> list[str]:
     if value is None:
         return []
@@ -55,40 +53,26 @@ def s_list(value: Any) -> list[str]:
     if isinstance(value, list):
         return [str(item).strip() for item in value if str(item).strip()]
     return [str(value).strip()]
-
-
 def d_list(value: Any) -> list[dict[str, Any]]:
     return [item for item in value if isinstance(item, dict)] if isinstance(value, list) else []
-
-
 def first(*values: Any) -> str:
     for value in values:
         if isinstance(value, str) and value.strip():
             return value.strip()
     return ""
-
-
 def load_json(path: Path) -> Any:
     return json.loads(path.read_text(encoding="utf-8"))
-
-
 def write_json(path: Path, payload: Any) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
-
-
 def write_text(path: Path, content: str) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(content.rstrip() + "\n", encoding="utf-8")
-
-
 def rel(path: Path, repo_root: Path) -> str:
     try:
         return path.resolve().relative_to(repo_root.resolve()).as_posix()
     except ValueError:
         return path.resolve().as_posix()
-
-
 def default_ascii(title: str) -> str:
     return "\n".join(
         [
@@ -105,8 +89,6 @@ def default_ascii(title: str) -> str:
             "+--------------------------------------------------+",
         ]
     )
-
-
 def default_states() -> list[dict[str, Any]]:
     return [
         {"name": "initial", "trigger": "页面首次进入", "ui_behavior": "展示默认结构与说明", "user_options": "开始主路径操作"},
@@ -116,8 +98,6 @@ def default_states() -> list[dict[str, Any]]:
         {"name": "submit_error", "trigger": "提交失败", "ui_behavior": "展示错误并保留上下文", "user_options": "重试或返回修改"},
         {"name": "submit_success", "trigger": "提交成功", "ui_behavior": "进入下一步或刷新结果", "user_options": "继续流程"},
     ]
-
-
 def has_forbidden_open_question(questions: list[str]) -> bool:
     keywords = [
         "主路径",
@@ -136,20 +116,10 @@ def has_forbidden_open_question(questions: list[str]) -> bool:
         if any(keyword.lower() in text for keyword in keywords):
             return True
     return False
-
-
 def normalize_field(item: Any) -> dict[str, Any]:
     if isinstance(item, dict):
-        return {
-            "field": first(item.get("field"), item.get("name")),
-            "type": first(item.get("type"), "string"),
-            "required": bool(item.get("required")),
-            "source": first(item.get("source"), "feat_input"),
-            "note": first(item.get("note"), "无"),
-        }
+        return {"field": first(item.get("field"), item.get("name")), "type": first(item.get("type"), "string"), "required": bool(item.get("required")), "source": first(item.get("source"), "feat_input"), "note": first(item.get("note"), "无")}
     return {"field": str(item).strip(), "type": "string", "required": False, "source": "feat_input", "note": "无"}
-
-
 def build_units(feature: dict[str, Any], feat_ref: str) -> list[dict[str, Any]]:
     units = d_list(feature.get("ui_units"))
     if not units:
@@ -223,7 +193,6 @@ def build_units(feature: dict[str, Any], feat_ref: str) -> list[dict[str, Any]]:
         )
     return result
 
-
 def assess_unit(unit: dict[str, Any]) -> tuple[str, dict[str, bool], list[str]]:
     checks = {
         "page_goal_clear": bool(unit["page_goal"]),
@@ -267,7 +236,6 @@ def assess_unit(unit: dict[str, Any]) -> tuple[str, dict[str, bool], list[str]]:
     if not questions and all(checks.values()):
         return "pass", checks, questions
     return "conditional_pass", checks, questions
-
 
 def render_spec(unit: dict[str, Any]) -> str:
     branches: list[str] = []
@@ -396,7 +364,6 @@ def render_spec(unit: dict[str, Any]) -> str:
         ]
     )
 
-
 def validate_input_package(input_path: str | Path, feat_ref: str, repo_root: Path) -> tuple[list[str], dict[str, Any]]:
     input_dir = Path(input_path).resolve()
     if not input_dir.exists() or not input_dir.is_dir():
@@ -421,7 +388,6 @@ def validate_input_package(input_path: str | Path, feat_ref: str, repo_root: Pat
         errors.append(f"selected FEAT {feat_ref} explicitly disables UI derivation via ui_required=false")
     return errors, {"input_dir": input_dir, "bundle": bundle, "feature": feature, "feat_ref": feat_ref, "repo_root": repo_root}
 
-
 def build_package(context: dict[str, Any], repo_root: Path, run_id: str, allow_update: bool) -> dict[str, Any]:
     feat_ref = context["feat_ref"]
     feature = context["feature"]
@@ -429,6 +395,15 @@ def build_package(context: dict[str, Any], repo_root: Path, run_id: str, allow_u
     if output_dir.exists() and not allow_update:
         return {"ok": False, "errors": [f"output directory already exists: {output_dir}"], "artifacts_dir": str(output_dir)}
     output_dir.mkdir(parents=True, exist_ok=True)
+    revision_request, loaded_revision_path = load_revision_request(context.get("revision_request_path"), artifacts_dir=output_dir, load_json=load_json)
+    revision_request_ref, _, _ = materialize_revision_request(
+        output_dir,
+        revision_request=revision_request,
+        load_json=load_json,
+        dump_json=write_json,
+        delete_if_missing=True,
+    )
+    revision_context = normalize_revision_context(revision_request, repo_root=repo_root, revision_request_path=loaded_revision_path or (Path(revision_request_ref) if revision_request_ref else None)) or None
     for stale in output_dir.glob("*__ui_spec.md"):
         stale.unlink()
     units, questions = [], []
@@ -469,8 +444,16 @@ def build_package(context: dict[str, Any], repo_root: Path, run_id: str, allow_u
         "open_questions": sorted(set(questions)),
         "source_package_ref": rel(context["input_dir"], repo_root),
     }
+    if revision_context:
+        bundle["revision_context"] = revision_context
+        bundle["revision_request_ref"] = revision_context["revision_request_ref"]
+        bundle["revision_summary"] = revision_context["summary"]
     defects = [{"ui_spec_id": unit["ui_spec_id"], "check": name} for unit in units for name, ok in unit["checklist"].items() if not ok]
-    write_json(output_dir / "package-manifest.json", {"artifact_type": "ui_spec_package", "workflow_key": "dev.feat-to-ui", "run_id": run_id or slugify(feat_ref), "feat_ref": feat_ref, "status": overall, "ui_spec_refs": bundle["ui_spec_refs"], "source_package_ref": bundle["source_package_ref"], "ui_flow_map_ref": rel(output_dir / "ui-flow-map.md", repo_root)})
+    manifest = {"artifact_type": "ui_spec_package", "workflow_key": "dev.feat-to-ui", "run_id": run_id or slugify(feat_ref), "feat_ref": feat_ref, "status": overall, "ui_spec_refs": bundle["ui_spec_refs"], "source_package_ref": bundle["source_package_ref"], "ui_flow_map_ref": rel(output_dir / "ui-flow-map.md", repo_root)}
+    if revision_context:
+        manifest["revision_request_ref"] = revision_context["revision_request_ref"]
+        manifest["revision_summary"] = revision_context["summary"]
+    write_json(output_dir / "package-manifest.json", manifest)
     write_text(output_dir / "ui-spec-bundle.md", "\n".join([f"# UI Spec Bundle for {feat_ref}", "", "## Selected FEAT", f"- feat_ref: {feat_ref}", f"- title: {bundle['feat_title']}", f"- ui_spec_count: {bundle['ui_spec_count']}", f"- completeness_result: {overall}", "", "## UI Spec Inventory", *[f"- {unit['ui_spec_id']} | {unit['page_name']} | {unit['completeness_result']}" for unit in units], "", "## Traceability", *[f"- {item}" for item in bundle["source_refs"]]]))
     write_text(
         output_dir / "ui-flow-map.md",
@@ -495,15 +478,22 @@ def build_package(context: dict[str, Any], repo_root: Path, run_id: str, allow_u
         ),
     )
     write_json(output_dir / "ui-spec-bundle.json", bundle)
-    write_json(output_dir / "ui-spec-completeness-report.json", {"gate_name": "UI Spec Completeness Check", "decision": overall, "freeze_ready": overall != "fail", "ui_specs": [{"ui_spec_id": unit["ui_spec_id"], "decision": unit["completeness_result"], "checklist": unit["checklist"], "open_questions": unit["open_questions"]} for unit in units], "open_questions": bundle["open_questions"], "checked_at": utc_now()})
-    write_json(output_dir / "ui-spec-review-report.json", {"workflow_key": "dev.feat-to-ui", "decision": overall, "summary": f"UI Spec Completeness Check => {overall}", "reviewed_at": utc_now(), "open_questions": bundle["open_questions"]})
+    completeness_report = {"gate_name": "UI Spec Completeness Check", "decision": overall, "freeze_ready": overall != "fail", "ui_specs": [{"ui_spec_id": unit["ui_spec_id"], "decision": unit["completeness_result"], "checklist": unit["checklist"], "open_questions": unit["open_questions"]} for unit in units], "open_questions": bundle["open_questions"], "checked_at": utc_now()}
+    review_report = {"workflow_key": "dev.feat-to-ui", "decision": overall, "summary": f"UI Spec Completeness Check => {overall}", "reviewed_at": utc_now(), "open_questions": bundle["open_questions"]}
+    freeze_gate = {"workflow_key": "dev.feat-to-ui", "gate_name": "UI Spec Completeness Check", "decision": overall, "freeze_ready": overall != "fail", "checked_at": utc_now()}
+    execution_evidence = {"workflow_key": "dev.feat-to-ui", "run_id": run_id or slugify(feat_ref), "input_path": str(context["input_dir"]), "artifacts_dir": str(output_dir), "decision": overall, "generated_at": utc_now(), "key_decisions": ([f"Applied revision context: {revision_context['summary']}"] if revision_context else [])}
+    supervision_evidence = {"workflow_key": "dev.feat-to-ui", "run_id": run_id or slugify(feat_ref), "artifacts_dir": str(output_dir), "decision": overall, "review_completed_at": utc_now(), "gate_name": "UI Spec Completeness Check"}
+    if revision_context:
+        for payload in [completeness_report, review_report, freeze_gate, execution_evidence, supervision_evidence]:
+            payload["revision_context"] = revision_context
     write_json(output_dir / "ui-spec-defect-list.json", defects)
-    write_json(output_dir / "ui-spec-freeze-gate.json", {"workflow_key": "dev.feat-to-ui", "gate_name": "UI Spec Completeness Check", "decision": overall, "freeze_ready": overall != "fail", "checked_at": utc_now()})
-    write_json(output_dir / "execution-evidence.json", {"workflow_key": "dev.feat-to-ui", "run_id": run_id or slugify(feat_ref), "input_path": str(context["input_dir"]), "artifacts_dir": str(output_dir), "decision": overall, "generated_at": utc_now()})
-    write_json(output_dir / "supervision-evidence.json", {"workflow_key": "dev.feat-to-ui", "run_id": run_id or slugify(feat_ref), "artifacts_dir": str(output_dir), "decision": overall, "review_completed_at": utc_now(), "gate_name": "UI Spec Completeness Check"})
-    write_text(output_dir / "evidence-report.md", "\n".join(["# Evidence Report", "", f"- decision: {overall}", f"- generated_at: {utc_now()}"]))
+    write_json(output_dir / "ui-spec-completeness-report.json", completeness_report)
+    write_json(output_dir / "ui-spec-review-report.json", review_report)
+    write_json(output_dir / "ui-spec-freeze-gate.json", freeze_gate)
+    write_json(output_dir / "execution-evidence.json", execution_evidence)
+    write_json(output_dir / "supervision-evidence.json", supervision_evidence)
+    write_text(output_dir / "evidence-report.md", "\n".join(["# Evidence Report", "", f"- decision: {overall}", f"- generated_at: {utc_now()}", *([f"- revision_request_ref: {revision_context['revision_request_ref']}"] if revision_context else [])]))
     return {"ok": overall != "fail", "artifacts_dir": str(output_dir), "artifacts_ref": rel(output_dir, repo_root), "ui_spec_refs": bundle["ui_spec_refs"], "ui_spec_count": len(units), "completeness_result": overall, "open_questions": bundle["open_questions"]}
-
 
 def validate_output_package(artifacts_dir: Path) -> tuple[list[str], dict[str, Any]]:
     if not artifacts_dir.exists() or not artifacts_dir.is_dir():
@@ -522,10 +512,11 @@ def validate_output_package(artifacts_dir: Path) -> tuple[list[str], dict[str, A
         errors.append("ui-spec-bundle.json schema_version must be 1.0.0")
     if int(bundle.get("ui_spec_count") or 0) != len(bundle.get("ui_spec_refs") or []):
         errors.append("ui_spec_count must match ui_spec_refs length")
+    if str(bundle.get("revision_request_ref") or "").strip() and not (artifacts_dir / "revision-request.json").exists():
+        errors.append("revision-request.json must exist when ui-spec-bundle.json revision_request_ref is present")
     if report.get("decision") != gate.get("decision"):
         errors.append("completeness report decision must match freeze gate decision")
     return errors, {"bundle": bundle, "report": report, "gate": gate}
-
 
 def validate_package_readiness(artifacts_dir: Path) -> tuple[bool, list[str]]:
     errors, result = validate_output_package(artifacts_dir)
@@ -535,66 +526,61 @@ def validate_package_readiness(artifacts_dir: Path) -> tuple[bool, list[str]]:
         return False, ["UI Spec Completeness Check failed."]
     return True, []
 
-
 def collect_evidence_report(artifacts_dir: Path) -> Path:
     report_path = artifacts_dir / "evidence-report.md"
     if not report_path.exists():
         write_text(report_path, "# Evidence Report\n")
     return report_path
 
-
-def supervisor_review(artifacts_dir: Path, repo_root: Path, run_id: str = "") -> dict[str, Any]:
+def supervisor_review(artifacts_dir: Path, repo_root: Path, run_id: str = "", revision_request_path: str | Path | None = None) -> dict[str, Any]:
     ok, errors = validate_package_readiness(artifacts_dir)
     gate = load_json(artifacts_dir / "ui-spec-freeze-gate.json") if (artifacts_dir / "ui-spec-freeze-gate.json").exists() else {}
-    write_json(artifacts_dir / "supervision-evidence.json", {"workflow_key": "dev.feat-to-ui", "run_id": run_id, "artifacts_dir": str(artifacts_dir), "decision": gate.get("decision", "fail"), "review_completed_at": utc_now(), "gate_name": "UI Spec Completeness Check", "errors": errors})
+    revision_request, loaded_revision_path = load_revision_request(revision_request_path, artifacts_dir=artifacts_dir, load_json=load_json)
+    revision_context = normalize_revision_context(revision_request, repo_root=repo_root, revision_request_path=loaded_revision_path) or None
+    supervision = {"workflow_key": "dev.feat-to-ui", "run_id": run_id, "artifacts_dir": str(artifacts_dir), "decision": gate.get("decision", "fail"), "review_completed_at": utc_now(), "gate_name": "UI Spec Completeness Check", "errors": errors}
+    if revision_context:
+        supervision["revision_context"] = revision_context
+    write_json(artifacts_dir / "supervision-evidence.json", supervision)
     return {"ok": ok, "freeze_ready": ok, "errors": errors, "artifacts_dir": str(artifacts_dir), "evidence_report_ref": rel(collect_evidence_report(artifacts_dir), repo_root)}
 
-
-def run_workflow(input_path: str | Path, feat_ref: str, repo_root: Path, run_id: str = "", allow_update: bool = False) -> dict[str, Any]:
+def run_workflow(input_path: str | Path, feat_ref: str, repo_root: Path, run_id: str = "", allow_update: bool = False, revision_request_path: str | Path | None = None) -> dict[str, Any]:
     errors, context = validate_input_package(input_path, feat_ref, repo_root)
-    return {"ok": False, "errors": errors, "input_path": str(Path(input_path).resolve())} if errors else build_package(context, repo_root, run_id, allow_update)
+    if errors:
+        return {"ok": False, "errors": errors, "input_path": str(Path(input_path).resolve())}
+    context["revision_request_path"] = revision_request_path
+    return build_package(context, repo_root, run_id, allow_update)
 
+def _run_build_command(args: argparse.Namespace, *, strict: bool) -> int:
+    result = run_workflow(args.input, args.feat_ref, repo_root_from(args.repo_root), args.run_id or "", args.allow_update, args.revision_request or None)
+    print(json.dumps(result, ensure_ascii=False))
+    return 0 if result.get("ok") or not strict else 1
 
 def command_run(args: argparse.Namespace) -> int:
-    result = run_workflow(args.input, args.feat_ref, repo_root_from(args.repo_root), args.run_id or "", args.allow_update)
-    print(json.dumps(result, ensure_ascii=False))
-    return 0 if result.get("ok") else 1
-
-
+    return _run_build_command(args, strict=True)
 def command_executor_run(args: argparse.Namespace) -> int:
-    result = run_workflow(args.input, args.feat_ref, repo_root_from(args.repo_root), args.run_id or "", args.allow_update)
-    print(json.dumps(result, ensure_ascii=False))
-    return 0
-
-
+    return _run_build_command(args, strict=False)
 def command_supervisor_review(args: argparse.Namespace) -> int:
-    result = supervisor_review(Path(args.artifacts_dir).resolve(), repo_root_from(args.repo_root), args.run_id or "")
+    result = supervisor_review(Path(args.artifacts_dir).resolve(), repo_root_from(args.repo_root), args.run_id or "", args.revision_request or None)
     print(json.dumps(result, ensure_ascii=False))
     return 0 if result.get("freeze_ready") else 1
-
 
 def command_validate_input(args: argparse.Namespace) -> int:
     errors, result = validate_input_package(args.input, args.feat_ref, repo_root_from(args.repo_root))
     print(json.dumps({"ok": not errors, "result": result, "errors": errors}, ensure_ascii=False, indent=2))
     return 0 if not errors else 1
 
-
 def command_validate_output(args: argparse.Namespace) -> int:
     errors, result = validate_output_package(Path(args.artifacts_dir).resolve())
     print(json.dumps({"ok": not errors, "result": result, "errors": errors}, ensure_ascii=False, indent=2))
     return 0 if not errors else 1
 
-
 def command_collect_evidence(args: argparse.Namespace) -> int:
     print(json.dumps({"ok": True, "report_path": str(collect_evidence_report(Path(args.artifacts_dir).resolve()))}, ensure_ascii=False))
     return 0
-
-
 def command_validate_package_readiness(args: argparse.Namespace) -> int:
     ok, errors = validate_package_readiness(Path(args.artifacts_dir).resolve())
     print(json.dumps({"ok": ok, "errors": errors}, ensure_ascii=False))
     return 0 if ok else 1
-
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Run the feat-to-ui workflow.")
@@ -606,11 +592,13 @@ def build_parser() -> argparse.ArgumentParser:
         cmd.add_argument("--repo-root")
         cmd.add_argument("--run-id")
         cmd.add_argument("--allow-update", action="store_true")
+        cmd.add_argument("--revision-request")
         cmd.set_defaults(func=func)
     review = sub.add_parser("supervisor-review")
     review.add_argument("--artifacts-dir", required=True)
     review.add_argument("--repo-root")
     review.add_argument("--run-id")
+    review.add_argument("--revision-request")
     review.set_defaults(func=command_supervisor_review)
     vin = sub.add_parser("validate-input")
     vin.add_argument("--input", required=True)
@@ -631,12 +619,9 @@ def build_parser() -> argparse.ArgumentParser:
     freeze.set_defaults(func=command_validate_package_readiness)
     return parser
 
-
 def main() -> int:
     parser = build_parser()
     args = parser.parse_args()
     return args.func(args)
-
-
 if __name__ == "__main__":
     sys.exit(main())
