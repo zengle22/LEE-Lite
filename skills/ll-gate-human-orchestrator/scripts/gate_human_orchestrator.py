@@ -116,6 +116,7 @@ def command_claim_next(args: argparse.Namespace) -> int:
         run_id=args.run_id or "",
         allow_update=args.allow_update,
         actor_ref=args.actor_ref,
+        target_item=args.target_item or "",
     )
     print(json.dumps(result, ensure_ascii=False))
     return 0
@@ -204,6 +205,7 @@ def build_parser() -> argparse.ArgumentParser:
     claim_parser = subparsers.add_parser("claim-next")
     claim_parser.add_argument("--repo-root")
     claim_parser.add_argument("--run-id")
+    claim_parser.add_argument("--target-item")
     claim_parser.add_argument("--actor-ref", default="ll-gate-human-orchestrator")
     claim_parser.add_argument("--allow-update", action="store_true")
     claim_parser.set_defaults(func=command_claim_next)

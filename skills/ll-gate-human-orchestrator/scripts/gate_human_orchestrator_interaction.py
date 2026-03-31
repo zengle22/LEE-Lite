@@ -9,7 +9,7 @@ from typing import Any
 
 from gate_human_orchestrator_common import dump_json, load_gate_ready_package, load_json, repo_relative
 from gate_human_orchestrator_projection import write_bundle_files
-from gate_human_orchestrator_queue import active_claimed_item, claimable_queue_item
+from gate_human_orchestrator_queue import active_claimed_item, claimable_queue_item, pending_queue_items
 from gate_human_orchestrator_round_support import (
     human_brief_payload,
     load_ssot_brief,
@@ -29,20 +29,13 @@ ALLOWED_ACTIONS = ["approve", "revise", "retry", "handoff", "reject"]
 _CLOSEABLE_STATUSES = {"decision_recorded", "closed"}
 
 
-def prepare_round(input_path: Path, repo_root: Path, run_id: str, allow_update: bool = False) -> dict[str, Any]:
-    package = load_gate_ready_package(input_path)
-    effective_run_id = run_id or default_run_id(package.package_path)
-    artifacts_dir = output_dir_for(repo_root, effective_run_id)
-    if artifacts_dir.exists() and not allow_update:
-        raise FileExistsError(f"Output directory already exists: {artifacts_dir}")
-    artifacts_dir.mkdir(parents=True, exist_ok=True)
-
+def _build_request(package: Any, repo_root: Path, effective_run_id: str) -> dict[str, Any]:
     decision_target = str(package.payload.get("candidate_ref", ""))
     machine_ssot_ref = str(package.payload.get("machine_ssot_ref", ""))
     ssot_brief = load_ssot_brief(repo_root, machine_ssot_ref)
     audit_ref = repo_root / "artifacts" / "active" / "audit" / "finding-bundle.json"
     audit_refs = [repo_relative(repo_root, audit_ref)] if audit_ref.exists() else []
-    request = {
+    return {
         "title": f"人工审批处理单 {effective_run_id}",
         "input_ref": repo_relative(repo_root, package.package_path),
         "pending_human_decision_ref": f"artifacts/gate-human-orchestrator/{effective_run_id}/pending-human-decision.json",
@@ -68,6 +61,21 @@ def prepare_round(input_path: Path, repo_root: Path, run_id: str, allow_update: 
         "ssot_outline": ssot_brief["outline"],
         "review_checkpoints": ssot_brief["review_points"],
     }
+
+
+def prepare_round(input_path: Path, repo_root: Path, run_id: str, allow_update: bool = False) -> dict[str, Any]:
+    package = load_gate_ready_package(input_path)
+    effective_run_id = run_id or default_run_id(package.package_path)
+    artifacts_dir = output_dir_for(repo_root, effective_run_id)
+    if artifacts_dir.exists() and not allow_update:
+        raise FileExistsError(f"Output directory already exists: {artifacts_dir}")
+    artifacts_dir.mkdir(parents=True, exist_ok=True)
+
+    request = _build_request(package, repo_root, effective_run_id)
+    decision_target = str(package.payload.get("candidate_ref", ""))
+    machine_ssot_ref = str(package.payload.get("machine_ssot_ref", ""))
+    audit_ref = repo_root / "artifacts" / "active" / "audit" / "finding-bundle.json"
+    audit_refs = [repo_relative(repo_root, audit_ref)] if audit_ref.exists() else []
     state = {
         "run_id": effective_run_id,
         "status": "pending_human_reply",
@@ -113,11 +121,18 @@ def prepare_round(input_path: Path, repo_root: Path, run_id: str, allow_update: 
     }
 
 
-def claim_next(repo_root: Path, run_id: str, allow_update: bool = False, actor_ref: str = "ll-gate-human-orchestrator") -> dict[str, Any]:
-    item = claimable_queue_item(repo_root)
+def claim_next(
+    repo_root: Path,
+    run_id: str,
+    allow_update: bool = False,
+    actor_ref: str = "ll-gate-human-orchestrator",
+    target_item: str = "",
+) -> dict[str, Any]:
+    item = claimable_queue_item(repo_root, preferred_item=target_item)
     if not item:
         active = active_claimed_item(repo_root, actor_ref)
-        if active:
+        target = target_item.strip()
+        if active and (not target or str(active["run_id"]) == target):
             status = str(active["state"].get("status", "claimed"))
             request = refresh_request_brief(repo_root, active["artifacts_dir"]) or active["request"]
             return {
@@ -133,6 +148,8 @@ def claim_next(repo_root: Path, run_id: str, allow_update: bool = False, actor_r
                 "review_summary": review_summary(request, status=status),
                 "human_brief": human_brief_payload(request, status=status),
             }
+        if target:
+            raise FileNotFoundError(f"no claimable gate pending item found for target: {target}")
         raise FileNotFoundError("no claimable gate pending item found")
 
     effective_run_id = run_id or item["item_key"]
@@ -188,22 +205,53 @@ def claim_next(repo_root: Path, run_id: str, allow_update: bool = False, actor_r
 def show_pending(repo_root: Path) -> dict[str, Any]:
     root = repo_root / "artifacts" / "gate-human-orchestrator"
     items: list[dict[str, Any]] = []
+    seen_run_ids: set[str] = set()
     if root.exists():
         for state_path in sorted(root.glob("*/round-state.json")):
             state = load_json(state_path)
             if state.get("status") != "pending_human_reply":
                 continue
             request = refresh_request_brief(repo_root, state_path.parent)
+            run_id = str(state.get("run_id", ""))
+            if run_id:
+                seen_run_ids.add(run_id)
             items.append(
                 {
-                    "run_id": state.get("run_id", ""),
+                    "run_id": run_id,
                     "artifacts_dir": str(state_path.parent),
                     "decision_target": state.get("decision_target", ""),
                     "request_ref": state.get("request_ref", ""),
+                    "status": str(state.get("status", "")),
                     "review_summary": review_summary(request, status=str(state.get("status", ""))),
                     "human_brief": human_brief_payload(request, status=str(state.get("status", ""))),
                 }
             )
+    for item in pending_queue_items(repo_root):
+        pending = item["pending"]
+        if str(pending.get("claim_status", "")).lower() == "active":
+            continue
+        if str(pending.get("pending_state", "")).lower() in {"closed", "released", "completed"}:
+            continue
+        run_id = str(item["item_key"])
+        if run_id in seen_run_ids:
+            continue
+        package = item.get("package")
+        if package is None:
+            continue
+        request = _build_request(package, repo_root, run_id)
+        items.append(
+            {
+                "run_id": run_id,
+                "artifacts_dir": "",
+                "decision_target": request.get("decision_target", ""),
+                "request_ref": "",
+                "handoff_ref": repo_relative(repo_root, item["handoff_path"]),
+                "gate_pending_ref": repo_relative(repo_root, item["pending_path"]),
+                "status": "gate_pending_unclaimed",
+                "review_summary": review_summary(request, status="gate_pending_unclaimed"),
+                "human_brief": human_brief_payload(request, status="gate_pending_unclaimed"),
+            }
+        )
     return {"ok": True, "pending_count": len(items), "items": items}
 
 
