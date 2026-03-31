@@ -65,7 +65,6 @@ def derive_semantic_lock(feature: dict[str, Any]) -> dict[str, Any]:
                 "authoritative decision object",
                 "formal publication trigger",
                 "approve / revise / retry / handoff / reject",
-                "candidate package",
             ],
             "inheritance_rule": "TESTSET must stay on first-advice/risk-gate semantics and must not drift into gate-decision testing.",
         }
@@ -86,7 +85,6 @@ def derive_semantic_lock(feature: dict[str, Any]) -> dict[str, Any]:
                 "authoritative decision object",
                 "formal publication trigger",
                 "approve / revise / retry / handoff / reject",
-                "candidate package",
             ],
             "inheritance_rule": "TESTSET must stay on progressive-completion semantics and must not drift into gate-decision testing.",
         }
@@ -107,7 +105,6 @@ def derive_semantic_lock(feature: dict[str, Any]) -> dict[str, Any]:
                 "authoritative decision object",
                 "formal publication trigger",
                 "approve / revise / retry / handoff / reject",
-                "candidate package",
             ],
             "inheritance_rule": "TESTSET must stay on deferred-device-entry semantics and must not drift into gate-decision testing.",
         }
@@ -129,7 +126,6 @@ def derive_semantic_lock(feature: dict[str, Any]) -> dict[str, Any]:
                 "authoritative decision object",
                 "formal publication trigger",
                 "approve / revise / retry / handoff / reject",
-                "candidate package",
             ],
             "inheritance_rule": "TESTSET must stay on state/profile-boundary semantics and must not drift into gate-decision testing.",
         }

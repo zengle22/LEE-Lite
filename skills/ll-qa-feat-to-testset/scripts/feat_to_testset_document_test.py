@@ -21,13 +21,19 @@ def build_document_test(
     ready_for_gate_review: bool,
 ) -> dict[str, Any]:
     titles = [str(item.get("title") or item.get("check") or "").strip() for item in defects if str(item.get("title") or item.get("check") or "").strip()]
+    blocking_defects = [item for item in defects if str(item.get("severity") or "").strip() in {"P0", "P1"}]
+    blocking_titles = [
+        str(item.get("title") or item.get("check") or "").strip()
+        for item in blocking_defects
+        if str(item.get("title") or item.get("check") or "").strip()
+    ]
     missing_contracts = [
         category for category, values in (required_environment_inputs or {}).items() if not [str(item).strip() for item in (values or []) if str(item).strip()]
     ]
     fixability = build_fixability_section(
-        recommended_next_action="workflow_rebuild" if defects else "submit_to_external_gate",
-        recommended_actor="workflow_rebuild" if defects else "external_gate_review",
-        rebuild_required=len(defects),
+        recommended_next_action="workflow_rebuild" if blocking_defects else "external_gate_review",
+        recommended_actor="workflow_rebuild" if blocking_defects else "external_gate_review",
+        rebuild_required=len(blocking_defects),
     )
     return build_document_test_report(
         workflow_key="qa.feat-to-testset",
@@ -36,12 +42,17 @@ def build_document_test(
         defect_list=defects,
         revision_request_ref=str((revision_context or {}).get("revision_request_ref") or ""),
         structural={"package_integrity": True, "traceability_integrity": bool(bundle_json.get("source_refs")), "blocking": False},
-        logic_consistency={"checked_topics": ["analysis", "strategy", "traceability", "handoff"], "conflicts_found": titles, "severity": "blocking" if defects else "none", "blocking": bool(defects)},
+        logic_consistency={
+            "checked_topics": ["analysis", "strategy", "traceability", "handoff"],
+            "conflicts_found": titles,
+            "severity": "blocking" if blocking_defects else ("non_blocking" if defects else "none"),
+            "blocking": bool(blocking_defects),
+        },
         downstream_readiness={
             "downstream_target": downstream_target,
             "consumption_contract_ref": "skills/ll-qa-feat-to-testset/ll.contract.yaml#validation.document_test.downstream_consumption_contract",
             "ready_for_gate_review": ready_for_gate_review,
-            "blocking_gaps": titles,
+            "blocking_gaps": blocking_titles,
             "missing_contracts": missing_contracts,
             "assumption_leaks": [],
         },

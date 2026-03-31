@@ -61,7 +61,6 @@ SUPPORTED_DOWNSTREAM_SKILLS = {
     "skill.qa.test_exec_web_e2e",
 }
 
-
 def yaml_load(path: Path) -> dict[str, Any]:
     payload = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
     return payload if isinstance(payload, dict) else {}
@@ -70,13 +69,7 @@ def yaml_load(path: Path) -> dict[str, Any]:
 def _build_findings(test_set_yaml: dict[str, Any], handoff: dict[str, Any]) -> list[dict[str, Any]]:
     findings: list[dict[str, Any]] = []
     if not ensure_list(test_set_yaml.get("governing_adrs")):
-        findings.append(
-            {
-                "severity": "P2",
-                "title": "No governing ADR refs were inherited",
-                "detail": "The candidate package is usable, but governing ADR lineage should be made explicit when available.",
-            }
-        )
+        findings.append({"severity": "P2", "title": "No governing ADR refs were inherited", "detail": "The candidate package is usable, but governing ADR lineage should be made explicit when available."})
     required_inputs = handoff.get("required_environment_inputs") or {}
     for category in ENVIRONMENT_INPUT_CATEGORIES:
         if not ensure_list(required_inputs.get(category)):
@@ -182,6 +175,9 @@ def update_supervisor_outputs(artifacts_dir: Path, repo_root: Path, supervision:
         revision_context=revision_context or None,
         ready_for_gate_review=passed,
     )
+    document_test_non_blocking = document_test_report.get("test_outcome") == "no_blocking_defect_found"
+    supervision["document_test_report_ref"] = str(artifacts_dir / "document-test-report.json")
+    supervision["document_test_outcome"] = document_test_report.get("test_outcome", "")
     freeze_gate.update(
         {
             "status": gate_status,
@@ -197,7 +193,7 @@ def update_supervisor_outputs(artifacts_dir: Path, repo_root: Path, supervision:
                 "required_environment_inputs_present": not blocking,
                 "semantic_lock_preserved": semantic_drift_check.get("semantic_lock_preserved", True),
                 "document_test_report_present": document_test_report.get("test_outcome") in {"no_blocking_defect_found", "blocking_defect_found", "inconclusive", "not_applicable"},
-                "document_test_non_blocking": passed,
+                "document_test_non_blocking": document_test_non_blocking,
             },
             "updated_at": _utc_now(),
         }

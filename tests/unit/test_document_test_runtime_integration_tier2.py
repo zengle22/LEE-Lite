@@ -2,6 +2,8 @@ import json
 import tempfile
 from pathlib import Path
 
+import yaml
+
 from tests.unit.support_feat_to_tech import FeatToTechWorkflowHarness
 from tests.unit.support_feat_to_testset import FeatToTestSetWorkflowHarness
 from tests.unit.support_tech_to_impl import TechToImplWorkflowHarness
@@ -102,6 +104,44 @@ class FeatToTestSetDocumentTestIntegrationTests(FeatToTestSetWorkflowHarness):
             self.assertNotEqual(validate.returncode, 0)
             self.assertIn("sections", validate.stdout)
 
+    def test_feat_to_testset_keeps_p2_only_findings_non_blocking(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            repo_root = Path(temp_dir)
+            feature = {
+                "feat_ref": "FEAT-DOC-TESTSET-P2",
+                "title": "测试集 P2 finding 不应阻断",
+                "goal": "验证 P2 only finding 不会被 document test 升级成 blocking。",
+                "scope": ["生成 test-set candidate。", "保留 supervisor 与 document-test 语义一致。"],
+                "constraints": ["P2 finding 只能进入 evidence，不能隐式变成 rebuild_required。"],
+                "dependencies": ["上游 feat_freeze_package 已 freeze_ready。"],
+                "acceptance_checks": [
+                    {"id": "AC-01", "scenario": "analysis 可生成", "given": "selected FEAT", "when": "运行 testset", "then": "analysis 存在"},
+                    {"id": "AC-02", "scenario": "strategy 可生成", "given": "acceptance checks", "when": "运行 testset", "then": "strategy 存在"},
+                    {"id": "AC-03", "scenario": "handoff 可生成", "given": "candidate package", "when": "进入 supervisor", "then": "handoff 可消费"},
+                ],
+                "source_refs": ["FEAT-DOC-TESTSET-P2", "EPIC-SRC-001", "SRC-001"],
+            }
+            bundle = self.make_bundle_json(feature, run_id="feat-doc-testset-p2-input")
+            bundle["source_refs"] = [ref for ref in bundle["source_refs"] if not str(ref).startswith("ADR-")]
+            input_dir = self.make_feat_package(repo_root, "feat-doc-testset-p2-input", bundle)
+            artifacts_dir = self.run_testset_flow(repo_root, input_dir, "FEAT-DOC-TESTSET-P2", "feat-doc-testset-p2")
+
+            testset_yaml_path = artifacts_dir / "test-set.yaml"
+            payload = yaml.safe_load(testset_yaml_path.read_text(encoding="utf-8")) or {}
+            payload["governing_adrs"] = []
+            testset_yaml_path.write_text(yaml.safe_dump(payload, allow_unicode=True, sort_keys=False), encoding="utf-8")
+
+            review = self.run_cmd("supervisor-review", "--artifacts-dir", str(artifacts_dir), "--repo-root", str(repo_root))
+            self.assertNotEqual(review.returncode, 0)
+
+            report = json.loads((artifacts_dir / "document-test-report.json").read_text(encoding="utf-8"))
+            freeze_gate = json.loads((artifacts_dir / "test-set-freeze-gate.json").read_text(encoding="utf-8"))
+            supervision = json.loads((artifacts_dir / "supervision-evidence.json").read_text(encoding="utf-8"))
+            self.assertEqual(report["test_outcome"], "no_blocking_defect_found")
+            self.assertTrue(freeze_gate["checks"]["document_test_non_blocking"])
+            self.assertEqual(supervision["decision"], "pass")
+            self.assertEqual(supervision["document_test_outcome"], "no_blocking_defect_found")
+
 
 class TechToImplDocumentTestIntegrationTests(TechToImplWorkflowHarness):
     def test_tech_to_impl_emits_document_test_and_enforces_readiness(self) -> None:
@@ -126,9 +166,14 @@ class TechToImplDocumentTestIntegrationTests(TechToImplWorkflowHarness):
 
             report = json.loads((artifacts_dir / "document-test-report.json").read_text(encoding="utf-8"))
             manifest = json.loads((artifacts_dir / "package-manifest.json").read_text(encoding="utf-8"))
+            supervision = json.loads((artifacts_dir / "supervision-evidence.json").read_text(encoding="utf-8"))
+            gate_ready = json.loads((artifacts_dir / "input" / "gate-ready-package.json").read_text(encoding="utf-8"))
 
             self.assertEqual(manifest["document_test_report_ref"], str(artifacts_dir / "document-test-report.json"))
             self.assertEqual(report["test_outcome"], "no_blocking_defect_found")
+            self.assertEqual(supervision["document_test_report_ref"], str(artifacts_dir / "document-test-report.json"))
+            self.assertEqual(supervision["document_test_outcome"], "no_blocking_defect_found")
+            self.assertEqual(gate_ready["payload"]["evidence_bundle_ref"], str(Path("artifacts") / "tech-to-impl" / artifacts_dir.name / "supervision-evidence.json").replace("\\", "/"))
 
             validate = self.run_cmd("validate-output", "--artifacts-dir", str(artifacts_dir))
             self.assertEqual(validate.returncode, 0, validate.stderr)

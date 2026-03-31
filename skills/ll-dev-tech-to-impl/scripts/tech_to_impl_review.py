@@ -208,6 +208,7 @@ def write_executor_outputs(output_dir: Path, package: Any, generated: dict[str, 
 
 def build_supervision_evidence(artifacts_dir: Path) -> dict[str, Any]:
     bundle_json = load_json(artifacts_dir / "impl-bundle.json")
+    document_test_report = load_json(artifacts_dir / "document-test-report.json")
     handoff = load_json(artifacts_dir / "handoff-to-feature-delivery.json")
     upstream_refs = load_json(artifacts_dir / "upstream-design-refs.json")
     evidence_plan = load_json(artifacts_dir / "dev-evidence-plan.json")
@@ -287,6 +288,8 @@ def build_supervision_evidence(artifacts_dir: Path) -> dict[str, Any]:
         "semantic_findings": findings,
         "decision": "pass" if passed else "revise",
         "reason": "Implementation task package is ready for downstream execution." if passed else "Implementation task package requires revision before downstream execution.",
+        "document_test_report_ref": str(artifacts_dir / "document-test-report.json"),
+        "document_test_outcome": str(document_test_report.get("test_outcome") or ""),
     }
 
 
@@ -332,6 +335,8 @@ def update_supervisor_outputs(artifacts_dir: Path, supervision: dict[str, Any]) 
             **revision_metadata,
         }
     )
+    supervision["document_test_report_ref"] = str(artifacts_dir / "document-test-report.json")
+    supervision["document_test_outcome"] = document_test_report.get("test_outcome", "")
     acceptance_report.update(
         {
             "status": "completed",

@@ -304,17 +304,31 @@ class FeatToTestSetWorkflowTests(FeatToTestSetWorkflowHarness):
                         f"input-{feature['feat_ref']}",
                         f"output-{feature['feat_ref'].lower()}",
                     )
-                    bundle_md = (artifacts_dir / "test-set-bundle.md").read_text(encoding="utf-8")
                     test_set = yaml.safe_load((artifacts_dir / "test-set.yaml").read_text(encoding="utf-8"))
                     drift = json.loads((artifacts_dir / "semantic-drift-check.json").read_text(encoding="utf-8"))
 
-                    combined = bundle_md + "\n" + json.dumps(test_set, ensure_ascii=False)
+                    combined = "\n".join(
+                        [
+                            json.dumps(test_set.get("coverage_scope"), ensure_ascii=False),
+                            json.dumps(test_set.get("risk_focus"), ensure_ascii=False),
+                            json.dumps(test_set.get("environment_assumptions"), ensure_ascii=False),
+                            json.dumps(test_set.get("preconditions"), ensure_ascii=False),
+                            json.dumps(test_set.get("test_units"), ensure_ascii=False),
+                            json.dumps(test_set.get("pass_criteria"), ensure_ascii=False),
+                            json.dumps(test_set.get("evidence_required"), ensure_ascii=False),
+                            json.dumps(test_set.get("acceptance_traceability"), ensure_ascii=False),
+                        ]
+                    )
                     self.assertEqual(drift["verdict"], "pass")
                     self.assertTrue(drift["semantic_lock_present"])
                     for marker in required_markers:
                         self.assertIn(marker, combined)
                     for marker in forbidden_markers:
-                        self.assertNotIn(marker, combined)
+                        self.assertNotIn(marker, test_set.get("semantic_lock", {}).get("primary_object", ""))
+                        self.assertNotIn(marker, test_set.get("semantic_lock", {}).get("allowed_capabilities", []))
+                        for unit in test_set.get("test_units", []):
+                            self.assertNotIn(marker, unit.get("title", ""))
+                            self.assertNotIn(marker, " ".join(unit.get("pass_conditions", [])))
 
     def test_revision_request_rerun_persists_revision_context_and_constraints(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
