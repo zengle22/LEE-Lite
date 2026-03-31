@@ -8,8 +8,18 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
+import sys
 from typing import Any
 
+WORKSPACE_ROOT = Path(__file__).resolve().parents[3]
+if str(WORKSPACE_ROOT) not in sys.path:
+    sys.path.insert(0, str(WORKSPACE_ROOT))
+
+from cli.lib.workflow_revision import (
+    materialize_revision_request,
+    normalize_revision_context,
+)
+from cli.lib.workflow_document_test import validate_document_test_report
 from src_to_epic_derivation import (
     assess_rollout_requirement,
     choose_epic_freeze_ref,
@@ -66,17 +76,8 @@ from src_to_epic_gate_integration import (
     create_handoff_proposal,
     submit_gate_pending,
 )
-REQUIRED_OUTPUT_FILES = (
-    "epic-freeze.md", "epic-freeze.json", "epic-review-report.json", "epic-acceptance-report.json",
-    "epic-defect-list.json", "epic-freeze-gate.json", "handoff-to-epic-to-feat.json", "semantic-drift-check.json",
-    "execution-evidence.json", "supervision-evidence.json",
-)
-REQUIRED_MARKDOWN_HEADINGS = (
-    "Epic Intent", "Business Goal", "Business Value and Problem", "Product Positioning", "Actors and Roles",
-    "Capability Scope", "Upstream and Downstream", "Epic Success Criteria", "Non-Goals", "Decomposition Rules",
-    "Rollout and Adoption", "Constraints and Dependencies", "Acceptance and Review", "Downstream Handoff",
-    "Traceability",
-)
+REQUIRED_OUTPUT_FILES = ("epic-freeze.md", "epic-freeze.json", "epic-review-report.json", "epic-acceptance-report.json", "epic-defect-list.json", "document-test-report.json", "epic-freeze-gate.json", "handoff-to-epic-to-feat.json", "semantic-drift-check.json", "execution-evidence.json", "supervision-evidence.json")
+REQUIRED_MARKDOWN_HEADINGS = ("Epic Intent", "Business Goal", "Business Value and Problem", "Product Positioning", "Actors and Roles", "Capability Scope", "Upstream and Downstream", "Epic Success Criteria", "Non-Goals", "Decomposition Rules", "Rollout and Adoption", "Constraints and Dependencies", "Acceptance and Review", "Downstream Handoff", "Traceability")
 def utc_now() -> str:
     return datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
 
@@ -107,70 +108,30 @@ def _materialize_revision_request(
     artifacts_dir: Path,
     revision_request_path: str | Path | None,
 ) -> tuple[str, dict[str, Any]]:
-    if revision_request_path:
-        source_path = Path(revision_request_path).resolve()
-    else:
-        source_path = _revision_request_target_path(artifacts_dir)
-    if not source_path.exists():
-        if revision_request_path:
-            raise FileNotFoundError(f"Revision request not found: {source_path}")
-        return "", {}
-    revision_request = load_optional_json(source_path)
-    target_path = _revision_request_target_path(artifacts_dir)
-    if source_path != target_path or not target_path.exists():
-        dump_json(target_path, revision_request)
-    else:
-        dump_json(target_path, revision_request)
-    return str(target_path), revision_request
-
-
-def _revision_summary(revision_request: dict[str, Any]) -> str:
-    decision_target = str(revision_request.get("decision_target") or "").strip()
-    decision_reason = str(revision_request.get("decision_reason") or revision_request.get("reason") or "").strip()
-    revision_round = str(revision_request.get("revision_round") or "").strip()
-    pieces: list[str] = []
-    if revision_round:
-        pieces.append(f"round {revision_round}")
-    if decision_target:
-        pieces.append(decision_target)
-    if decision_reason:
-        pieces.append(summarize_text(decision_reason, limit=180))
-    summary = " | ".join(pieces)
-    if not summary:
-        summary = "gate revise request"
-    return summarize_text(f"Gate revise: {summary}", limit=220)
+    revision_request_ref, revision_request, _ = materialize_revision_request(
+        artifacts_dir,
+        revision_request_path=revision_request_path,
+        load_json=load_optional_json,
+        dump_json=dump_json,
+    )
+    return revision_request_ref, revision_request
 
 
 def _apply_revision_request(package: Any, revision_request_ref: str, revision_request: dict[str, Any]) -> str:
     if not revision_request:
         return ""
-
-    revision_summary = _revision_summary(revision_request)
+    revision_context_patch = normalize_revision_context(
+        revision_request,
+        revision_request_ref=revision_request_ref,
+        ensure_list=ensure_list,
+        summarize_text=summarize_text,
+    )
+    revision_summary = str(revision_context_patch["summary"]).strip()
     candidate = package.src_candidate
     revision_context = candidate.get("revision_context")
     if not isinstance(revision_context, dict):
         revision_context = {}
-    revision_context.update(
-        {
-            "revision_request_ref": revision_request_ref,
-            "workflow_key": str(revision_request.get("workflow_key") or "").strip(),
-            "run_id": str(revision_request.get("run_id") or "").strip(),
-            "source_run_id": str(revision_request.get("source_run_id") or "").strip(),
-            "decision_type": str(revision_request.get("decision_type") or "").strip(),
-            "decision_target": str(revision_request.get("decision_target") or "").strip(),
-            "decision_reason": str(revision_request.get("decision_reason") or revision_request.get("reason") or "").strip(),
-            "revision_round": revision_request.get("revision_round"),
-            "basis_refs": ensure_list(revision_request.get("basis_refs")),
-            "source_gate_decision_ref": str(revision_request.get("source_gate_decision_ref") or "").strip(),
-            "source_return_job_ref": str(revision_request.get("source_return_job_ref") or "").strip(),
-            "authoritative_input_ref": str(revision_request.get("authoritative_input_ref") or "").strip(),
-            "candidate_ref": str(revision_request.get("candidate_ref") or "").strip(),
-            "original_input_path": str(revision_request.get("original_input_path") or "").strip(),
-            "triggered_by_request_id": str(revision_request.get("triggered_by_request_id") or "").strip(),
-            "trace": revision_request.get("trace") if isinstance(revision_request.get("trace"), dict) else {},
-            "summary": revision_summary,
-        }
-    )
+    revision_context.update(revision_context_patch)
     candidate["revision_context"] = revision_context
     candidate["revision_request_ref"] = revision_request_ref
     candidate["key_constraints"] = unique_strings(ensure_list(candidate.get("key_constraints")) + [revision_summary])
@@ -556,6 +517,7 @@ def validate_output_package(artifacts_dir: Path) -> tuple[list[str], dict[str, A
             errors.append(f"Missing required output artifact: {required_file}")
     if errors:
         return errors, {"valid": False}
+    errors.extend(validate_document_test_report(load_json(artifacts_dir / "document-test-report.json")))
 
     epic_json = load_json(artifacts_dir / "epic-freeze.json")
     if epic_json.get("artifact_type") != "epic_freeze_package":
@@ -675,6 +637,8 @@ def validate_package_readiness(artifacts_dir: Path) -> tuple[bool, list[str]]:
     gate = load_json(artifacts_dir / "epic-freeze-gate.json")
     checks = gate.get("checks") or {}
     readiness_errors = [name for name, status in checks.items() if status is not True]
+    if load_json(artifacts_dir / "document-test-report.json").get("test_outcome") != "no_blocking_defect_found":
+        readiness_errors.append("document_test_non_blocking")
     return not readiness_errors, readiness_errors
 
 

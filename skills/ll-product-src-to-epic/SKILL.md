@@ -33,6 +33,7 @@ This skill is a lite-native governed workflow between `ll-product-raw-to-src` an
 6. Run `python scripts/src_to_epic.py supervisor-review --artifacts-dir <epic-package-dir>` before freeze.
 7. Freeze only after the supervisor records a semantic pass and `python scripts/src_to_epic.py freeze-guard --artifacts-dir <epic-package-dir>` returns success.
 8. Emit a downstream handoff that names `product.epic-to-feat` and the resulting `epic_freeze_ref`.
+9. When external gate returns `revise` or `retry`, rerun `run`, `executor-run`, or `supervisor-review` with `--revision-request <revision-request.json>` so the rebuilt package preserves normalized revision context and evidence lineage.
 
 ## Workflow Boundary
 
