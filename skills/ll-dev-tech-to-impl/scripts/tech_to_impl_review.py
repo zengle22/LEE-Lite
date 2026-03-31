@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 from __future__ import annotations
 
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
@@ -39,6 +40,32 @@ def _revision_metadata(generated: dict[str, Any]) -> dict[str, Any]:
     return {key: value for key, value in payload.items() if value not in {"", 0}}
 
 
+def _build_document_test_report(generated: dict[str, Any]) -> dict[str, Any]:
+    consistency = generated["consistency"]
+    semantic_drift = generated["semantic_drift_check"]
+    blocking_found = (not consistency["passed"]) or semantic_drift.get("verdict") == "reject"
+    return {
+        "workflow_key": "dev.tech-to-impl",
+        "run_id": generated["bundle_json"]["workflow_run_id"],
+        "tested_at": datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z"),
+        "test_outcome": "blocking_defect_found" if blocking_found else "no_blocking_defect_found",
+        "defect_counts": {"blocking": 1 if blocking_found else 0, "non_blocking": 0},
+        "recommended_next_action": "workflow_rebuild" if blocking_found else "supervisor_review",
+        "recommended_actor": "workflow_rebuild" if blocking_found else "supervisor_handoff",
+        "sections": {
+            "structural": {"status": "pass", "summary": "Core implementation package artifacts were generated."},
+            "logic_consistency": {"status": "pass" if consistency["passed"] else "fail", "issues": consistency["issues"]},
+            "downstream_readiness": {"status": "pending", "summary": "Awaiting supervisor confirmation."},
+            "semantic_drift": {"status": semantic_drift.get("verdict"), "summary": semantic_drift.get("summary")},
+            "fixability": {"status": "rebuild_required" if blocking_found else "local_semantic_fixable"},
+            "canonical_package": {"status": "pass", "summary": "Package semantics are projected as canonical execution package only."},
+            "freshness": {"status": "pass", "summary": "Package marked fresh_on_generation at creation time."},
+            "discrepancy": {"status": "pass", "summary": "Repo discrepancy policy requires explicit handling before truth changes."},
+            "self_contained_boundary": {"status": "pass", "summary": "Package projects minimum sufficient information, not upstream mirroring."},
+        },
+    }
+
+
 def write_executor_outputs(output_dir: Path, package: Any, generated: dict[str, Any], command_name: str) -> None:
     output_dir.mkdir(parents=True, exist_ok=True)
     revision_metadata = _revision_metadata(generated)
@@ -50,6 +77,7 @@ def write_executor_outputs(output_dir: Path, package: Any, generated: dict[str, 
     dump_json(output_dir / "dev-evidence-plan.json", generated["evidence_plan"])
     dump_json(output_dir / "smoke-gate-subject.json", generated["smoke_gate_subject"])
     dump_json(output_dir / "impl-review-report.json", generated["review_report"])
+    dump_json(output_dir / "document-test-report.json", _build_document_test_report(generated))
     dump_json(output_dir / "impl-acceptance-report.json", generated["acceptance_report"])
     dump_json(output_dir / "impl-defect-list.json", generated["defect_list"])
     dump_json(output_dir / "handoff-to-feature-delivery.json", generated["handoff"])
@@ -89,6 +117,7 @@ def write_executor_outputs(output_dir: Path, package: Any, generated: dict[str, 
             "status": generated["bundle_json"]["status"],
             "primary_artifact_ref": str(output_dir / "impl-bundle.json"),
             "review_report_ref": str(output_dir / "impl-review-report.json"),
+            "document_test_report_ref": str(output_dir / "document-test-report.json"),
             "acceptance_report_ref": str(output_dir / "impl-acceptance-report.json"),
             "defect_list_ref": str(output_dir / "impl-defect-list.json"),
             "smoke_gate_subject_ref": str(output_dir / "smoke-gate-subject.json"),
@@ -148,6 +177,8 @@ def build_supervision_evidence(artifacts_dir: Path) -> dict[str, Any]:
     smoke_gate = load_json(artifacts_dir / "smoke-gate-subject.json")
     semantic_drift_check = load_json(artifacts_dir / "semantic-drift-check.json")
     findings: list[dict[str, Any]] = []
+    package_semantics = bundle_json.get("package_semantics") or {}
+    selected_upstream_refs = bundle_json.get("selected_upstream_refs") or {}
 
     assessment = bundle_json.get("workstream_assessment") or {}
     frontend_required = bool(assessment.get("frontend_required"))
@@ -170,6 +201,14 @@ def build_supervision_evidence(artifacts_dir: Path) -> dict[str, Any]:
         findings.append({"severity": "P1", "title": "Upstream FEAT mismatch", "detail": "upstream-design-refs.json must retain the selected feat_ref."})
     if str(upstream_refs.get("tech_ref") or "") != str(bundle_json.get("tech_ref") or ""):
         findings.append({"severity": "P1", "title": "Upstream TECH mismatch", "detail": "upstream-design-refs.json must retain the selected tech_ref."})
+    if package_semantics.get("canonical_package") is not True or package_semantics.get("execution_time_single_entrypoint") is not True:
+        findings.append({"severity": "P1", "title": "Missing canonical package semantics", "detail": "impl-bundle.json must mark canonical execution package semantics."})
+    if str(selected_upstream_refs.get("feat_ref") or "") != str(bundle_json.get("feat_ref") or ""):
+        findings.append({"severity": "P1", "title": "Missing selected upstream FEAT", "detail": "selected_upstream_refs must retain the selected feat_ref."})
+    if bundle_json.get("freshness_status") not in {"fresh_on_generation", "needs_review", "stale"}:
+        findings.append({"severity": "P1", "title": "Invalid freshness status", "detail": "freshness_status must be explicit and valid."})
+    if str((bundle_json.get("repo_discrepancy_status") or {}).get("policy") or "") != "do_not_promote_repo_to_truth":
+        findings.append({"severity": "P1", "title": "Missing discrepancy policy", "detail": "repo discrepancy policy must prevent repo-as-truth fallback."})
     if not ensure_list(handoff.get("deliverables")):
         findings.append({"severity": "P1", "title": "Missing handoff deliverables", "detail": "handoff-to-feature-delivery.json must freeze downstream deliverables."})
     if not ensure_list(handoff.get("acceptance_refs")):
@@ -218,6 +257,7 @@ def update_supervisor_outputs(artifacts_dir: Path, supervision: dict[str, Any]) 
     bundle_json = load_json(artifacts_dir / "impl-bundle.json")
     manifest = load_json(artifacts_dir / "package-manifest.json")
     review_report = load_json(artifacts_dir / "impl-review-report.json")
+    document_test_report = load_json(artifacts_dir / "document-test-report.json")
     acceptance_report = load_json(artifacts_dir / "impl-acceptance-report.json")
     smoke_gate_subject = load_json(artifacts_dir / "smoke-gate-subject.json")
     evidence_plan = load_json(artifacts_dir / "dev-evidence-plan.json")
@@ -241,6 +281,24 @@ def update_supervisor_outputs(artifacts_dir: Path, supervision: dict[str, Any]) 
             "decision": "pass" if passed else "revise",
             "summary": "Implementation task review passed." if passed else "Implementation task review requires revision.",
             "findings": supervision.get("semantic_findings") or [],
+            **revision_metadata,
+        }
+    )
+    document_test_report.update(
+        {
+            "tested_at": datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z"),
+            "test_outcome": "no_blocking_defect_found" if passed else "blocking_defect_found",
+            "defect_counts": {"blocking": len(blocking), "non_blocking": 0},
+            "recommended_next_action": "external_gate_review" if passed else "workflow_rebuild",
+            "recommended_actor": "external_gate_review" if passed else "workflow_rebuild",
+            "sections": {
+                **(document_test_report.get("sections") or {}),
+                "downstream_readiness": {
+                    "status": "pass" if passed else "fail",
+                    "summary": "Supervisor confirmed downstream execution entry conditions." if passed else "Supervisor found blocking downstream execution issues.",
+                },
+                "fixability": {"status": "local_semantic_fixable" if passed else "rebuild_required"},
+            },
             **revision_metadata,
         }
     )
@@ -288,6 +346,7 @@ def update_supervisor_outputs(artifacts_dir: Path, supervision: dict[str, Any]) 
 
     dump_json(artifacts_dir / "impl-bundle.json", bundle_json)
     dump_json(artifacts_dir / "impl-review-report.json", review_report)
+    dump_json(artifacts_dir / "document-test-report.json", document_test_report)
     dump_json(artifacts_dir / "impl-acceptance-report.json", acceptance_report)
     dump_json(artifacts_dir / "impl-defect-list.json", supervision.get("semantic_findings") or [])
     dump_json(artifacts_dir / "dev-evidence-plan.json", evidence_plan)

@@ -39,6 +39,7 @@ This skill freezes the task-first `tech2impl` boundary. It does not claim code i
 8. Run `python scripts/tech_to_impl.py supervisor-review --artifacts-dir <impl-package-dir>` before marking the package execution-ready.
 9. Freeze only after the supervisor records a semantic pass and `python scripts/tech_to_impl.py freeze-guard --artifacts-dir <impl-package-dir>` returns success.
 10. Emit a handoff that preserves `feat_ref`, `impl_ref`, `tech_ref`, and optional `arch_ref / api_ref`, with the canonical `template.dev.feature_delivery_l2` target.
+11. When external gate returns `revise` or `retry`, rerun `run`, `executor-run`, or `supervisor-review` with `--revision-request <revision-request.json>` so the regenerated implementation package preserves normalized revision context and evidence.
 
 ## Workflow Boundary
 

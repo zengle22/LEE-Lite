@@ -22,6 +22,7 @@ REQUIRED_OUTPUT_FILES = [
     "dev-evidence-plan.json",
     "smoke-gate-subject.json",
     "impl-review-report.json",
+    "document-test-report.json",
     "impl-acceptance-report.json",
     "impl-defect-list.json",
     "handoff-to-feature-delivery.json",
@@ -31,6 +32,7 @@ REQUIRED_OUTPUT_FILES = [
 ]
 REQUIRED_BUNDLE_HEADINGS = [
     "Selected Upstream",
+    "Package Semantics",
     "Applicability Assessment",
     "Implementation Task",
     "Integration Plan",
@@ -67,12 +69,14 @@ def validate_output_package(artifacts_dir: Path) -> tuple[list[str], dict[str, A
     handoff = load_json(artifacts_dir / "handoff-to-feature-delivery.json")
     upstream_refs = load_json(artifacts_dir / "upstream-design-refs.json")
     evidence_plan = load_json(artifacts_dir / "dev-evidence-plan.json")
+    document_test = load_json(artifacts_dir / "document-test-report.json")
     semantic_drift_check = load_json(artifacts_dir / "semantic-drift-check.json")
 
     errors.extend(check_bundle_identity(bundle_json))
     errors.extend(check_source_refs(bundle_json))
     errors.extend(check_markdown_sections(artifacts_dir))
     errors.extend(check_workstream_presence(artifacts_dir, bundle_json))
+    errors.extend(check_contract_projection(bundle_json, handoff, evidence_plan, document_test))
     errors.extend(check_handoff_and_evidence(handoff, upstream_refs, bundle_json, evidence_plan, smoke_gate))
     errors.extend(check_status_model(manifest, bundle_json, smoke_gate))
 
@@ -113,10 +117,90 @@ def check_markdown_sections(artifacts_dir: Path) -> list[str]:
     for heading in REQUIRED_BUNDLE_HEADINGS:
         if f"## {heading}" not in bundle_body:
             errors.append(f"impl-bundle.md is missing section: {heading}")
+    if "execution input of SSOT" in bundle_body or "execution-entry truth" in bundle_body:
+        errors.append("impl-bundle.md must use canonical execution package wording instead of truth/SSOT wording.")
     _, impl_task_body = parse_markdown_frontmatter((artifacts_dir / "impl-task.md").read_text(encoding="utf-8"))
     for heading in REQUIRED_IMPL_TASK_HEADINGS:
         if heading not in impl_task_body:
             errors.append(f"impl-task.md is missing section: {heading}")
+    for marker in ["### Required", "### Suggested", "### Normative / MUST", "### Informative / Context Only"]:
+        if marker not in impl_task_body:
+            errors.append(f"impl-task.md is missing marker: {marker}")
+    return errors
+
+
+def check_contract_projection(
+    bundle_json: dict[str, Any],
+    handoff: dict[str, Any],
+    evidence_plan: dict[str, Any],
+    document_test: dict[str, Any],
+) -> list[str]:
+    errors: list[str] = []
+    required_fields = [
+        "package_semantics",
+        "authority_scope",
+        "selected_upstream_refs",
+        "provisional_refs",
+        "normative_items",
+        "informative_items",
+        "required_steps",
+        "suggested_steps",
+        "acceptance_trace",
+        "handoff_artifacts",
+        "conflict_policy",
+        "freshness_status",
+        "rederive_triggers",
+        "self_contained_policy",
+        "repo_discrepancy_status",
+    ]
+    for field in required_fields:
+        if field not in bundle_json:
+            errors.append(f"impl-bundle.json must include {field}.")
+    semantics = bundle_json.get("package_semantics") or {}
+    if semantics.get("canonical_package") is not True or semantics.get("execution_time_single_entrypoint") is not True:
+        errors.append("impl-bundle.json package_semantics must mark the package as canonical execution package.")
+    if semantics.get("domain_truth_source") is not False or semantics.get("design_truth_source") is not False or semantics.get("test_truth_source") is not False:
+        errors.append("impl-bundle.json package_semantics must keep domain/design/test truth source flags false.")
+    selected_refs = bundle_json.get("selected_upstream_refs") or {}
+    if str(selected_refs.get("feat_ref") or "") != str(bundle_json.get("feat_ref") or ""):
+        errors.append("selected_upstream_refs.feat_ref must match impl-bundle.json feat_ref.")
+    if str(selected_refs.get("tech_ref") or "") != str(bundle_json.get("tech_ref") or ""):
+        errors.append("selected_upstream_refs.tech_ref must match impl-bundle.json tech_ref.")
+    if not ensure_list(bundle_json.get("normative_items")):
+        errors.append("impl-bundle.json normative_items must be non-empty.")
+    if not isinstance(bundle_json.get("informative_items"), list):
+        errors.append("impl-bundle.json informative_items must be present as a list.")
+    if not ensure_list(bundle_json.get("required_steps")):
+        errors.append("impl-bundle.json required_steps must be non-empty.")
+    if not isinstance(bundle_json.get("suggested_steps"), list):
+        errors.append("impl-bundle.json suggested_steps must be present as a list.")
+    if not ensure_list(bundle_json.get("acceptance_trace")):
+        errors.append("impl-bundle.json acceptance_trace must be non-empty.")
+    if set(ensure_list(bundle_json.get("handoff_artifacts"))) != set(ensure_list(handoff.get("deliverables"))):
+        errors.append("impl-bundle.json handoff_artifacts must match handoff deliverables.")
+    if bundle_json.get("freshness_status") not in {"fresh_on_generation", "needs_review", "stale"}:
+        errors.append("impl-bundle.json freshness_status is invalid.")
+    if not ensure_list(bundle_json.get("rederive_triggers")):
+        errors.append("impl-bundle.json rederive_triggers must be non-empty.")
+    if str((bundle_json.get("conflict_policy") or {}).get("repo_discrepancy_policy") or "") != "explicit_discrepancy_handling_required":
+        errors.append("impl-bundle.json conflict_policy must require explicit discrepancy handling.")
+    provisional_refs = bundle_json.get("provisional_refs")
+    if not isinstance(provisional_refs, list):
+        errors.append("impl-bundle.json provisional_refs must be present as a list.")
+    else:
+        for item in provisional_refs:
+            if not isinstance(item, dict) or not all(str(item.get(key) or "").strip() for key in ["ref", "status", "impact_scope", "follow_up_action"]):
+                errors.append("Each provisional_refs item must include ref, status, impact_scope, and follow_up_action.")
+                break
+    if "rows" not in evidence_plan:
+        errors.append("dev-evidence-plan.json must retain rows for acceptance mapping completeness.")
+    for key in ["workflow_key", "run_id", "tested_at", "test_outcome", "defect_counts", "recommended_next_action", "recommended_actor", "sections"]:
+        if key not in document_test:
+            errors.append(f"document-test-report.json must include {key}.")
+    sections = document_test.get("sections") or {}
+    for key in ["structural", "logic_consistency", "downstream_readiness", "semantic_drift", "fixability", "canonical_package", "freshness", "discrepancy", "self_contained_boundary"]:
+        if key not in sections:
+            errors.append(f"document-test-report.json sections must include {key}.")
     return errors
 
 

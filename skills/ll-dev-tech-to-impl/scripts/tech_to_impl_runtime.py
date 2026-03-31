@@ -6,10 +6,19 @@ Lite-native runtime support for tech-to-impl.
 from __future__ import annotations
 
 import hashlib
-from textwrap import shorten
+import sys
 from pathlib import Path
 from typing import Any
 
+WORKSPACE_ROOT = Path(__file__).resolve().parents[3]
+if str(WORKSPACE_ROOT) not in sys.path:
+    sys.path.insert(0, str(WORKSPACE_ROOT))
+
+from cli.lib.workflow_revision import (
+    build_revision_summary,
+    materialize_revision_request,
+    normalize_revision_context,
+)
 from tech_to_impl_builder import build_candidate_package
 from tech_to_impl_common import (
     dump_json,
@@ -88,74 +97,35 @@ def output_dir_for(repo_root: Path, run_id: str) -> Path:
 def repo_relative(repo_root: Path, path: Path) -> str:
     return path.resolve().relative_to(repo_root.resolve()).as_posix()
 
-
-def _revision_request_target_path(output_dir: Path) -> Path:
-    return output_dir / "revision-request.json"
-
-
-def _truncate(text: str, limit: int = 180) -> str:
-    normalized = " ".join(str(text or "").split())
-    return shorten(normalized, width=limit, placeholder="...") if normalized else ""
-
-
 def _revision_summary(revision_request: dict[str, Any]) -> str:
-    decision_target = _truncate(str(revision_request.get("decision_target") or ""), 80)
-    decision_reason = _truncate(
-        str(revision_request.get("decision_reason") or revision_request.get("reason") or ""),
-        180,
-    )
-    revision_round = str(revision_request.get("revision_round") or "").strip()
-    pieces = [piece for piece in [f"round {revision_round}" if revision_round else "", decision_target, decision_reason] if piece]
-    summary = " | ".join(pieces) if pieces else "gate revise request"
-    return f"Gate revise: {summary}"
+    return build_revision_summary(revision_request, reason_limit=180, output_limit=220, prefix="Gate revise")
 
 
 def _materialize_revision_request(
     output_dir: Path,
     revision_request_path: str | Path | None,
 ) -> tuple[str, dict[str, Any], int]:
-    target_path = _revision_request_target_path(output_dir)
-    if revision_request_path:
-        source_path = Path(revision_request_path).resolve()
-        if not source_path.exists():
-            raise FileNotFoundError(f"Revision request not found: {source_path}")
-        revision_request = load_json(source_path)
-        previous_round = 0
-        if target_path.exists():
-            previous_round = int(load_json(target_path).get("revision_round") or 0)
-        revision_round = previous_round + 1 if previous_round else int(revision_request.get("revision_round") or 1)
-        revision_request["revision_round"] = revision_round
-        dump_json(target_path, revision_request)
-        return str(target_path), revision_request, revision_round
-    if target_path.exists():
-        revision_request = load_json(target_path)
-        revision_round = int(revision_request.get("revision_round") or 1)
-        return str(target_path), revision_request, revision_round
-    return "", {}, 0
+    return materialize_revision_request(
+        output_dir,
+        revision_request_path=revision_request_path,
+        load_json=load_json,
+        dump_json=dump_json,
+        increment_round=True,
+        default_round=1,
+    )
 
 
 def _apply_revision_request(generated: dict[str, Any], revision_request_ref: str, revision_request: dict[str, Any]) -> str:
     if not revision_request:
         return ""
-    revision_summary = _revision_summary(revision_request)
-    revision_context = {
-        "revision_request_ref": revision_request_ref,
-        "workflow_key": str(revision_request.get("workflow_key") or "").strip(),
-        "run_id": str(revision_request.get("run_id") or "").strip(),
-        "source_run_id": str(revision_request.get("source_run_id") or "").strip(),
-        "decision_type": str(revision_request.get("decision_type") or "").strip(),
-        "decision_target": str(revision_request.get("decision_target") or "").strip(),
-        "decision_reason": str(revision_request.get("decision_reason") or revision_request.get("reason") or "").strip(),
-        "revision_round": int(revision_request.get("revision_round") or 0),
-        "basis_refs": unique_strings([str(item).strip() for item in revision_request.get("basis_refs") or [] if str(item).strip()]),
-        "source_gate_decision_ref": str(revision_request.get("source_gate_decision_ref") or "").strip(),
-        "source_return_job_ref": str(revision_request.get("source_return_job_ref") or "").strip(),
-        "authoritative_input_ref": str(revision_request.get("authoritative_input_ref") or "").strip(),
-        "candidate_ref": str(revision_request.get("candidate_ref") or "").strip(),
-        "original_input_path": str(revision_request.get("original_input_path") or "").strip(),
-        "triggered_by_request_id": str(revision_request.get("triggered_by_request_id") or "").strip(),
-        "summary": revision_summary,
-    }
+    revision_context = normalize_revision_context(
+        revision_request,
+        revision_request_ref=revision_request_ref,
+        ensure_list=lambda values: unique_strings([str(item).strip() for item in (values or []) if str(item).strip()]),
+        reason_limit=180,
+        output_limit=220,
+    )
+    revision_summary = str(revision_context["summary"]).strip()
     generated["revision_request_ref"] = revision_request_ref
     generated["revision_request"] = revision_request
     generated["revision_summary"] = revision_summary

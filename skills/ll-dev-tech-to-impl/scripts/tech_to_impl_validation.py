@@ -35,6 +35,7 @@ def validate_input_package(input_value: str | Path, feat_ref: str, tech_ref: str
     errors.extend(check_bundle_identity(bundle))
     errors.extend(check_selected_refs(package, selected_feat, effective_feat_ref, effective_tech_ref))
     errors.extend(check_selected_feat_fields(selected_feat))
+    errors.extend(check_provisional_inputs(selected_feat))
     errors.extend(check_source_refs(bundle, package, effective_tech_ref))
     errors.extend(check_optional_refs(bundle, package))
     errors.extend(check_handoff_lineage(package))
@@ -97,6 +98,21 @@ def check_selected_feat_fields(selected_feat: dict[str, Any]) -> list[str]:
     for field in ["title", "goal", "scope", "constraints"]:
         if selected_feat.get(field) in (None, "", []):
             errors.append(f"selected_feat is missing required field: {field}")
+    return errors
+
+
+def check_provisional_inputs(selected_feat: dict[str, Any]) -> list[str]:
+    errors: list[str] = []
+    raw_provisional_refs = selected_feat.get("provisional_refs")
+    provisional_refs = raw_provisional_refs if isinstance(raw_provisional_refs, list) else ensure_list(raw_provisional_refs)
+    for item in provisional_refs:
+        if isinstance(item, dict):
+            if not str(item.get("ref") or "").strip():
+                errors.append("selected_feat provisional_refs entries must include ref.")
+            if not str(item.get("follow_up_action") or "").strip():
+                errors.append("selected_feat provisional_refs entries must include follow_up_action.")
+        elif not str(item).strip():
+            errors.append("selected_feat provisional_refs entries must be non-empty.")
     return errors
 
 

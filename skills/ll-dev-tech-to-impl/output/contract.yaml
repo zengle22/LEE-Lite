@@ -10,6 +10,7 @@ required_runtime_artifacts:
   - dev-evidence-plan.json
   - smoke-gate-subject.json
   - impl-review-report.json
+  - document-test-report.json
   - impl-acceptance-report.json
   - impl-defect-list.json
   - handoff-to-feature-delivery.json
@@ -26,6 +27,7 @@ required_output_objects:
   - UPSTREAM_DESIGN_REFS
 required_bundle_sections:
   - Selected Upstream
+  - Package Semantics
   - Applicability Assessment
   - Implementation Task
   - Integration Plan
@@ -45,6 +47,22 @@ conditional_output_objects:
   - FRONTEND_WORKSTREAM
   - BACKEND_WORKSTREAM
   - MIGRATION_CUTOVER_PLAN
+required_machine_fields:
+  - package_semantics
+  - authority_scope
+  - selected_upstream_refs
+  - provisional_refs
+  - normative_items
+  - informative_items
+  - required_steps
+  - suggested_steps
+  - acceptance_trace
+  - handoff_artifacts
+  - conflict_policy
+  - freshness_status
+  - rederive_triggers
+  - self_contained_policy
+  - repo_discrepancy_status
 structural_checks:
   - schema
   - trace
@@ -52,6 +70,7 @@ structural_checks:
   - applicability_assessment_consistency
   - status_model_consistency
   - downstream_handoff_presence
+  - contract_projection_presence
 semantic_gate:
   required: true
 forbidden_content:
@@ -60,8 +79,11 @@ forbidden_content:
   - qa_strategy_truth
   - unstated_new_requirements
   - code_completion_claim_without_execution
+  - ssot_phrasing_misuse
+  - upstream_full_copy
+  - repo_as_truth_fallback
 notes:
   - `impl-task.md`, `upstream-design-refs.json`, `integration-plan.md`, `dev-evidence-plan.json`, and `smoke-gate-subject.json` are mandatory in every run.
   - Frontend, backend, and migration workstreams are conditional and must follow explicit applicability assessment.
-  - The package is the execution-entry truth for `template.dev.feature_delivery_l2`, not final code-delivery proof.
+  - The package is the canonical execution package and execution-time single entrypoint for `template.dev.feature_delivery_l2`, not final code-delivery proof.
 

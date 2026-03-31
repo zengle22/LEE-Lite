@@ -4,6 +4,7 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from typing import Any
 
+from tech_to_impl_contract_projection import build_contract_projection
 from tech_to_impl_common import ensure_list, normalize_semantic_lock, unique_strings
 from tech_to_impl_derivation import (
     acceptance_checkpoints,
@@ -107,7 +108,7 @@ def build_semantic_drift_check(feature: dict[str, Any], bundle_json: dict[str, A
     }
 
 
-def _build_upstream_design_refs(package: Any, feature: dict[str, Any], refs: dict[str, str | None], source_refs: list[str], run_id: str) -> dict[str, Any]:
+def _build_upstream_design_refs(package: Any, feature: dict[str, Any], refs: dict[str, str | None], source_refs: list[str], run_id: str, selected_upstream_refs: dict[str, Any]) -> dict[str, Any]:
     implementation_units_payload = implementation_units(package)
     return {
         "artifact_type": "UPSTREAM_DESIGN_REFS",
@@ -125,6 +126,7 @@ def _build_upstream_design_refs(package: Any, feature: dict[str, Any], refs: dic
             "arch_design": "arch-design.md" if refs["arch_ref"] else None,
             "api_contract": "api-contract.md" if refs["api_ref"] else None,
         },
+        "selected_upstream_refs": selected_upstream_refs,
         "frozen_source_refs": source_refs,
         "semantic_lock": feature["semantic_lock"],
         "frozen_decisions": {
@@ -251,11 +253,12 @@ def _build_document_payloads(
     source_refs: list[str],
     bundle_json: dict[str, Any],
     scope: list[str],
+    contract_projection: dict[str, Any],
     frontend_items: list[str],
     backend_items: list[str],
     migration_items: list[str],
 ) -> dict[str, Any]:
-    texts = _build_text_sections(feature, refs, assessment, steps, risks, deliverables, checkpoints, integration_items, evidence_plan_rows, handoff, source_refs, bundle_json, scope)
+    texts = _build_text_sections(feature, refs, assessment, steps, risks, deliverables, checkpoints, integration_items, evidence_plan_rows, handoff, source_refs, bundle_json, scope, contract_projection)
     payload: dict[str, Any] = {
         "bundle_frontmatter": {
             "artifact_type": bundle_json["artifact_type"],
@@ -440,9 +443,11 @@ def build_candidate_package(package: Any, run_id: str) -> dict[str, Any]:
         [f"dev.feat-to-tech::{package.run_id}", refs["feat_ref"], refs["tech_ref"]]
         + ensure_list(package.tech_json.get("source_refs"))
     )
-    upstream_design_refs = _build_upstream_design_refs(package, feature, refs, source_refs, run_id)
+    contract_projection = build_contract_projection(package, feature, refs, source_refs, steps, checkpoints, deliverables)
+    upstream_design_refs = _build_upstream_design_refs(package, feature, refs, source_refs, run_id, contract_projection["selected_upstream_refs"])
     handoff = _build_handoff(run_id, refs, assessment, deliverables, [item["ref"] for item in checkpoints])
     bundle_json = _build_bundle_json(run_id, refs, feature, assessment, consistency, upstream_design_refs, handoff, source_refs, steps, scope)
+    bundle_json.update(contract_projection)
     semantic_drift_check = build_semantic_drift_check(feature, bundle_json, upstream_design_refs)
     doc_payloads = _build_document_payloads(
         feature,
@@ -458,6 +463,7 @@ def build_candidate_package(package: Any, run_id: str) -> dict[str, Any]:
         source_refs,
         bundle_json,
         scope,
+        contract_projection,
         frontend_items,
         backend_items,
         migration_items,

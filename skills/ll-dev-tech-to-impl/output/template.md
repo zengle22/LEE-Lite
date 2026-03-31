@@ -17,6 +17,10 @@ tech_ref: TECH-FEAT-TODO
 
 [Summarize the selected FEAT and inherited TECH authority.]
 
+## Package Semantics
+
+[State that IMPL is the canonical execution package / execution-time single entrypoint, not a domain truth source, and summarize freshness/provisional/discrepancy policy.]
+
 ## Applicability Assessment
 
 [State whether frontend, backend, and migration workstreams apply, and why.]

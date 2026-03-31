@@ -1,6 +1,6 @@
 skill_id: ll-dev-tech-to-impl
 skill_type: workflow
-version: 0.1.0
+version: 0.2.0
 workflow_key: dev.tech-to-impl
 
 authority:
@@ -9,6 +9,7 @@ authority:
     - E:\ai\LEE\spec\adr\ADR-008__dev-department-ssot-alignment-and-workflow-reframe.md
     - E:\ai\LEE-Lite-skill-first\ssot\adr\ADR-013-FEAT-to-TECH Lite-Native Skill 设计派生冻结基线.MD
     - E:\ai\LEE-Lite-skill-first\ssot\adr\ADR-014-TECH-to-IMPL Lite-Native Skill 实施候选冻结基线.MD
+    - E:\ai\LEE-Lite-skill-first\ssot\adr\ADR-034-IMPL 作为派生执行契约与自包含实施包收敛层.MD
   upstream_skill: ll-dev-feat-to-tech
   upstream_plan_template: E:\ai\LEE\spec-global\departments\product\workflows\templates\feat-to-delivery-prep\v1\workflow.yaml
   downstream_template_id: template.dev.feature_delivery_l2
@@ -41,6 +42,7 @@ runtime:
     - dev-evidence-plan.json
     - smoke-gate-subject.json
     - impl-review-report.json
+    - document-test-report.json
     - impl-acceptance-report.json
     - impl-defect-list.json
     - handoff-to-feature-delivery.json
@@ -72,6 +74,58 @@ validation:
   semantic:
     input_checklist: input/semantic-checklist.md
     output_checklist: output/semantic-checklist.md
+  document_test:
+    report_artifact: document-test-report.json
+    state: document_tested
+    repair_profile: full_document_test_plus_rebuild_preferred
+    required_top_level_fields:
+      - workflow_key
+      - run_id
+      - tested_at
+      - test_outcome
+      - defect_counts
+      - recommended_next_action
+      - recommended_actor
+      - sections
+    test_outcome_enum:
+      - no_blocking_defect_found
+      - blocking_defect_found
+      - inconclusive
+      - not_applicable
+    required_sections:
+      - structural
+      - logic_consistency
+      - downstream_readiness
+      - semantic_drift
+      - fixability
+      - canonical_package
+      - freshness
+      - discrepancy
+      - self_contained_boundary
+    fixability_classes:
+      - mechanical_fixable
+      - local_semantic_fixable
+      - rebuild_required
+      - human_judgement_required
+    recommended_actor_enum:
+      - executor_local_patch
+      - workflow_rebuild
+      - supervisor_handoff
+      - external_gate_review
+      - human_owner_decision
+    escalation_rules:
+      - main_structure_boundary_state_model_or_acceptance_change_requires_rebuild
+      - cross_document_consistency_or_handoff_contract_change_defaults_to_rebuild
+      - product_goal_priority_strategy_or_org_dependency_conflict_requires_human_judgement
+      - authority_or_revision_conflict_requires_human_judgement
+      - only_low_risk_field_ref_manifest_evidence_repairs_remain_mechanical
+    downstream_consumption_contract:
+      target_template_id: template.dev.feature_delivery_l2
+      checks:
+        - implementation_task_directly_actionable_for_execution_chain
+        - upstream_frozen_design_refs_complete
+        - integration_evidence_and_smoke_gate_inputs_explicit
+        - no_implementation_boundary_or_work_split_left_for_downstream_reinvention
 
 evidence:
   execution_schema: evidence/execution-evidence.schema.json
@@ -81,6 +135,19 @@ evidence:
 lifecycle:
   definition_file: ll.lifecycle.yaml
   max_revision_rounds: 3
+  state_semantics:
+    document_tested:
+      evidence_complete: true
+      implies_ready: false
+      implies_approved: false
+      implies_frozen: false
+    supervisor_reviewed:
+      evidence_submission_review_complete: true
+      implies_authoritative_approval: false
+    gate_ready:
+      external_gate_submission_ready: true
+      implies_approved: false
+      implies_frozen: false
 
 gate:
   freeze_requires:
@@ -88,6 +155,7 @@ gate:
     - input_semantic_pass
     - output_structural_pass
     - output_semantic_pass
+    - document_test_report_present
     - execution_evidence_present
     - supervision_evidence_present
     - execution_handoff_present

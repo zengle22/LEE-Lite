@@ -45,6 +45,16 @@ structural_checks:
   - evidence_presence
 semantic_gate:
   required: true
+controlled_exceptions:
+  provisional_inputs_allowed: true
+  required_markers:
+    - provisional_ref
+    - impact_scope
+    - follow_up_action
+  rules:
+    - provisional inputs must stay explicitly marked and must not be treated as final truth
+    - repo context is execution context only and must not silently override upstream truth
+    - upstream ref changes must trigger freshness review or re-derive before reuse
 forbidden_statuses:
   - revised
   - rejected
@@ -57,4 +67,5 @@ notes:
   - The selected TECH package must already be independently acceptable at the TECH layer before implementation planning begins.
   - `feat_ref` and `tech_ref` selection are both mandatory because IMPL now derives from frozen TECH authority, not raw FEAT notes.
   - Upstream TECH lineage must preserve FEAT, EPIC, and SRC references, with optional ARCH/API refs when present.
+  - Provisional upstream inputs are allowed only through an explicit exception path with follow-up freeze or revision handling.
 
