@@ -19,7 +19,11 @@ class FeatToTechDocumentTestIntegrationTests(FeatToTechWorkflowHarness):
                 "constraints": ["保留双会话双队列闭环。", "下游不得重造 handoff 规则。"],
                 "dependencies": ["Boundary to 对象分层与准入能力。"],
                 "outputs": ["handoff contract"],
-                "acceptance_checks": [{"scenario": "Loop responsibility split is explicit", "then": "明确 queue/handoff/gate 边界"}],
+                "acceptance_checks": [
+                    {"id": "AC-01", "scenario": "Loop responsibility split is explicit", "given": "主链协作闭环场景", "when": "生成 TECH", "then": "明确 queue/handoff/gate 边界"},
+                    {"id": "AC-02", "scenario": "Handoff contract remains canonical", "given": "已有上游 FEAT", "when": "产出 handoff contract", "then": "下游不需要重造 handoff 规则"},
+                    {"id": "AC-03", "scenario": "Boundary constraints are preserved", "given": "治理约束存在", "when": "进入 gate 前校验", "then": "queue 与 gate 协作边界保持可追溯"},
+                ],
                 "source_refs": ["FEAT-DOC-TECH-001", "EPIC-SRC-001-001", "SRC-001"],
             }
             bundle = self.make_bundle_json(feature, run_id="feat-doc-tech-input")
@@ -65,6 +69,7 @@ class FeatToTestSetDocumentTestIntegrationTests(FeatToTestSetWorkflowHarness):
                 "acceptance_checks": [
                     {"id": "AC-01", "scenario": "analysis 保持 FEAT 边界", "given": "selected FEAT", "when": "产出 analysis", "then": "可追溯"},
                     {"id": "AC-02", "scenario": "strategy 覆盖 acceptance", "given": "acceptance checks", "when": "派生 strategy", "then": "每条 acceptance 都映射 test unit"},
+                    {"id": "AC-03", "scenario": "handoff 保留执行前置", "given": "候选 test set", "when": "生成 handoff", "then": "required environment inputs 明确可消费"},
                 ],
                 "source_refs": ["FEAT-DOC-TESTSET-001", "EPIC-SRC-001", "SRC-001", "ADR-012"],
             }
@@ -110,8 +115,9 @@ class TechToImplDocumentTestIntegrationTests(TechToImplWorkflowHarness):
                 "constraints": ["必须保留 smoke gate subject。", "前后端必须共享配置状态语义。"],
                 "dependencies": ["release gate review dependency"],
                 "acceptance_checks": [
-                    {"scenario": "页面展示配置项", "then": "配置中心页面可正确渲染"},
-                    {"scenario": "接口提交配置变更", "then": "request/response contract 稳定"},
+                    {"id": "AC-01", "scenario": "页面展示配置项", "given": "已生成配置中心页面", "when": "加载页面", "then": "配置中心页面可正确渲染"},
+                    {"id": "AC-02", "scenario": "接口提交配置变更", "given": "request/response contract 已定义", "when": "提交配置变更", "then": "request/response contract 稳定"},
+                    {"id": "AC-03", "scenario": "发布链仍受 smoke gate 约束", "given": "impl candidate package", "when": "进入下游执行前", "then": "smoke gate subject 完整保留"},
                 ],
             }
             bundle = self.make_bundle_json(feature, run_id="tech-doc-impl-input", arch_required=True, api_required=True)

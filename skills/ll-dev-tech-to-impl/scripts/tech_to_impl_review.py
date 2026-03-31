@@ -77,24 +77,24 @@ def _updated_document_test_sections(
     downstream = dict(sections.get("downstream_readiness") or {})
     downstream.update(
         {
-            "status": "pass" if passed else "fail",
-            "summary": "Supervisor confirmed downstream execution entry conditions." if passed else "Supervisor found blocking downstream execution issues.",
+            "downstream_target": str(downstream.get("downstream_target") or "template.dev.feature_delivery_l2"),
+            "consumption_contract_ref": str(
+                downstream.get("consumption_contract_ref")
+                or "skills/ll-dev-tech-to-impl/ll.contract.yaml#validation.document_test.downstream_consumption_contract"
+            ),
             "ready_for_gate_review": passed,
             "blocking_gaps": [str(item.get("title") or "") for item in blocking if str(item.get("title") or "").strip()],
+            "missing_contracts": list(downstream.get("missing_contracts") or []),
+            "assumption_leaks": list(downstream.get("assumption_leaks") or []),
         }
     )
-    fixability = dict(sections.get("fixability") or {})
-    fixability.update(
-        {
-            "mechanical_fixable": 0 if passed else int(fixability.get("mechanical_fixable") or 0),
-            "local_semantic_fixable": 0 if passed else int(fixability.get("local_semantic_fixable") or 0),
-            "rebuild_required": 0 if passed else max(1, int(fixability.get("rebuild_required") or 0)),
-            "human_judgement_required": int(fixability.get("human_judgement_required") or 0),
-            "recommended_next_action": "external_gate_review" if passed else "workflow_rebuild",
-            "recommended_actor": "external_gate_review" if passed else "workflow_rebuild",
-            "status": "local_semantic_fixable" if passed else "rebuild_required",
-            "summary": "Supervisor confirmed no blocking document-level repair remains." if passed else "Supervisor requires workflow rebuild before downstream execution.",
-        }
+    fixability = build_fixability_section(
+        recommended_next_action="external_gate_review" if passed else "workflow_rebuild",
+        recommended_actor="external_gate_review" if passed else "workflow_rebuild",
+        mechanical_fixable=0 if passed else int((sections.get("fixability") or {}).get("mechanical_fixable") or 0),
+        local_semantic_fixable=0 if passed else int((sections.get("fixability") or {}).get("local_semantic_fixable") or 0),
+        rebuild_required=0 if passed else max(1, len(blocking)),
+        human_judgement_required=int((sections.get("fixability") or {}).get("human_judgement_required") or 0),
     )
     return {
         **sections,

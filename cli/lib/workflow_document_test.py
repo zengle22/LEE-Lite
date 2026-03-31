@@ -54,7 +54,17 @@ def build_fixability_section(
     rebuild_required: int = 0,
     human_judgement_required: int = 0,
 ) -> dict[str, Any]:
+    status = "local_semantic_fixable"
+    if human_judgement_required > 0:
+        status = "human_judgement_required"
+    elif rebuild_required > 0:
+        status = "rebuild_required"
+    elif local_semantic_fixable > 0:
+        status = "local_semantic_fixable"
+    elif mechanical_fixable > 0:
+        status = "mechanical_fixable"
     return {
+        "status": status,
         "mechanical_fixable": mechanical_fixable,
         "local_semantic_fixable": local_semantic_fixable,
         "rebuild_required": rebuild_required,
