@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+import json
 from dataclasses import dataclass
 from pathlib import Path
 import sys
@@ -115,6 +116,12 @@ def _format_test_units(units: list[dict[str, Any]]) -> list[str]:
                 f"    required_evidence: {'; '.join(ensure_list(unit.get('required_evidence')))}",
             ]
         )
+        lines.append(f"    functional_area_key: `{unit.get('functional_area_key')}`")
+        lines.append(f"    case_family: `{unit.get('case_family')}`")
+        lines.append(f"    logic_dimensions: {json.dumps(unit.get('logic_dimensions') or {}, ensure_ascii=False)}")
+        lines.append(f"    acceptance_refs: {', '.join(ensure_list(unit.get('acceptance_refs')))}")
+        lines.append(f"    risk_refs: {', '.join(ensure_list(unit.get('risk_refs')))}")
+        lines.append(f"    boundary_checks: {'; '.join(ensure_list(unit.get('boundary_checks')))}")
         if ensure_list(unit.get("derivation_basis")):
             lines.append(f"    derivation_basis: {'; '.join(ensure_list(unit.get('derivation_basis')))}")
     return lines
@@ -127,6 +134,9 @@ def _format_acceptance_traceability(rows: list[dict[str, Any]]) -> list[str]:
             [
                 f"  - `{row.get('acceptance_ref')}` {row.get('acceptance_scenario')}",
                 f"    unit_refs: {', '.join(ensure_list(row.get('unit_refs')))}",
+                f"    functional_area_keys: {', '.join(ensure_list(row.get('functional_area_keys')))}",
+                f"    case_family: `{row.get('case_family')}`",
+                f"    risk_refs: {', '.join(ensure_list(row.get('risk_refs')))}",
                 f"    given: {row.get('given')}",
                 f"    when: {row.get('when')}",
                 f"    then: {row.get('then')}",
@@ -152,6 +162,89 @@ def _format_qualification_fields(strategy_yaml: dict[str, Any]) -> list[str]:
     )
     lines.extend(_format_field_list("branch_families", ensure_list(strategy_yaml.get("branch_families"))))
     lines.extend(_format_field_list("expansion_hints", ensure_list(strategy_yaml.get("expansion_hints"))))
+    return lines
+
+
+def _format_functional_coverage_model(strategy_yaml: dict[str, Any]) -> list[str]:
+    lines: list[str] = ["- functional_coverage_model:"]
+    for area in ensure_list(strategy_yaml.get("functional_areas")):
+        if not isinstance(area, dict):
+            continue
+        lines.extend(
+            [
+                f"  - `{area.get('key')}` ({area.get('kind')})",
+                f"    description: {area.get('description')}",
+                f"    related_entities: {', '.join(ensure_list(area.get('related_entities')))}",
+                f"    related_commands: {', '.join(ensure_list(area.get('related_commands')))}",
+                f"    acceptance_refs: {', '.join(ensure_list(area.get('acceptance_refs')))}",
+                f"    case_families: {', '.join(ensure_list(area.get('case_families')))}",
+            ]
+        )
+    lines.append("- logic_dimensions:")
+    for layer_name in ["universal", "stateful", "control_surface"]:
+        lines.append(f"  - {layer_name}: {', '.join(ensure_list((strategy_yaml.get('logic_dimensions') or {}).get(layer_name)))}")
+    lines.append("- state_model:")
+    for entity in ensure_list((strategy_yaml.get("state_model") or {}).get("entities")):
+        if not isinstance(entity, dict):
+            continue
+        lines.extend(
+            [
+                f"  - `{entity.get('entity')}`",
+                f"    functional_area_key: `{entity.get('functional_area_key')}`",
+                f"    states: {', '.join(ensure_list(entity.get('states')))}",
+                f"    valid_transitions: {json.dumps(ensure_list(entity.get('valid_transitions')), ensure_ascii=False)}",
+                f"    guarded_actions: {json.dumps(ensure_list(entity.get('guarded_actions')), ensure_ascii=False)}",
+            ]
+        )
+    lines.append("- coverage_matrix:")
+    for item in ensure_list((strategy_yaml.get("coverage_matrix") or {}).get("acceptances")):
+        if not isinstance(item, dict):
+            continue
+        lines.extend(
+            [
+                f"  - acceptance `{item.get('acceptance_ref')}`",
+                f"    functional_area_keys: {', '.join(ensure_list(item.get('functional_area_keys')))}",
+                f"    unit_refs: {', '.join(ensure_list(item.get('unit_refs')))}",
+                f"    case_families: {', '.join(ensure_list(item.get('case_families')))}",
+                f"    coverage_status: {item.get('coverage_status')}",
+            ]
+        )
+    lines.append("  - functional_areas:")
+    for item in ensure_list((strategy_yaml.get("coverage_matrix") or {}).get("functional_areas")):
+        if not isinstance(item, dict):
+            continue
+        lines.extend(
+            [
+                f"    - `{item.get('key')}`",
+                f"      kind: {item.get('kind')}",
+                f"      unit_refs: {', '.join(ensure_list(item.get('unit_refs')))}",
+                f"      acceptance_refs: {', '.join(ensure_list(item.get('acceptance_refs')))}",
+                f"      case_families: {', '.join(ensure_list(item.get('case_families')))}",
+            ]
+        )
+    lines.append("  - risks:")
+    for item in ensure_list((strategy_yaml.get("coverage_matrix") or {}).get("risks")):
+        if not isinstance(item, dict):
+            continue
+        lines.extend(
+            [
+                f"    - `{item.get('risk_ref')}`",
+                f"      risk_text: {item.get('risk_text')}",
+                f"      unit_refs: {', '.join(ensure_list(item.get('unit_refs')))}",
+                f"      case_families: {', '.join(ensure_list(item.get('case_families')))}",
+            ]
+        )
+    lines.append("  - state_entities:")
+    for item in ensure_list((strategy_yaml.get("coverage_matrix") or {}).get("state_entities")):
+        if not isinstance(item, dict):
+            continue
+        lines.extend(
+            [
+                f"    - `{item.get('entity')}`",
+                f"      functional_area_key: `{item.get('functional_area_key')}`",
+                f"      states: {', '.join(ensure_list(item.get('states')))}",
+            ]
+        )
     return lines
 
 
@@ -331,6 +424,10 @@ def _build_candidate_package_body(context: dict[str, Any], documents: dict[str, 
         "qualification_expectation": test_set_yaml.get("qualification_expectation", ""),
         "qualification_budget": test_set_yaml.get("qualification_budget"),
         "max_expansion_rounds": test_set_yaml.get("max_expansion_rounds"),
+        "functional_areas": test_set_yaml.get("functional_areas", []),
+        "logic_dimensions": test_set_yaml.get("logic_dimensions", {}),
+        "state_model": test_set_yaml.get("state_model", {}),
+        "coverage_matrix": test_set_yaml.get("coverage_matrix", {}),
         "artifact_refs": artifact_refs,
         "gate_subject_refs": gate_subject_refs,
         "downstream_target": downstream_skill,
@@ -366,7 +463,8 @@ def _build_candidate_package_body(context: dict[str, Any], documents: dict[str, 
                 + _format_qualification_fields(strategy_yaml)
                 + _format_test_units(test_units)
             ),
-            "## TESTSET\n\n" + "\n".join([f"- main_object: `{test_set_ref}`", f"- file: `{artifact_refs['test_set']}`", f"- status: `{test_set_yaml.get('status')}`", f"- environment_assumptions_count: {len(ensure_list(test_set_yaml.get('environment_assumptions')))}", f"- pass_criteria_count: {len(ensure_list(test_set_yaml.get('pass_criteria')))}", f"- evidence_required_count: {len(ensure_list(test_set_yaml.get('evidence_required')))}", "- only `test-set.yaml` is the formal main object; companion artifacts remain subordinate evidence.", "- main_object_fields:", "  - coverage_scope", "  - risk_focus", "  - preconditions", "  - environment_assumptions", "  - test_layers", "  - test_units", "  - coverage_exclusions", "  - pass_criteria", "  - evidence_required", "  - acceptance_traceability", "  - source_refs", "  - governing_adrs", "  - status", "- environment_assumptions:", *[f"  - {item}" for item in ensure_list(test_set_yaml.get("environment_assumptions"))], "- pass_criteria:", *[f"  - {item}" for item in ensure_list(test_set_yaml.get("pass_criteria"))], "- evidence_required:", *[f"  - {item}" for item in ensure_list(test_set_yaml.get("evidence_required"))]]),
+            "## Functional Coverage Model\n\n" + "\n".join(_format_functional_coverage_model(strategy_yaml)),
+            "## TESTSET\n\n" + "\n".join([f"- main_object: `{test_set_ref}`", f"- file: `{artifact_refs['test_set']}`", f"- status: `{test_set_yaml.get('status')}`", f"- environment_assumptions_count: {len(ensure_list(test_set_yaml.get('environment_assumptions')))}", f"- pass_criteria_count: {len(ensure_list(test_set_yaml.get('pass_criteria')))}", f"- evidence_required_count: {len(ensure_list(test_set_yaml.get('evidence_required')))}", "- only `test-set.yaml` is the formal main object; companion artifacts remain subordinate evidence.", "- main_object_fields:", "  - coverage_scope", "  - risk_focus", "  - preconditions", "  - environment_assumptions", "  - test_layers", "  - test_units", "  - functional_areas", "  - logic_dimensions", "  - state_model", "  - coverage_matrix", "  - coverage_exclusions", "  - pass_criteria", "  - evidence_required", "  - acceptance_traceability", "  - source_refs", "  - governing_adrs", "  - status", "- environment_assumptions:", *[f"  - {item}" for item in ensure_list(test_set_yaml.get("environment_assumptions"))], "- pass_criteria:", *[f"  - {item}" for item in ensure_list(test_set_yaml.get("pass_criteria"))], "- evidence_required:", *[f"  - {item}" for item in ensure_list(test_set_yaml.get("evidence_required"))]]),
             "## Gate Subjects\n\n" + "\n".join(gate_subject_lines),
             "## Downstream Handoff\n\n" + "\n".join([f"- target_skill: `{downstream_skill}`", f"- package_ref: `{handoff['package_ref']}`", "- required_environment_inputs:", *[f"  - {category}: {', '.join(ensure_list(values))}" for category, values in context["required_environment_inputs"].items()]]),
             "## Traceability\n\n" + "\n".join(traceability_lines + _format_acceptance_traceability(traceability_rows)),
@@ -379,7 +477,7 @@ def _build_candidate_package_body(context: dict[str, Any], documents: dict[str, 
         "test_set_ref": test_set_ref,
         "subjects": {gate_type: {"subject_id": gate_subjects[gate_type]["subject_id"], "artifact_ref": gate_subjects[gate_type]["artifact_ref"], "subject_file": gate_subject_refs[gate_type]} for gate_type in gate_subject_refs},
     }
-    semantic_drift_check = build_semantic_drift_check(feature, bundle_json, test_set_yaml)
+    semantic_drift_check = build_semantic_drift_check(feature, bundle_json, test_set_yaml, handoff=handoff)
     return bundle_json, bundle_frontmatter, bundle_body, {
         "review_report": review_report,
         "acceptance_report": acceptance_report,

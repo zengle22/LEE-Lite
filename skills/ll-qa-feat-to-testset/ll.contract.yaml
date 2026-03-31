@@ -119,6 +119,7 @@ validation:
         - skill.qa.test_exec_cli
         - skill.qa.test_exec_web_e2e
       checks:
+        - functional_coverage_contract_explicit
         - acceptance_to_strategy_mapping_explicit
         - test_units_sufficient_as_minimal_execution_prerequisites
         - environment_dependency_and_qualification_boundaries_consumable
@@ -167,5 +168,6 @@ gate:
     - required_evidence_missing
   notes:
     - "`TESTSET` is strategy-level SSOT, not a runnable execution inventory."
+    - "`functional_areas`, `logic_dimensions`, `state_model`, and `coverage_matrix` define the functional coverage contract that feeds `test_units`, acceptance traceability, and downstream execution planning."
     - "`test_units` define the minimal strategy anchors that map acceptance to execution, while `coverage_goal`, `branch_families`, `expansion_hints`, and `qualification_expectation` describe how downstream execution may expand runnable cases if qualification coverage is needed."
     - "Any runnable case expansion beyond the minimum strategy mapping belongs to downstream test execution runtime, not to this skill."

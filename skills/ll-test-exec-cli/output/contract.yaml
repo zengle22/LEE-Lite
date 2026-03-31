@@ -25,14 +25,20 @@ required_data_fields:
   - ui_source_context_ref
   - ui_binding_map_ref
   - ui_flow_plan_ref
-  - test_case_pack_ref
-  - script_pack_ref
-  - evidence_bundle_ref
-  - test_report_ref
-  - coverage_summary_ref
-  - coverage_report_ref
-  - output_validation_ref
-  - tse_ref
+      - test_case_pack_ref
+      - script_pack_ref
+      - evidence_bundle_ref
+      - test_report_ref
+      - projection_mode
+      - generation_mode
+      - expansion_round
+      - qualification_budget
+      - expansion_stop_reason
+      - qualification_lineage
+      - coverage_summary_ref
+      - coverage_report_ref
+      - output_validation_ref
+      - tse_ref
 allowed_run_statuses:
   - completed
   - completed_with_failures
@@ -52,3 +58,4 @@ notes:
   - coverage_summary_ref and coverage_report_ref must be present; when coverage is not enabled, they should still resolve to disabled-status artifacts.
   - Smoke/acceptance runs may legitimately report disabled coverage, but coverage qualification runs must produce measurable coverage artifacts suitable for gate evaluation.
   - `test_case_pack_ref` may refer to a minimal projection pack or to a qualification-expanded pack revision; either way, the source `TESTSET` remains the strategy authority.
+  - The main runtime surface is requirement-driven case expansion. `functional_areas`, `logic_dimensions`, `state_model`, and `coverage_matrix` are the contract boundary for traceable expansion.

@@ -44,6 +44,30 @@
             "invalid_run",
             "failed"
           ]
+        },
+        "projection_mode": {
+          "type": "string"
+        },
+        "generation_mode": {
+          "type": "string"
+        },
+        "expansion_round": {
+          "type": "integer"
+        },
+        "qualification_budget": {
+          "type": "integer"
+        },
+        "expansion_stop_reason": {
+          "type": "string"
+        },
+        "qualification_lineage": {
+          "type": "array",
+          "items": {
+            "type": "object"
+          }
+        },
+        "coverage_details_ref": {
+          "type": "string"
         }
       },
       "required": [
@@ -59,6 +83,7 @@
         "ui_intent_ref",
         "ui_source_context_ref",
         "ui_binding_map_ref",
+        "ui_flow_plan_ref",
         "test_case_pack_ref",
         "test_case_pack_meta_ref",
         "script_pack_ref",
@@ -70,6 +95,14 @@
         "evidence_bundle_ref",
         "bug_bundle_ref",
         "test_report_ref",
+        "projection_mode",
+        "generation_mode",
+        "expansion_round",
+        "qualification_budget",
+        "expansion_stop_reason",
+        "qualification_lineage",
+        "coverage_summary_ref",
+        "coverage_report_ref",
         "output_validation_ref",
         "tse_ref"
       ],

@@ -17,6 +17,10 @@
     "environment_assumptions",
     "test_layers",
     "test_units",
+    "functional_areas",
+    "logic_dimensions",
+    "state_model",
+    "coverage_matrix",
     "coverage_exclusions",
     "pass_criteria",
     "evidence_required",
@@ -39,6 +43,68 @@
     "preconditions": {"type": "array", "items": {"type": "string"}},
     "environment_assumptions": {"type": "array", "items": {"type": "string"}},
     "test_layers": {"type": "array", "minItems": 1, "items": {"type": "string"}},
+    "functional_areas": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": ["key", "kind", "description", "related_entities", "related_commands", "acceptance_refs", "case_families"],
+        "properties": {
+          "key": {"type": "string"},
+          "kind": {"type": "string"},
+          "description": {"type": "string"},
+          "related_entities": {"type": "array", "items": {"type": "string"}},
+          "related_commands": {"type": "array", "items": {"type": "string"}},
+          "acceptance_refs": {"type": "array", "items": {"type": "string"}},
+          "case_families": {"type": "array", "items": {"type": "string"}}
+        },
+        "additionalProperties": true
+      }
+    },
+    "logic_dimensions": {
+      "type": "object",
+      "required": ["universal", "stateful", "control_surface"],
+      "properties": {
+        "universal": {"type": "array", "items": {"type": "string"}},
+        "stateful": {"type": "array", "items": {"type": "string"}},
+        "control_surface": {"type": "array", "items": {"type": "string"}}
+      },
+      "additionalProperties": true
+    },
+    "state_model": {
+      "type": "object",
+      "required": ["entities"],
+      "properties": {
+        "entities": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "object",
+            "required": ["entity", "functional_area_key", "states", "valid_transitions", "guarded_actions"],
+            "properties": {
+              "entity": {"type": "string"},
+              "functional_area_key": {"type": "string"},
+              "states": {"type": "array", "items": {"type": "string"}},
+              "valid_transitions": {"type": "array", "items": {"type": "array", "items": {"type": "string"}}},
+              "guarded_actions": {"type": "array", "items": {"type": "object"}}
+            },
+            "additionalProperties": true
+          }
+        }
+      },
+      "additionalProperties": true
+    },
+    "coverage_matrix": {
+      "type": "object",
+      "required": ["acceptances", "functional_areas", "risks", "state_entities"],
+      "properties": {
+        "acceptances": {"type": "array", "items": {"type": "object"}},
+        "functional_areas": {"type": "array", "items": {"type": "object"}},
+        "risks": {"type": "array", "items": {"type": "object"}},
+        "state_entities": {"type": "array", "items": {"type": "object"}}
+      },
+      "additionalProperties": true
+    },
     "coverage_goal": {
       "type": "object",
       "properties": {
@@ -79,7 +145,22 @@
           "observation_points": {"type": "array", "minItems": 1, "items": {"type": "string"}},
           "pass_conditions": {"type": "array", "minItems": 1, "items": {"type": "string"}},
           "fail_conditions": {"type": "array", "minItems": 1, "items": {"type": "string"}},
-          "required_evidence": {"type": "array", "minItems": 1, "items": {"type": "string"}}
+          "required_evidence": {"type": "array", "minItems": 1, "items": {"type": "string"}},
+          "functional_area_key": {"type": "string"},
+          "functional_area_keys": {"type": "array", "items": {"type": "string"}},
+          "case_family": {"type": "string"},
+          "logic_dimensions": {
+            "type": "object",
+            "properties": {
+              "universal": {"type": "array", "items": {"type": "string"}},
+              "stateful": {"type": "array", "items": {"type": "string"}},
+              "control_surface": {"type": "array", "items": {"type": "string"}}
+            },
+            "additionalProperties": true
+          },
+          "acceptance_refs": {"type": "array", "items": {"type": "string"}},
+          "risk_refs": {"type": "array", "items": {"type": "string"}},
+          "boundary_checks": {"type": "array", "items": {"type": "string"}}
         },
         "anyOf": [
           {"required": ["acceptance_ref"]},
@@ -112,6 +193,9 @@
           "when": {"type": "string"},
           "then": {"type": "string"},
           "unit_refs": {"type": "array", "minItems": 1, "items": {"type": "string"}},
+          "functional_area_keys": {"type": "array", "items": {"type": "string"}},
+          "case_family": {"type": "string"},
+          "risk_refs": {"type": "array", "items": {"type": "string"}},
           "coverage_status": {"type": "string"}
         },
         "additionalProperties": true

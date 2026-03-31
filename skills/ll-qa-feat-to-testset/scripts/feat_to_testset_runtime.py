@@ -251,6 +251,7 @@ def supervisor_review(
         "gate_pending_ref": gate_pending_ref,
         "artifacts_dir": str(artifacts_dir),
         "document_test_outcome": document_test_report.get("test_outcome", ""),
+        "freeze_ready": bool(proposal_ref and gate_ready_package_ref and authoritative_handoff_ref and gate_pending_ref),
         "revision_request_ref": revision_context["revision_request_ref"] if revision_context else "",
     }
 

@@ -37,6 +37,10 @@ def dump_json(path: Path, payload: Any) -> None:
     path.write_text(json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
 
 
+def load_yaml(path: Path) -> Any:
+    return yaml.safe_load(path.read_text(encoding="utf-8"))
+
+
 def parse_markdown_frontmatter(markdown_text: str) -> tuple[dict[str, Any], str]:
     if not markdown_text.startswith("---\n"):
         return {}, markdown_text
@@ -80,6 +84,100 @@ def unique_strings(values: list[str]) -> list[str]:
             seen.add(value)
             result.append(value)
     return result
+
+
+def _string_list(values: Any) -> list[str]:
+    items = values if isinstance(values, list) else ensure_list(values)
+    return [str(item).strip() for item in items if str(item).strip()]
+
+
+def discover_testset_binding(repo_root: Path, feat_ref: str) -> dict[str, Any] | None:
+    testset_root = repo_root / "ssot" / "testset"
+    if not testset_root.exists():
+        return None
+
+    matches: list[tuple[int, dict[str, Any]]] = []
+    target = feat_ref.strip()
+    for candidate in sorted(testset_root.glob("*.yaml")):
+        try:
+            payload = load_yaml(candidate) or {}
+        except yaml.YAMLError:
+            continue
+        if not isinstance(payload, dict):
+            continue
+        parent_id = str(payload.get("parent_id") or "").strip()
+        feature_ids = _string_list((payload.get("traceability") or {}).get("feature_ids"))
+        if parent_id != target and target not in feature_ids:
+            continue
+        ref = str(payload.get("id") or candidate.stem).strip()
+        if not ref:
+            continue
+        lifecycle_state = str(payload.get("lifecycle_state") or "").strip().lower()
+        higher_order_status = str(payload.get("higher_order_status") or "").strip().lower()
+        status = str(payload.get("status") or "").strip().lower()
+        historical_note = str(payload.get("historical_note") or "").strip()
+        provisional_reasons = [
+            reason
+            for reason in [
+                "lifecycle_state=historical_only" if lifecycle_state == "historical_only" else "",
+                f"higher_order_status={higher_order_status}" if higher_order_status == "superseded" else "",
+                "historical_note_present" if historical_note else "",
+            ]
+            if reason
+        ]
+        is_authoritative = not provisional_reasons and status in {"active", "accepted", "frozen"}
+        score = 0
+        if parent_id == target:
+            score += 4
+        if target in feature_ids:
+            score += 2
+        if is_authoritative:
+            score += 4
+        matches.append(
+            (
+                score,
+                {
+                    "ref": ref,
+                    "path": candidate,
+                    "status": status,
+                    "lifecycle_state": lifecycle_state,
+                    "higher_order_status": higher_order_status,
+                    "historical_note": historical_note,
+                    "is_authoritative": is_authoritative,
+                    "provisional_reasons": provisional_reasons,
+                },
+            )
+        )
+    if not matches:
+        return None
+    matches.sort(key=lambda item: (-item[0], str(item[1]["path"])))
+    return matches[0][1]
+
+
+def enrich_feature_execution_metadata(repo_root: Path, feature: dict[str, Any]) -> dict[str, Any]:
+    enriched = dict(feature)
+    feat_ref = str(enriched.get("feat_ref") or "").strip()
+    if not feat_ref:
+        return enriched
+
+    testset_binding = discover_testset_binding(repo_root, feat_ref)
+    if testset_binding and not str(enriched.get("testset_ref") or "").strip():
+        enriched["testset_ref"] = testset_binding["ref"]
+        enriched["source_refs"] = unique_strings(ensure_list(enriched.get("source_refs")) + [testset_binding["ref"]])
+        if not testset_binding["is_authoritative"]:
+            provisional_refs = enriched.get("provisional_refs")
+            provisional_items = provisional_refs if isinstance(provisional_refs, list) else []
+            if not any(isinstance(item, dict) and str(item.get("ref") or "").strip() == testset_binding["ref"] for item in provisional_items):
+                note = testset_binding["historical_note"] or ", ".join(testset_binding["provisional_reasons"]) or "historical testset binding"
+                provisional_items = provisional_items + [
+                    {
+                        "ref": testset_binding["ref"],
+                        "impact_scope": "test acceptance mapping and execution evidence",
+                        "follow_up_action": f"refresh_or_replace_testset_before_final_execution ({note})",
+                    }
+                ]
+                enriched["provisional_refs"] = provisional_items
+    return enriched
 
 
 def normalize_semantic_lock(payload: Any) -> dict[str, Any]:

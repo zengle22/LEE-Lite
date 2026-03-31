@@ -9,12 +9,21 @@ from cli.lib.workflow_document_test import build_document_test_report, build_fix
 from tech_to_impl_builder import DOWNSTREAM_TEMPLATE_ID, DOWNSTREAM_TEMPLATE_PATH
 from tech_to_impl_common import dump_json, ensure_list, load_json, parse_markdown_frontmatter, render_markdown
 from tech_to_impl_derivation import workstream_required_inputs
-from tech_to_impl_review_support import REQUIRED_OUTPUT_FILES
+from tech_to_impl_review_support import REQUIRED_OUTPUT_FILES, _recompute_current_artifact_gate
 
 
 def write_markdown(path: Path, frontmatter: dict[str, Any], body: str) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(render_markdown(frontmatter, body), encoding="utf-8")
+
+
+def _sync_task_identity_status(body: str, status: str) -> str:
+    lines = body.splitlines()
+    for index, line in enumerate(lines):
+        if line.startswith("- status: `") and line.endswith("`"):
+            lines[index] = f"- status: `{status}`"
+            return "\n".join(lines)
+    return body
 
 
 def _revision_metadata(generated: dict[str, Any]) -> dict[str, Any]:
@@ -214,6 +223,7 @@ def build_supervision_evidence(artifacts_dir: Path) -> dict[str, Any]:
     evidence_plan = load_json(artifacts_dir / "dev-evidence-plan.json")
     smoke_gate = load_json(artifacts_dir / "smoke-gate-subject.json")
     semantic_drift_check = load_json(artifacts_dir / "semantic-drift-check.json")
+    review_gate, recompute_errors = _recompute_current_artifact_gate(artifacts_dir)
     findings: list[dict[str, Any]] = []
     package_semantics = bundle_json.get("package_semantics") or {}
     selected_upstream_refs = bundle_json.get("selected_upstream_refs") or {}
@@ -256,6 +266,12 @@ def build_supervision_evidence(artifacts_dir: Path) -> dict[str, Any]:
         findings.append({"severity": "P1", "title": "Evidence plan is empty", "detail": "dev-evidence-plan.json must define at least one evidence row before the package can become execution-ready."})
     if semantic_drift_check.get("semantic_lock_present") and semantic_drift_check.get("semantic_lock_preserved") is not True:
         findings.append({"severity": "P1", "title": "semantic_lock drift detected", "detail": str(semantic_drift_check.get("summary") or "semantic_lock drift detected.")})
+    if recompute_errors:
+        findings.append({"severity": "P1", "title": "Upstream recomputation unavailable", "detail": "; ".join(recompute_errors)})
+    if review_gate.get("semantic_gate_matches") is False:
+        findings.append({"severity": "P1", "title": "Stored semantic drift check is stale", "detail": "semantic-drift-check.json no longer matches the recomputed upstream projection."})
+    for name in review_gate.get("stale_documents") or []:
+        findings.append({"severity": "P1", "title": "Stale implementation document", "detail": f"{name} no longer matches the recomputed upstream projection."})
 
     expected_inputs = workstream_required_inputs(assessment)
     actual_inputs = ensure_list(smoke_gate.get("required_inputs"))
@@ -286,6 +302,7 @@ def build_supervision_evidence(artifacts_dir: Path) -> dict[str, Any]:
             str(artifacts_dir / "handoff-to-feature-delivery.json"),
         ],
         "semantic_findings": findings,
+        "review_gate": review_gate,
         "decision": "pass" if passed else "revise",
         "reason": "Implementation task package is ready for downstream execution." if passed else "Implementation task package requires revision before downstream execution.",
         "document_test_report_ref": str(artifacts_dir / "document-test-report.json"),
@@ -321,6 +338,7 @@ def update_supervisor_outputs(artifacts_dir: Path, supervision: dict[str, Any]) 
             "decision": "pass" if passed else "revise",
             "summary": "Implementation task review passed." if passed else "Implementation task review requires revision.",
             "findings": supervision.get("semantic_findings") or [],
+            "review_gate": supervision.get("review_gate") or {},
             **revision_metadata,
         }
     )
@@ -343,6 +361,7 @@ def update_supervisor_outputs(artifacts_dir: Path, supervision: dict[str, Any]) 
             "decision": "approve" if passed else "revise",
             "summary": "Candidate package satisfies downstream execution entry conditions." if passed else "Candidate package does not yet satisfy downstream execution entry conditions.",
             "acceptance_findings": blocking,
+            "review_gate": supervision.get("review_gate") or {},
             **revision_metadata,
         }
     )
@@ -375,6 +394,8 @@ def update_supervisor_outputs(artifacts_dir: Path, supervision: dict[str, Any]) 
             continue
         frontmatter, body = parse_markdown_frontmatter(path.read_text(encoding="utf-8"))
         frontmatter["status"] = bundle_status
+        if name == "impl-task.md":
+            body = _sync_task_identity_status(body, bundle_status)
         if revision_metadata:
             frontmatter.update(revision_metadata)
         path.write_text(render_markdown(frontmatter, body), encoding="utf-8")

@@ -6,6 +6,7 @@ import unittest
 from pathlib import Path
 
 from cli.ll import main
+from cli.lib.mainline_runtime import submit_handoff
 
 
 def write_json(path: Path, payload: dict) -> None:
@@ -280,6 +281,77 @@ class GovernedCliRuntimeFlowTest(unittest.TestCase):
         self.assertIn("pilot-evidence-test-set-", pilot_payload["data"]["pilot_evidence_ref"])
         evidence_path = self.workspace / pilot_payload["data"]["pilot_evidence_ref"]
         self.assertTrue(evidence_path.exists())
+
+    def test_submit_handoff_merges_existing_pending_index_entries(self) -> None:
+        payload_path = self.workspace / ".workflow" / "runs" / "RUN-001" / "generated" / "handoff.json"
+        write_json(payload_path, {"candidate_ref": "candidate.src"})
+
+        existing_handoff_ref = "artifacts/active/gates/handoffs/existing-handoff.json"
+        existing_pending_ref = "artifacts/active/gates/pending/existing-handoff.json"
+        write_json(
+            self.workspace / existing_handoff_ref,
+            {
+                "trace": {"run_ref": "RUN-001", "workflow_key": "governance.gate-human-orchestrator"},
+                "producer_ref": "skill.existing",
+                "proposal_ref": "existing-proposal",
+                "payload_ref": "artifacts/active/run-001/existing-payload.json",
+                "pending_state": "gate_pending",
+                "trace_context_ref": "",
+                "payload_digest": "existing-digest",
+            },
+        )
+        write_json(
+            self.workspace / existing_pending_ref,
+            {
+                "trace": {"run_ref": "RUN-001", "workflow_key": "governance.gate-human-orchestrator"},
+                "handoff_ref": existing_handoff_ref,
+                "producer_ref": "skill.existing",
+                "proposal_ref": "existing-proposal",
+                "pending_state": "gate_pending",
+            },
+        )
+        write_json(
+            self.workspace / "artifacts" / "active" / "gates" / "pending" / "index.json",
+            {
+                "handoffs": {
+                    "existing-handoff": {
+                        "handoff_ref": existing_handoff_ref,
+                        "gate_pending_ref": existing_pending_ref,
+                        "payload_digest": "existing-digest",
+                        "trace_ref": "",
+                        "pending_state": "gate_pending",
+                        "assigned_gate_queue": "mainline.gate.pending",
+                    }
+                }
+            },
+        )
+
+        result = submit_handoff(
+            self.workspace,
+            trace={"run_ref": "RUN-001", "workflow_key": "governance.gate-human-orchestrator"},
+            producer_ref="skill.new",
+            proposal_ref="proposal-002",
+            payload_ref=".workflow/runs/RUN-001/generated/handoff.json",
+            trace_context_ref="artifacts/active/run-001/evidence.json",
+        )
+        self.assertTrue(result["handoff_ref"].endswith("skill-new-proposal-002.json"))
+
+        index_path = self.workspace / "artifacts" / "active" / "gates" / "pending" / "index.json"
+        index_payload = read_json(index_path)
+        self.assertIn("existing-handoff", index_payload["handoffs"])
+        self.assertEqual(len(index_payload["handoffs"]), 2)
+
+        replay = submit_handoff(
+            self.workspace,
+            trace={"run_ref": "RUN-001", "workflow_key": "governance.gate-human-orchestrator"},
+            producer_ref="skill.new",
+            proposal_ref="proposal-002",
+            payload_ref=".workflow/runs/RUN-001/generated/handoff.json",
+            trace_context_ref="artifacts/active/run-001/evidence.json",
+        )
+        self.assertEqual(replay["idempotent_replay"], "true")
+        replay_index_payload = read_json(index_path)
+        self.assertEqual(len(replay_index_payload["handoffs"]), 2)
 
 
 if __name__ == "__main__":

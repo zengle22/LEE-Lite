@@ -360,6 +360,19 @@ def _feat_to_testset_build_runtime_kwargs(context: ExecutionReturnContext) -> di
     }
 
 
+def _feat_to_ui_build_runtime_kwargs(context: ExecutionReturnContext) -> dict[str, Any]:
+    feat_ref = _manifest_or_bundle_value(context.source_artifacts_dir, key="feat_ref", bundle_filename="ui-spec-bundle.json")
+    workflow_run_id = _manifest_or_bundle_value(context.source_artifacts_dir, key="workflow_run_id", bundle_filename="ui-spec-bundle.json")
+    return {
+        "input_path": str(context.input_path),
+        "feat_ref": feat_ref,
+        "repo_root": context.workspace_root,
+        "run_id": workflow_run_id,
+        "allow_update": True,
+        "revision_request_path": context.revision_request_path,
+    }
+
+
 def _tech_to_impl_build_runtime_kwargs(context: ExecutionReturnContext) -> dict[str, Any]:
     feat_ref = _manifest_or_bundle_value(context.source_artifacts_dir, key="feat_ref", bundle_filename="impl-bundle.json")
     tech_ref = _manifest_or_bundle_value(context.source_artifacts_dir, key="tech_ref", bundle_filename="impl-bundle.json")
@@ -431,6 +444,17 @@ register_execution_return_route(
         candidate_ref_patterns=(re.compile(r"^feat-to-testset\.(?P<run_id>.+)\.test-set-bundle$"),),
         authoritative_ref_patterns=(re.compile(r"^formal\.feat\.(?P<run_id>.+)$"),),
         build_runtime_kwargs=_feat_to_testset_build_runtime_kwargs,
+    )
+)
+
+register_execution_return_route(
+    ExecutionReturnRoute(
+        workflow_key="dev.feat-to-ui",
+        artifacts_subdir="feat-to-ui",
+        scripts_subdir="ll-dev-feat-to-ui",
+        runtime_module="feat_to_ui",
+        candidate_ref_patterns=(re.compile(r"^feat-to-ui\.(?P<run_id>.+)\.ui-spec-bundle$"),),
+        build_runtime_kwargs=_feat_to_ui_build_runtime_kwargs,
     )
 )
 

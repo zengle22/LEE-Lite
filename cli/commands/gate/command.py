@@ -271,6 +271,10 @@ def _decision_target(
     )
 
 
+def _optional_materialization_field(payload: dict[str, Any], package_payload: dict[str, Any], field: str) -> str:
+    return str(payload.get(field) or package_payload.get(field) or "").strip()
+
+
 def _decision_basis_refs(
     payload: dict[str, Any],
     brief_record_ref: str,
@@ -439,11 +443,19 @@ def _evaluate_action(ctx: CommandContext):
         "rationale": "derived from audit findings and target constraints",
         "candidate_ref": decision_target,
     }
+    for field in ("target_formal_kind", "formal_artifact_ref"):
+        value = _optional_materialization_field(payload, package_payload, field)
+        if value:
+            decision[field] = value
     created_refs = [brief_record_ref, pending_human_decision_ref, decision_ref]
     write_json(_artifact_path(ctx, decision_ref), decision)
     if decision_type == "approve":
         _ensure_raw_to_src_gate_ready(ctx, decision_target)
-        materialized = _materialize_decision(ctx, decision_ref, decision_target, payload)
+        materialization_payload = dict(payload)
+        for field in ("target_formal_kind", "formal_artifact_ref"):
+            if decision.get(field) and not materialization_payload.get(field):
+                materialization_payload[field] = decision[field]
+        materialized = _materialize_decision(ctx, decision_ref, decision_target, materialization_payload)
         decision.update(materialized)
         decision["materialization_state"] = "materialized"
         progression_mode, hold_reason, required_preconditions = _resolve_progression_policy(payload, decision)
@@ -492,7 +504,11 @@ def _materialize_action(ctx: CommandContext):
     candidate_ref = str(payload.get("candidate_ref", decision.get("candidate_ref", payload.get("artifact_ref", ""))))
     ensure(candidate_ref, "INVALID_REQUEST", "candidate_ref is required for materialize")
     _ensure_raw_to_src_gate_ready(ctx, candidate_ref)
-    materialized = _materialize_decision(ctx, decision_ref, candidate_ref, payload)
+    materialization_payload = dict(payload)
+    for field in ("target_formal_kind", "formal_artifact_ref"):
+        if decision.get(field) and not materialization_payload.get(field):
+            materialization_payload[field] = decision[field]
+    materialized = _materialize_decision(ctx, decision_ref, candidate_ref, materialization_payload)
     decision.update(materialized)
     progression_mode, hold_reason, required_preconditions = _resolve_progression_policy(payload, decision)
     decision["progression_mode"] = progression_mode
@@ -544,7 +560,11 @@ def _dispatch_action(ctx: CommandContext):
         if decision.get("materialized_handoff_ref"):
             materialized_handoff_ref = str(decision["materialized_handoff_ref"])
         else:
-            materialized = _materialize_decision(ctx, decision_ref, str(decision.get("candidate_ref", "")), payload)
+            materialization_payload = dict(payload)
+            for field in ("target_formal_kind", "formal_artifact_ref"):
+                if decision.get(field) and not materialization_payload.get(field):
+                    materialization_payload[field] = decision[field]
+            materialized = _materialize_decision(ctx, decision_ref, str(decision.get("candidate_ref", "")), materialization_payload)
             decision.update(materialized)
             write_json(_artifact_path(ctx, decision_ref), decision)
             materialized_handoff_ref = materialized["materialized_handoff_ref"]

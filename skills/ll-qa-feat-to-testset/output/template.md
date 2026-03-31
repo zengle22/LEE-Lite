@@ -26,11 +26,15 @@ source_refs:
 
 ## Strategy Draft
 
-[Summarize risk focus, layers, and minimum test units with preconditions / trigger / observation / pass-evidence structure.]
+[Summarize risk focus, layers, minimum test units, and qualification hints with preconditions / trigger / observation / pass-evidence structure.]
+
+## Functional Coverage Model
+
+[Summarize typed functional areas, layered logic dimensions, state model, and coverage matrix.]
 
 ## TESTSET
 
-[Expose the formal main object fields directly: coverage_scope, risk_focus, preconditions, environment_assumptions, test_layers, test_units, coverage_exclusions, pass_criteria, evidence_required, acceptance_traceability, source_refs, governing_adrs, status.]
+[Expose the formal main object fields directly: coverage_scope, risk_focus, preconditions, environment_assumptions, test_layers, test_units, functional_areas, logic_dimensions, state_model, coverage_matrix, coverage_exclusions, pass_criteria, evidence_required, acceptance_traceability, source_refs, governing_adrs, status.]
 
 ## Gate Subjects
 

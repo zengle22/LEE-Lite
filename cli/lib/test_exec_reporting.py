@@ -136,6 +136,7 @@ def build_results_summary(
     compliance: dict[str, Any],
     output_ok: bool,
     coverage_summary: dict[str, Any],
+    traceability: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     counts = {key: 0 for key in ("passed", "failed", "blocked", "invalid", "not_executed")}
     for item in case_results:
@@ -154,6 +155,7 @@ def build_results_summary(
         "artifact_type": "results_summary",
         **counts,
         "run_status": run_status,
+        "traceability": traceability or {},
         "coverage": {
             "status": coverage_summary.get("status"),
             "line_rate_percent": coverage_summary.get("line_rate_percent"),
@@ -416,12 +418,25 @@ def finalize_execution_outputs(
     write_json(workspace_root / refs["evidence_bundle_ref"], {"trace": trace, "cases": case_runs, "compliance_status": compliance["status"]})
     refs["bug_bundle_ref"] = build_bug_bundle(case_results, output_root, workspace_root)
     coverage_summary = collect_coverage(workspace_root, output_root, refs, case_runs, environment)
-    provisional = build_results_summary(case_results, compliance, output_ok=True, coverage_summary=coverage_summary)
+    traceability_summary = case_pack.get("traceability_summary", {})
+    provisional = build_results_summary(
+        case_results,
+        compliance,
+        output_ok=True,
+        coverage_summary=coverage_summary,
+        traceability=traceability_summary,
+    )
     write_json(workspace_root / refs["results_summary_ref"], provisional)
     write_text(workspace_root / refs["test_report_ref"], render_report(provisional, compliance, case_results))
     output_validation = validate_outputs(workspace_root, case_pack, case_results, refs)
     write_json(workspace_root / refs["output_validation_ref"], output_validation)
-    summary = build_results_summary(case_results, compliance, output_ok=output_validation["status"] == "pass", coverage_summary=coverage_summary)
+    summary = build_results_summary(
+        case_results,
+        compliance,
+        output_ok=output_validation["status"] == "pass",
+        coverage_summary=coverage_summary,
+        traceability=traceability_summary,
+    )
     summary["projection_mode"] = case_pack.get("projection_mode", "minimal_projection")
     summary["generation_mode"] = case_pack.get("generation_mode", summary["projection_mode"])
     summary["expansion_round"] = int(case_pack.get("expansion_round", 0) or 0)

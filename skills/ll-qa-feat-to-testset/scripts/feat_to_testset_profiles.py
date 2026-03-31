@@ -40,11 +40,11 @@ def derive_semantic_lock(feature: dict[str, Any]) -> dict[str, Any]:
                 "authoritative decision object",
                 "formal publication trigger",
                 "cutover_guard_ref",
-                "pilot evidence package",
+                "governance evidence bundle",
                 "compat_mode",
                 "wave state",
             ],
-            "inheritance_rule": "TESTSET must stay on onboarding completion semantics and must not drift into pilot/gate governance coverage.",
+            "inheritance_rule": "TESTSET must stay on onboarding completion semantics and must not drift into non-product governance coverage.",
         }
     if axis_id == "first-ai-advice-release":
         return {

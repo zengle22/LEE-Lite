@@ -4,9 +4,18 @@ from __future__ import annotations
 
 import hashlib
 import json
-import re
 from typing import Any
 
+from .test_exec_case_expander import expand_requirement_cases
+from .test_exec_fixture_planner import plan_fixtures
+from .test_exec_script_mapper import map_scripts
+from .test_exec_traceability import (
+    normalize_coverage_matrix,
+    normalize_functional_areas,
+    normalize_logic_dimensions,
+    normalize_state_model,
+    summarize_case_traceability,
+)
 
 def _checksum(payload: Any) -> str:
     text = json.dumps(payload, ensure_ascii=False, sort_keys=True)
@@ -26,6 +35,10 @@ def normalize_ui_source_spec(payload: dict[str, Any]) -> dict[str, Any]:
 
 
 def resolve_ssot_context(test_set: dict[str, Any], environment: dict[str, Any], ui_source_spec: dict[str, Any]) -> dict[str, Any]:
+    functional_areas = normalize_functional_areas(test_set)
+    logic_dimensions = normalize_logic_dimensions(test_set)
+    state_model = normalize_state_model(test_set)
+    coverage_matrix = normalize_coverage_matrix(test_set)
     return {
         "artifact_type": "resolved_ssot_context",
         "test_set_id": test_set.get("test_set_id", test_set.get("id", "")),
@@ -36,6 +49,10 @@ def resolve_ssot_context(test_set: dict[str, Any], environment: dict[str, Any], 
         "environment_assumptions": test_set.get("environment_assumptions", []),
         "coverage_scope": test_set.get("coverage_scope", []),
         "recommended_coverage_scope_name": test_set.get("recommended_coverage_scope_name", []),
+        "functional_areas": functional_areas,
+        "logic_dimensions": logic_dimensions,
+        "state_model": state_model,
+        "coverage_matrix": coverage_matrix,
         "feature_owned_code_paths": test_set.get("feature_owned_code_paths", []),
         "coverage_goal": test_set.get("coverage_goal", {}),
         "branch_families": test_set.get("branch_families", []),
@@ -61,57 +78,6 @@ def resolve_ssot_context(test_set: dict[str, Any], environment: dict[str, Any], 
     }
 
 
-def _normalize_ui_steps(unit: dict[str, Any]) -> list[dict[str, Any]]:
-    ui_steps = unit.get("ui_steps")
-    if isinstance(ui_steps, list):
-        return [dict(step) for step in ui_steps if isinstance(step, dict)]
-    steps = unit.get("steps")
-    if isinstance(steps, list):
-        return [dict(step) for step in steps if isinstance(step, dict)]
-    return []
-
-
-def _build_case(
-    test_set: dict[str, Any],
-    unit: dict[str, Any],
-    *,
-    derivation_basis: str = "test_unit",
-    qualification_round: int = 0,
-    qualification_family: str = "",
-) -> dict[str, Any]:
-    case = {
-        "case_id": unit.get("unit_ref", ""),
-        "title": unit.get("title", ""),
-        "priority": unit.get("priority", "P1"),
-        "preconditions": unit.get("input_preconditions", unit.get("preconditions", [])),
-        "trigger_action": unit.get("trigger_action", ""),
-        "pass_conditions": unit.get("pass_conditions", []),
-        "fail_conditions": unit.get("fail_conditions", []),
-        "required_evidence": unit.get("required_evidence", []),
-        "acceptance_ref": unit.get("acceptance_ref", ""),
-        "supporting_refs": unit.get("supporting_refs", []),
-        "observation_points": unit.get("observation_points", []),
-        "selectors": unit.get("selectors", {}),
-        "ui_steps": _normalize_ui_steps(unit),
-        "page_path": unit.get("page_path", ""),
-        "expected_url": unit.get("expected_url", ""),
-        "expected_text": unit.get("expected_text", ""),
-        "test_data": unit.get("test_data", {}),
-        "source_traceability": {
-            "feat_ref": test_set.get("feat_ref", ""),
-            "epic_ref": test_set.get("epic_ref", ""),
-            "src_ref": test_set.get("src_ref", ""),
-            "governing_adrs": test_set.get("governing_adrs", []),
-        },
-        "derivation_basis": derivation_basis,
-    }
-    if qualification_round:
-        case["qualification_round"] = qualification_round
-    if qualification_family:
-        case["qualification_family"] = qualification_family
-    return case
-
-
 def _qualification_plan(test_set: dict[str, Any], environment: dict[str, Any] | None = None) -> dict[str, Any]:
     environment = environment or {}
     qualification_budget = environment.get("qualification_budget", test_set.get("qualification_budget"))
@@ -125,108 +91,6 @@ def _qualification_plan(test_set: dict[str, Any], environment: dict[str, Any] | 
         "coverage_mode": environment.get("coverage_mode", ""),
         "coverage_branch_enabled": bool(environment.get("coverage_branch_enabled")),
     }
-
-
-def _tokenize(value: Any) -> set[str]:
-    text = str(value or "").lower()
-    return {token for token in re.split(r"[^a-z0-9]+", text) if token}
-
-
-def _select_source_unit(units: list[dict[str, Any]], expansion_target: str) -> dict[str, Any]:
-    if not units:
-        return {}
-    target_tokens = _tokenize(expansion_target)
-    if not target_tokens:
-        return units[0]
-    best_unit = units[0]
-    best_score = -1
-    for unit in units:
-        corpus: list[Any] = [
-            unit.get("unit_ref", ""),
-            unit.get("title", ""),
-            unit.get("trigger_action", ""),
-            unit.get("acceptance_ref", ""),
-            unit.get("page_path", ""),
-            unit.get("expected_url", ""),
-            unit.get("expected_text", ""),
-        ]
-        corpus.extend(unit.get("supporting_refs", []) or [])
-        corpus.extend(unit.get("observation_points", []) or [])
-        corpus.extend(unit.get("pass_conditions", []) or [])
-        corpus.extend(unit.get("fail_conditions", []) or [])
-        test_data = unit.get("test_data", {})
-        if isinstance(test_data, dict):
-            corpus.extend(test_data.values())
-            corpus.extend(test_data.keys())
-        selectors = unit.get("selectors", {})
-        if isinstance(selectors, dict):
-            corpus.extend(selectors.values())
-            corpus.extend(selectors.keys())
-        unit_tokens: set[str] = set()
-        for item in corpus:
-            unit_tokens |= _tokenize(item)
-        overlap = len(target_tokens & unit_tokens)
-        score = overlap
-        if overlap:
-            score += 1 if any(token in _tokenize(unit.get("page_path", "")) for token in target_tokens) else 0
-            score += 1 if any(token in _tokenize(unit.get("expected_url", "")) for token in target_tokens) else 0
-            score += 1 if any(token in _tokenize(unit.get("expected_text", "")) for token in target_tokens) else 0
-        if score > best_score:
-            best_score = score
-            best_unit = unit
-    return best_unit
-
-
-def _expanded_cases(
-    test_set: dict[str, Any],
-    environment: dict[str, Any],
-    *,
-    expansion_round: int = 1,
-    expansion_targets: list[str] | None = None,
-) -> list[dict[str, Any]]:
-    if str(environment.get("coverage_mode", "")).strip().lower() != "qualification":
-        return []
-    branch_families = test_set.get("branch_families", [])
-    expansion_hints = test_set.get("expansion_hints", [])
-    if not isinstance(branch_families, list):
-        branch_families = []
-    if not isinstance(expansion_hints, list):
-        expansion_hints = []
-    units = test_set.get("test_units", [])
-    if not isinstance(units, list) or not units:
-        return []
-    expanded: list[dict[str, Any]] = []
-    explicit_targets = [str(item).strip() for item in (expansion_targets or []) if str(item).strip()]
-    expansion_sources = explicit_targets or [str(item).strip() for item in branch_families + expansion_hints if str(item).strip()]
-    if not expansion_sources:
-        return []
-    raw_budget = environment.get("qualification_budget", test_set.get("qualification_budget"))
-    try:
-        budget = int(raw_budget)
-    except (TypeError, ValueError):
-        budget = 0
-    if budget <= len(units):
-        budget = len(units) + len(expansion_sources)
-    target_count = max(len(units), budget)
-    source_index = 0
-    while len(units) + len(expanded) < target_count:
-        family_text = expansion_sources[source_index % len(expansion_sources)]
-        source_index += 1
-        base_unit = _select_source_unit(units, family_text)
-        synthetic = dict(base_unit)
-        synthetic["unit_ref"] = f"{base_unit.get('unit_ref', 'QUAL')}-EXP-R{expansion_round}-{family_text}"
-        synthetic["title"] = f"{base_unit.get('title', 'qualification')} [R{expansion_round}:{family_text}]"
-        synthetic["qualification_family"] = family_text
-        expanded.append(
-            _build_case(
-                test_set,
-                synthetic,
-                derivation_basis="qualification_expansion",
-                qualification_round=expansion_round,
-                qualification_family=family_text,
-            )
-        )
-    return expanded
 
 
 def build_test_case_pack(
@@ -246,73 +110,52 @@ def build_test_case_pack(
     environment = environment or {}
     environment_mode = str(environment.get("coverage_mode", "")).strip().lower()
     projection_mode = projection_mode or ("qualification_expansion" if environment_mode == "qualification" else "minimal_projection")
-    cases = [_build_case(test_set, unit, derivation_basis="test_unit") for unit in test_set.get("test_units", [])]
-    expanded_cases = (
-        _expanded_cases(
-            test_set,
-            environment,
-            expansion_round=max(1, expansion_round or 1),
-            expansion_targets=expansion_targets,
-        )
-        if projection_mode == "qualification_expansion"
-        else []
-    )
-    cases.extend(expanded_cases)
     lineage = qualification_lineage or []
     budget = qualification_budget if qualification_budget is not None else environment.get("qualification_budget", test_set.get("qualification_budget", 1))
     max_rounds = max_expansion_rounds if max_expansion_rounds is not None else environment.get("max_expansion_rounds", test_set.get("max_expansion_rounds"))
+    case_pack = expand_requirement_cases(
+        test_set,
+        environment,
+        projection_mode=projection_mode,
+        qualification_round=max(1, expansion_round or 1),
+        qualification_lineage=lineage,
+        qualification_budget=budget,
+        max_expansion_rounds=max_rounds,
+        expansion_targets=expansion_targets,
+    )
     stop_reason = qualification_stop_reason
     if stop_reason is None:
-        stop_reason = "branch_families_exhausted" if projection_mode == "qualification_expansion" and expanded_cases else "minimal_projection_only"
-    return {
-        "artifact_type": "test_case_pack",
-        "source_test_set_id": test_set.get("test_set_id", test_set.get("id", "")),
-        "execution_modality": test_set.get("execution_modality"),
-        "projection_mode": projection_mode,
-        "generation_mode": projection_mode,
-        "qualification_round": qualification_round if projection_mode == "qualification_expansion" else 0,
-        "qualification_revision": qualification_revision if projection_mode == "qualification_expansion" else 0,
-        "qualification_max_expansion_rounds": max_rounds,
-        "qualification_plan": _qualification_plan(test_set, environment),
-        "qualification_budget": budget,
-        "qualification_lineage": lineage,
-        "expansion_round": expansion_round if projection_mode == "qualification_expansion" else 0,
-        "expansion_stop_reason": stop_reason,
-        "cases": cases,
-    }
+        stop_reason = (
+            "branch_families_exhausted"
+            if projection_mode == "qualification_expansion" and len(case_pack.get("cases", [])) > len(test_set.get("test_units", []))
+            else "minimal_projection_only"
+        )
+    case_pack["qualification_lineage"] = lineage
+    case_pack["qualification_budget"] = budget
+    case_pack["qualification_max_expansion_rounds"] = max_rounds
+    case_pack["qualification_revision"] = qualification_revision if projection_mode == "qualification_expansion" else 0
+    case_pack["expansion_round"] = expansion_round if projection_mode == "qualification_expansion" else 0
+    case_pack["expansion_stop_reason"] = stop_reason
+    case_pack["traceability_summary"] = summarize_case_traceability(case_pack.get("cases", []))
+    return case_pack
 
 
 def build_script_pack(action: str, environment: dict[str, Any], case_pack: dict[str, Any], ui_source_spec: dict[str, Any]) -> dict[str, Any]:
-    command_entry = str(environment.get("command_entry", environment.get("runner_command", "")))
-    is_web = action == "test-exec-web-e2e"
-    bindings = []
-    for case in case_pack["cases"]:
-        bindings.append(
-            {
-                "case_id": case["case_id"],
-                "command_entry": command_entry if not is_web else "",
-                "expected_outcome": "page_load_visible_body" if is_web else "exit_code_zero",
-                "page_path": case.get("page_path", ""),
-                "expected_url": case.get("expected_url", ""),
-                "expected_text": case.get("expected_text", ""),
-                "ui_step_count": len(case.get("ui_steps", [])),
-            }
-        )
-    return {
-        "artifact_type": "script_pack",
-        "execution_modality": environment.get("execution_modality", ""),
-        "framework": "playwright" if is_web else "shell",
-        "runner_skill_ref": "skill.runner.test_e2e" if is_web else "skill.runner.test_cli",
-        "runner_config": {
-            "command_entry": command_entry,
-            "workdir": str(environment.get("workdir", ".")),
-            "timeout_seconds": int(environment.get("timeout_seconds", 30)),
-            "base_url": environment.get("base_url"),
-            "browser": environment.get("browser"),
-            "ui_source_spec": ui_source_spec,
-        },
-        "bindings": bindings,
+    test_set_proxy = {
+        "test_set_id": case_pack.get("source_test_set_id", ""),
+        "execution_modality": case_pack.get("execution_modality", ""),
+        "state_model": case_pack.get("state_model", []),
     }
+    fixture_plan = plan_fixtures(test_set_proxy, case_pack, environment)
+    script_pack = map_scripts(test_set_proxy, case_pack, environment)
+    script_pack["runner_config"]["ui_source_spec"] = ui_source_spec
+    script_pack["fixture_plan"] = fixture_plan
+    for binding in script_pack.get("bindings", []):
+        binding["page_path"] = next((case.get("page_path", "") for case in case_pack.get("cases", []) if case.get("case_id") == binding.get("case_id")), "")
+        binding["expected_url"] = next((case.get("expected_url", "") for case in case_pack.get("cases", []) if case.get("case_id") == binding.get("case_id")), "")
+        binding["expected_text"] = next((case.get("expected_text", "") for case in case_pack.get("cases", []) if case.get("case_id") == binding.get("case_id")), "")
+        binding["ui_step_count"] = next((len(case.get("ui_steps", [])) for case in case_pack.get("cases", []) if case.get("case_id") == binding.get("case_id")), 0)
+    return script_pack
 
 
 def build_freeze_meta(artifact_type: str, payload: dict[str, Any]) -> dict[str, Any]:
@@ -359,12 +202,27 @@ def render_report(summary: dict[str, Any], compliance: dict[str, Any], case_resu
         lines.append(f"- qualification_budget: {summary.get('qualification_budget')}")
     if summary.get("expansion_stop_reason"):
         lines.append(f"- expansion_stop_reason: {summary.get('expansion_stop_reason')}")
+    traceability = summary.get("traceability") or {}
+    if traceability:
+        lines.extend(
+            [
+                f"- functional_areas_covered: {len(traceability.get('functional_area_traceability', []))}",
+                f"- acceptances_covered: {len(traceability.get('acceptance_traceability', []))}",
+                f"- risks_covered: {len(traceability.get('risk_traceability', []))}",
+            ]
+        )
     lines.extend(
         [
             "",
-            "## Case Results",
+            "## Traceability",
         ]
     )
+    for item in traceability.get("functional_area_traceability", []):
+        lines.append(f"- area {item['key']}: {len(item.get('case_ids', []))} cases")
+    if traceability:
+        lines.extend(["", "## Case Results"])
+    else:
+        lines.extend(["", "## Case Results"])
     for item in case_results:
         lines.append(f"- {item['case_id']}: {item['status']} ({item['actual']})")
     return "\n".join(lines) + "\n"

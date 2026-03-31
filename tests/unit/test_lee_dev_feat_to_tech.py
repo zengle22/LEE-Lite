@@ -13,6 +13,7 @@ if str(SCRIPT_ROOT) not in sys.path:
 from feat_to_tech_common import derive_semantic_lock
 from feat_to_tech_derivation import feature_axis
 from feat_to_tech_package_builder import build_defects, build_semantic_drift_check
+from feat_to_tech_validation import validate_output_package
 
 class FeatToTechWorkflowTests(FeatToTechWorkflowHarness):
     def _json(self, path: Path):
@@ -1326,6 +1327,99 @@ class FeatToTechWorkflowTests(FeatToTechWorkflowHarness):
                 str(repo_root),
             )
             self.assertEqual(validate.returncode, 0, validate.stderr)
+
+    def test_review_outputs_record_semantic_gate_for_product_tech(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            repo_root = Path(temp_dir)
+            feature = self._minimal_onboarding_feature(
+                "FEAT-SRC-001-301",
+                identity_and_scenario={"completed_state": "用户提交最小建档后立即允许进入首页，且设备绑定不再阻塞首进链路。"},
+            )
+            result, artifacts_dir = self._run_feat(repo_root, feature, "feat-review-gate", "tech-review-gate")
+
+            self.assertEqual(result.returncode, 0, result.stderr)
+            review_report = self._json(artifacts_dir / "tech-review-report.json")
+            acceptance_report = self._json(artifacts_dir / "tech-acceptance-report.json")
+            freeze_gate = self._json(artifacts_dir / "tech-freeze-gate.json")
+
+            self.assertEqual(review_report["decision"], "pass")
+            self.assertEqual(acceptance_report["decision"], "approve")
+            self.assertTrue(review_report["semantic_gate"]["review_gate_ok"])
+            self.assertTrue(acceptance_report["semantic_gate"]["review_gate_ok"])
+            self.assertTrue(freeze_gate["checks"]["topic_alignment_ok"])
+            self.assertTrue(freeze_gate["checks"]["lock_gate_ok"])
+            self.assertTrue(freeze_gate["checks"]["review_gate_ok"])
+            self.assertEqual(
+                review_report["semantic_gate"]["topic_alignment_ok"],
+                acceptance_report["semantic_gate"]["topic_alignment_ok"],
+            )
+            self.assertEqual(
+                self._json(artifacts_dir / "tech-design-bundle.json")["selected_feat"]["identity_and_scenario"]["completed_state"],
+                "用户提交最小建档后立即允许进入首页，且设备绑定不再阻塞首进链路。",
+            )
+
+    def test_validate_output_rejects_stale_semantic_gate_after_product_tech_tamper(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            repo_root = Path(temp_dir)
+            feature = self._minimal_onboarding_feature("FEAT-SRC-001-302")
+            result, artifacts_dir = self._run_feat(repo_root, feature, "feat-stale-gate", "tech-stale-gate")
+
+            self.assertEqual(result.returncode, 0, result.stderr)
+            tech_spec_path = artifacts_dir / "tech-spec.md"
+            tech_spec_path.write_text(
+                tech_spec_path.read_text(encoding="utf-8")
+                + "\n\n## Drift Injection\npilot chain compat mode cutover guard rollout wave audit\n",
+                encoding="utf-8",
+            )
+
+            errors, validation = validate_output_package(artifacts_dir)
+            self.assertFalse(validation["valid"])
+            self.assertTrue(
+                any(
+                    "semantic-drift-check.json must match the current TECH/ARCH/API artifact content." in error
+                    or "tech-review-report.json semantic_gate must match the current artifact content." in error
+                    for error in errors
+                ),
+                errors,
+            )
+
+    def test_supervisor_review_rejects_stale_tech_body_even_when_upstream_feat_is_clean(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            repo_root = Path(temp_dir)
+            feature = self._minimal_onboarding_feature("FEAT-SRC-001-303")
+            result, artifacts_dir = self._run_feat(repo_root, feature, "feat-stale-supervisor", "tech-stale-supervisor")
+
+            self.assertEqual(result.returncode, 0, result.stderr)
+            tech_spec_path = artifacts_dir / "tech-spec.md"
+            tech_spec_path.write_text(
+                tech_spec_path.read_text(encoding="utf-8")
+                + "\n\n## Drift Injection\npilot chain compat mode cutover guard rollout wave audit\n",
+                encoding="utf-8",
+            )
+
+            review = self.run_cmd(
+                "supervisor-review",
+                "--artifacts-dir",
+                str(artifacts_dir),
+                "--repo-root",
+                str(repo_root),
+                "--run-id",
+                "tech-stale-supervisor",
+                "--allow-update",
+            )
+            self.assertNotEqual(review.returncode, 0, review.stderr)
+            payload = json.loads(review.stdout)
+            self.assertFalse(payload["freeze_ready"])
+            review_report = self._json(artifacts_dir / "tech-review-report.json")
+            self.assertEqual(review_report["decision"], "revise")
+            self.assertTrue(
+                any(
+                    "no longer matches the regenerated TECH body" in risk
+                    or "no longer match the regenerated semantic gate" in risk
+                    for risk in review_report.get("risks") or []
+                ),
+                review_report,
+            )
 
 
 if __name__ == "__main__":

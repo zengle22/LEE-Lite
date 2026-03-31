@@ -147,6 +147,11 @@ def compliant_tech_path(path: Path, workspace_root: Path) -> bool:
     return canonical.startswith("ssot/tech/") and path.name.startswith("TECH-") and path.suffix.lower() == ".md"
 
 
+def compliant_ui_path(path: Path, workspace_root: Path) -> bool:
+    canonical = to_canonical_path(path, workspace_root)
+    return canonical.startswith("ssot/ui/") and path.suffix.lower() == ".md"
+
+
 def compliant_testset_path(path: Path, workspace_root: Path) -> bool:
     canonical = to_canonical_path(path, workspace_root)
     return canonical.startswith("ssot/testset/TESTSET-") and path.suffix.lower() in {".yaml", ".yml"}
@@ -285,6 +290,13 @@ def formal_tech_output_path(workspace_root: Path, assigned_id: str, title: str, 
     return workspace_root / "ssot" / "tech" / f"{assigned_id}__{slugify(title)}.md"
 
 
+def formal_ui_output_path(workspace_root: Path, assigned_id: str, title: str, source_refs: list[str]) -> Path:
+    src_ref = next((ref for ref in source_refs if str(ref).startswith("SRC-")), "")
+    if src_ref:
+        return workspace_root / "ssot" / "ui" / src_ref / f"{assigned_id}__{slugify(title)}.md"
+    return workspace_root / "ssot" / "ui" / f"{assigned_id}__{slugify(title)}.md"
+
+
 def formal_testset_output_path(workspace_root: Path, assigned_id: str, title: str) -> Path:
     return workspace_root / "ssot" / "testset" / f"{assigned_id}__{slugify(title)}.yaml"
 
@@ -305,6 +317,7 @@ def infer_target_formal_kind(candidate: dict[str, Any], source_path: Path, reque
     explicit_epic_markers = ["epic-freeze", "epic_freeze", "src-to-epic", ".epic."]
     explicit_src_markers = ["src-candidate", "src_candidate", "raw-to-src", ".src."]
     explicit_tech_markers = ["tech-design-bundle", "tech_design_package", "feat-to-tech", ".tech."]
+    explicit_ui_markers = ["ui-spec-bundle", "ui_spec_package", "feat-to-ui", ".ui."]
     explicit_testset_markers = ["test-set-bundle", "test_set_candidate_package", "feat-to-testset", ".testset."]
     explicit_impl_markers = ["impl-bundle", "feature_impl_candidate_package", "tech-to-impl", ".impl."]
     values = [artifact_ref, managed_artifact_ref, source_kind, source_text]
@@ -317,6 +330,8 @@ def infer_target_formal_kind(candidate: dict[str, Any], source_path: Path, reque
             return "src"
         if any(marker in value for marker in explicit_tech_markers):
             return "tech"
+        if any(marker in value for marker in explicit_ui_markers):
+            return "ui"
         if any(marker in value for marker in explicit_testset_markers):
             return "testset"
         if any(marker in value for marker in explicit_impl_markers):
@@ -330,6 +345,8 @@ def infer_target_formal_kind(candidate: dict[str, Any], source_path: Path, reque
             return "src"
         if "tech" in value:
             return "tech"
+        if "ui" in value:
+            return "ui"
         if "testset" in value or "test-set" in value:
             return "testset"
         if "impl" in value:

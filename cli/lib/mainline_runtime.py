@@ -3,12 +3,29 @@
 from __future__ import annotations
 
 import hashlib
+import os
+import time
+from contextlib import contextmanager
 from pathlib import Path
 from typing import Any
 
 from cli.lib.errors import CommandError, ensure
 from cli.lib.fs import canonical_to_path, load_json, read_text, to_canonical_path, write_json
 from cli.lib.registry_store import slugify
+
+try:
+    import fcntl  # type: ignore[import-not-found]
+except ImportError:  # pragma: no cover - Windows runtime path
+    fcntl = None
+
+try:
+    import msvcrt  # type: ignore[import-not-found]
+except ImportError:  # pragma: no cover - POSIX runtime path
+    msvcrt = None
+
+
+_PENDING_INDEX_LOCK_TIMEOUT_SECONDS = 5.0
+_PENDING_INDEX_LOCK_POLL_SECONDS = 0.05
 
 
 def _handoff_key(producer_ref: str, proposal_ref: str) -> str:
@@ -19,15 +36,67 @@ def _pending_index_path(workspace_root: Path) -> Path:
     return workspace_root / "artifacts" / "active" / "gates" / "pending" / "index.json"
 
 
-def _load_pending_index(workspace_root: Path) -> dict[str, dict[str, Any]]:
+def _pending_index_lock_path(workspace_root: Path) -> Path:
+    return _pending_index_path(workspace_root).with_suffix(".lock")
+
+
+def _normalize_pending_index(payload: dict[str, Any] | Any) -> dict[str, Any]:
+    index = payload if isinstance(payload, dict) else {}
+    handoffs = index.get("handoffs")
+    if not isinstance(handoffs, dict):
+        index["handoffs"] = {}
+    return index
+
+
+def _load_pending_index(workspace_root: Path) -> dict[str, Any]:
     path = _pending_index_path(workspace_root)
     if path.exists():
-        return load_json(path)
+        return _normalize_pending_index(load_json(path))
     return {"handoffs": {}}
 
 
 def _save_pending_index(workspace_root: Path, payload: dict[str, Any]) -> None:
-    write_json(_pending_index_path(workspace_root), payload)
+    write_json(_pending_index_path(workspace_root), _normalize_pending_index(payload))
+
+
+@contextmanager
+def _acquire_pending_index_lock(workspace_root: Path):
+    lock_path = _pending_index_lock_path(workspace_root)
+    lock_path.parent.mkdir(parents=True, exist_ok=True)
+    with lock_path.open("a+b") as lock_file:
+        lock_file.seek(0, os.SEEK_END)
+        if lock_file.tell() == 0:
+            lock_file.write(b"0")
+            lock_file.flush()
+        lock_file.seek(0)
+        deadline = time.monotonic() + _PENDING_INDEX_LOCK_TIMEOUT_SECONDS
+        while True:
+            try:
+                if os.name == "nt":
+                    assert msvcrt is not None
+                    lock_file.seek(0)
+                    msvcrt.locking(lock_file.fileno(), msvcrt.LK_NBLCK, 1)
+                else:
+                    assert fcntl is not None
+                    fcntl.flock(lock_file.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+                break
+            except OSError:
+                if time.monotonic() >= deadline:
+                    raise CommandError("PRECONDITION_FAILED", f"pending_index_locked: {lock_path}")
+                time.sleep(_PENDING_INDEX_LOCK_POLL_SECONDS)
+        try:
+            yield
+        finally:
+            try:
+                if os.name == "nt":
+                    assert msvcrt is not None
+                    lock_file.seek(0)
+                    msvcrt.locking(lock_file.fileno(), msvcrt.LK_UNLCK, 1)
+                else:
+                    assert fcntl is not None
+                    fcntl.flock(lock_file.fileno(), fcntl.LOCK_UN)
+            except OSError:
+                pass
 
 
 def submit_handoff(
@@ -45,63 +114,64 @@ def submit_handoff(
     handoff_id = _handoff_key(producer_ref, proposal_ref)
     handoff_ref = f"artifacts/active/gates/handoffs/{handoff_id}.json"
     pending_ref = f"artifacts/active/gates/pending/{handoff_id}.json"
-    index = _load_pending_index(workspace_root)
-    existing = index["handoffs"].get(handoff_id)
-    if existing:
-        if existing.get("payload_digest") != payload_digest:
-            raise CommandError("PRECONDITION_FAILED", "duplicate_submission with different payload")
+    with _acquire_pending_index_lock(workspace_root):
+        index = _load_pending_index(workspace_root)
+        existing = index["handoffs"].get(handoff_id)
+        if existing:
+            if existing.get("payload_digest") != payload_digest:
+                raise CommandError("PRECONDITION_FAILED", "duplicate_submission with different payload")
+            return {
+                "handoff_ref": existing["handoff_ref"],
+                "gate_pending_ref": existing["gate_pending_ref"],
+                "pending_state": existing.get("pending_state", pending_state),
+                "assigned_gate_queue": existing.get("assigned_gate_queue", "mainline.gate.pending"),
+                "trace_ref": existing.get("trace_ref", trace_context_ref or ""),
+                "canonical_payload_path": to_canonical_path(payload_path, workspace_root),
+                "retryable": "true",
+                "idempotent_replay": "true",
+            }
+
+        write_json(
+            workspace_root / handoff_ref,
+            {
+                "trace": trace,
+                "producer_ref": producer_ref,
+                "proposal_ref": proposal_ref,
+                "payload_ref": to_canonical_path(payload_path, workspace_root),
+                "pending_state": pending_state,
+                "trace_context_ref": trace_context_ref or "",
+                "payload_digest": payload_digest,
+            },
+        )
+        write_json(
+            workspace_root / pending_ref,
+            {
+                "trace": trace,
+                "handoff_ref": handoff_ref,
+                "producer_ref": producer_ref,
+                "proposal_ref": proposal_ref,
+                "pending_state": pending_state,
+            },
+        )
+        index["handoffs"][handoff_id] = {
+            "handoff_ref": handoff_ref,
+            "gate_pending_ref": pending_ref,
+            "payload_digest": payload_digest,
+            "trace_ref": trace_context_ref or "",
+            "pending_state": pending_state,
+            "assigned_gate_queue": "mainline.gate.pending",
+        }
+        _save_pending_index(workspace_root, index)
         return {
-            "handoff_ref": existing["handoff_ref"],
-            "gate_pending_ref": existing["gate_pending_ref"],
-            "pending_state": existing.get("pending_state", pending_state),
-            "assigned_gate_queue": existing.get("assigned_gate_queue", "mainline.gate.pending"),
-            "trace_ref": existing.get("trace_ref", trace_context_ref or ""),
+            "handoff_ref": handoff_ref,
+            "gate_pending_ref": pending_ref,
+            "pending_state": pending_state,
+            "assigned_gate_queue": "mainline.gate.pending",
+            "trace_ref": trace_context_ref or "",
             "canonical_payload_path": to_canonical_path(payload_path, workspace_root),
             "retryable": "true",
             "idempotent_replay": "true",
         }
-
-    write_json(
-        workspace_root / handoff_ref,
-        {
-            "trace": trace,
-            "producer_ref": producer_ref,
-            "proposal_ref": proposal_ref,
-            "payload_ref": to_canonical_path(payload_path, workspace_root),
-            "pending_state": pending_state,
-            "trace_context_ref": trace_context_ref or "",
-            "payload_digest": payload_digest,
-        },
-    )
-    write_json(
-        workspace_root / pending_ref,
-        {
-            "trace": trace,
-            "handoff_ref": handoff_ref,
-            "producer_ref": producer_ref,
-            "proposal_ref": proposal_ref,
-            "pending_state": pending_state,
-        },
-    )
-    index["handoffs"][handoff_id] = {
-        "handoff_ref": handoff_ref,
-        "gate_pending_ref": pending_ref,
-        "payload_digest": payload_digest,
-        "trace_ref": trace_context_ref or "",
-        "pending_state": pending_state,
-        "assigned_gate_queue": "mainline.gate.pending",
-    }
-    _save_pending_index(workspace_root, index)
-    return {
-        "handoff_ref": handoff_ref,
-        "gate_pending_ref": pending_ref,
-        "pending_state": pending_state,
-        "assigned_gate_queue": "mainline.gate.pending",
-        "trace_ref": trace_context_ref or "",
-        "canonical_payload_path": to_canonical_path(payload_path, workspace_root),
-        "retryable": "true",
-        "idempotent_replay": "true",
-    }
 
 
 def list_pending_handoffs(workspace_root: Path) -> dict[str, Any]:

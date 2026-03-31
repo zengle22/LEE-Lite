@@ -11,6 +11,7 @@ import yaml
 from feat_to_testset_common import dump_json, dump_yaml, ensure_list, load_json, parse_markdown_frontmatter, render_markdown
 from feat_to_testset_cli_integration import refresh_supervisor_bundle
 from feat_to_testset_document_test import build_document_test
+from feat_to_testset_semantics import build_semantic_drift_check
 from cli.lib.workflow_document_test import validate_document_test_report
 
 ENVIRONMENT_INPUT_CATEGORIES = [
@@ -66,7 +67,21 @@ def yaml_load(path: Path) -> dict[str, Any]:
     return payload if isinstance(payload, dict) else {}
 
 
-def _build_findings(test_set_yaml: dict[str, Any], handoff: dict[str, Any]) -> list[dict[str, Any]]:
+def _recompute_semantic_gate(bundle_json: dict[str, Any], test_set_yaml: dict[str, Any], handoff: dict[str, Any]) -> dict[str, Any]:
+    return build_semantic_drift_check(
+        {
+            "feat_ref": bundle_json.get("feat_ref"),
+            "title": bundle_json.get("title"),
+            "semantic_lock": test_set_yaml.get("semantic_lock"),
+            "axis_id": bundle_json.get("axis_id") or test_set_yaml.get("axis_id") or "",
+        },
+        bundle_json,
+        test_set_yaml,
+        handoff=handoff,
+    )
+
+
+def _build_findings(test_set_yaml: dict[str, Any], handoff: dict[str, Any], semantic_gate: dict[str, Any]) -> list[dict[str, Any]]:
     findings: list[dict[str, Any]] = []
     if not ensure_list(test_set_yaml.get("governing_adrs")):
         findings.append({"severity": "P2", "title": "No governing ADR refs were inherited", "detail": "The candidate package is usable, but governing ADR lineage should be made explicit when available."})
@@ -80,6 +95,31 @@ def _build_findings(test_set_yaml: dict[str, Any], handoff: dict[str, Any]) -> l
                     "detail": "Downstream execution handoff must cover all required environment input categories.",
                 }
             )
+    if semantic_gate.get("lock_gate_ok") is False:
+        findings.append(
+            {
+                "severity": "P1",
+                "title": "semantic_lock drift detected",
+                "detail": str(semantic_gate.get("summary") or "semantic_lock drift detected."),
+            }
+        )
+    if semantic_gate.get("topic_alignment_ok") is False:
+        findings.append(
+            {
+                "severity": "P1",
+                "title": "Product topic alignment is incomplete",
+                "detail": f"Missing expected topic markers: {', '.join(ensure_list(semantic_gate.get('missing_topic_markers')))}.",
+            }
+        )
+    residue = ensure_list(semantic_gate.get("template_residue_detected"))
+    if residue:
+        findings.append(
+            {
+                "severity": "P1",
+                "title": "Generic template residue remains in TESTSET content",
+                "detail": f"Detected residual generic markers: {', '.join(residue)}.",
+            }
+        )
     return findings
 
 
@@ -88,14 +128,27 @@ def build_supervision_evidence(artifacts_dir: Path) -> dict[str, Any]:
     test_set_yaml = yaml_load(artifacts_dir / "test-set.yaml")
     handoff = load_json(artifacts_dir / "handoff-to-test-execution.json")
     semantic_drift_check = load_json(artifacts_dir / "semantic-drift-check.json")
+    recomputed_semantic_gate = _recompute_semantic_gate(bundle_json, test_set_yaml, handoff)
     revision_context = bundle_json.get("revision_context") or {}
-    findings = _build_findings(test_set_yaml, handoff)
+    findings = _build_findings(test_set_yaml, handoff, recomputed_semantic_gate)
     if semantic_drift_check.get("semantic_lock_present") and semantic_drift_check.get("semantic_lock_preserved") is not True:
         findings.append(
             {
                 "severity": "P1",
                 "title": "semantic_lock drift detected",
                 "detail": str(semantic_drift_check.get("summary") or "semantic_lock drift detected."),
+            }
+        )
+    if (
+        semantic_drift_check.get("review_gate_ok") != recomputed_semantic_gate.get("review_gate_ok")
+        or ensure_list(semantic_drift_check.get("template_residue_detected")) != ensure_list(recomputed_semantic_gate.get("template_residue_detected"))
+        or ensure_list(semantic_drift_check.get("missing_topic_markers")) != ensure_list(recomputed_semantic_gate.get("missing_topic_markers"))
+    ):
+        findings.append(
+            {
+                "severity": "P1",
+                "title": "Stored semantic drift result is stale",
+                "detail": "Current artifacts no longer match the stored semantic-drift-check.json result; rerun or refresh is required.",
             }
         )
     blocking = [item for item in findings if str(item.get("severity") or "") in {"P0", "P1"}]
@@ -111,6 +164,7 @@ def build_supervision_evidence(artifacts_dir: Path) -> dict[str, Any]:
             str(artifacts_dir / "handoff-to-test-execution.json"),
         ],
         "semantic_findings": findings,
+        "semantic_gate": recomputed_semantic_gate,
         "decision": decision,
         "reason": (
             "TESTSET candidate package is ready for external approval handoff."
@@ -148,6 +202,7 @@ def update_supervisor_outputs(artifacts_dir: Path, repo_root: Path, supervision:
             "decision": "pass" if passed else "revise",
             "summary": "Analysis and strategy review passed." if passed else "Analysis and strategy review requires revision.",
             "findings": supervision.get("semantic_findings") or [],
+            "semantic_gate": supervision.get("semantic_gate") or {},
             "updated_at": _utc_now(),
         }
     )
@@ -161,6 +216,7 @@ def update_supervisor_outputs(artifacts_dir: Path, repo_root: Path, supervision:
                 else "TESTSET content does not yet satisfy external approval entry conditions."
             ),
             "acceptance_findings": blocking,
+            "semantic_gate": supervision.get("semantic_gate") or {},
             "updated_at": _utc_now(),
         }
     )
@@ -168,7 +224,7 @@ def update_supervisor_outputs(artifacts_dir: Path, repo_root: Path, supervision:
         run_id=str(bundle_json.get("workflow_run_id") or artifacts_dir.name),
         tested_at=_utc_now(),
         bundle_json=bundle_json,
-        semantic_drift_check=semantic_drift_check,
+        semantic_drift_check=supervision.get("semantic_gate") or semantic_drift_check,
         defects=supervision.get("semantic_findings") or [],
         downstream_target=str(bundle_json.get("downstream_target") or ""),
         required_environment_inputs=load_json(artifacts_dir / "handoff-to-test-execution.json").get("required_environment_inputs"),
@@ -192,6 +248,7 @@ def update_supervisor_outputs(artifacts_dir: Path, repo_root: Path, supervision:
                 "handoff_present": True,
                 "required_environment_inputs_present": not blocking,
                 "semantic_lock_preserved": semantic_drift_check.get("semantic_lock_preserved", True),
+                "review_gate_ok": supervision.get("semantic_gate", {}).get("review_gate_ok", True),
                 "document_test_report_present": document_test_report.get("test_outcome") in {"no_blocking_defect_found", "blocking_defect_found", "inconclusive", "not_applicable"},
                 "document_test_non_blocking": document_test_non_blocking,
             },
@@ -363,6 +420,54 @@ def _validate_state_relationships(bundle_json: dict[str, Any], test_set_yaml: di
             errors.append("rejected packages must carry failed freeze gate.")
 
 
+def _validate_semantic_review_gate(
+    bundle_json: dict[str, Any],
+    test_set_yaml: dict[str, Any],
+    handoff: dict[str, Any],
+    semantic_drift_check: dict[str, Any],
+    review_report: dict[str, Any],
+    acceptance_report: dict[str, Any],
+    freeze_gate: dict[str, Any],
+    errors: list[str],
+) -> None:
+    if semantic_drift_check.get("semantic_lock_present"):
+        for key in [
+            "lock_gate_ok",
+            "topic_alignment_ok",
+            "review_gate_ok",
+            "matched_allowed_capabilities",
+            "missing_topic_markers",
+            "template_residue_detected",
+        ]:
+            if key not in semantic_drift_check:
+                errors.append(f"semantic-drift-check.json must include {key} when semantic_lock is present.")
+    recomputed = _recompute_semantic_gate(bundle_json, test_set_yaml, handoff)
+    compare_keys = [
+        "verdict",
+        "semantic_lock_preserved",
+        "lock_gate_ok",
+        "topic_alignment_ok",
+        "review_gate_ok",
+        "missing_topic_markers",
+        "template_residue_detected",
+    ]
+    for key in compare_keys:
+        if semantic_drift_check.get(key) != recomputed.get(key):
+            errors.append(f"semantic-drift-check.json {key} is stale relative to current TESTSET artifacts.")
+    if review_report.get("status") == "completed":
+        if "semantic_gate" not in review_report:
+            errors.append("test-set-review-report.json must include semantic_gate after supervisor review.")
+        elif review_report.get("semantic_gate", {}).get("review_gate_ok") != recomputed.get("review_gate_ok"):
+            errors.append("test-set-review-report.json semantic_gate must match the current recomputed review gate.")
+    if acceptance_report.get("status") == "completed":
+        if "semantic_gate" not in acceptance_report:
+            errors.append("test-set-acceptance-report.json must include semantic_gate after supervisor review.")
+        elif acceptance_report.get("semantic_gate", {}).get("review_gate_ok") != recomputed.get("review_gate_ok"):
+            errors.append("test-set-acceptance-report.json semantic_gate must match the current recomputed review gate.")
+    if freeze_gate.get("checks", {}).get("review_gate_ok") is not None and freeze_gate.get("checks", {}).get("review_gate_ok") != recomputed.get("review_gate_ok"):
+        errors.append("test-set-freeze-gate.json checks.review_gate_ok must match the current recomputed review gate.")
+
+
 def validate_output_package(artifacts_dir: Path) -> tuple[list[str], dict[str, Any]]:
     errors: list[str] = []
     if not artifacts_dir.exists() or not artifacts_dir.is_dir():
@@ -379,6 +484,8 @@ def validate_output_package(artifacts_dir: Path) -> tuple[list[str], dict[str, A
     freeze_gate = load_json(artifacts_dir / "test-set-freeze-gate.json")
     handoff = load_json(artifacts_dir / "handoff-to-test-execution.json")
     semantic_drift_check = load_json(artifacts_dir / "semantic-drift-check.json")
+    review_report = load_json(artifacts_dir / "test-set-review-report.json")
+    acceptance_report = load_json(artifacts_dir / "test-set-acceptance-report.json")
     errors.extend(validate_document_test_report(load_json(artifacts_dir / "document-test-report.json")))
 
     _validate_identity(bundle_json, errors)
@@ -388,6 +495,7 @@ def validate_output_package(artifacts_dir: Path) -> tuple[list[str], dict[str, A
     _validate_handoff(bundle_json, handoff, errors)
     _validate_statuses(bundle_json, test_set_yaml, freeze_gate, manifest, errors)
     _validate_state_relationships(bundle_json, test_set_yaml, freeze_gate, manifest, semantic_drift_check, errors)
+    _validate_semantic_review_gate(bundle_json, test_set_yaml, handoff, semantic_drift_check, review_report, acceptance_report, freeze_gate, errors)
 
     bundle_markdown = (artifacts_dir / "test-set-bundle.md").read_text(encoding="utf-8")
     _, bundle_body = parse_markdown_frontmatter(bundle_markdown)
@@ -419,6 +527,7 @@ def validate_package_readiness(artifacts_dir: Path) -> tuple[bool, list[str]]:
     review_report = load_json(artifacts_dir / "test-set-review-report.json")
     acceptance_report = load_json(artifacts_dir / "test-set-acceptance-report.json")
     document_test_report = load_json(artifacts_dir / "document-test-report.json")
+    semantic_drift_check = load_json(artifacts_dir / "semantic-drift-check.json")
     readiness_errors: list[str] = []
     if bundle_json.get("status") != "approval_pending":
         readiness_errors.append("Candidate package status must be approval_pending.")
@@ -434,6 +543,8 @@ def validate_package_readiness(artifacts_dir: Path) -> tuple[bool, list[str]]:
         readiness_errors.append("test-set-review-report.json decision must be pass.")
     if acceptance_report.get("decision") != "approve":
         readiness_errors.append("test-set-acceptance-report.json decision must be approve.")
+    if semantic_drift_check.get("review_gate_ok") is not True:
+        readiness_errors.append("semantic review gate must pass before package readiness.")
     if document_test_report.get("test_outcome") != "no_blocking_defect_found":
         readiness_errors.append("document_test_non_blocking")
     return not readiness_errors, readiness_errors

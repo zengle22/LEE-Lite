@@ -15,7 +15,13 @@ if str(WORKSPACE_ROOT) not in sys.path:
     sys.path.insert(0, str(WORKSPACE_ROOT))
 
 from cli.lib.workflow_revision import normalize_revision_context
-from feat_to_tech_common import derive_semantic_lock, ensure_list, normalize_semantic_lock, unique_strings
+from feat_to_tech_common import (
+    derive_semantic_lock,
+    enrich_feature_execution_metadata,
+    ensure_list,
+    normalize_semantic_lock,
+    unique_strings,
+)
 from feat_to_tech_derivation import (
     api_command_specs,
     api_compatibility_rules,
@@ -224,6 +230,7 @@ def build_semantic_drift_check(feature: dict[str, Any], generated_text_parts: li
         "semantic_lock_preserved": preserved,
         "topic_alignment_ok": topic_alignment_ok,
         "lock_gate_ok": lock_gate_ok,
+        "review_gate_ok": preserved,
         "domain_type": lock.get("domain_type"),
         "one_sentence_truth": lock.get("one_sentence_truth"),
         "matched_allowed_capabilities": matched_allowed_capabilities,
@@ -346,7 +353,8 @@ def build_tech_package(
     utc_now_fn,
     revision_request: dict[str, Any] | None = None,
 ) -> GeneratedTechPackage:
-    feature = dict(feature)
+    repo_root = package.artifacts_dir.parents[2]
+    feature = enrich_feature_execution_metadata(repo_root, dict(feature))
     feature["semantic_lock"] = derive_semantic_lock(feature, package.semantic_lock)
     refs = build_refs(feature, package)
     assessment = assess_optional_artifacts(feature, package)
@@ -416,8 +424,8 @@ def build_tech_package(
                 continue
             block["revision_request_ref"] = revision_context["revision_request_ref"]
             block["revision_summary"] = revision_context["summary"]
-    review_report = build_review_report(run_id, refs, defects, utc_now_fn)
-    acceptance_report = build_acceptance_report(defects, context["consistency"], utc_now_fn)
+    review_report = build_review_report(run_id, refs, defects, context["consistency"], semantic_drift_check, utc_now_fn)
+    acceptance_report = build_acceptance_report(defects, context["consistency"], semantic_drift_check, utc_now_fn)
     execution_decisions = build_execution_decisions(package, refs, assessment, revision_context)
     return GeneratedTechPackage(
         run_id=run_id,
@@ -633,8 +641,8 @@ def build_frontmatter(run_id, refs, assessment, source_refs, feature, status, re
     }
 
 
-def build_review_report(run_id, refs, defects, utc_now_fn):
-    passed = not defects
+def build_review_report(run_id, refs, defects, consistency, semantic_drift_check, utc_now_fn):
+    passed = not defects and consistency["passed"] and semantic_drift_check.get("review_gate_ok", True)
     return {
         "review_id": f"tech-review-{run_id}",
         "review_type": "tech_design_review",
@@ -647,32 +655,43 @@ def build_review_report(run_id, refs, defects, utc_now_fn):
         ],
         "decision": "pass" if passed else "revise",
         "risks": [defect["detail"] for defect in defects],
+        "semantic_gate": semantic_drift_check,
         "created_at": utc_now_fn(),
     }
 
 
-def build_acceptance_report(defects, consistency, utc_now_fn):
+def build_acceptance_report(defects, consistency, semantic_drift_check, utc_now_fn):
+    passed = not defects and consistency["passed"] and semantic_drift_check.get("review_gate_ok", True)
     return {
         "stage_id": "tech_acceptance_review",
         "created_by_role": "supervisor",
-        "decision": "approve" if not defects else "revise",
+        "decision": "approve" if passed else "revise",
         "dimensions": {
             "tech_presence": {"status": "pass", "note": "TECH is mandatory and present."},
             "optional_outputs_match_assessment": {
-                "status": "pass" if not defects else "fail",
-                "note": "Optional ARCH/API outputs align with the need assessment." if not defects else "Optional outputs need revision.",
+                "status": "pass" if passed else "fail",
+                "note": "Optional ARCH/API outputs align with the need assessment." if passed else "Optional outputs need revision.",
             },
             "cross_artifact_consistency": {
                 "status": "pass" if consistency["passed"] else "fail",
                 "note": "ARCH, TECH, and API remain aligned." if consistency["passed"] else "Consistency issues remain open.",
             },
+            "semantic_alignment": {
+                "status": "pass" if semantic_drift_check.get("review_gate_ok", True) else "fail",
+                "note": (
+                    "TECH carrier, state, and interface topics remain aligned to the selected FEAT."
+                    if semantic_drift_check.get("review_gate_ok", True)
+                    else "TECH semantic gate detected topic drift or semantic_lock mismatch."
+                ),
+            },
             "downstream_readiness": {
-                "status": "pass" if not defects else "fail",
-                "note": "Output remains actionable for workflow.dev.tech_to_impl." if not defects else "Output is not freeze-ready for downstream implementation planning.",
+                "status": "pass" if passed else "fail",
+                "note": "Output remains actionable for workflow.dev.tech_to_impl." if passed else "Output is not freeze-ready for downstream implementation planning.",
             },
         },
-        "summary": "TECH acceptance review passed." if not defects else "TECH acceptance review requires revision.",
+        "summary": "TECH acceptance review passed." if passed else "TECH acceptance review requires revision.",
         "acceptance_findings": defects,
+        "semantic_gate": semantic_drift_check,
         "created_at": utc_now_fn(),
     }
 

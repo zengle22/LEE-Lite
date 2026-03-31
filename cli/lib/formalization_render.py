@@ -149,6 +149,31 @@ def render_formal_tech_markdown(
     return f"---\n{header}\n---\n\n{snapshot['body'].strip()}\n"
 
 
+def render_formal_ui_markdown(
+    snapshot: dict[str, Any],
+    assigned_id: str,
+    decision_ref: str,
+    frozen_at: str,
+) -> str:
+    candidate_json = snapshot["candidate_json"]
+    frontmatter = {
+        "id": assigned_id,
+        "ssot_type": "UI",
+        "ui_ref": str(candidate_json.get("ui_ref") or assigned_id).strip() or assigned_id,
+        "feat_ref": str(candidate_json.get("feat_ref") or "").strip(),
+        "title": snapshot["title"],
+        "status": "accepted",
+        "schema_version": "1.0.0",
+        "workflow_key": snapshot["workflow_key"],
+        "workflow_run_id": snapshot["workflow_run_id"],
+        "candidate_package_ref": snapshot["candidate_package_ref"],
+        "gate_decision_ref": decision_ref,
+        "frozen_at": frozen_at,
+    }
+    header = yaml.safe_dump(frontmatter, allow_unicode=True, sort_keys=False).strip()
+    return f"---\n{header}\n---\n\n{snapshot['body'].strip()}\n"
+
+
 def render_formal_testset_yaml(
     test_set_yaml: dict[str, Any],
     assigned_id: str,

@@ -37,6 +37,9 @@
         },
         "proposal_ref": {
           "type": "string"
+        },
+        "qualification_budget": {
+          "type": "integer"
         }
       },
       "required": [

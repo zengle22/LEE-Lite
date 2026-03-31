@@ -13,6 +13,7 @@ def selected_feat_snapshot(feature: dict[str, Any], resolved_axis: str) -> dict[
         "axis_id": str(feature.get("axis_id") or ""),
         "title": str(feature.get("title") or ""),
         "goal": str(feature.get("goal") or ""),
+        "identity_and_scenario": feature.get("identity_and_scenario") or {},
         "authoritative_artifact": str(feature.get("authoritative_artifact") or ""),
         "upstream_feat": ensure_list(feature.get("upstream_feat")),
         "downstream_feat": ensure_list(feature.get("downstream_feat")),

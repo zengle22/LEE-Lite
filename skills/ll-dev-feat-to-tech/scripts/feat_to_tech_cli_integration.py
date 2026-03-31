@@ -12,6 +12,7 @@ from typing import Any
 
 from cli.lib.workflow_document_test import build_document_test_report, build_fixability_section
 from feat_to_tech_common import dump_json, load_json, parse_markdown_frontmatter, render_markdown
+from feat_to_tech_validation import recompute_semantic_gate
 
 
 def _write_json(path: Path, payload: dict[str, Any]) -> None:
@@ -58,8 +59,66 @@ def write_markdown(path: Path, frontmatter: dict[str, Any], body: str) -> None:
     path.write_text(render_markdown(frontmatter, body), encoding="utf-8")
 
 
-def _document_test_report(generated: Any) -> dict[str, Any]:
-    defects = list(generated.defect_list)
+def _semantic_gate_projection(payload: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "verdict": payload.get("verdict"),
+        "semantic_lock_present": payload.get("semantic_lock_present"),
+        "semantic_lock_preserved": payload.get("semantic_lock_preserved"),
+        "topic_alignment_ok": payload.get("topic_alignment_ok"),
+        "lock_gate_ok": payload.get("lock_gate_ok"),
+        "review_gate_ok": payload.get("review_gate_ok"),
+        "axis_conflicts": list(payload.get("axis_conflicts") or []),
+        "carrier_topic_issues": list(payload.get("carrier_topic_issues") or []),
+    }
+
+
+def _current_markdown_body(path: Path) -> str:
+    if not path.exists():
+        return ""
+    _, body = parse_markdown_frontmatter(path.read_text(encoding="utf-8"))
+    return body
+
+
+def _body_mismatch_findings(artifacts_dir: Path, generated: Any) -> list[dict[str, Any]]:
+    findings: list[dict[str, Any]] = []
+    current_tech_body = _current_markdown_body(artifacts_dir / "tech-spec.md").strip()
+    if current_tech_body and current_tech_body != str(generated.tech_body or "").strip():
+        findings.append(
+            {
+                "severity": "P1",
+                "title": "Current TECH body diverged from regenerated canonical output",
+                "detail": "tech-spec.md no longer matches the regenerated TECH body for the selected FEAT.",
+            }
+        )
+    current_arch_body = _current_markdown_body(artifacts_dir / "arch-design.md").strip()
+    expected_arch_body = str(generated.arch_body or "").strip()
+    if current_arch_body and current_arch_body != expected_arch_body:
+        findings.append(
+            {
+                "severity": "P1",
+                "title": "Current ARCH body diverged from regenerated canonical output",
+                "detail": "arch-design.md no longer matches the regenerated ARCH body for the selected FEAT.",
+            }
+        )
+    current_api_body = _current_markdown_body(artifacts_dir / "api-contract.md").strip()
+    expected_api_body = str(generated.api_body or "").strip()
+    if current_api_body and current_api_body != expected_api_body:
+        findings.append(
+            {
+                "severity": "P1",
+                "title": "Current API body diverged from regenerated canonical output",
+                "detail": "api-contract.md no longer matches the regenerated API contract body for the selected FEAT.",
+            }
+        )
+    return findings
+
+
+def _document_test_report(
+    generated: Any,
+    defects_override: list[dict[str, Any]] | None = None,
+    semantic_drift_override: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    defects = list(defects_override if defects_override is not None else generated.defect_list)
     revision_context = generated.json_payload.get("revision_context") or {}
     issues = [str(item.get("title") or "").strip() for item in defects if str(item.get("title") or "").strip()]
     missing_contracts = [name for name, required in {"arch_design": generated.json_payload["arch_required"], "api_contract": generated.json_payload["api_required"]}.items() if required and not generated.json_payload["artifact_refs"].get("arch_spec" if name == "arch_design" else "api_spec")]
@@ -86,9 +145,9 @@ def _document_test_report(generated: Any) -> dict[str, Any]:
         },
         semantic_drift={
             "revision_context_present": bool(revision_context),
-            "drift_detected": generated.semantic_drift_check.get("verdict") != "pass",
-            "drift_items": list(generated.semantic_drift_check.get("axis_conflicts") or []) + list(generated.semantic_drift_check.get("carrier_topic_issues") or []),
-            "semantic_lock_preserved": generated.semantic_drift_check.get("semantic_lock_preserved", True),
+            "drift_detected": (semantic_drift_override or generated.semantic_drift_check).get("verdict") != "pass",
+            "drift_items": list((semantic_drift_override or generated.semantic_drift_check).get("axis_conflicts") or []) + list((semantic_drift_override or generated.semantic_drift_check).get("carrier_topic_issues") or []),
+            "semantic_lock_preserved": (semantic_drift_override or generated.semantic_drift_check).get("semantic_lock_preserved", True),
         },
         fixability=fixability,
     )
@@ -189,16 +248,34 @@ def write_executor_outputs(output_dir: Path, repo_root: Path, package: Any, gene
 
 
 def build_supervision_evidence(artifacts_dir: Path, generated: Any) -> dict[str, Any]:
-    decision = "pass" if not generated.defect_list else "revise"
     revision_context = generated.json_payload.get("revision_context") or {}
-    document_test_report = _document_test_report(generated)
+    current_bundle = load_json(artifacts_dir / "tech-design-bundle.json")
+    semantic_gate = recompute_semantic_gate(current_bundle, artifacts_dir)
     findings = [
         {
-            "title": "TECH package aligned to selected FEAT" if decision == "pass" else "TECH package requires revision",
-            "detail": "The package remains suitable for downstream IMPL task planning." if decision == "pass" else "The package needs revision before freeze.",
+            "title": "TECH package aligned to selected FEAT",
+            "detail": "The package remains suitable for downstream IMPL task planning.",
         }
     ]
-    findings.extend({"title": defect["title"], "detail": defect["detail"]} for defect in generated.defect_list)
+    findings.extend({"severity": defect.get("severity"), "title": defect["title"], "detail": defect["detail"]} for defect in generated.defect_list)
+    findings.extend(_body_mismatch_findings(artifacts_dir, generated))
+    if _semantic_gate_projection(semantic_gate) != _semantic_gate_projection(generated.semantic_drift_check):
+        findings.append(
+            {
+                "severity": "P1",
+                "title": "Stored semantic gate is stale",
+                "detail": "Current TECH artifacts no longer match the regenerated semantic gate for the selected FEAT.",
+            }
+        )
+    blocking_findings = [item for item in findings if str(item.get("severity") or "") in {"P0", "P1"}]
+    decision = "pass" if not blocking_findings else "revise"
+    if decision != "pass":
+        findings[0] = {
+            "severity": "P1",
+            "title": "TECH package requires revision",
+            "detail": "The package needs revision before freeze or downstream IMPL planning.",
+        }
+    document_test_report = _document_test_report(generated, defects_override=blocking_findings, semantic_drift_override=semantic_gate)
     return {
         "skill_id": "ll-dev-feat-to-tech",
         "run_id": generated.run_id,
@@ -206,6 +283,7 @@ def build_supervision_evidence(artifacts_dir: Path, generated: Any) -> dict[str,
         "reviewed_inputs": [str(artifacts_dir / "tech-design-bundle.md"), str(artifacts_dir / "tech-design-bundle.json")],
         "reviewed_outputs": [str(artifacts_dir / "tech-spec.md")],
         "semantic_findings": findings,
+        "semantic_gate": semantic_gate,
         "decision": decision,
         "reason": "TECH package passed semantic review." if decision == "pass" else "TECH package needs revision before freeze.",
         "document_test_report_ref": str(artifacts_dir / "document-test-report.json"),
@@ -217,7 +295,17 @@ def build_supervision_evidence(artifacts_dir: Path, generated: Any) -> dict[str,
 def build_gate_result(generated: Any, supervision_evidence: dict[str, Any]) -> dict[str, Any]:
     consistency = generated.json_payload["design_consistency_check"]
     revision_context = generated.json_payload.get("revision_context") or {}
-    document_test_report = _document_test_report(generated)
+    semantic_gate = supervision_evidence.get("semantic_gate") or generated.semantic_drift_check
+    blocking_findings = [
+        {
+            "severity": item.get("severity"),
+            "title": item.get("title"),
+            "detail": item.get("detail"),
+        }
+        for item in (supervision_evidence.get("semantic_findings") or [])
+        if str(item.get("severity") or "") in {"P0", "P1"}
+    ]
+    document_test_report = _document_test_report(generated, defects_override=blocking_findings, semantic_drift_override=semantic_gate)
     document_test_non_blocking = document_test_report["test_outcome"] == "no_blocking_defect_found"
     checks = {
         "execution_evidence_present": True,
@@ -226,7 +314,10 @@ def build_gate_result(generated: Any, supervision_evidence: dict[str, Any]) -> d
         "optional_outputs_match_assessment": True,
         "cross_artifact_consistency_passed": consistency["passed"],
         "downstream_handoff_present": True,
-        "semantic_lock_preserved": generated.semantic_drift_check.get("semantic_lock_preserved", True),
+        "semantic_lock_preserved": semantic_gate.get("semantic_lock_preserved", True),
+        "topic_alignment_ok": semantic_gate.get("topic_alignment_ok", True),
+        "lock_gate_ok": semantic_gate.get("lock_gate_ok", True),
+        "review_gate_ok": semantic_gate.get("review_gate_ok", True),
         "document_test_report_present": document_test_report["test_outcome"] in {"no_blocking_defect_found", "blocking_defect_found", "inconclusive", "not_applicable"},
         "document_test_non_blocking": document_test_non_blocking,
     }
@@ -252,7 +343,36 @@ def update_supervisor_outputs(
     gate: dict[str, Any],
 ) -> None:
     bundle_json = load_json(artifacts_dir / "tech-design-bundle.json")
-    document_test_report = _document_test_report(generated)
+    semantic_gate = supervision.get("semantic_gate") or generated.semantic_drift_check
+    blocking_findings = [
+        {
+            "severity": item.get("severity"),
+            "title": item.get("title"),
+            "detail": item.get("detail"),
+        }
+        for item in (supervision.get("semantic_findings") or [])
+        if str(item.get("severity") or "") in {"P0", "P1"}
+    ]
+    document_test_report = _document_test_report(generated, defects_override=blocking_findings, semantic_drift_override=semantic_gate)
+    review_report = dict(generated.review_report)
+    review_report.update(
+        {
+            "decision": supervision["decision"],
+            "summary": "TECH package preserves FEAT traceability and downstream implementation readiness." if supervision["decision"] == "pass" else "TECH package needs revision before it can be treated as aligned to the selected FEAT.",
+            "findings": [str(item.get("title") or "").strip() for item in supervision.get("semantic_findings") or [] if str(item.get("title") or "").strip()],
+            "risks": [str(item.get("detail") or "").strip() for item in blocking_findings if str(item.get("detail") or "").strip()],
+            "semantic_gate": semantic_gate,
+        }
+    )
+    acceptance_report = dict(generated.acceptance_report)
+    acceptance_report.update(
+        {
+            "decision": "approve" if supervision["decision"] == "pass" else "revise",
+            "summary": "TECH acceptance review passed." if supervision["decision"] == "pass" else "TECH acceptance review requires revision.",
+            "acceptance_findings": blocking_findings,
+            "semantic_gate": semantic_gate,
+        }
+    )
     updated_json = dict(bundle_json)
     updated_json["status"] = "accepted" if supervision["decision"] == "pass" else "revised"
     revision_context = updated_json.get("revision_context") or {}
@@ -268,11 +388,11 @@ def update_supervisor_outputs(
         "tech-design-bundle-supervisor-commit",
     )
     dump_json(artifacts_dir / "tech-design-bundle.json", updated_json)
-    dump_json(artifacts_dir / "tech-review-report.json", generated.review_report)
-    dump_json(artifacts_dir / "tech-acceptance-report.json", generated.acceptance_report)
-    dump_json(artifacts_dir / "tech-defect-list.json", generated.defect_list)
+    dump_json(artifacts_dir / "tech-review-report.json", review_report)
+    dump_json(artifacts_dir / "tech-acceptance-report.json", acceptance_report)
+    dump_json(artifacts_dir / "tech-defect-list.json", blocking_findings or generated.defect_list)
     dump_json(artifacts_dir / "document-test-report.json", document_test_report)
-    dump_json(artifacts_dir / "semantic-drift-check.json", generated.semantic_drift_check)
+    dump_json(artifacts_dir / "semantic-drift-check.json", semantic_gate)
     dump_json(artifacts_dir / "supervision-evidence.json", supervision)
     dump_json(artifacts_dir / "tech-freeze-gate.json", gate)
     manifest = load_json(artifacts_dir / "package-manifest.json")

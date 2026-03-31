@@ -15,23 +15,39 @@ def pending_index_path(repo_root: Path) -> Path:
     return repo_root / "artifacts" / "active" / "gates" / "pending" / "index.json"
 
 
+def _queue_item_from_pending_path(repo_root: Path, pending_path: Path) -> tuple[str, dict[str, Any], Path]:
+    pending = load_json(pending_path)
+    entry: dict[str, Any] = {"gate_pending_ref": repo_relative(repo_root, pending_path)}
+    handoff_ref = str(pending.get("handoff_ref", "")).strip()
+    if handoff_ref:
+        entry["handoff_ref"] = handoff_ref
+    return pending_path.stem, entry, pending_path
+
+
 def _queue_index_items(repo_root: Path) -> list[tuple[str, dict[str, Any], Path]]:
     queue_items: list[tuple[str, dict[str, Any], Path]] = []
     index_path = pending_index_path(repo_root)
     pending_dir = repo_root / "artifacts" / "active" / "gates" / "pending"
+    seen_pending_refs: set[str] = set()
     if index_path.exists():
         index = load_json(index_path)
         handoffs = index.get("handoffs", {})
         if isinstance(handoffs, dict):
             for item_key in sorted(handoffs):
                 entry = handoffs[item_key]
-                if isinstance(entry, dict) and str(entry.get("gate_pending_ref", "")):
-                    queue_items.append((item_key, entry, repo_root / str(entry["gate_pending_ref"])))
-        return queue_items
+                pending_ref = str(entry.get("gate_pending_ref", "")).strip() if isinstance(entry, dict) else ""
+                if not pending_ref:
+                    continue
+                pending_path = repo_root / pending_ref
+                queue_items.append((item_key, entry, pending_path))
+                seen_pending_refs.add(repo_relative(repo_root, pending_path))
     if pending_dir.exists():
         for pending_path in sorted(pending_dir.glob("*.json")):
             if not pending_path.name.startswith("_"):
-                queue_items.append((pending_path.stem, {"gate_pending_ref": repo_relative(repo_root, pending_path)}, pending_path))
+                pending_ref = repo_relative(repo_root, pending_path)
+                if pending_ref in seen_pending_refs:
+                    continue
+                queue_items.append(_queue_item_from_pending_path(repo_root, pending_path))
     return queue_items
 
 

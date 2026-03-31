@@ -172,6 +172,49 @@ class GateHumanOrchestratorWorkflowTests(GateHumanOrchestratorTestSupport):
             self.assertIn("revise: <原因>", claim_payload["review_summary"]["reply_examples"])
             self.assertIn("## 可直接回复的格式", claim_payload["human_brief"]["markdown"])
 
+    def test_show_pending_and_claim_next_fallback_to_directory_when_index_is_missing_entries(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            repo_root = Path(temp_dir)
+            package_dir = self.make_gate_ready_package(repo_root)
+            self.make_runtime_pending_item(repo_root, key="queue-item-indexed")
+            self.make_runtime_pending_item(repo_root, key="queue-item-missing")
+
+            for key in ("queue-item-indexed", "queue-item-missing"):
+                handoff_path = repo_root / "artifacts" / "active" / "gates" / "handoffs" / f"{key}.json"
+                handoff = json.loads(handoff_path.read_text(encoding="utf-8"))
+                handoff["payload_ref"] = str(package_dir)
+                handoff_path.write_text(json.dumps(handoff, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+
+            index_path = repo_root / "artifacts" / "active" / "gates" / "pending" / "index.json"
+            index_payload = json.loads(index_path.read_text(encoding="utf-8"))
+            index_payload["handoffs"].pop("queue-item-missing")
+            index_path.write_text(json.dumps(index_payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+
+            pending = self.run_cmd("show-pending", "--repo-root", str(repo_root), cwd=ROOT)
+            self.assertEqual(pending.returncode, 0, pending.stderr)
+            pending_payload = json.loads(pending.stdout)
+            self.assertEqual(pending_payload["pending_count"], 2)
+            self.assertEqual(
+                {item["run_id"] for item in pending_payload["items"]},
+                {"queue-item-indexed", "queue-item-missing"},
+            )
+
+            claim = self.run_cmd(
+                "claim-next",
+                "--repo-root",
+                str(repo_root),
+                "--run-id",
+                "queue-round-fallback",
+                "--target-item",
+                "queue-item-missing",
+                cwd=ROOT,
+            )
+            self.assertEqual(claim.returncode, 0, claim.stderr)
+            claim_payload = json.loads(claim.stdout)
+            self.assertTrue(claim_payload["gate_pending_ref"].endswith("queue-item-missing.json"))
+            self.assertTrue(claim_payload["handoff_ref"].endswith("queue-item-missing.json"))
+            self.assertEqual(claim_payload["review_summary"]["status"], "pending_human_reply")
+
     def test_claim_next_reuses_existing_active_claim_for_same_actor(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             repo_root = Path(temp_dir)

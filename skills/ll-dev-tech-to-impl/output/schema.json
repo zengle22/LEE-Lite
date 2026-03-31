@@ -17,11 +17,15 @@
     "authority_scope",
     "selected_upstream_refs",
     "provisional_refs",
+    "scope_boundary",
+    "upstream_impacts",
     "normative_items",
     "informative_items",
+    "change_controls",
     "required_steps",
     "suggested_steps",
     "acceptance_trace",
+    "testset_mapping",
     "handoff_artifacts",
     "conflict_policy",
     "freshness_status",
@@ -126,8 +130,32 @@
         "additionalProperties": true
       }
     },
+    "scope_boundary": {
+      "type": "object",
+      "required": ["in_scope", "out_of_scope"],
+      "properties": {
+        "in_scope": { "type": "array", "minItems": 1, "items": { "type": "string" } },
+        "out_of_scope": { "type": "array", "minItems": 1, "items": { "type": "string" } }
+      },
+      "additionalProperties": true
+    },
+    "upstream_impacts": {
+      "type": "object",
+      "required": ["adr", "src_epic_feat", "tech", "arch", "api", "ui", "testset"],
+      "additionalProperties": true
+    },
     "normative_items": { "type": "array", "minItems": 1, "items": { "type": "string" } },
     "informative_items": { "type": "array", "items": { "type": "string" } },
+    "change_controls": {
+      "type": "object",
+      "required": ["touch_set", "allowed_changes", "forbidden_changes"],
+      "properties": {
+        "touch_set": { "type": "array", "minItems": 1, "items": { "type": "string" } },
+        "allowed_changes": { "type": "array", "minItems": 1, "items": { "type": "string" } },
+        "forbidden_changes": { "type": "array", "minItems": 1, "items": { "type": "string" } }
+      },
+      "additionalProperties": true
+    },
     "required_steps": {
       "type": "array",
       "minItems": 1,
@@ -155,6 +183,16 @@
       }
     },
     "acceptance_trace": { "type": "array", "minItems": 1, "items": { "type": "object" } },
+    "testset_mapping": {
+      "type": "object",
+      "required": ["testset_ref", "mapping_policy", "mappings"],
+      "properties": {
+        "testset_ref": { "type": ["string", "null"] },
+        "mapping_policy": { "type": "string", "const": "TESTSET_over_IMPL_when_present" },
+        "mappings": { "type": "array", "minItems": 1, "items": { "type": "object" } }
+      },
+      "additionalProperties": true
+    },
     "handoff_artifacts": { "type": "array", "minItems": 1, "items": { "type": "string" } },
     "conflict_policy": {
       "type": "object",

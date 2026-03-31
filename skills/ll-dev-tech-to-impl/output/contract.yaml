@@ -36,13 +36,16 @@ required_bundle_sections:
   - Delivery Handoff
   - Traceability
 required_impl_task_sections:
-  - 1. 目标
-  - 2. 上游依赖
-  - 3. 实施范围
-  - 4. 实施步骤
-  - 5. 风险与阻塞
-  - 6. 交付物
-  - 7. 验收检查点
+  - 1. 任务标识
+  - 2. 本次目标
+  - 3. 范围与非目标
+  - 4. 上游收敛结果
+  - 5. 规范性约束
+  - 6. 实施要求
+  - 7. 交付物要求
+  - 8. 验收标准与 TESTSET 映射
+  - 9. 执行顺序建议
+  - 10. 风险与注意事项
 conditional_output_objects:
   - FRONTEND_WORKSTREAM
   - BACKEND_WORKSTREAM
@@ -52,11 +55,15 @@ required_machine_fields:
   - authority_scope
   - selected_upstream_refs
   - provisional_refs
+  - scope_boundary
+  - upstream_impacts
   - normative_items
   - informative_items
+  - change_controls
   - required_steps
   - suggested_steps
   - acceptance_trace
+  - testset_mapping
   - handoff_artifacts
   - conflict_policy
   - freshness_status
@@ -86,4 +93,5 @@ notes:
   - `impl-task.md`, `upstream-design-refs.json`, `integration-plan.md`, `dev-evidence-plan.json`, and `smoke-gate-subject.json` are mandatory in every run.
   - Frontend, backend, and migration workstreams are conditional and must follow explicit applicability assessment.
   - The package is the canonical execution package and execution-time single entrypoint for `template.dev.feature_delivery_l2`, not final code-delivery proof.
+  - `impl-task.md` must be independently actionable as a full execution contract, not just a brief that depends on sidecar files to recover scope, test mapping, or change controls.
 

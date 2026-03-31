@@ -29,6 +29,7 @@ required_bundle_sections:
   - Selected FEAT
   - Requirement Analysis
   - Strategy Draft
+  - Functional Coverage Model
   - TESTSET
   - Gate Subjects
   - Downstream Handoff
@@ -52,6 +53,7 @@ notes:
   - Only `test-set.yaml` is the formal main object. All companion files serve that object and must not become competing truths.
   - `approved` means ready for external freeze materialization, not frozen.
   - The candidate package must preserve stable gate subject identity for `analysis_review`, `strategy_review`, and `test_set_approval`.
-  - `TESTSET` should define strategy anchors such as `test_units`, coverage intent, and qualification hints, but it should not be treated as a hand-maintained runnable case inventory.
+  - `TESTSET` should define strategy anchors such as `functional_areas`, `logic_dimensions`, `state_model`, `coverage_matrix`, `test_units`, coverage intent, and qualification hints, but it should not be treated as a hand-maintained runnable case inventory.
   - Strategy fields such as `coverage_goal`, `branch_families`, `expansion_hints`, and `qualification_expectation` are the correct place to express future qualification expansion pressure.
+  - `functional_areas` must be typed objects, `logic_dimensions` must be layered, `state_model` must express entity/state/transition guard context, and `coverage_matrix` must express demand-side traceability.
   - Downstream test execution may expand runnable cases from these strategy anchors; the candidate package itself must not embed the expanded execution inventory as the TESTSET truth.

@@ -8,9 +8,10 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
+from cli.lib.workflow_revision import build_revision_summary, normalize_revision_context
 from cli.lib.workflow_document_test import validate_document_test_report
-from tech_to_impl_common import ensure_list, load_json, parse_markdown_frontmatter
-from tech_to_impl_builder import DOWNSTREAM_TEMPLATE_ID, DOWNSTREAM_TEMPLATE_PATH
+from tech_to_impl_common import ensure_list, load_json, load_tech_package, parse_markdown_frontmatter, render_markdown, unique_strings
+from tech_to_impl_builder import DOWNSTREAM_TEMPLATE_ID, DOWNSTREAM_TEMPLATE_PATH, build_candidate_package
 from tech_to_impl_derivation import workstream_required_inputs
 
 REQUIRED_OUTPUT_FILES = [
@@ -43,14 +44,159 @@ REQUIRED_BUNDLE_HEADINGS = [
     "Traceability",
 ]
 REQUIRED_IMPL_TASK_HEADINGS = [
-    "## 1. 目标",
-    "## 2. 上游依赖",
-    "## 3. 实施范围",
-    "## 4. 实施步骤",
-    "## 5. 风险与阻塞",
-    "## 6. 交付物",
-    "## 7. 验收检查点",
+    "## 1. 任务标识",
+    "## 2. 本次目标",
+    "## 3. 范围与非目标",
+    "## 4. 上游收敛结果",
+    "## 5. 规范性约束",
+    "## 6. 实施要求",
+    "## 7. 交付物要求",
+    "## 8. 验收标准与 TESTSET 映射",
+    "## 9. 执行顺序建议",
+    "## 10. 风险与注意事项",
 ]
+
+
+def _revision_summary(revision_request: dict[str, Any]) -> str:
+    return build_revision_summary(revision_request, reason_limit=180, output_limit=220, prefix="Gate revise")
+
+
+def _apply_revision_request(generated: dict[str, Any], revision_request_ref: str, revision_request: dict[str, Any]) -> None:
+    if not revision_request:
+        return
+    revision_context = normalize_revision_context(
+        revision_request,
+        revision_request_ref=revision_request_ref,
+        ensure_list=lambda values: unique_strings([str(item).strip() for item in (values or []) if str(item).strip()]),
+        reason_limit=180,
+        output_limit=220,
+    )
+    revision_summary = str(revision_context["summary"]).strip()
+    generated["revision_request_ref"] = revision_request_ref
+    generated["revision_request"] = revision_request
+    generated["revision_summary"] = revision_summary
+    bundle_json = generated.get("bundle_json")
+    if isinstance(bundle_json, dict):
+        bundle_json["revision_context"] = revision_context
+        selected_scope = bundle_json.get("selected_scope")
+        if isinstance(selected_scope, dict):
+            selected_scope["constraints"] = unique_strings(
+                [str(item).strip() for item in selected_scope.get("constraints") or [] if str(item).strip()] + [revision_summary]
+            )
+    upstream_design_refs = generated.get("upstream_design_refs")
+    if isinstance(upstream_design_refs, dict):
+        upstream_design_refs["revision_context"] = revision_context
+        frozen_decisions = upstream_design_refs.get("frozen_decisions")
+        if isinstance(frozen_decisions, dict):
+            frozen_decisions["implementation_rules"] = unique_strings(
+                [str(item).strip() for item in frozen_decisions.get("implementation_rules") or [] if str(item).strip()] + [revision_summary]
+            )
+    for key in [
+        "bundle_frontmatter",
+        "impl_task_frontmatter",
+        "integration_frontmatter",
+        "frontend_frontmatter",
+        "backend_frontmatter",
+        "migration_frontmatter",
+    ]:
+        frontmatter = generated.get(key)
+        if isinstance(frontmatter, dict):
+            frontmatter["revision_request_ref"] = revision_request_ref
+            frontmatter["revision_round"] = revision_context["revision_round"]
+    for key in ["review_report", "acceptance_report", "smoke_gate_subject", "handoff"]:
+        payload = generated.get(key)
+        if isinstance(payload, dict):
+            payload["revision_request_ref"] = revision_request_ref
+            payload["revision_summary"] = revision_summary
+    evidence_plan = generated.get("evidence_plan")
+    if isinstance(evidence_plan, dict):
+        evidence_plan["revision_request_ref"] = revision_request_ref
+        evidence_plan["revision_summary"] = revision_summary
+    semantic_drift_check = generated.get("semantic_drift_check")
+    if isinstance(semantic_drift_check, dict):
+        semantic_drift_check["revision_request_ref"] = revision_request_ref
+        semantic_drift_check["revision_summary"] = revision_summary
+
+
+def _status_normalized_markdown(markdown_text: str) -> str:
+    normalized = markdown_text.replace("status: execution_ready", "status: <status>")
+    normalized = normalized.replace("status: blocked", "status: <status>")
+    normalized = normalized.replace("status: in_progress", "status: <status>")
+    normalized = normalized.replace("status: draft", "status: <status>")
+    normalized = normalized.replace("- status: `execution_ready`", "- status: `<status>`")
+    normalized = normalized.replace("- status: `blocked`", "- status: `<status>`")
+    normalized = normalized.replace("- status: `in_progress`", "- status: `<status>`")
+    normalized = normalized.replace("- status: `draft`", "- status: `<status>`")
+    return normalized
+
+
+def _frontmatter_without_dynamic_keys(frontmatter: dict[str, Any]) -> dict[str, Any]:
+    return {
+        key: value
+        for key, value in frontmatter.items()
+        if key not in {"status", "revision_request_ref", "revision_round", "revision_summary"}
+    }
+
+
+def _recompute_current_artifact_gate(artifacts_dir: Path) -> tuple[dict[str, Any], list[str]]:
+    manifest = load_json(artifacts_dir / "package-manifest.json")
+    input_artifacts_dir = Path(str(manifest.get("input_artifacts_dir") or "")).resolve()
+    if not input_artifacts_dir.exists():
+        return {
+            "review_gate_ok": False,
+            "stale_documents": [],
+            "semantic_gate_matches": False,
+            "summary": "Current implementation artifacts cannot be recomputed because the upstream TECH package is missing.",
+        }, [f"input_artifacts_dir does not exist: {input_artifacts_dir}"]
+    package = load_tech_package(input_artifacts_dir)
+    run_id = str(manifest.get("run_id") or artifacts_dir.name)
+    generated = build_candidate_package(package, run_id)
+    revision_request_path = artifacts_dir / "revision-request.json"
+    if revision_request_path.exists():
+        _apply_revision_request(generated, "revision-request.json", load_json(revision_request_path))
+    stale_documents: list[str] = []
+    expected_markdowns = {
+        "impl-bundle.md": render_markdown(generated["bundle_frontmatter"], generated["bundle_body"]),
+        "impl-task.md": render_markdown(generated["impl_task_frontmatter"], generated["impl_task_body"]),
+        "integration-plan.md": render_markdown(generated["integration_frontmatter"], generated["integration_body"]),
+    }
+    optional_docs = [
+        ("frontend-workstream.md", generated.get("frontend_frontmatter"), generated.get("frontend_body")),
+        ("backend-workstream.md", generated.get("backend_frontmatter"), generated.get("backend_body")),
+        ("migration-cutover-plan.md", generated.get("migration_frontmatter"), generated.get("migration_body")),
+    ]
+    for name, frontmatter, body in optional_docs:
+        path = artifacts_dir / name
+        if frontmatter and body:
+            expected_markdowns[name] = render_markdown(frontmatter, body)
+        elif path.exists():
+            stale_documents.append(name)
+    for name, expected_markdown in expected_markdowns.items():
+        path = artifacts_dir / name
+        if not path.exists():
+            stale_documents.append(name)
+            continue
+        current_frontmatter, current_body = parse_markdown_frontmatter(path.read_text(encoding="utf-8"))
+        expected_frontmatter, expected_body = parse_markdown_frontmatter(expected_markdown)
+        if _frontmatter_without_dynamic_keys(current_frontmatter) != _frontmatter_without_dynamic_keys(expected_frontmatter):
+            stale_documents.append(name)
+            continue
+        if _status_normalized_markdown(current_body) != _status_normalized_markdown(expected_body):
+            stale_documents.append(name)
+    stored_semantic = load_json(artifacts_dir / "semantic-drift-check.json")
+    expected_semantic = generated["semantic_drift_check"]
+    semantic_gate_matches = all(
+        stored_semantic.get(key) == expected_semantic.get(key)
+        for key in ["verdict", "semantic_lock_present", "semantic_lock_preserved", "forbidden_axis_detected", "anchor_matches"]
+    )
+    review_gate_ok = not stale_documents and semantic_gate_matches
+    return {
+        "review_gate_ok": review_gate_ok,
+        "stale_documents": stale_documents,
+        "semantic_gate_matches": semantic_gate_matches,
+        "summary": "Current implementation artifacts match the canonical upstream projection." if review_gate_ok else "Current implementation artifacts drift from the canonical upstream projection.",
+        "expected_supervision_decision": "pass" if review_gate_ok else "revise",
+    }, []
 
 
 def validate_output_package(artifacts_dir: Path) -> tuple[list[str], dict[str, Any]]:
@@ -72,6 +218,9 @@ def validate_output_package(artifacts_dir: Path) -> tuple[list[str], dict[str, A
     evidence_plan = load_json(artifacts_dir / "dev-evidence-plan.json")
     document_test = load_json(artifacts_dir / "document-test-report.json")
     semantic_drift_check = load_json(artifacts_dir / "semantic-drift-check.json")
+    review_report = load_json(artifacts_dir / "impl-review-report.json")
+    acceptance_report = load_json(artifacts_dir / "impl-acceptance-report.json")
+    review_gate, recompute_errors = _recompute_current_artifact_gate(artifacts_dir)
 
     errors.extend(validate_document_test_report(document_test))
     errors.extend(check_bundle_identity(bundle_json))
@@ -81,6 +230,19 @@ def validate_output_package(artifacts_dir: Path) -> tuple[list[str], dict[str, A
     errors.extend(check_contract_projection(bundle_json, handoff, evidence_plan, document_test))
     errors.extend(check_handoff_and_evidence(handoff, upstream_refs, bundle_json, evidence_plan, smoke_gate))
     errors.extend(check_status_model(manifest, bundle_json, smoke_gate))
+    errors.extend(recompute_errors)
+    if not review_gate.get("review_gate_ok", False):
+        errors.append("Current implementation artifacts must match the canonical upstream projection.")
+    if review_report.get("decision") != review_gate.get("expected_supervision_decision"):
+        errors.append("impl-review-report.json decision must match the recomputed current-artifact review gate.")
+    expected_acceptance_decision = "approve" if review_gate.get("expected_supervision_decision") == "pass" else "revise"
+    if acceptance_report.get("decision") != expected_acceptance_decision:
+        errors.append("impl-acceptance-report.json decision must match the recomputed current-artifact review gate.")
+    if bool(smoke_gate.get("ready_for_execution")) != bool(review_gate.get("review_gate_ok")):
+        errors.append("smoke-gate-subject.json ready_for_execution must match the recomputed current-artifact review gate.")
+    expected_document_test_outcome = "no_blocking_defect_found" if review_gate.get("review_gate_ok") else "blocking_defect_found"
+    if document_test.get("test_outcome") != expected_document_test_outcome:
+        errors.append("document-test-report.json test_outcome must match the recomputed current-artifact review gate.")
 
     return errors, {
         "valid": not errors,
@@ -90,6 +252,7 @@ def validate_output_package(artifacts_dir: Path) -> tuple[list[str], dict[str, A
         "manifest_status": str(manifest.get("status") or ""),
         "smoke_gate_status": str(smoke_gate.get("status") or ""),
         "semantic_lock_preserved": semantic_drift_check.get("semantic_lock_preserved", True),
+        "review_gate": review_gate,
     }
 
 
@@ -125,7 +288,18 @@ def check_markdown_sections(artifacts_dir: Path) -> list[str]:
     for heading in REQUIRED_IMPL_TASK_HEADINGS:
         if heading not in impl_task_body:
             errors.append(f"impl-task.md is missing section: {heading}")
-    for marker in ["### Required", "### Suggested", "### Normative / MUST", "### Informative / Context Only"]:
+    for marker in [
+        "### In Scope",
+        "### Out of Scope",
+        "### Normative / MUST",
+        "### Informative / Context Only",
+        "### Touch Set / Module Plan",
+        "### Allowed",
+        "### Forbidden",
+        "### Acceptance Trace",
+        "### Required",
+        "### Suggested",
+    ]:
         if marker not in impl_task_body:
             errors.append(f"impl-task.md is missing marker: {marker}")
     return errors
@@ -143,11 +317,15 @@ def check_contract_projection(
         "authority_scope",
         "selected_upstream_refs",
         "provisional_refs",
+        "scope_boundary",
+        "upstream_impacts",
         "normative_items",
         "informative_items",
+        "change_controls",
         "required_steps",
         "suggested_steps",
         "acceptance_trace",
+        "testset_mapping",
         "handoff_artifacts",
         "conflict_policy",
         "freshness_status",
@@ -172,12 +350,32 @@ def check_contract_projection(
         errors.append("impl-bundle.json normative_items must be non-empty.")
     if not isinstance(bundle_json.get("informative_items"), list):
         errors.append("impl-bundle.json informative_items must be present as a list.")
+    scope_boundary = bundle_json.get("scope_boundary") or {}
+    if not ensure_list(scope_boundary.get("in_scope")):
+        errors.append("impl-bundle.json scope_boundary.in_scope must be non-empty.")
+    if not ensure_list(scope_boundary.get("out_of_scope")):
+        errors.append("impl-bundle.json scope_boundary.out_of_scope must be non-empty.")
+    upstream_impacts = bundle_json.get("upstream_impacts") or {}
+    for key in ["adr", "src_epic_feat", "tech", "arch", "api", "ui", "testset"]:
+        if key not in upstream_impacts:
+            errors.append(f"impl-bundle.json upstream_impacts must include {key}.")
     if not ensure_list(bundle_json.get("required_steps")):
         errors.append("impl-bundle.json required_steps must be non-empty.")
     if not isinstance(bundle_json.get("suggested_steps"), list):
         errors.append("impl-bundle.json suggested_steps must be present as a list.")
+    change_controls = bundle_json.get("change_controls") or {}
+    if not ensure_list(change_controls.get("touch_set")):
+        errors.append("impl-bundle.json change_controls.touch_set must be non-empty.")
+    for key in ["allowed_changes", "forbidden_changes"]:
+        if not ensure_list(change_controls.get(key)):
+            errors.append(f"impl-bundle.json change_controls.{key} must be non-empty.")
     if not ensure_list(bundle_json.get("acceptance_trace")):
         errors.append("impl-bundle.json acceptance_trace must be non-empty.")
+    testset_mapping = bundle_json.get("testset_mapping") or {}
+    if not isinstance(testset_mapping.get("mappings"), list) or not testset_mapping.get("mappings"):
+        errors.append("impl-bundle.json testset_mapping.mappings must be non-empty.")
+    if str(testset_mapping.get("mapping_policy") or "") != "TESTSET_over_IMPL_when_present":
+        errors.append("impl-bundle.json testset_mapping.mapping_policy must be TESTSET_over_IMPL_when_present.")
     if set(ensure_list(bundle_json.get("handoff_artifacts"))) != set(ensure_list(handoff.get("deliverables"))):
         errors.append("impl-bundle.json handoff_artifacts must match handoff deliverables.")
     if bundle_json.get("freshness_status") not in {"fresh_on_generation", "needs_review", "stale"}:

@@ -286,12 +286,24 @@ def build_tech_downstream_dispatch(
     metadata = record.get("metadata", {}) if isinstance(record.get("metadata"), dict) else {}
     tech_ref = str(metadata.get("tech_ref") or metadata.get("assigned_id") or "").strip()
     feat_ref = str(metadata.get("feat_ref") or "").strip()
+    arch_ref = str(metadata.get("arch_ref") or "").strip()
+    api_ref = str(metadata.get("api_ref") or "").strip()
+    supporting_formal_refs = [
+        str(item).strip()
+        for item in (decision.get("materialized_formal_refs") or metadata.get("materialized_formal_refs") or [])
+        if str(item).strip()
+    ]
+    supporting_published_refs = [
+        str(item).strip()
+        for item in (decision.get("published_refs") or metadata.get("published_refs") or [])
+        if str(item).strip()
+    ]
     published_ref = str(record.get("managed_artifact_ref") or "").strip()
     source_package_ref = str(metadata.get("source_package_ref") or "").strip()
     handoff_ref = f"artifacts/active/handoffs/{Path(decision_ref).stem}-{slugify(tech_ref or formal_ref)}-tech-to-impl.json"
     job_ref = f"artifacts/jobs/ready/{Path(decision_ref).stem}-{slugify(tech_ref or formal_ref)}-tech-to-impl.json"
     authoritative_input_ref = formal_ref
-    input_refs = [decision_ref, formal_ref]
+    input_refs = [decision_ref, formal_ref, *supporting_formal_refs]
 
     handoff_payload = _base_handoff(
         trace=trace,
@@ -306,6 +318,14 @@ def build_tech_downstream_dispatch(
     )
     handoff_payload["feat_ref"] = feat_ref
     handoff_payload["tech_ref"] = tech_ref
+    if arch_ref:
+        handoff_payload["arch_ref"] = arch_ref
+    if api_ref:
+        handoff_payload["api_ref"] = api_ref
+    if supporting_formal_refs:
+        handoff_payload["supporting_formal_refs"] = supporting_formal_refs
+    if supporting_published_refs:
+        handoff_payload["supporting_published_refs"] = supporting_published_refs
     write_json(canonical_to_path(handoff_ref, workspace_root), handoff_payload)
 
     job_payload = _base_job(
@@ -326,6 +346,14 @@ def build_tech_downstream_dispatch(
     )
     job_payload["feat_ref"] = feat_ref
     job_payload["tech_ref"] = tech_ref
+    if arch_ref:
+        job_payload["arch_ref"] = arch_ref
+    if api_ref:
+        job_payload["api_ref"] = api_ref
+    if supporting_formal_refs:
+        job_payload["supporting_formal_refs"] = supporting_formal_refs
+    if supporting_published_refs:
+        job_payload["supporting_published_refs"] = supporting_published_refs
     job_payload["reason"] = f"Approved TECH {tech_ref or formal_ref} is ready for downstream IMPL derivation."
     write_json(canonical_to_path(job_ref, workspace_root), job_payload)
     return [handoff_ref], [job_ref]

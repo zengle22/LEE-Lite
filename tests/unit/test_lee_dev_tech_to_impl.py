@@ -59,8 +59,12 @@ class TechToImplWorkflowTests(TechToImplWorkflowHarness):
             self.assertTrue(evidence_plan["rows"])
             self.assertEqual(evidence_plan["rows"][0]["acceptance_ref"], "AC-001")
             self.assertIn("See `smoke-gate-subject.json`", bundle_markdown)
-            self.assertIn("## 4. 实施步骤", impl_task)
-            self.assertIn("## 7. 验收检查点", impl_task)
+            self.assertIn("## 6. 实施要求", impl_task)
+            self.assertIn("## 8. 验收标准与 TESTSET 映射", impl_task)
+            self.assertIn("### Touch Set / Module Plan", impl_task)
+            self.assertIn("### Acceptance Trace", impl_task)
+            self.assertIn("- status: `execution_ready`", impl_task)
+            self.assertNotIn("- status: `in_progress`", impl_task)
             self.assertIn("cli/lib/protocol.py", impl_task)
             self.assertIn("cli/lib/mainline_runtime.py", impl_task)
             self.assertNotIn("keeping approval and re-entry semantics outside this FEAT", impl_task)
@@ -861,6 +865,59 @@ class TechToImplWorkflowTests(TechToImplWorkflowHarness):
                 str(repo_root),
             )
             self.assertEqual(validate.returncode, 0, validate.stderr)
+
+    def test_validate_output_rejects_stale_impl_task_body(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            repo_root = Path(temp_dir)
+            feature = {
+                "feat_ref": "FEAT-SRC-001-402",
+                "title": "最小建档主链实施",
+                "goal": "验证 stale impl-task 会被 validate-output 拦下。",
+                "scope": ["最小建档页面提交", "首页放行"],
+                "constraints": ["不得偏离上游 TECH", "必须保留 smoke gate subject"],
+                "acceptance_checks": [
+                    {"scenario": "impl task remains canonical", "then": "validate-output 只接受未漂移的 impl-task"},
+                ],
+            }
+            bundle = self.make_bundle_json(feature, run_id="tech-impl-stale-validate", arch_required=True, api_required=False)
+            input_dir = self.make_tech_package(repo_root, "tech-impl-stale-validate", bundle)
+            artifacts_dir = self.run_impl_flow(repo_root, input_dir, feature["feat_ref"], bundle["tech_ref"])
+
+            impl_task = artifacts_dir / "impl-task.md"
+            impl_task.write_text(impl_task.read_text(encoding="utf-8").replace("## 2. 本次目标", "## 2. 已被篡改"), encoding="utf-8")
+
+            validate = self.run_cmd("validate-output", "--artifacts-dir", str(artifacts_dir))
+            self.assertNotEqual(validate.returncode, 0)
+            self.assertIn("canonical upstream projection", validate.stdout)
+
+    def test_supervisor_review_rejects_stale_impl_task_body(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            repo_root = Path(temp_dir)
+            feature = {
+                "feat_ref": "FEAT-SRC-001-403",
+                "title": "设备连接后置增强实施",
+                "goal": "验证 supervisor-review 会拒绝 stale impl-task。",
+                "scope": ["后置连接入口", "非阻塞失败处理"],
+                "constraints": ["不得扩展到无关 rollout", "必须保留 execution-ready 门槛"],
+                "acceptance_checks": [
+                    {"scenario": "stale impl task rejected", "then": "supervisor-review 返回 revise"},
+                ],
+            }
+            bundle = self.make_bundle_json(feature, run_id="tech-impl-stale-review", arch_required=True, api_required=False)
+            input_dir = self.make_tech_package(repo_root, "tech-impl-stale-review", bundle)
+            artifacts_dir = self.run_impl_flow(repo_root, input_dir, feature["feat_ref"], bundle["tech_ref"])
+
+            impl_task = artifacts_dir / "impl-task.md"
+            impl_task.write_text(impl_task.read_text(encoding="utf-8") + "\nUnexpected drift.\n", encoding="utf-8")
+
+            review = self.run_cmd("supervisor-review", "--artifacts-dir", str(artifacts_dir), "--repo-root", str(repo_root))
+            self.assertNotEqual(review.returncode, 0)
+            review_report = json.loads((artifacts_dir / "impl-review-report.json").read_text(encoding="utf-8"))
+            acceptance_report = json.loads((artifacts_dir / "impl-acceptance-report.json").read_text(encoding="utf-8"))
+            smoke_gate = json.loads((artifacts_dir / "smoke-gate-subject.json").read_text(encoding="utf-8"))
+            self.assertEqual(review_report["decision"], "revise")
+            self.assertEqual(acceptance_report["decision"], "revise")
+            self.assertFalse(smoke_gate["ready_for_execution"])
 
 
 if __name__ == "__main__":

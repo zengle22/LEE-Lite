@@ -5,11 +5,13 @@ Validation helpers for feat-to-tech output packages.
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 from typing import Any
 
 from cli.lib.workflow_document_test import validate_document_test_report
 from feat_to_tech_common import ensure_list, load_json, parse_markdown_frontmatter
+from feat_to_tech_package_builder import build_semantic_drift_check
 
 REQUIRED_OUTPUT_FILES = [
     "tech-design-bundle.md",
@@ -62,6 +64,17 @@ REQUIRED_API_HEADINGS = [
 ]
 DOWNSTREAM_WORKFLOW = "workflow.dev.tech_to_impl"
 
+SEMANTIC_GATE_KEYS = {
+    "verdict",
+    "semantic_lock_present",
+    "semantic_lock_preserved",
+    "topic_alignment_ok",
+    "lock_gate_ok",
+    "review_gate_ok",
+    "axis_conflicts",
+    "carrier_topic_issues",
+}
+
 
 def validate_output_package(artifacts_dir: Path) -> tuple[list[str], dict[str, Any]]:
     errors: list[str] = []
@@ -96,6 +109,62 @@ def validate_output_package(artifacts_dir: Path) -> tuple[list[str], dict[str, A
         "api_required": api_required,
         "semantic_lock_preserved": load_json(artifacts_dir / "semantic-drift-check.json").get("semantic_lock_preserved", True),
     }
+
+
+def _markdown_body(path: Path) -> str:
+    if not path.exists():
+        return ""
+    _, body = parse_markdown_frontmatter(path.read_text(encoding="utf-8"))
+    return body
+
+
+def recompute_semantic_gate(bundle_json: dict[str, Any], artifacts_dir: Path) -> dict[str, Any]:
+    tech_design = bundle_json.get("tech_design") or {}
+    feature = dict(bundle_json.get("selected_feat") or {})
+    if "semantic_lock" not in feature:
+        feature["semantic_lock"] = bundle_json.get("semantic_lock") or {}
+    if "feat_ref" not in feature:
+        feature["feat_ref"] = bundle_json.get("feat_ref")
+    generated_text_parts = [
+        feature.get("resolved_axis") or "",
+        " ".join(ensure_list(tech_design.get("design_focus"))),
+        " ".join(ensure_list(tech_design.get("implementation_rules"))),
+        " ".join(ensure_list(tech_design.get("non_functional_requirements"))),
+        " ".join(ensure_list(tech_design.get("implementation_architecture"))),
+        " ".join(ensure_list(tech_design.get("state_model"))),
+        " ".join(ensure_list(tech_design.get("module_plan"))),
+        " ".join(ensure_list(tech_design.get("implementation_strategy"))),
+        " ".join(ensure_list(tech_design.get("implementation_unit_mapping"))),
+        " ".join(ensure_list(tech_design.get("interface_contracts"))),
+        " ".join(ensure_list(tech_design.get("main_sequence"))),
+        " ".join(ensure_list(tech_design.get("exception_and_compensation"))),
+        " ".join(ensure_list(tech_design.get("integration_points"))),
+        " ".join(ensure_list(tech_design.get("minimal_code_skeleton"))),
+        json.dumps(tech_design.get("implementation_carrier_view") or {}, ensure_ascii=False),
+        _markdown_body(artifacts_dir / "tech-spec.md"),
+    ]
+    return build_semantic_drift_check(feature, generated_text_parts)
+
+
+def _recompute_semantic_gate(bundle_json: dict[str, Any], artifacts_dir: Path) -> dict[str, Any]:
+    return recompute_semantic_gate(bundle_json, artifacts_dir)
+
+
+def _semantic_gate_projection(payload: dict[str, Any]) -> dict[str, Any]:
+    return {key: payload.get(key) for key in SEMANTIC_GATE_KEYS}
+
+
+def _validate_semantic_gate_projection(
+    errors: list[str],
+    name: str,
+    payload: dict[str, Any] | None,
+    recomputed_gate: dict[str, Any],
+) -> None:
+    if not isinstance(payload, dict):
+        errors.append(f"{name} must include semantic_gate.")
+        return
+    if _semantic_gate_projection(payload) != _semantic_gate_projection(recomputed_gate):
+        errors.append(f"{name} semantic_gate must match the current artifact content.")
 
 
 def validate_bundle_identity(errors, bundle_json):
@@ -162,14 +231,32 @@ def validate_consistency_sections(errors, artifacts_dir, bundle_json):
         if not required_keys.issubset(set(consistency.keys())):
             errors.append("design_consistency_check must include passed/structural_passed/semantic_passed/checks/issues/minor_open_items.")
     semantic_drift_check = load_json(artifacts_dir / "semantic-drift-check.json")
+    recomputed_gate = _recompute_semantic_gate(bundle_json, artifacts_dir)
     if bundle_json.get("semantic_lock") and semantic_drift_check.get("semantic_lock_preserved") is not True:
         errors.append("semantic-drift-check.json must preserve semantic_lock when semantic_lock is present.")
     if semantic_drift_check.get("verdict") != "pass":
         errors.append("semantic-drift-check.json must report verdict=pass for freeze-ready TECH output.")
-    required_drift_keys = {"matched_allowed_capabilities", "axis_conflicts", "carrier_topic_issues", "topic_alignment_ok", "lock_gate_ok"}
+    required_drift_keys = {"matched_allowed_capabilities", "axis_conflicts", "carrier_topic_issues", "topic_alignment_ok", "lock_gate_ok", "review_gate_ok"}
     missing = required_drift_keys.difference(set(semantic_drift_check.keys()))
     if missing:
         errors.append("semantic-drift-check.json is missing required review keys: " + ", ".join(sorted(missing)))
+    if _semantic_gate_projection(semantic_drift_check) != _semantic_gate_projection(recomputed_gate):
+        errors.append("semantic-drift-check.json must match the current TECH/ARCH/API artifact content.")
+    review_report = load_json(artifacts_dir / "tech-review-report.json")
+    _validate_semantic_gate_projection(errors, "tech-review-report.json", review_report.get("semantic_gate"), recomputed_gate)
+    if review_report.get("decision") == "pass" and recomputed_gate.get("review_gate_ok") is not True:
+        errors.append("tech-review-report.json cannot report pass when the recomputed semantic gate fails.")
+    acceptance_report = load_json(artifacts_dir / "tech-acceptance-report.json")
+    _validate_semantic_gate_projection(errors, "tech-acceptance-report.json", acceptance_report.get("semantic_gate"), recomputed_gate)
+    if acceptance_report.get("decision") == "approve" and recomputed_gate.get("review_gate_ok") is not True:
+        errors.append("tech-acceptance-report.json cannot approve when the recomputed semantic gate fails.")
+    freeze_gate = load_json(artifacts_dir / "tech-freeze-gate.json")
+    checks = freeze_gate.get("checks") or {}
+    for key in ["topic_alignment_ok", "lock_gate_ok", "review_gate_ok"]:
+        if key not in checks:
+            errors.append(f"tech-freeze-gate.json checks must include {key}.")
+        elif checks.get(key) != recomputed_gate.get(key):
+            errors.append(f"tech-freeze-gate.json checks.{key} must match the recomputed semantic gate.")
     markdown_text = (artifacts_dir / "tech-design-bundle.md").read_text(encoding="utf-8")
     _, markdown_body = parse_markdown_frontmatter(markdown_text)
     for heading in REQUIRED_MARKDOWN_HEADINGS:

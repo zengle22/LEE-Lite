@@ -68,6 +68,7 @@ _SUPPORTING_REF_EXTRAS: dict[str, list[str]] = {
         "first advice preserved",
     ],
     "state_profile_boundary": [
+        "users",
         "primary_state",
         "capability_flags",
         "user_physical_profile",
@@ -156,7 +157,7 @@ def derive_environment_assumptions(
     assumptions = [
         "需要可解析 selected FEAT 所依赖的集成环境与上游 artifact lineage。",
         "需要能读取并追踪 FEAT、EPIC、SRC 与 governing ADR 引用。",
-        "需要保留 execution evidence 与 supervision evidence 所要求的最小审计链。",
+        "需要保留 TESTSET candidate、review 与 handoff 所要求的最小审计链。",
     ]
     if "e2e" in layers:
         assumptions.append(

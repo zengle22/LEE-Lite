@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import Any
 
 from gate_human_orchestrator_common import dump_json, load_gate_ready_package, load_json, repo_relative
+from gate_human_orchestrator_ui_brief import ui_spec_fulltext_markdown
 
 
 def path_variants(value: str, repo_root: Path) -> set[str]:
@@ -1011,25 +1012,16 @@ def _enum_freezes_markdown(payload: dict[str, Any]) -> list[str]:
 
 
 def ssot_fulltext_markdown(payload: dict[str, Any]) -> str:
-    artifact_type = str(payload.get("artifact_type", "")).strip()
-    if artifact_type == "epic_freeze_package":
-        markdown = _epic_freeze_fulltext_markdown(payload)
-        if markdown:
-            return markdown
-    if artifact_type == "feat_freeze_package":
-        markdown = _feat_freeze_fulltext_markdown(payload)
-        if markdown:
-            return markdown
-    if artifact_type == "tech_design_package":
-        markdown = _tech_design_fulltext_markdown(payload)
-        if markdown:
-            return markdown
-    if artifact_type == "test_set_candidate_package":
-        markdown = _test_set_fulltext_markdown(payload)
-        if markdown:
-            return markdown
-    if artifact_type == "feature_impl_candidate_package":
-        markdown = _impl_bundle_fulltext_markdown(payload)
+    fulltext_renderer = {
+        "epic_freeze_package": _epic_freeze_fulltext_markdown,
+        "feat_freeze_package": _feat_freeze_fulltext_markdown,
+        "tech_design_package": _tech_design_fulltext_markdown,
+        "test_set_candidate_package": _test_set_fulltext_markdown,
+        "feature_impl_candidate_package": _impl_bundle_fulltext_markdown,
+        "ui_spec_package": ui_spec_fulltext_markdown,
+    }.get(str(payload.get("artifact_type", "")).strip())
+    if fulltext_renderer:
+        markdown = fulltext_renderer(payload)
         if markdown:
             return markdown
     paragraphs: list[str] = []

@@ -132,7 +132,7 @@ class FeatToTestSetDocumentTestIntegrationTests(FeatToTestSetWorkflowHarness):
             testset_yaml_path.write_text(yaml.safe_dump(payload, allow_unicode=True, sort_keys=False), encoding="utf-8")
 
             review = self.run_cmd("supervisor-review", "--artifacts-dir", str(artifacts_dir), "--repo-root", str(repo_root))
-            self.assertNotEqual(review.returncode, 0)
+            self.assertEqual(review.returncode, 0, review.stderr)
 
             report = json.loads((artifacts_dir / "document-test-report.json").read_text(encoding="utf-8"))
             freeze_gate = json.loads((artifacts_dir / "test-set-freeze-gate.json").read_text(encoding="utf-8"))
@@ -184,4 +184,4 @@ class TechToImplDocumentTestIntegrationTests(TechToImplWorkflowHarness):
             (artifacts_dir / "document-test-report.json").write_text(json.dumps(report, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
             readiness = self.run_cmd("validate-package-readiness", "--artifacts-dir", str(artifacts_dir))
             self.assertNotEqual(readiness.returncode, 0)
-            self.assertIn("document_test_non_blocking", readiness.stdout)
+            self.assertIn("document-test-report.json test_outcome must match", readiness.stdout)

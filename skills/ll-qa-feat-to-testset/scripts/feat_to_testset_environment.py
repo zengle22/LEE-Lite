@@ -7,6 +7,14 @@ from typing import Any
 
 from feat_to_testset_common import ensure_list, unique_strings
 
+PRODUCT_PROFILES = {
+    "minimal_onboarding",
+    "first_ai_advice",
+    "extended_profile_completion",
+    "device_deferred_entry",
+    "state_profile_boundary",
+}
+
 
 def _cli_or_web_context(downstream_target: str) -> str:
     if downstream_target == "skill.qa.test_exec_web_e2e":
@@ -56,10 +64,10 @@ _PROFILE_ENVIRONMENT_EXTRAS: dict[str, dict[str, list[str]]] = {
         "ui_or_integration_context": ["首页后置设备连接入口与 callback finalize 上下文"],
     },
     "state_profile_boundary": {
-        "data": ["primary_state fixture", "capability_flags fixture", "cross-boundary conflict sample"],
+        "data": ["primary_state fixture", "capability_flags fixture", "users/user_physical_profile/runner_profiles boundary sample", "cross-boundary conflict sample"],
         "services": ["primary state service", "canonical physical profile store", "unified onboarding state reader"],
         "access": [
-            "读取和写入 primary_state / capability_flags / canonical profile boundary 的权限",
+            "读取和写入 users / primary_state / capability_flags / canonical profile boundary 的权限",
             "读取 conflict_blocked verdict 与 unified-reader 结果的权限",
         ],
         "feature_flags": ["canonical profile boundary strict mode / unified-reader fail-closed guard"],
@@ -259,13 +267,17 @@ def derive_required_environment_inputs(
         ],
         "services": unique_strings(
             ["selected FEAT 所依赖的集成服务或协作 consumer"]
-            + (["跨 skill pilot 链路涉及的 producer / consumer / gate consumer"] if "pilot" in scope_text or "cross skill" in scope_text else [])
+            + (
+                ["跨 skill pilot 链路涉及的 producer / consumer / gate consumer"]
+                if profile not in PRODUCT_PROFILES and ("pilot" in scope_text or "cross skill" in scope_text)
+                else []
+            )
         ),
         "access": [
             "读取 FEAT candidate / freeze lineage 所需权限",
             "执行 QA evidence 采集与落盘所需权限",
         ],
-        "feature_flags": ["selected FEAT 涉及的 gated rollout、cutover 或 guarded branch 开关"],
+        "feature_flags": [] if profile in PRODUCT_PROFILES else ["selected FEAT 涉及的 gated rollout、cutover 或 guarded branch 开关"],
         "ui_or_integration_context": [_cli_or_web_context(downstream_target)],
     }
     for category, values in _PROFILE_ENVIRONMENT_EXTRAS.get(profile, {}).items():

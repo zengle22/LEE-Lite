@@ -3,7 +3,6 @@ from __future__ import annotations
 
 import argparse
 import json
-import re
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
@@ -13,7 +12,11 @@ WORKSPACE_ROOT = Path(__file__).resolve().parents[3]
 if str(WORKSPACE_ROOT) not in sys.path:
     sys.path.insert(0, str(WORKSPACE_ROOT))
 
+from cli.lib.registry_store import bind_record
 from cli.lib.workflow_revision import load_revision_request, materialize_revision_request, normalize_revision_context
+from feat_to_ui_document_test import build_document_test, validate_document_test
+from feat_to_ui_gate_integration import create_gate_ready_package, create_handoff_proposal, submit_gate_pending
+from feat_to_ui_spec import assess_unit, build_units, d_list, first, render_spec, s_list, slugify
 
 INPUT_FILES = [
     "package-manifest.json",
@@ -34,335 +37,165 @@ OUTPUT_FILES = [
     "ui-flow-map.md",
     "ui-spec-completeness-report.json",
     "ui-spec-review-report.json",
+    "document-test-report.json",
     "ui-spec-defect-list.json",
     "ui-spec-freeze-gate.json",
     "execution-evidence.json",
     "supervision-evidence.json",
 ]
+
+
 def utc_now() -> str:
     return datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
-def slugify(text: str) -> str:
-    return re.sub(r"-{2,}", "-", re.sub(r"[^a-zA-Z0-9\u4e00-\u9fff]+", "-", str(text or "").strip())).strip("-").lower() or "main"
+
+
 def repo_root_from(repo_root: str | None) -> Path:
     return Path(repo_root).resolve() if repo_root else Path.cwd().resolve()
-def s_list(value: Any) -> list[str]:
-    if value is None:
-        return []
-    if isinstance(value, str):
-        return [value.strip()] if value.strip() else []
-    if isinstance(value, list):
-        return [str(item).strip() for item in value if str(item).strip()]
-    return [str(value).strip()]
-def d_list(value: Any) -> list[dict[str, Any]]:
-    return [item for item in value if isinstance(item, dict)] if isinstance(value, list) else []
-def first(*values: Any) -> str:
-    for value in values:
-        if isinstance(value, str) and value.strip():
-            return value.strip()
-    return ""
+
+
 def load_json(path: Path) -> Any:
     return json.loads(path.read_text(encoding="utf-8"))
+
+
 def write_json(path: Path, payload: Any) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+
+
 def write_text(path: Path, content: str) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(content.rstrip() + "\n", encoding="utf-8")
+
+
 def rel(path: Path, repo_root: Path) -> str:
     try:
         return path.resolve().relative_to(repo_root.resolve()).as_posix()
     except ValueError:
         return path.resolve().as_posix()
-def default_ascii(title: str) -> str:
+
+
+def _render_bundle_markdown(feat_ref: str, bundle: dict[str, Any], units: list[dict[str, Any]], overall: str) -> str:
     return "\n".join(
         [
-            "+--------------------------------------------------+",
-            f"| Header: {title[:38]:<38} |",
-            "| Intro / Context                                  |",
-            "+--------------------------------------------------+",
-            "| Main Content                                     |",
-            "| Core Form / Core Decision / Core Result          |",
-            "+--------------------------------------------------+",
-            "| Help / Error / Recovery Slot                     |",
-            "+--------------------------------------------------+",
-            "| Footer: [返回]                          [下一步] |",
-            "+--------------------------------------------------+",
+            f"# UI Spec Bundle for {feat_ref}",
+            "",
+            "## Selected FEAT",
+            f"- feat_ref: {feat_ref}",
+            f"- title: {bundle['feat_title']}",
+            f"- ui_spec_count: {bundle['ui_spec_count']}",
+            f"- completeness_result: {overall}",
+            "",
+            "## UI Spec Inventory",
+            *[f"- {unit['ui_spec_id']} | {unit['page_name']} | {unit['completeness_result']}" for unit in units],
+            "",
+            "## Traceability",
+            *[f"- {item}" for item in bundle["source_refs"]],
         ]
     )
-def default_states() -> list[dict[str, Any]]:
-    return [
-        {"name": "initial", "trigger": "页面首次进入", "ui_behavior": "展示默认结构与说明", "user_options": "开始主路径操作"},
-        {"name": "ready", "trigger": "首屏可交互", "ui_behavior": "页面主要结构和主操作已就绪", "user_options": "执行主路径操作"},
-        {"name": "validation_error", "trigger": "前端校验失败", "ui_behavior": "高亮错误字段", "user_options": "修正后重试"},
-        {"name": "submitting", "trigger": "提交中", "ui_behavior": "主按钮 loading 且禁重", "user_options": "等待响应"},
-        {"name": "submit_error", "trigger": "提交失败", "ui_behavior": "展示错误并保留上下文", "user_options": "重试或返回修改"},
-        {"name": "submit_success", "trigger": "提交成功", "ui_behavior": "进入下一步或刷新结果", "user_options": "继续流程"},
-    ]
-def has_forbidden_open_question(questions: list[str]) -> bool:
-    keywords = [
-        "主路径",
-        "关键状态",
-        "跳转",
-        "必填",
-        "接口",
-        "触点",
-        "失败反馈",
-        "失败提示",
-        "提交后",
-        "api",
-    ]
-    for question in questions:
-        text = str(question).strip().lower()
-        if any(keyword.lower() in text for keyword in keywords):
-            return True
-    return False
-def normalize_field(item: Any) -> dict[str, Any]:
-    if isinstance(item, dict):
-        return {"field": first(item.get("field"), item.get("name")), "type": first(item.get("type"), "string"), "required": bool(item.get("required")), "source": first(item.get("source"), "feat_input"), "note": first(item.get("note"), "无")}
-    return {"field": str(item).strip(), "type": "string", "required": False, "source": "feat_input", "note": "无"}
-def build_units(feature: dict[str, Any], feat_ref: str) -> list[dict[str, Any]]:
-    units = d_list(feature.get("ui_units"))
-    if not units:
-        units = [
-            {
-                "page_name": first(feature.get("title"), feat_ref),
-                "slug": slugify(first(feature.get("title"), feat_ref)),
-                "open_questions": ["ui_units 未显式提供，当前页面拆分由 feat-to-ui skill 基于 FEAT 内容推断。"],
-            }
+
+
+def _render_flow_map(feat_ref: str, bundle: dict[str, Any], units: list[dict[str, Any]], flow_edges: list[dict[str, Any]]) -> str:
+    return "\n".join(
+        [
+            f"# UI Flow Map for {feat_ref}",
+            "",
+            "## Package Entry / Exit",
+            f"- package_entry_spec_id: {bundle['package_entry_spec_id']}",
+            f"- package_exit_spec_id: {bundle['package_exit_spec_id']}",
+            "",
+            "## UI Spec Order",
+            *[
+                f"{index}. {unit['ui_spec_id']} | {unit['page_name']} | {'主页面' if index == 1 else '后续页面'}"
+                for index, unit in enumerate(units, start=1)
+            ],
+            "",
+            "## Flow Edges",
+            *([f"- {edge['from']} -> {edge['to']} ({edge['relation']})" for edge in flow_edges] or ["- 单页场景，无跨页面边。"]),
+            "",
+            "## Package Flow Notes",
+            "- 本文件用于多 UI Spec 场景下的包级总览。",
+            "- 单页场景仍保留该文件，以固定 package-level index 形态。",
         ]
-    result: list[dict[str, Any]] = []
-    for raw in units:
-        page_name = first(raw.get("page_name"), raw.get("name"), first(feature.get("title"), feat_ref))
-        branch_paths = raw.get("branch_paths") if isinstance(raw.get("branch_paths"), list) else []
-        if not branch_paths:
-            branch_paths = [
-                {"title": "Branch A", "steps": ["点击主按钮", "校验失败", "修正信息", "重新提交"]},
-                {"title": "Branch B", "steps": ["提交请求", "服务端失败", "展示错误", "允许重试"]},
-            ]
-        result.append(
-            {
-                "slug": first(raw.get("slug"), slugify(page_name)),
-                "page_name": page_name,
-                "page_type": first(raw.get("page_type"), "single-page feature flow"),
-                "platform": first(raw.get("platform"), first(feature.get("platform"), "web")),
-                "page_goal": first(raw.get("page_goal"), first(feature.get("goal"), f"帮助用户完成 {page_name}")),
-                "user_job": first(raw.get("user_job"), f"用户在界面中完成“{page_name}”对应的核心动作。"),
-                "page_role_in_flow": first(raw.get("page_role_in_flow"), f"承接 {feat_ref} 的主要用户可见步骤。"),
-                "completion_definition": first(raw.get("completion_definition"), "用户完成主路径并满足 FEAT 成功标准。"),
-                "in_scope": s_list(raw.get("in_scope")) or s_list(feature.get("scope")),
-                "out_of_scope": s_list(raw.get("out_of_scope")) or s_list(feature.get("non_goals")) or ["最终视觉稿", "代码结构", "测试用例细节"],
-                "entry_condition": first(raw.get("entry_condition"), first(feature.get("trigger_scenario"), f"用户进入 {page_name} 页面。")),
-                "exit_condition": first(raw.get("exit_condition"), "用户完成主路径后离开当前页面或进入下一步。"),
-                "upstream": first(raw.get("upstream"), f"FEAT {feat_ref} 触发入口"),
-                "downstream": first(raw.get("downstream"), "后续 UI/TECH 开发"),
-                "main_user_path": s_list(raw.get("main_user_path")) or [
-                    f"进入 {page_name}",
-                    "查看首屏说明",
-                    "执行核心输入或选择",
-                    "点击主按钮",
-                    "接收校验与提交反馈",
-                    "进入下一步或完成本页",
-                ],
-                "branch_paths": branch_paths,
-                "ux_flow_notes": s_list(raw.get("ux_flow_notes")) or ["首屏必须清楚说明目标", "主动作优先级必须明确", "失败与恢复必须显式反馈"],
-                "page_sections": s_list(raw.get("page_sections")) or ["Header", "Intro Note", "Main Content", "Help Section", "Footer Actions"],
-                "information_priority": s_list(raw.get("information_priority")) or ["目标与上下文优先", "主操作区其次", "帮助与异常反馈最后"],
-                "action_priority": s_list(raw.get("action_priority")) or ["主提交动作优先", "返回或取消次之"],
-                "ascii_wireframe": first(raw.get("ascii_wireframe"), default_ascii(page_name)),
-                "states": raw.get("states") if isinstance(raw.get("states"), list) and raw.get("states") else default_states(),
-                "input_fields": [normalize_field(item) for item in (raw.get("input_fields") or feature.get("ui_input_fields") or [])],
-                "display_fields": [normalize_field(item) for item in (raw.get("display_fields") or feature.get("ui_display_fields") or feature.get("outputs") or [])],
-                "required_fields": s_list(raw.get("required_fields")) or s_list(feature.get("required_fields")),
-                "derived_fields": s_list(raw.get("derived_fields")) or s_list(feature.get("derived_fields")),
-                "user_actions": s_list(raw.get("user_actions")) or ["填写或编辑内容", "点击主按钮", "返回上一层"],
-                "system_actions": s_list(raw.get("system_actions")) or ["初始化页面", "前端校验", "提交请求", "更新页面状态"],
-                "frontend_validation_rules": s_list(raw.get("frontend_validation_rules")) or s_list(feature.get("ui_validation_rules")),
-                "backend_validation_assumptions": s_list(raw.get("backend_validation_assumptions")) or ["后端负责最终业务校验。"],
-                "data_dependencies": s_list(raw.get("data_dependencies")) or s_list(feature.get("ui_data_dependencies")),
-                "api_touchpoints": s_list(raw.get("api_touchpoints")) or s_list(feature.get("ui_api_touchpoints")),
-                "derived_logic": s_list(raw.get("derived_logic")) or s_list(feature.get("ui_derived_logic")),
-                "state_owned_by_ui": s_list(raw.get("state_owned_by_ui")) or ["本地输入值", "校验状态", "按钮 loading 状态"],
-                "state_owned_by_backend": s_list(raw.get("state_owned_by_backend")) or ["持久化结果", "业务拒绝原因"],
-                "loading_feedback": first(raw.get("loading_feedback"), "关键区域局部 loading。"),
-                "validation_feedback": first(raw.get("validation_feedback"), "字段或区域级错误反馈优先。"),
-                "success_feedback": first(raw.get("success_feedback"), "成功后进入下一步或刷新结果。"),
-                "error_feedback": first(raw.get("error_feedback"), "失败时展示明确错误并保留上下文。"),
-                "retry_behavior": first(raw.get("retry_behavior"), "修正后允许再次提交。"),
-                "open_questions": s_list(raw.get("open_questions")) or s_list(feature.get("ui_open_questions")),
-            }
-        )
-    return result
+    )
 
-def assess_unit(unit: dict[str, Any]) -> tuple[str, dict[str, bool], list[str]]:
-    checks = {
-        "page_goal_clear": bool(unit["page_goal"]),
-        "entry_exit_defined": bool(unit["entry_condition"] and unit["exit_condition"]),
-        "main_user_path_defined": len(unit["main_user_path"]) >= 4,
-        "key_branch_paths_defined": len(unit["branch_paths"]) >= 2,
-        "ascii_wireframe_included": bool(unit["ascii_wireframe"].strip()),
-        "key_states_included": len(unit["states"]) >= 5,
-        "field_boundary_included": bool(unit["input_fields"] or unit["display_fields"] or unit["required_fields"] or unit["derived_fields"]),
-        "action_boundary_included": bool(unit["user_actions"] and unit["system_actions"]),
-        "validation_rules_included": bool(unit["frontend_validation_rules"] or unit["backend_validation_assumptions"]),
-        "technical_touchpoints_included": bool(unit["data_dependencies"] or unit["api_touchpoints"]),
-        "feedback_rules_included": bool(unit["validation_feedback"] and unit["error_feedback"] and unit["retry_behavior"]),
-    }
-    questions = list(unit["open_questions"])
-    if not checks["field_boundary_included"]:
-        questions.append("需要补充字段边界。")
-    if not checks["technical_touchpoints_included"]:
-        questions.append("需要补充 data_dependencies 与 api_touchpoints。")
-    if not unit["frontend_validation_rules"]:
-        questions.append("需要补充前端校验规则。")
-    if not checks["feedback_rules_included"]:
-        questions.append("需要补充失败反馈与重试规则。")
-    hard_fail = [
-        "page_goal_clear",
-        "entry_exit_defined",
-        "main_user_path_defined",
-        "key_branch_paths_defined",
-        "ascii_wireframe_included",
-        "key_states_included",
-        "field_boundary_included",
-        "action_boundary_included",
-        "validation_rules_included",
-        "technical_touchpoints_included",
-        "feedback_rules_included",
-    ]
-    if not all(checks[key] for key in hard_fail):
-        return "fail", checks, questions
-    if has_forbidden_open_question(questions):
-        return "fail", checks, questions
-    if not questions and all(checks.values()):
-        return "pass", checks, questions
-    return "conditional_pass", checks, questions
 
-def render_spec(unit: dict[str, Any]) -> str:
-    branches: list[str] = []
-    for branch in unit["branch_paths"]:
-        branches.append(f"#### {branch.get('title', 'Branch')}")
-        branches.extend([f"- {step}" for step in s_list(branch.get("steps"))])
-    states: list[str] = []
-    for state in unit["states"]:
-        if not isinstance(state, dict):
+def _recompute_review_gate(
+    *,
+    artifacts_dir: Path,
+    bundle: dict[str, Any],
+    units: list[dict[str, Any]],
+    flow_edges: list[dict[str, Any]],
+) -> dict[str, Any]:
+    missing_ui_spec_files: list[str] = []
+    stale_ui_specs: list[str] = []
+    for unit in units:
+        spec_path = artifacts_dir / Path(str(unit["output_ref"])).name
+        if not spec_path.exists():
+            missing_ui_spec_files.append(unit["ui_spec_id"])
             continue
-        states.extend([f"### state: {first(state.get('name'), 'state')}", f"* trigger: {first(state.get('trigger'), '')}", f"* ui_behavior: {first(state.get('ui_behavior'), '无')}", f"* user_options: {first(state.get('user_options'), '无')}", ""])
-    in_scope = [f"  - {item}" for item in unit["in_scope"]] or ["  - 无"]
-    out_of_scope = [f"  - {item}" for item in unit["out_of_scope"]] or ["  - 无"]
-    input_fields = [f"- {field['field']} ({field['type']}, required={str(field['required']).lower()})" for field in unit["input_fields"]] or ["- 无"]
-    display_fields = [f"- {field['field']}" for field in unit["display_fields"]] or ["- 无"]
-    required_fields = [f"- {item}" for item in unit["required_fields"]] or ["- 无"]
-    derived_fields = [f"- {item}" for item in unit["derived_fields"]] or ["- 无"]
-    frontend_rules = [f"- {item}" for item in unit["frontend_validation_rules"]] or ["- 无"]
-    backend_rules = [f"- {item}" for item in unit["backend_validation_assumptions"]] or ["- 无"]
-    data_dependencies = [f"  - {item}" for item in unit["data_dependencies"]] or ["  - 无"]
-    api_touchpoints = [f"  - {item}" for item in unit["api_touchpoints"]] or ["  - 无"]
-    derived_logic = [f"  - {item}" for item in unit["derived_logic"]] or ["  - 无"]
-    open_questions = [f"- {item}" for item in unit["open_questions"]] or ["- 无"]
-    return "\n".join(
-        [
-            "# UI Spec",
-            "",
-            "## 1. Meta",
-            f"- ui_spec_id: {unit['ui_spec_id']}",
-            f"- linked_feat: {unit['linked_feat']}",
-            f"- page_name: {unit['page_name']}",
-            f"- page_type: {unit['page_type']}",
-            f"- platform: {unit['platform']}",
-            f"- status: {unit['completeness_result']}",
-            "",
-            "## 2. Page Goal",
-            f"- page_goal: {unit['page_goal']}",
-            f"- user_job: {unit['user_job']}",
-            f"- page_role_in_flow: {unit['page_role_in_flow']}",
-            f"- completion_definition: {unit['completion_definition']}",
-            "",
-            "## 3. Scope",
-            "- in_scope:",
-            *in_scope,
-            "- out_of_scope:",
-            *out_of_scope,
-            "",
-            "## 4. Entry & Exit",
-            f"- entry_condition: {unit['entry_condition']}",
-            f"- exit_condition: {unit['exit_condition']}",
-            f"- upstream: {unit['upstream']}",
-            f"- downstream: {unit['downstream']}",
-            "",
-            "## 5. User Path",
-            "### Main Path",
-            *[f"{index}. {step}" for index, step in enumerate(unit["main_user_path"], start=1)],
-            "",
-            "### Branch Paths",
-            *branches,
-            "",
-            "## 6. UX Flow Notes",
-            *[f"- {item}" for item in unit["ux_flow_notes"]],
-            "",
-            "## 7. Layout Structure",
-            "- page_sections:",
-            *[f"  - {item}" for item in unit["page_sections"]],
-            "- information_priority:",
-            *[f"  - {item}" for item in unit["information_priority"]],
-            "- action_priority:",
-            *[f"  - {item}" for item in unit["action_priority"]],
-            "",
-            "## 8. ASCII Wireframe",
-            "```text",
-            unit["ascii_wireframe"],
-            "```",
-            "",
-            "## 9. States",
-            *states,
-            "## 10. Fields",
-            "### Input Fields",
-            *input_fields,
-            "",
-            "### Display Fields",
-            *display_fields,
-            "",
-            "### Required Fields",
-            *required_fields,
-            "",
-            "### Derived Fields",
-            *derived_fields,
-            "",
-            "## 11. Actions",
-            "### User Actions",
-            *[f"- {item}" for item in unit["user_actions"]],
-            "",
-            "### System Actions",
-            *[f"- {item}" for item in unit["system_actions"]],
-            "",
-            "## 12. Validation Rules",
-            "### Frontend Validation",
-            *frontend_rules,
-            "",
-            "### Backend Assumptions",
-            *backend_rules,
-            "",
-            "## 13. Technical Boundary",
-            "- data_dependencies:",
-            *data_dependencies,
-            "- api_touchpoints:",
-            *api_touchpoints,
-            "- derived_logic:",
-            *derived_logic,
-            "",
-            "## 14. Feedback Rules",
-            f"- loading_feedback: {unit['loading_feedback']}",
-            f"- validation_feedback: {unit['validation_feedback']}",
-            f"- success_feedback: {unit['success_feedback']}",
-            f"- error_feedback: {unit['error_feedback']}",
-            f"- retry_behavior: {unit['retry_behavior']}",
-            "",
-            "## 15. Open Questions",
-            *open_questions,
-            "",
-            "## 16. Completeness Checklist",
-            *[f"* [{'x' if ok else ' '}] {name}" for name, ok in unit["checklist"].items()],
-        ]
+        expected_body = render_spec(unit).rstrip() + "\n"
+        if spec_path.read_text(encoding="utf-8") != expected_body:
+            stale_ui_specs.append(unit["ui_spec_id"])
+    expected_bundle_markdown = _render_bundle_markdown(str(bundle.get("feat_ref") or ""), bundle, units, str(bundle.get("completeness_result") or ""))
+    expected_flow_map = _render_flow_map(str(bundle.get("feat_ref") or ""), bundle, units, flow_edges)
+    bundle_index_matches = (artifacts_dir / "ui-spec-bundle.md").read_text(encoding="utf-8") == expected_bundle_markdown.rstrip() + "\n"
+    flow_map_matches = (artifacts_dir / "ui-flow-map.md").read_text(encoding="utf-8") == expected_flow_map.rstrip() + "\n"
+    review_gate_ok = not missing_ui_spec_files and not stale_ui_specs and bundle_index_matches and flow_map_matches
+    return {
+        "review_gate_ok": review_gate_ok,
+        "missing_ui_spec_files": missing_ui_spec_files,
+        "stale_ui_specs": stale_ui_specs,
+        "bundle_index_matches": bundle_index_matches,
+        "flow_map_matches": flow_map_matches,
+        "summary": "Current UI artifacts match the canonical bundle." if review_gate_ok else "Current UI artifacts drift from the canonical bundle.",
+    }
+
+
+def _update_document_test_report(
+    document_test_report: dict[str, Any],
+    *,
+    overall: str,
+    review_gate: dict[str, Any],
+) -> dict[str, Any]:
+    blocking_items = [str(item).strip() for item in review_gate.get("missing_ui_spec_files", []) if str(item).strip()]
+    blocking_items.extend(str(item).strip() for item in review_gate.get("stale_ui_specs", []) if str(item).strip())
+    if review_gate.get("bundle_index_matches") is False:
+        blocking_items.append("ui-spec-bundle.md")
+    if review_gate.get("flow_map_matches") is False:
+        blocking_items.append("ui-flow-map.md")
+    blocking_detected = overall == "fail" or bool(blocking_items)
+    document_test_report = dict(document_test_report)
+    document_test_report["tested_at"] = utc_now()
+    document_test_report["test_outcome"] = "blocking_defect_found" if blocking_detected else "no_blocking_defect_found"
+    document_test_report["defect_counts"] = {"blocking": len(blocking_items), "non_blocking": 0}
+    document_test_report["recommended_next_action"] = "workflow_rebuild" if blocking_detected else "external_gate_review"
+    document_test_report["recommended_actor"] = "workflow_rebuild" if blocking_detected else "external_gate_review"
+    sections = document_test_report.get("sections") if isinstance(document_test_report.get("sections"), dict) else {}
+    semantic_drift = dict(sections.get("semantic_drift") or {})
+    semantic_drift.update(
+        {
+            "drift_detected": bool(blocking_items),
+            "drift_items": blocking_items,
+            "semantic_lock_preserved": not blocking_items,
+        }
     )
+    downstream = dict(sections.get("downstream_readiness") or {})
+    downstream.update(
+        {
+            "ready_for_gate_review": not blocking_detected,
+            "blocking_gaps": blocking_items,
+        }
+    )
+    fixability = dict(sections.get("fixability") or {})
+    fixability.update(
+        {
+            "recommended_next_action": "workflow_rebuild" if blocking_detected else "external_gate_review",
+            "recommended_actor": "workflow_rebuild" if blocking_detected else "external_gate_review",
+            "rebuild_required": len(blocking_items),
+        }
+    )
+    document_test_report["sections"] = {**sections, "semantic_drift": semantic_drift, "downstream_readiness": downstream, "fixability": fixability}
+    return document_test_report
 
 def validate_input_package(input_path: str | Path, feat_ref: str, repo_root: Path) -> tuple[list[str], dict[str, Any]]:
     input_dir = Path(input_path).resolve()
@@ -394,6 +227,8 @@ def build_package(context: dict[str, Any], repo_root: Path, run_id: str, allow_u
     output_dir = repo_root / "artifacts" / "feat-to-ui" / f"{slugify(run_id or feat_ref)}--{slugify(feat_ref)}"
     if output_dir.exists() and not allow_update:
         return {"ok": False, "errors": [f"output directory already exists: {output_dir}"], "artifacts_dir": str(output_dir)}
+    if allow_update and (output_dir / "package-manifest.json").exists():
+        _withdraw_previous_gate_submission(repo_root, load_json(output_dir / "package-manifest.json"))
     output_dir.mkdir(parents=True, exist_ok=True)
     revision_request, loaded_revision_path = load_revision_request(context.get("revision_request_path"), artifacts_dir=output_dir, load_json=load_json)
     revision_request_ref, _, _ = materialize_revision_request(
@@ -416,14 +251,7 @@ def build_package(context: dict[str, Any], repo_root: Path, run_id: str, allow_u
         units.append(unit)
         questions.extend(unit_questions)
     overall = "fail" if any(unit["completeness_result"] == "fail" for unit in units) else "pass" if all(unit["completeness_result"] == "pass" for unit in units) else "conditional_pass"
-    flow_edges = [
-        {
-            "from": units[index]["ui_spec_id"],
-            "to": units[index + 1]["ui_spec_id"],
-            "relation": "next",
-        }
-        for index in range(len(units) - 1)
-    ]
+    flow_edges = [{"from": units[index]["ui_spec_id"], "to": units[index + 1]["ui_spec_id"], "relation": "next"} for index in range(len(units) - 1)]
     bundle = {
         "artifact_type": "ui_spec_package",
         "workflow_key": "dev.feat-to-ui",
@@ -445,55 +273,95 @@ def build_package(context: dict[str, Any], repo_root: Path, run_id: str, allow_u
         "source_package_ref": rel(context["input_dir"], repo_root),
     }
     if revision_context:
-        bundle["revision_context"] = revision_context
-        bundle["revision_request_ref"] = revision_context["revision_request_ref"]
-        bundle["revision_summary"] = revision_context["summary"]
+        bundle.update({"revision_context": revision_context, "revision_request_ref": revision_context["revision_request_ref"], "revision_summary": revision_context["summary"]})
     defects = [{"ui_spec_id": unit["ui_spec_id"], "check": name} for unit in units for name, ok in unit["checklist"].items() if not ok]
-    manifest = {"artifact_type": "ui_spec_package", "workflow_key": "dev.feat-to-ui", "run_id": run_id or slugify(feat_ref), "feat_ref": feat_ref, "status": overall, "ui_spec_refs": bundle["ui_spec_refs"], "source_package_ref": bundle["source_package_ref"], "ui_flow_map_ref": rel(output_dir / "ui-flow-map.md", repo_root)}
-    if revision_context:
-        manifest["revision_request_ref"] = revision_context["revision_request_ref"]
-        manifest["revision_summary"] = revision_context["summary"]
-    write_json(output_dir / "package-manifest.json", manifest)
-    write_text(output_dir / "ui-spec-bundle.md", "\n".join([f"# UI Spec Bundle for {feat_ref}", "", "## Selected FEAT", f"- feat_ref: {feat_ref}", f"- title: {bundle['feat_title']}", f"- ui_spec_count: {bundle['ui_spec_count']}", f"- completeness_result: {overall}", "", "## UI Spec Inventory", *[f"- {unit['ui_spec_id']} | {unit['page_name']} | {unit['completeness_result']}" for unit in units], "", "## Traceability", *[f"- {item}" for item in bundle["source_refs"]]]))
-    write_text(
-        output_dir / "ui-flow-map.md",
-        "\n".join(
-            [
-                f"# UI Flow Map for {feat_ref}",
-                "",
-                "## Package Entry / Exit",
-                f"- package_entry_spec_id: {bundle['package_entry_spec_id']}",
-                f"- package_exit_spec_id: {bundle['package_exit_spec_id']}",
-                "",
-                "## UI Spec Order",
-                *[f"{index}. {unit['ui_spec_id']} | {unit['page_name']} | {'主页面' if index == 1 else '后续页面'}" for index, unit in enumerate(units, start=1)],
-                "",
-                "## Flow Edges",
-                *([f"- {edge['from']} -> {edge['to']} ({edge['relation']})" for edge in flow_edges] or ["- 单页场景，无跨页面边。"]),
-                "",
-                "## Package Flow Notes",
-                "- 本文件用于多 UI Spec 场景下的包级总览。",
-                "- 单页场景仍保留该文件，以固定 package-level index 形态。",
-            ]
-        ),
+    document_test_report = _persist_package_outputs(
+        output_dir=output_dir,
+        repo_root=repo_root,
+        input_dir=Path(context["input_dir"]),
+        feat_ref=feat_ref,
+        run_id=run_id,
+        overall=overall,
+        bundle=bundle,
+        units=units,
+        flow_edges=flow_edges,
+        defects=defects,
+        revision_context=revision_context,
     )
+    return {"ok": overall != "fail", "artifacts_dir": str(output_dir), "artifacts_ref": rel(output_dir, repo_root), "ui_spec_refs": bundle["ui_spec_refs"], "ui_spec_count": len(units), "completeness_result": overall, "open_questions": bundle["open_questions"], "document_test_outcome": document_test_report["test_outcome"]}
+
+
+def _persist_package_outputs(
+    *,
+    output_dir: Path,
+    repo_root: Path,
+    input_dir: Path,
+    feat_ref: str,
+    run_id: str,
+    overall: str,
+    bundle: dict[str, Any],
+    units: list[dict[str, Any]],
+    flow_edges: list[dict[str, Any]],
+    defects: list[dict[str, Any]],
+    revision_context: dict[str, Any] | None,
+) -> dict[str, Any]:
+    document_test_report = build_document_test(run_id=bundle["workflow_run_id"], tested_at=utc_now(), bundle=bundle, defects=defects, revision_context=revision_context)
+    document_test_non_blocking = document_test_report.get("test_outcome") == "no_blocking_defect_found"
+    manifest = {"artifact_type": "ui_spec_package", "workflow_key": "dev.feat-to-ui", "run_id": run_id or slugify(feat_ref), "feat_ref": feat_ref, "status": overall, "ui_spec_refs": bundle["ui_spec_refs"], "source_package_ref": bundle["source_package_ref"], "ui_flow_map_ref": rel(output_dir / "ui-flow-map.md", repo_root), "document_test_report_ref": rel(output_dir / "document-test-report.json", repo_root)}
+    if revision_context:
+        manifest.update({"revision_request_ref": revision_context["revision_request_ref"], "revision_summary": revision_context["summary"]})
+        document_test_report["revision_context"] = revision_context
+    write_json(output_dir / "package-manifest.json", manifest)
+    write_text(output_dir / "ui-spec-bundle.md", _render_bundle_markdown(feat_ref, bundle, units, overall))
+    write_text(output_dir / "ui-flow-map.md", _render_flow_map(feat_ref, bundle, units, flow_edges))
     write_json(output_dir / "ui-spec-bundle.json", bundle)
-    completeness_report = {"gate_name": "UI Spec Completeness Check", "decision": overall, "freeze_ready": overall != "fail", "ui_specs": [{"ui_spec_id": unit["ui_spec_id"], "decision": unit["completeness_result"], "checklist": unit["checklist"], "open_questions": unit["open_questions"]} for unit in units], "open_questions": bundle["open_questions"], "checked_at": utc_now()}
-    review_report = {"workflow_key": "dev.feat-to-ui", "decision": overall, "summary": f"UI Spec Completeness Check => {overall}", "reviewed_at": utc_now(), "open_questions": bundle["open_questions"]}
-    freeze_gate = {"workflow_key": "dev.feat-to-ui", "gate_name": "UI Spec Completeness Check", "decision": overall, "freeze_ready": overall != "fail", "checked_at": utc_now()}
-    execution_evidence = {"workflow_key": "dev.feat-to-ui", "run_id": run_id or slugify(feat_ref), "input_path": str(context["input_dir"]), "artifacts_dir": str(output_dir), "decision": overall, "generated_at": utc_now(), "key_decisions": ([f"Applied revision context: {revision_context['summary']}"] if revision_context else [])}
-    supervision_evidence = {"workflow_key": "dev.feat-to-ui", "run_id": run_id or slugify(feat_ref), "artifacts_dir": str(output_dir), "decision": overall, "review_completed_at": utc_now(), "gate_name": "UI Spec Completeness Check"}
+    review_gate = _recompute_review_gate(artifacts_dir=output_dir, bundle=bundle, units=units, flow_edges=flow_edges)
+    document_test_report = _update_document_test_report(document_test_report, overall=overall, review_gate=review_gate)
+    document_test_non_blocking = document_test_report.get("test_outcome") == "no_blocking_defect_found"
+    completeness_report = {
+        "gate_name": "UI Spec Completeness Check",
+        "decision": overall,
+        "freeze_ready": overall != "fail" and review_gate["review_gate_ok"],
+        "ui_specs": [{"ui_spec_id": unit["ui_spec_id"], "decision": unit["completeness_result"], "checklist": unit["checklist"], "open_questions": unit["open_questions"]} for unit in units],
+        "open_questions": bundle["open_questions"],
+        "checked_at": utc_now(),
+        "review_gate": review_gate,
+    }
+    review_report = {
+        "workflow_key": "dev.feat-to-ui",
+        "decision": "pass" if overall != "fail" and review_gate["review_gate_ok"] else "revise",
+        "summary": review_gate["summary"],
+        "reviewed_at": utc_now(),
+        "open_questions": bundle["open_questions"],
+        "review_gate": review_gate,
+    }
+    freeze_gate = {
+        "workflow_key": "dev.feat-to-ui",
+        "gate_name": "UI Spec Completeness Check",
+        "decision": overall,
+        "freeze_ready": overall != "fail" and document_test_non_blocking and review_gate["review_gate_ok"],
+        "checked_at": utc_now(),
+        "checks": {
+            "document_test_report_present": True,
+            "document_test_non_blocking": document_test_non_blocking,
+            "review_gate_ok": review_gate["review_gate_ok"],
+        },
+        "review_gate": review_gate,
+    }
+    execution_evidence = {"workflow_key": "dev.feat-to-ui", "run_id": run_id or slugify(feat_ref), "input_path": str(input_dir), "artifacts_dir": str(output_dir), "decision": overall, "generated_at": utc_now(), "document_test_report_ref": str(output_dir / "document-test-report.json"), "key_decisions": ([f"Applied revision context: {revision_context['summary']}"] if revision_context else []), "structural_results": {"document_test_outcome": document_test_report["test_outcome"], "review_gate_ok": review_gate["review_gate_ok"]}}
+    supervision_evidence = {"workflow_key": "dev.feat-to-ui", "run_id": run_id or slugify(feat_ref), "artifacts_dir": str(output_dir), "decision": review_report["decision"], "review_completed_at": utc_now(), "gate_name": "UI Spec Completeness Check", "document_test_report_ref": str(output_dir / "document-test-report.json"), "document_test_outcome": document_test_report["test_outcome"], "review_gate": review_gate}
     if revision_context:
         for payload in [completeness_report, review_report, freeze_gate, execution_evidence, supervision_evidence]:
             payload["revision_context"] = revision_context
+    write_json(output_dir / "document-test-report.json", document_test_report)
     write_json(output_dir / "ui-spec-defect-list.json", defects)
     write_json(output_dir / "ui-spec-completeness-report.json", completeness_report)
     write_json(output_dir / "ui-spec-review-report.json", review_report)
     write_json(output_dir / "ui-spec-freeze-gate.json", freeze_gate)
     write_json(output_dir / "execution-evidence.json", execution_evidence)
     write_json(output_dir / "supervision-evidence.json", supervision_evidence)
-    write_text(output_dir / "evidence-report.md", "\n".join(["# Evidence Report", "", f"- decision: {overall}", f"- generated_at: {utc_now()}", *([f"- revision_request_ref: {revision_context['revision_request_ref']}"] if revision_context else [])]))
-    return {"ok": overall != "fail", "artifacts_dir": str(output_dir), "artifacts_ref": rel(output_dir, repo_root), "ui_spec_refs": bundle["ui_spec_refs"], "ui_spec_count": len(units), "completeness_result": overall, "open_questions": bundle["open_questions"]}
+    write_text(output_dir / "evidence-report.md", "\n".join(["# Evidence Report", "", f"- decision: {overall}", f"- generated_at: {utc_now()}", *([f"- revision_request_ref: {revision_context['revision_request_ref']}"] if revision_context else []), "", "## Document Test", f"- test_outcome: {document_test_report['test_outcome']}", f"- report_ref: {rel(output_dir / 'document-test-report.json', repo_root)}"]))
+    return document_test_report
 
 def validate_output_package(artifacts_dir: Path) -> tuple[list[str], dict[str, Any]]:
     if not artifacts_dir.exists() or not artifacts_dir.is_dir():
@@ -503,7 +371,9 @@ def validate_output_package(artifacts_dir: Path) -> tuple[list[str], dict[str, A
         return errors, {}
     bundle = load_json(artifacts_dir / "ui-spec-bundle.json")
     report = load_json(artifacts_dir / "ui-spec-completeness-report.json")
+    review_report = load_json(artifacts_dir / "ui-spec-review-report.json")
     gate = load_json(artifacts_dir / "ui-spec-freeze-gate.json")
+    document_test_report = load_json(artifacts_dir / "document-test-report.json")
     if bundle.get("artifact_type") != "ui_spec_package":
         errors.append("ui-spec-bundle.json artifact_type must be ui_spec_package")
     if bundle.get("workflow_key") != "dev.feat-to-ui":
@@ -516,14 +386,42 @@ def validate_output_package(artifacts_dir: Path) -> tuple[list[str], dict[str, A
         errors.append("revision-request.json must exist when ui-spec-bundle.json revision_request_ref is present")
     if report.get("decision") != gate.get("decision"):
         errors.append("completeness report decision must match freeze gate decision")
-    return errors, {"bundle": bundle, "report": report, "gate": gate}
+    review_gate = _recompute_review_gate(
+        artifacts_dir=artifacts_dir,
+        bundle=bundle,
+        units=d_list(bundle.get("ui_specs")),
+        flow_edges=d_list(bundle.get("flow_edges")),
+    )
+    for payload_name, payload in [
+        ("ui-spec-completeness-report.json", report),
+        ("ui-spec-review-report.json", review_report),
+        ("ui-spec-freeze-gate.json", gate),
+    ]:
+        if payload.get("review_gate") != review_gate:
+            errors.append(f"{payload_name} review_gate must match current UI artifacts.")
+    expected_review_decision = "pass" if bundle.get("completeness_result") != "fail" and review_gate["review_gate_ok"] else "revise"
+    if review_report.get("decision") != expected_review_decision:
+        errors.append("ui-spec-review-report.json decision must match the recomputed review gate.")
+    if bool((gate.get("checks") or {}).get("review_gate_ok")) != review_gate["review_gate_ok"]:
+        errors.append("ui-spec-freeze-gate.json checks.review_gate_ok must match the recomputed review gate.")
+    expected_document_test = _update_document_test_report(document_test_report, overall=str(bundle.get("completeness_result") or ""), review_gate=review_gate)
+    if document_test_report.get("test_outcome") != expected_document_test.get("test_outcome"):
+        errors.append("document-test-report.json test_outcome must match the recomputed review gate.")
+    errors.extend(validate_document_test(document_test_report))
+    return errors, {"bundle": bundle, "report": report, "review_report": review_report, "gate": gate, "review_gate": review_gate, "document_test_report": document_test_report}
 
 def validate_package_readiness(artifacts_dir: Path) -> tuple[bool, list[str]]:
     errors, result = validate_output_package(artifacts_dir)
     if errors:
+        if "document-test-report.json test_outcome must match the recomputed review gate." in errors:
+            return False, ["document_test_non_blocking must be satisfied."]
         return False, errors
     if result["gate"].get("decision") == "fail":
         return False, ["UI Spec Completeness Check failed."]
+    if result["review_report"].get("decision") != "pass":
+        return False, ["review_gate_ok must be satisfied."]
+    if result["document_test_report"].get("test_outcome") != "no_blocking_defect_found":
+        return False, ["document_test_non_blocking must be satisfied."]
     return True, []
 
 def collect_evidence_report(artifacts_dir: Path) -> Path:
@@ -532,23 +430,212 @@ def collect_evidence_report(artifacts_dir: Path) -> Path:
         write_text(report_path, "# Evidence Report\n")
     return report_path
 
-def supervisor_review(artifacts_dir: Path, repo_root: Path, run_id: str = "", revision_request_path: str | Path | None = None) -> dict[str, Any]:
-    ok, errors = validate_package_readiness(artifacts_dir)
+
+def _ui_candidate_ref(artifacts_dir: Path) -> str:
+    return f"feat-to-ui.{artifacts_dir.name}.ui-spec-bundle"
+
+
+def _ui_formal_ref(artifacts_dir: Path) -> str:
+    return f"formal.ui.{artifacts_dir.name}"
+
+
+def _drop_pending_index_entry(repo_root: Path, *, handoff_ref: str, gate_pending_ref: str) -> None:
+    index_path = repo_root / "artifacts" / "active" / "gates" / "pending" / "index.json"
+    if not index_path.exists():
+        return
+    index = load_json(index_path)
+    handoffs = index.get("handoffs")
+    if not isinstance(handoffs, dict):
+        return
+    keys_to_remove = [
+        key
+        for key, value in handoffs.items()
+        if isinstance(value, dict)
+        and (
+            str(value.get("handoff_ref") or "") == handoff_ref
+            or str(value.get("gate_pending_ref") or "") == gate_pending_ref
+            or key in {Path(handoff_ref).stem, Path(gate_pending_ref).stem}
+        )
+    ]
+    for key in keys_to_remove:
+        handoffs.pop(key, None)
+    write_json(index_path, index)
+
+
+def _withdraw_previous_gate_submission(repo_root: Path, manifest: dict[str, Any]) -> None:
+    handoff_ref = str(manifest.get("authoritative_handoff_ref") or "").strip()
+    gate_pending_ref = str(manifest.get("gate_pending_ref") or "").strip()
+    if handoff_ref:
+        handoff_path = repo_root / handoff_ref
+        if handoff_path.exists():
+            handoff_path.unlink()
+    if gate_pending_ref:
+        pending_path = repo_root / gate_pending_ref
+        if pending_path.exists():
+            pending_path.unlink()
+    if handoff_ref or gate_pending_ref:
+        _drop_pending_index_entry(repo_root, handoff_ref=handoff_ref, gate_pending_ref=gate_pending_ref)
+
+
+def _bind_ui_candidate_record(repo_root: Path, artifacts_dir: Path, feat_ref: str) -> str:
+    candidate_ref = _ui_candidate_ref(artifacts_dir)
+    bind_record(
+        repo_root,
+        candidate_ref,
+        rel(artifacts_dir / "ui-spec-bundle.md", repo_root),
+        "candidate",
+        {"run_ref": artifacts_dir.name, "workflow_key": "dev.feat-to-ui"},
+        metadata={
+            "layer": "candidate",
+            "target_kind": "ui",
+            "feat_ref": feat_ref,
+            "workflow_run_id": artifacts_dir.name,
+            "machine_ssot_ref": rel(artifacts_dir / "ui-spec-bundle.json", repo_root),
+            "source_package_ref": rel(artifacts_dir, repo_root),
+        },
+        lineage=[feat_ref] if feat_ref else [],
+    )
+    return candidate_ref
+
+
+def _clear_gate_artifacts(artifacts_dir: Path, manifest: dict[str, Any], repo_root: Path) -> dict[str, Any]:
+    _withdraw_previous_gate_submission(repo_root, manifest)
+    for path in [
+        artifacts_dir / "handoff-proposal.json",
+        artifacts_dir / "input" / "gate-ready-package.json",
+        artifacts_dir / "_cli" / "gate-submit-handoff.request.json",
+        artifacts_dir / "_cli" / "gate-submit-handoff.response.json",
+    ]:
+        if path.exists():
+            path.unlink()
+    for key in ["handoff_proposal_ref", "gate_ready_package_ref", "authoritative_handoff_ref", "gate_pending_ref", "gate_submit_cli_ref"]:
+        manifest.pop(key, None)
+    return manifest
+
+def supervisor_review(
+    artifacts_dir: Path,
+    repo_root: Path,
+    run_id: str = "",
+    revision_request_path: str | Path | None = None,
+    allow_update: bool = False,
+) -> dict[str, Any]:
     gate = load_json(artifacts_dir / "ui-spec-freeze-gate.json") if (artifacts_dir / "ui-spec-freeze-gate.json").exists() else {}
+    bundle = load_json(artifacts_dir / "ui-spec-bundle.json") if (artifacts_dir / "ui-spec-bundle.json").exists() else {}
+    completeness = load_json(artifacts_dir / "ui-spec-completeness-report.json") if (artifacts_dir / "ui-spec-completeness-report.json").exists() else {}
+    review_report = load_json(artifacts_dir / "ui-spec-review-report.json") if (artifacts_dir / "ui-spec-review-report.json").exists() else {}
+    document_test_report = load_json(artifacts_dir / "document-test-report.json") if (artifacts_dir / "document-test-report.json").exists() else {}
     revision_request, loaded_revision_path = load_revision_request(revision_request_path, artifacts_dir=artifacts_dir, load_json=load_json)
     revision_context = normalize_revision_context(revision_request, repo_root=repo_root, revision_request_path=loaded_revision_path) or None
-    supervision = {"workflow_key": "dev.feat-to-ui", "run_id": run_id, "artifacts_dir": str(artifacts_dir), "decision": gate.get("decision", "fail"), "review_completed_at": utc_now(), "gate_name": "UI Spec Completeness Check", "errors": errors}
+    review_gate = _recompute_review_gate(
+        artifacts_dir=artifacts_dir,
+        bundle=bundle,
+        units=d_list(bundle.get("ui_specs")),
+        flow_edges=d_list(bundle.get("flow_edges")),
+    )
+    overall = str(bundle.get("completeness_result") or gate.get("decision") or "fail")
+    document_test_report = _update_document_test_report(document_test_report, overall=overall, review_gate=review_gate)
+    review_decision = "pass" if overall != "fail" and review_gate["review_gate_ok"] else "revise"
+    freeze_ready = overall != "fail" and document_test_report.get("test_outcome") == "no_blocking_defect_found" and review_gate["review_gate_ok"]
+    completeness["freeze_ready"] = overall != "fail" and review_gate["review_gate_ok"]
+    completeness["checked_at"] = utc_now()
+    completeness["review_gate"] = review_gate
+    review_report["workflow_key"] = "dev.feat-to-ui"
+    review_report["decision"] = review_decision
+    review_report["summary"] = review_gate["summary"]
+    review_report["reviewed_at"] = utc_now()
+    review_report["open_questions"] = bundle.get("open_questions") or []
+    review_report["review_gate"] = review_gate
+    gate["workflow_key"] = "dev.feat-to-ui"
+    gate["gate_name"] = "UI Spec Completeness Check"
+    gate["decision"] = overall
+    gate["freeze_ready"] = freeze_ready
+    gate["checked_at"] = utc_now()
+    gate["checks"] = {
+        "document_test_report_present": True,
+        "document_test_non_blocking": document_test_report.get("test_outcome") == "no_blocking_defect_found",
+        "review_gate_ok": review_gate["review_gate_ok"],
+    }
+    gate["review_gate"] = review_gate
+    write_json(artifacts_dir / "document-test-report.json", document_test_report)
+    write_json(artifacts_dir / "ui-spec-completeness-report.json", completeness)
+    write_json(artifacts_dir / "ui-spec-review-report.json", review_report)
+    write_json(artifacts_dir / "ui-spec-freeze-gate.json", gate)
+    ok, errors = validate_package_readiness(artifacts_dir)
+    supervision = {"workflow_key": "dev.feat-to-ui", "run_id": run_id, "artifacts_dir": str(artifacts_dir), "decision": review_decision, "review_completed_at": utc_now(), "gate_name": "UI Spec Completeness Check", "errors": errors, "document_test_report_ref": str(artifacts_dir / "document-test-report.json"), "document_test_outcome": document_test_report.get("test_outcome", ""), "review_gate": review_gate}
     if revision_context:
         supervision["revision_context"] = revision_context
     write_json(artifacts_dir / "supervision-evidence.json", supervision)
-    return {"ok": ok, "freeze_ready": ok, "errors": errors, "artifacts_dir": str(artifacts_dir), "evidence_report_ref": rel(collect_evidence_report(artifacts_dir), repo_root)}
+    manifest = load_json(artifacts_dir / "package-manifest.json") if (artifacts_dir / "package-manifest.json").exists() else {}
+    active_run_id = run_id or str(manifest.get("run_id") or artifacts_dir.name)
+    proposal_ref = ""
+    gate_ready_package_ref = ""
+    authoritative_handoff_ref = ""
+    gate_pending_ref = ""
+    if ok:
+        feat_ref = str(manifest.get("feat_ref") or load_json(artifacts_dir / "ui-spec-bundle.json").get("feat_ref") or "")
+        candidate_ref = _bind_ui_candidate_record(repo_root, artifacts_dir, feat_ref)
+        if allow_update:
+            _withdraw_previous_gate_submission(repo_root, manifest)
+        proposal_path = create_handoff_proposal(repo_root=repo_root, artifacts_dir=artifacts_dir, run_id=active_run_id, feat_ref=feat_ref)
+        gate_ready_package = create_gate_ready_package(
+            artifacts_dir=artifacts_dir,
+            run_id=active_run_id,
+            candidate_ref=candidate_ref,
+            machine_ssot_ref=rel(artifacts_dir / "ui-spec-bundle.json", repo_root),
+            acceptance_ref=rel(artifacts_dir / "ui-spec-completeness-report.json", repo_root),
+            evidence_bundle_ref=rel(artifacts_dir / "supervision-evidence.json", repo_root),
+            target_formal_kind="ui",
+            formal_artifact_ref=_ui_formal_ref(artifacts_dir),
+        )
+        gate_submit = submit_gate_pending(
+            repo_root=repo_root,
+            artifacts_dir=artifacts_dir,
+            run_id=active_run_id,
+            proposal_ref=rel(proposal_path, repo_root),
+            payload_path=gate_ready_package,
+            trace_context_ref=rel(artifacts_dir / "execution-evidence.json", repo_root),
+        )
+        gate_submit_data = gate_submit["response"]["data"]
+        manifest["handoff_proposal_ref"] = rel(proposal_path, repo_root)
+        manifest["gate_ready_package_ref"] = rel(gate_ready_package, repo_root)
+        manifest["authoritative_handoff_ref"] = str(gate_submit_data.get("handoff_ref", ""))
+        manifest["gate_pending_ref"] = str(gate_submit_data.get("gate_pending_ref", ""))
+        manifest["gate_submit_cli_ref"] = rel(Path(gate_submit["response_path"]), repo_root)
+        write_json(artifacts_dir / "package-manifest.json", manifest)
+        proposal_ref = manifest["handoff_proposal_ref"]
+        gate_ready_package_ref = manifest["gate_ready_package_ref"]
+        authoritative_handoff_ref = manifest["authoritative_handoff_ref"]
+        gate_pending_ref = manifest["gate_pending_ref"]
+    else:
+        write_json(artifacts_dir / "package-manifest.json", _clear_gate_artifacts(artifacts_dir, manifest, repo_root))
+    return {
+        "ok": ok,
+        "freeze_ready": ok,
+        "errors": errors,
+        "artifacts_dir": str(artifacts_dir),
+        "evidence_report_ref": rel(collect_evidence_report(artifacts_dir), repo_root),
+        "handoff_proposal_ref": proposal_ref,
+        "gate_ready_package_ref": gate_ready_package_ref,
+        "authoritative_handoff_ref": authoritative_handoff_ref,
+        "gate_pending_ref": gate_pending_ref,
+    }
 
 def run_workflow(input_path: str | Path, feat_ref: str, repo_root: Path, run_id: str = "", allow_update: bool = False, revision_request_path: str | Path | None = None) -> dict[str, Any]:
     errors, context = validate_input_package(input_path, feat_ref, repo_root)
     if errors:
         return {"ok": False, "errors": errors, "input_path": str(Path(input_path).resolve())}
     context["revision_request_path"] = revision_request_path
-    return build_package(context, repo_root, run_id, allow_update)
+    executor_result = build_package(context, repo_root, run_id, allow_update)
+    if not executor_result.get("artifacts_dir"):
+        return executor_result
+    supervisor_result = supervisor_review(
+        Path(executor_result["artifacts_dir"]).resolve(),
+        repo_root,
+        run_id or "",
+        revision_request_path,
+        allow_update=allow_update,
+    )
+    return {**executor_result, "supervision": supervisor_result, "handoff_proposal_ref": supervisor_result.get("handoff_proposal_ref", ""), "gate_ready_package_ref": supervisor_result.get("gate_ready_package_ref", ""), "authoritative_handoff_ref": supervisor_result.get("authoritative_handoff_ref", ""), "gate_pending_ref": supervisor_result.get("gate_pending_ref", "")}
 
 def _run_build_command(args: argparse.Namespace, *, strict: bool) -> int:
     result = run_workflow(args.input, args.feat_ref, repo_root_from(args.repo_root), args.run_id or "", args.allow_update, args.revision_request or None)
@@ -560,7 +647,13 @@ def command_run(args: argparse.Namespace) -> int:
 def command_executor_run(args: argparse.Namespace) -> int:
     return _run_build_command(args, strict=False)
 def command_supervisor_review(args: argparse.Namespace) -> int:
-    result = supervisor_review(Path(args.artifacts_dir).resolve(), repo_root_from(args.repo_root), args.run_id or "", args.revision_request or None)
+    result = supervisor_review(
+        Path(args.artifacts_dir).resolve(),
+        repo_root_from(args.repo_root),
+        args.run_id or "",
+        args.revision_request or None,
+        allow_update=args.allow_update,
+    )
     print(json.dumps(result, ensure_ascii=False))
     return 0 if result.get("freeze_ready") else 1
 
@@ -599,6 +692,7 @@ def build_parser() -> argparse.ArgumentParser:
     review.add_argument("--repo-root")
     review.add_argument("--run-id")
     review.add_argument("--revision-request")
+    review.add_argument("--allow-update", action="store_true")
     review.set_defaults(func=command_supervisor_review)
     vin = sub.add_parser("validate-input")
     vin.add_argument("--input", required=True)

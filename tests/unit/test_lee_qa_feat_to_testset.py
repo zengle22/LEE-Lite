@@ -135,6 +135,49 @@ class FeatToTestSetWorkflowTests(FeatToTestSetWorkflowHarness):
             "source_refs": [feat_ref, "EPIC-SRC-001-001", "SRC-001", "ADR-012"],
         }
 
+    def _legacy_compatibility_feature(self, feat_ref: str) -> dict[str, object]:
+        return {
+            "feat_ref": feat_ref,
+            "title": "通用兼容测试策略",
+            "goal": "验证旧输入在没有显式 coverage 设计字段时仍可生成完整 TESTSET。",
+            "scope": [
+                "从传统 FEAT 结构生成 test_units。",
+                "自动补齐 functional_areas、logic_dimensions、state_model 和 coverage_matrix。",
+                "保留 acceptance_traceability 与 downstream handoff。",
+            ],
+            "constraints": [
+                "不要求 FEAT 输入事先携带新的测试设计字段。",
+                "输出 TESTSET 仍然必须 machine-readable 且可执行。",
+            ],
+            "dependencies": ["legacy FEAT input 只提供基础 acceptance_checks。"],
+            "acceptance_checks": [
+                {"id": f"{feat_ref}-AC-01", "scenario": "legacy input still builds coverage model", "given": "traditional FEAT input", "when": "generate testset", "then": "functional_areas and coverage_matrix are still derived"},
+                {"id": f"{feat_ref}-AC-02", "scenario": "test_units remain enriched", "given": "derived testset", "when": "inspect test_units", "then": "each unit has functional_area_key and case_family"},
+                {"id": f"{feat_ref}-AC-03", "scenario": "traceability remains explicit", "given": "acceptance checks", "when": "inspect traceability", "then": "acceptance_traceability still maps scenarios to units"},
+            ],
+            "source_refs": [feat_ref, "EPIC-SRC-001-001", "SRC-001", "ADR-012"],
+        }
+
+    def _assert_coverage_model(self, test_set: dict[str, object]) -> None:
+        self.assertTrue(test_set["functional_areas"])
+        self.assertTrue(test_set["logic_dimensions"])
+        self.assertEqual(set(test_set["logic_dimensions"].keys()), {"universal", "stateful", "control_surface"})
+        self.assertIn("entities", test_set["state_model"])
+        self.assertTrue(test_set["state_model"]["entities"])
+        self.assertIn("acceptances", test_set["coverage_matrix"])
+        self.assertIn("functional_areas", test_set["coverage_matrix"])
+        self.assertIn("risks", test_set["coverage_matrix"])
+        self.assertIn("state_entities", test_set["coverage_matrix"])
+        self.assertTrue(all(unit.get("functional_area_key") for unit in test_set["test_units"]))
+        self.assertTrue(all(unit.get("case_family") for unit in test_set["test_units"]))
+        self.assertTrue(all(unit.get("logic_dimensions") for unit in test_set["test_units"]))
+        self.assertTrue(all(unit.get("acceptance_refs") for unit in test_set["test_units"]))
+        self.assertTrue(all(unit.get("risk_refs") for unit in test_set["test_units"]))
+        self.assertTrue(all(unit.get("boundary_checks") for unit in test_set["test_units"]))
+        self.assertTrue(all(row.get("functional_area_keys") for row in test_set["acceptance_traceability"]))
+        self.assertTrue(all(row.get("case_family") for row in test_set["acceptance_traceability"]))
+        self.assertTrue(all(row.get("risk_refs") for row in test_set["acceptance_traceability"]))
+
     def test_run_emits_candidate_package_ready_for_external_approval(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             repo_root = Path(temp_dir)
@@ -238,6 +281,11 @@ class FeatToTestSetWorkflowTests(FeatToTestSetWorkflowHarness):
             self.assertEqual(test_set["max_expansion_rounds"], 2)
             self.assertTrue(test_set["branch_families"])
             self.assertTrue(test_set["expansion_hints"])
+            self._assert_coverage_model(test_set)
+            self.assertTrue(bundle_json["functional_areas"])
+            self.assertTrue(bundle_json["logic_dimensions"])
+            self.assertTrue(bundle_json["state_model"])
+            self.assertTrue(bundle_json["coverage_matrix"])
             self.assertTrue(any("pending_state" in ref for unit in test_set["test_units"] for ref in unit["supporting_refs"]))
             self.assertTrue(any("gate_pending_ref" in ref for unit in test_set["test_units"] for ref in unit["supporting_refs"]))
             self.assertTrue(any("assigned_gate_queue" in ref for unit in test_set["test_units"] for ref in unit["supporting_refs"]))
@@ -306,6 +354,7 @@ class FeatToTestSetWorkflowTests(FeatToTestSetWorkflowHarness):
                     )
                     test_set = yaml.safe_load((artifacts_dir / "test-set.yaml").read_text(encoding="utf-8"))
                     drift = json.loads((artifacts_dir / "semantic-drift-check.json").read_text(encoding="utf-8"))
+                    bundle_json = json.loads((artifacts_dir / "test-set-bundle.json").read_text(encoding="utf-8"))
 
                     combined = "\n".join(
                         [
@@ -314,11 +363,17 @@ class FeatToTestSetWorkflowTests(FeatToTestSetWorkflowHarness):
                             json.dumps(test_set.get("environment_assumptions"), ensure_ascii=False),
                             json.dumps(test_set.get("preconditions"), ensure_ascii=False),
                             json.dumps(test_set.get("test_units"), ensure_ascii=False),
+                            json.dumps(test_set.get("functional_areas"), ensure_ascii=False),
+                            json.dumps(test_set.get("logic_dimensions"), ensure_ascii=False),
+                            json.dumps(test_set.get("state_model"), ensure_ascii=False),
+                            json.dumps(test_set.get("coverage_matrix"), ensure_ascii=False),
                             json.dumps(test_set.get("pass_criteria"), ensure_ascii=False),
                             json.dumps(test_set.get("evidence_required"), ensure_ascii=False),
                             json.dumps(test_set.get("acceptance_traceability"), ensure_ascii=False),
                         ]
                     )
+                    feature_flags = json.dumps(test_set.get("required_environment_inputs", {}).get("feature_flags"), ensure_ascii=False)
+                    evidence_required = json.dumps(test_set.get("evidence_required"), ensure_ascii=False)
                     self.assertEqual(drift["verdict"], "pass")
                     self.assertTrue(drift["semantic_lock_present"])
                     for marker in required_markers:
@@ -329,6 +384,43 @@ class FeatToTestSetWorkflowTests(FeatToTestSetWorkflowHarness):
                         for unit in test_set.get("test_units", []):
                             self.assertNotIn(marker, unit.get("title", ""))
                             self.assertNotIn(marker, " ".join(unit.get("pass_conditions", [])))
+                    self.assertNotIn("gated rollout", feature_flags)
+                    self.assertNotIn("cutover", feature_flags)
+                    self.assertNotIn("guarded branch", feature_flags)
+                    if feature["axis_id"] != "minimal-onboarding-flow":
+                        self.assertNotIn("pilot", evidence_required)
+                    self.assertTrue(bundle_json["functional_areas"])
+                    self.assertTrue(bundle_json["logic_dimensions"])
+                    self.assertTrue(bundle_json["state_model"])
+                    self.assertTrue(bundle_json["coverage_matrix"])
+
+    def test_legacy_inputs_still_derive_typed_coverage_model(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            repo_root = Path(temp_dir)
+            feature = self._legacy_compatibility_feature("FEAT-SRC-001-LEGACY-COMPAT")
+            artifacts_dir = self._run_feature(repo_root, feature, "input-legacy-compat", "output-legacy-compat")
+
+            test_set = yaml.safe_load((artifacts_dir / "test-set.yaml").read_text(encoding="utf-8"))
+            bundle_json = json.loads((artifacts_dir / "test-set-bundle.json").read_text(encoding="utf-8"))
+            strategy_yaml = yaml.safe_load((artifacts_dir / "strategy-draft.yaml").read_text(encoding="utf-8"))
+
+            self.assertEqual(test_set["ssot_type"], "TESTSET")
+            self.assertTrue(test_set["functional_areas"])
+            self.assertTrue(test_set["logic_dimensions"])
+            self.assertTrue(test_set["state_model"])
+            self.assertTrue(test_set["coverage_matrix"])
+            self.assertTrue(bundle_json["functional_areas"])
+            self.assertTrue(bundle_json["logic_dimensions"])
+            self.assertTrue(bundle_json["state_model"])
+            self.assertTrue(bundle_json["coverage_matrix"])
+            self.assertTrue(strategy_yaml["functional_areas"])
+            self.assertTrue(strategy_yaml["logic_dimensions"])
+            self.assertTrue(strategy_yaml["state_model"])
+            self.assertTrue(strategy_yaml["coverage_matrix"])
+            self.assertTrue(all(unit.get("functional_area_key") for unit in test_set["test_units"]))
+            self.assertTrue(all(unit.get("case_family") for unit in test_set["test_units"]))
+            self.assertTrue(all(unit.get("logic_dimensions") for unit in test_set["test_units"]))
+            self.assertTrue(all(row.get("functional_area_keys") for row in test_set["acceptance_traceability"]))
 
     def test_revision_request_rerun_persists_revision_context_and_constraints(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -412,6 +504,69 @@ class FeatToTestSetWorkflowTests(FeatToTestSetWorkflowHarness):
             )
             self.assertTrue(any("Applied revision context:" in item for item in execution["key_decisions"]))
             self.assertTrue((artifacts_dir / "evidence-report.md").read_text(encoding="utf-8").find("revision_request_ref: revision-request.json") >= 0)
+
+    def test_supervisor_review_blocks_product_template_residue(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            repo_root = Path(temp_dir)
+            feature = self._first_ai_advice_feature("FEAT-SRC-001-REVIEW-GATE")
+            artifacts_dir = self._run_feature(repo_root, feature, "input-review-gate", "output-review-gate")
+
+            test_set = yaml.safe_load((artifacts_dir / "test-set.yaml").read_text(encoding="utf-8"))
+            test_set["required_environment_inputs"]["feature_flags"].append("selected FEAT 涉及的 gated rollout、cutover 或 guarded branch 开关")
+            test_set["test_units"][0]["title"] = "authoritative decision object residue"
+            (artifacts_dir / "test-set.yaml").write_text(
+                yaml.safe_dump(test_set, allow_unicode=True, sort_keys=False),
+                encoding="utf-8",
+            )
+
+            review = self.run_cmd(
+                "supervisor-review",
+                "--artifacts-dir",
+                str(artifacts_dir),
+                "--repo-root",
+                str(repo_root),
+                "--run-id",
+                "output-review-gate",
+                "--allow-update",
+            )
+            self.assertNotEqual(review.returncode, 0)
+
+            review_report = json.loads((artifacts_dir / "test-set-review-report.json").read_text(encoding="utf-8"))
+            acceptance_report = json.loads((artifacts_dir / "test-set-acceptance-report.json").read_text(encoding="utf-8"))
+            freeze_gate = json.loads((artifacts_dir / "test-set-freeze-gate.json").read_text(encoding="utf-8"))
+            supervision = json.loads((artifacts_dir / "supervision-evidence.json").read_text(encoding="utf-8"))
+
+            self.assertEqual(review_report["decision"], "revise")
+            self.assertEqual(acceptance_report["decision"], "revise")
+            self.assertEqual(freeze_gate["status"], "failed")
+            self.assertFalse(freeze_gate["ready_for_external_approval"])
+            self.assertFalse(supervision["semantic_gate"]["review_gate_ok"])
+            finding_titles = {item["title"] for item in review_report["findings"]}
+            self.assertIn("Generic template residue remains in TESTSET content", finding_titles)
+            self.assertIn("Stored semantic drift result is stale", finding_titles)
+
+            validate = self.run_cmd("validate-output", "--artifacts-dir", str(artifacts_dir))
+            self.assertNotEqual(validate.returncode, 0)
+            readiness = self.run_cmd("validate-package-readiness", "--artifacts-dir", str(artifacts_dir))
+            self.assertNotEqual(readiness.returncode, 0)
+
+    def test_supervisor_review_returns_zero_for_clean_product_package(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            repo_root = Path(temp_dir)
+            feature = self._first_ai_advice_feature("FEAT-SRC-001-SUPERVISOR-OK")
+            artifacts_dir = self._run_feature(repo_root, feature, "input-supervisor-ok", "output-supervisor-ok")
+
+            review = self.run_cmd(
+                "supervisor-review",
+                "--artifacts-dir",
+                str(artifacts_dir),
+                "--repo-root",
+                str(repo_root),
+                "--run-id",
+                "output-supervisor-ok",
+                "--allow-update",
+            )
+            self.assertEqual(review.returncode, 0, review.stdout + review.stderr)
 
     def test_explicit_web_feat_routes_to_web_test_exec(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:

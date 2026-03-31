@@ -8,132 +8,48 @@ import re
 from typing import Any
 
 from cli.lib.errors import ensure
+from cli.lib.formalization_materialize_common import (
+    ensure_publication_title,
+    existing_formal_record,
+    materialize_generic,
+    materialize_handoff,
+    resolve_src_target_path,
+)
 from cli.lib.formalization_render import (
     render_formal_epic_markdown,
     render_formal_feat_markdown,
     render_formal_impl_markdown,
     render_formal_src_markdown,
     render_formal_tech_markdown,
+    render_formal_ui_markdown,
     render_formal_testset_yaml,
 )
 from cli.lib.formalization_snapshot import (
-    assigned_id_from_path,
-    candidate_source_path,
     compliant_epic_path,
     compliant_feat_path,
     compliant_impl_path,
-    compliant_src_path,
+    candidate_source_path,
     compliant_tech_path,
+    compliant_ui_path,
     compliant_testset_path,
     default_formal_ref,
     formal_epic_output_path,
     formal_feat_output_path,
     formal_impl_output_path,
-    formal_src_output_path,
     formal_tech_output_path,
+    formal_ui_output_path,
     formal_testset_output_path,
     infer_target_formal_kind,
     metadata_for,
     extract_src_ref,
     next_epic_id,
-    next_src_id,
     read_candidate_snapshot,
     run_ref_for,
 )
+from cli.lib.formalization_tech_support import materialize_tech_supporting_artifacts
 from cli.lib.fs import canonical_to_path, load_json, to_canonical_path, write_json
 from cli.lib.managed_gateway import governed_write
-from cli.lib.registry_store import bind_record, record_path, resolve_registry_record, slugify
-
-
-def existing_formal_record(workspace_root: Path, formal_ref: str) -> dict[str, Any] | None:
-    target = record_path(workspace_root, formal_ref)
-    if not target.exists():
-        return None
-    return load_json(target)
-
-
-def materialize_handoff(workspace_root: Path, trace: dict[str, Any], candidate: dict[str, Any]) -> dict[str, str]:
-    source_path = candidate_source_path(workspace_root, candidate)
-    published_ref = to_canonical_path(source_path, workspace_root)
-    materialized_ssot_ref = "artifacts/active/ssot/materialized-handoff.json"
-    write_json(
-        workspace_root / materialized_ssot_ref,
-        {
-            "materialization_id": f"materialization-{slugify(candidate['artifact_ref'])}",
-            "ssot_type": "HANDOFF",
-            "candidate_ref": candidate["artifact_ref"],
-            "published_ref": published_ref,
-            "managed_artifact_ref": candidate["managed_artifact_ref"],
-        },
-    )
-    bind_record(
-        workspace_root,
-        default_formal_ref("handoff"),
-        published_ref,
-        "materialized",
-        trace,
-        metadata={"candidate_ref": candidate["artifact_ref"], "materialized_ssot_ref": materialized_ssot_ref},
-        lineage=[candidate["artifact_ref"]],
-    )
-    return {
-        "published_ref": published_ref,
-        "materialized_ssot_ref": materialized_ssot_ref,
-        "assigned_id": "",
-        "gateway_receipt_ref": "",
-    }
-
-
-def materialize_generic(
-    workspace_root: Path,
-    trace: dict[str, Any],
-    candidate: dict[str, Any],
-    source_path: Path,
-    formal_ref: str,
-    materialized_by: str,
-) -> dict[str, str]:
-    published_ref = to_canonical_path(source_path, workspace_root)
-    materialized_ssot_ref = f"artifacts/active/ssot/materialized-{slugify(formal_ref)}.json"
-    write_json(
-        workspace_root / materialized_ssot_ref,
-        {
-            "materialization_id": f"materialization-{slugify(formal_ref)}",
-            "ssot_type": "GENERIC",
-            "formal_ref": formal_ref,
-            "published_ref": published_ref,
-            "materialized_by": materialized_by,
-        },
-    )
-    bind_record(
-        workspace_root,
-        formal_ref,
-        published_ref,
-        "materialized",
-        trace,
-        metadata={"target_kind": "generic", "published_ref": published_ref},
-        lineage=[candidate["artifact_ref"]],
-    )
-    return {
-        "published_ref": published_ref,
-        "materialized_ssot_ref": materialized_ssot_ref,
-        "assigned_id": "",
-        "gateway_receipt_ref": to_canonical_path(workspace_root / materialized_ssot_ref, workspace_root),
-    }
-
-
-def _resolve_src_target_path(workspace_root: Path, formal_ref: str, title: str) -> tuple[str, Path]:
-    existing = existing_formal_record(workspace_root, formal_ref)
-    if existing:
-        existing_path = canonical_to_path(str(existing.get("managed_artifact_ref", "")), workspace_root)
-        if existing_path.exists() and compliant_src_path(existing_path, workspace_root):
-            return assigned_id_from_path(existing_path) or next_src_id(workspace_root), existing_path
-    assigned_id = next_src_id(workspace_root)
-    return assigned_id, formal_src_output_path(workspace_root, assigned_id, title)
-
-
-def _ensure_publication_title(title: str, target_kind: str, ref_value: str) -> str:
-    normalized = str(title or "").strip()
-    ensure(normalized, "PRECONDITION_FAILED", f"{target_kind} formalization requires non-empty title: {ref_value}")
-    return normalized
+from cli.lib.registry_store import bind_record, resolve_registry_record, slugify
 
 
 def materialize_src(
@@ -146,9 +62,9 @@ def materialize_src(
     materialized_by: str,
 ) -> dict[str, str]:
     snapshot = read_candidate_snapshot(workspace_root, source_path, candidate)
-    title = _ensure_publication_title(snapshot["title"], "src", str(candidate.get("artifact_ref") or formal_ref))
+    title = ensure_publication_title(snapshot["title"], "src", str(candidate.get("artifact_ref") or formal_ref))
     frozen_at = datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
-    assigned_id, target_path = _resolve_src_target_path(workspace_root, formal_ref, title)
+    assigned_id, target_path = resolve_src_target_path(workspace_root, formal_ref, title)
     write_result = governed_write(
         workspace_root,
         trace=trace,
@@ -233,7 +149,7 @@ def materialize_epic(
     materialized_by: str,
 ) -> dict[str, str]:
     snapshot = read_candidate_snapshot(workspace_root, source_path, candidate)
-    title = _ensure_publication_title(snapshot["title"], "epic", str(candidate.get("artifact_ref") or formal_ref))
+    title = ensure_publication_title(snapshot["title"], "epic", str(candidate.get("artifact_ref") or formal_ref))
     frozen_at = datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
     assigned_id, target_path = _resolve_epic_target_path(workspace_root, formal_ref, title, snapshot, candidate)
     write_result = governed_write(
@@ -306,7 +222,7 @@ def materialize_feat(
     gateway_receipt_refs: list[str] = []
     for feature in features:
         assigned_id = str(feature.get("feat_ref") or "").strip()
-        title = _ensure_publication_title(str(feature.get("title") or ""), "feat", assigned_id)
+        title = ensure_publication_title(str(feature.get("title") or ""), "feat", assigned_id)
         child_formal_ref = f"formal.feat.{slugify(assigned_id)}"
         existing = existing_formal_record(workspace_root, child_formal_ref)
         target_path: Path | None = None
@@ -372,7 +288,7 @@ def materialize_tech(
     snapshot = read_candidate_snapshot(workspace_root, source_path, candidate)
     candidate_json = snapshot["candidate_json"]
     assigned_id = str(candidate_json.get("tech_ref") or "").strip() or str(candidate["artifact_ref"]).replace("candidate.", "TECH-", 1)
-    title = _ensure_publication_title(str(candidate_json.get("title") or snapshot["title"]), "tech", assigned_id)
+    title = ensure_publication_title(str(candidate_json.get("title") or snapshot["title"]), "tech", assigned_id)
     existing = existing_formal_record(workspace_root, formal_ref)
     target_path: Path | None = None
     if existing:
@@ -393,6 +309,15 @@ def materialize_tech(
         overwrite=True,
     )
     published_ref = write_result["managed_artifact_ref"]
+    supporting = materialize_tech_supporting_artifacts(
+        workspace_root=workspace_root,
+        trace=trace,
+        candidate=candidate,
+        source_path=source_path,
+        snapshot=snapshot,
+        decision_ref=decision_ref,
+        frozen_at=frozen_at,
+    )
     materialized_ssot_ref = "artifacts/active/ssot/materialized-tech.json"
     write_json(
         workspace_root / materialized_ssot_ref,
@@ -401,6 +326,9 @@ def materialize_tech(
             "ssot_type": "TECH",
             "assigned_id": assigned_id,
             "output_path": published_ref,
+            "materialized_formal_refs": supporting["materialized_formal_refs"],
+            "published_refs": supporting["published_refs"],
+            "assigned_ids": supporting["assigned_ids"],
             "source_run_id": snapshot["workflow_run_id"],
             "source_skill": snapshot["workflow_key"] or "dev.feat-to-tech",
             "candidate_package_ref": snapshot["candidate_package_ref"],
@@ -427,6 +355,96 @@ def materialize_tech(
             extra_metadata={
                 "tech_ref": assigned_id,
                 "feat_ref": str(candidate_json.get("feat_ref") or "").strip(),
+                "arch_ref": str(candidate_json.get("arch_ref") or "").strip(),
+                "api_ref": str(candidate_json.get("api_ref") or "").strip(),
+                "materialized_formal_refs": supporting["materialized_formal_refs"],
+                "published_refs": supporting["published_refs"],
+                "assigned_ids": supporting["assigned_ids"],
+                "source_package_ref": snapshot["candidate_package_ref"],
+            },
+        ),
+        lineage=[candidate["artifact_ref"], decision_ref],
+    )
+    return {
+        "published_ref": published_ref,
+        "materialized_ssot_ref": materialized_ssot_ref,
+        "assigned_id": assigned_id,
+        "gateway_receipt_ref": write_result["receipt_ref"],
+        "materialized_formal_refs": supporting["materialized_formal_refs"],
+        "published_refs": supporting["published_refs"],
+        "assigned_ids": supporting["assigned_ids"],
+        "gateway_receipt_refs": supporting["gateway_receipt_refs"],
+    }
+
+
+def materialize_ui(
+    workspace_root: Path,
+    trace: dict[str, Any],
+    candidate: dict[str, Any],
+    source_path: Path,
+    decision_ref: str,
+    formal_ref: str,
+    materialized_by: str,
+) -> dict[str, Any]:
+    snapshot = read_candidate_snapshot(workspace_root, source_path, candidate)
+    candidate_json = snapshot["candidate_json"]
+    feat_ref = str(candidate_json.get("feat_ref") or "").strip()
+    assigned_id = str(candidate_json.get("ui_ref") or "").strip() or (f"UI-{feat_ref}" if feat_ref else formal_ref.split(".")[-1].upper())
+    title = ensure_publication_title(str(candidate_json.get("title") or snapshot["title"]), "ui", assigned_id)
+    existing = existing_formal_record(workspace_root, formal_ref)
+    target_path: Path | None = None
+    if existing:
+        existing_path = canonical_to_path(str(existing.get("managed_artifact_ref", "")), workspace_root)
+        if existing_path.exists() and compliant_ui_path(existing_path, workspace_root):
+            target_path = existing_path
+    if target_path is None:
+        target_path = formal_ui_output_path(workspace_root, assigned_id, title, snapshot["source_refs"])
+    frozen_at = datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
+    write_result = governed_write(
+        workspace_root,
+        trace=trace,
+        request_id=f"materialize-{slugify(assigned_id)}",
+        artifact_ref=formal_ref,
+        workspace_path=to_canonical_path(target_path, workspace_root),
+        requested_mode="promote",
+        content=render_formal_ui_markdown(snapshot, assigned_id, decision_ref, frozen_at),
+        overwrite=True,
+    )
+    published_ref = write_result["managed_artifact_ref"]
+    materialized_ssot_ref = "artifacts/active/ssot/materialized-ui.json"
+    write_json(
+        workspace_root / materialized_ssot_ref,
+        {
+            "materialization_id": f"materialization-{slugify(assigned_id)}",
+            "ssot_type": "UI",
+            "assigned_id": assigned_id,
+            "output_path": published_ref,
+            "source_run_id": snapshot["workflow_run_id"],
+            "source_skill": snapshot["workflow_key"] or "dev.feat-to-ui",
+            "candidate_package_ref": snapshot["candidate_package_ref"],
+            "gate_decision_ref": decision_ref,
+            "source_refs": snapshot["source_refs"],
+            "workflow_lineage_ref": snapshot["workflow_lineage_ref"],
+            "materialized_by": materialized_by,
+            "materialized_at": frozen_at,
+        },
+    )
+    bind_record(
+        workspace_root,
+        formal_ref,
+        published_ref,
+        "materialized",
+        trace,
+        metadata=metadata_for(
+            workspace_root,
+            candidate,
+            source_path,
+            "ui",
+            published_ref,
+            assigned_id=assigned_id,
+            extra_metadata={
+                "ui_ref": assigned_id,
+                "feat_ref": feat_ref,
                 "source_package_ref": snapshot["candidate_package_ref"],
             },
         ),
@@ -459,7 +477,7 @@ def materialize_testset(
         test_set_yaml = yaml.safe_load(test_set_path.read_text(encoding="utf-8")) or {}
     candidate_json = snapshot["candidate_json"]
     assigned_id = str(candidate_json.get("test_set_ref") or test_set_yaml.get("id") or "").strip() or formal_ref.split(".")[-1].upper()
-    title = _ensure_publication_title(str(candidate_json.get("title") or snapshot["title"]), "testset", assigned_id)
+    title = ensure_publication_title(str(candidate_json.get("title") or snapshot["title"]), "testset", assigned_id)
     existing = existing_formal_record(workspace_root, formal_ref)
     target_path: Path | None = None
     if existing:
@@ -540,7 +558,7 @@ def materialize_impl(
     snapshot = read_candidate_snapshot(workspace_root, source_path, candidate)
     candidate_json = snapshot["candidate_json"]
     assigned_id = str(candidate_json.get("impl_ref") or "").strip() or formal_ref.split(".")[-1].upper()
-    title = _ensure_publication_title(str(candidate_json.get("title") or snapshot["title"]), "impl", assigned_id)
+    title = ensure_publication_title(str(candidate_json.get("title") or snapshot["title"]), "impl", assigned_id)
     existing = existing_formal_record(workspace_root, formal_ref)
     target_path: Path | None = None
     if existing:
@@ -719,6 +737,10 @@ def materialize_formal(
         result = materialize_tech(
             workspace_root, trace, candidate, source_path, decision_ref, formal_ref, materialized_by_value
         )
+    elif effective_target_kind == "ui":
+        result = materialize_ui(
+            workspace_root, trace, candidate, source_path, decision_ref, formal_ref, materialized_by_value
+        )
     elif effective_target_kind == "testset":
         result = materialize_testset(
             workspace_root, trace, candidate, source_path, decision_ref, formal_ref, materialized_by_value
@@ -749,6 +771,6 @@ def materialize_formal(
 
 
 def _default_formal_artifact_ref(target_kind: str, run_ref: str) -> str:
-    if target_kind in {"src", "epic", "feat", "tech", "testset", "impl"} and run_ref:
+    if target_kind in {"src", "epic", "feat", "tech", "ui", "testset", "impl"} and run_ref:
         return f"formal.{target_kind}.{run_ref}"
     return default_formal_ref(target_kind)

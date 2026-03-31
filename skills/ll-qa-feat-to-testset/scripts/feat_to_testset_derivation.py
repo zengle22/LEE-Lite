@@ -15,6 +15,7 @@ from feat_to_testset_common import (
     unique_strings,
 )
 from feat_to_testset_environment import derive_required_environment_inputs as derive_required_environment_inputs_impl
+from feat_to_testset_coverage import build_test_design, derive_acceptance_traceability as derive_acceptance_traceability_design
 from feat_to_testset_profiles import (
     derive_feature_owned_code_paths,
     derive_priority,
@@ -29,10 +30,7 @@ from feat_to_testset_support import (
     derive_risk_focus as derive_risk_focus_impl,
     supporting_contract_refs as supporting_contract_refs_impl,
 )
-from feat_to_testset_units import (
-    derive_acceptance_traceability as derive_acceptance_traceability_impl,
-    derive_test_units as derive_test_units_impl,
-)
+from feat_to_testset_units import derive_test_units as derive_test_units_impl
 
 
 def governing_adrs(feature: dict[str, Any], package_json: dict[str, Any]) -> list[str]:
@@ -60,13 +58,19 @@ def derive_coverage_exclusions(feature: dict[str, Any]) -> list[str]:
 
 
 def derive_test_units(feature: dict[str, Any]) -> list[dict[str, Any]]:
-    layers = derive_test_layers(feature)
-    profile = feature_profile(feature)
-    return derive_test_units_impl(feature, layers, profile, derive_priority(feature), supporting_contract_refs(feature))
+    return build_test_design(feature)["test_units"]
 
 
-def derive_acceptance_traceability(feature: dict[str, Any], units: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    return derive_acceptance_traceability_impl(feature, units, feature_profile(feature))
+def derive_acceptance_traceability(
+    feature: dict[str, Any],
+    units: list[dict[str, Any]],
+    profile: str,
+    functional_areas: list[dict[str, Any]] | None = None,
+) -> list[dict[str, Any]]:
+    del profile
+    if functional_areas is not None:
+        return derive_acceptance_traceability_design(feature, units, functional_areas)
+    return build_test_design(feature)["acceptance_traceability"]
 
 
 def derive_risk_focus(feature: dict[str, Any]) -> list[str]:
@@ -111,6 +115,8 @@ def derive_expansion_hints(feature: dict[str, Any], units: list[dict[str, Any]])
                 str(unit.get("unit_ref") or "").strip(),
                 str(unit.get("acceptance_ref") or "").strip(),
                 str(unit.get("title") or "").strip(),
+                str(unit.get("functional_area_key") or "").strip(),
+                str(unit.get("case_family") or "").strip(),
             ]
         )
     return unique_strings([item for item in hints if item])
@@ -171,7 +177,11 @@ def derive_pass_criteria(feature: dict[str, Any]) -> list[str]:
     ]
     profile = feature_profile(feature)
     if derive_priority(feature) == "P1":
-        criteria.append("高风险或 adoption/E2E 路径需要明确的环境、数据与 pilot execution 前提。")
+        criteria.append(
+            "高风险或 adoption/E2E 路径需要明确的环境、数据与执行前提。"
+            if profile in {"minimal_onboarding", "first_ai_advice", "extended_profile_completion", "device_deferred_entry", "state_profile_boundary"}
+            else "高风险或 adoption/E2E 路径需要明确的环境、数据与 pilot execution 前提。"
+        )
     extras = {
         "minimal_onboarding": [
             "required fields invalid 时必须阻止 homepage entry，并留下字段级错误 evidence。",
@@ -192,6 +202,7 @@ def derive_pass_criteria(feature: dict[str, Any]) -> list[str]:
         "state_profile_boundary": [
             "primary_state / capability_flags 语义必须显式区分，不能混写。",
             "cross-boundary 冲突必须 fail closed，且 user_physical_profile 保持唯一事实源。",
+            "users / user_physical_profile / runner_profiles 三边界必须保持单一 canonical ownership 判定。",
         ],
         "runner_ready_job": [
             "approve 后必须产出 ready execution job，并保留 approve-to-job lineage。",
@@ -259,18 +270,22 @@ def derive_pass_criteria(feature: dict[str, Any]) -> list[str]:
 
 def derive_evidence_required(feature: dict[str, Any], layers: list[str]) -> list[str]:
     evidence = [
-        "analysis 与 strategy 形成过程的 execution evidence",
+        "analysis 与 strategy 形成过程的 derivation trace evidence",
         "supervisor 对 TESTSET 与 traceability 的 review evidence",
         "candidate package 的 machine-readable gate subject records",
     ]
     if "e2e" in layers:
-        evidence.append("若进入 e2e 层，需补充 pilot 链路或 UI/integration context 的执行前提证据")
+        evidence.append(
+            "若进入 e2e 层，需补充 pilot 链路执行前提证据"
+            if feature_profile(feature) == "pilot"
+            else "若进入 e2e 层，需补充 UI/integration context 的执行前提证据"
+        )
     extras = {
         "minimal_onboarding": ["minimal profile submission evidence", "homepage entry decision evidence", "deferred device entry evidence"],
         "first_ai_advice": ["first advice payload evidence", "risk gate verdict evidence", "fallback / completion prompt evidence"],
         "extended_profile_completion": ["task-card rendering evidence", "patch save evidence", "completion percent update evidence"],
         "device_deferred_entry": ["deferred device connection evidence", "skip / non-blocking failure evidence", "homepage preservation evidence"],
-        "state_profile_boundary": ["primary_state write evidence", "canonical ownership / conflict_blocked evidence", "unified-reader judgment evidence"],
+        "state_profile_boundary": ["primary_state write evidence", "users/user_physical_profile/runner_profiles ownership evidence", "canonical ownership / conflict_blocked evidence", "unified-reader judgment evidence"],
         "runner_ready_job": ["ready execution job evidence", "approve-to-job lineage evidence", "ready queue receipt"],
         "runner_operator_entry": ["runner invocation receipt", "runner context bootstrap evidence", "runner skill entry trace"],
         "runner_control_surface": ["runner control action record", "job ownership evidence", "control-plane state transition evidence"],
@@ -326,19 +341,24 @@ def derive_analysis_markdown(feature: dict[str, Any], package_json: dict[str, An
 
 
 def derive_strategy_yaml(feature: dict[str, Any], package_json: dict[str, Any]) -> dict[str, Any]:
-    layers = derive_test_layers(feature)
-    units = derive_test_units(feature)
+    design = build_test_design(feature)
+    layers = design["layers"]
+    units = design["test_units"]
     return {
         "strategy_id": f"strategy-{slugify(str(feature.get('feat_ref') or 'feat'))}",
         "selected_feat_ref": feature.get("feat_ref"),
-        "profile": feature_profile(feature),
-        "priority": derive_priority(feature),
+        "profile": design["profile"],
+        "priority": design["priority"],
         "test_layers": layers,
         "risk_focus": derive_risk_focus(feature),
         "environment_assumptions": derive_environment_assumptions(feature, layers),
         "coverage_exclusions": derive_coverage_exclusions(feature),
         "test_units": units,
-        "acceptance_traceability": derive_acceptance_traceability(feature, units),
+        "functional_areas": design["functional_areas"],
+        "logic_dimensions": design["logic_dimensions"],
+        "state_model": design["state_model"],
+        "coverage_matrix": design["coverage_matrix"],
+        "acceptance_traceability": design["acceptance_traceability"],
         "governing_adrs": governing_adrs(feature, package_json),
         "semantic_lock": normalize_semantic_lock(feature.get("semantic_lock")),
         "coverage_goal": derive_coverage_goal(feature),
@@ -387,8 +407,9 @@ def build_gate_subjects(run_id: str, feat_ref: str) -> dict[str, dict[str, Any]]
 
 def build_test_set_yaml(feature: dict[str, Any], package_json: dict[str, Any]) -> dict[str, Any]:
     feat_ref = str(feature.get("feat_ref") or "")
-    layers = derive_test_layers(feature)
-    units = derive_test_units(feature)
+    design = build_test_design(feature)
+    layers = design["layers"]
+    units = design["test_units"]
     test_set_yaml = {
         "id": derive_test_set_ref(feat_ref),
         "ssot_type": "TESTSET",
@@ -409,6 +430,10 @@ def build_test_set_yaml(feature: dict[str, Any], package_json: dict[str, Any]) -
         "branch_families": derive_branch_families(feature),
         "expansion_hints": derive_expansion_hints(feature, units),
         "qualification_expectation": derive_qualification_expectation(feature),
+        "functional_areas": design["functional_areas"],
+        "logic_dimensions": design["logic_dimensions"],
+        "state_model": design["state_model"],
+        "coverage_matrix": design["coverage_matrix"],
         "risk_focus": derive_risk_focus(feature),
         "preconditions": derive_preconditions(feature),
         "environment_assumptions": derive_environment_assumptions(feature, layers),
@@ -418,7 +443,7 @@ def build_test_set_yaml(feature: dict[str, Any], package_json: dict[str, Any]) -
         "coverage_exclusions": derive_coverage_exclusions(feature),
         "pass_criteria": derive_pass_criteria(feature),
         "evidence_required": derive_evidence_required(feature, layers),
-        "acceptance_traceability": derive_acceptance_traceability(feature, units),
+        "acceptance_traceability": derive_acceptance_traceability(feature, units, design["profile"], design["functional_areas"]),
         "source_refs": unique_strings(
             [f"product.epic-to-feat::{package_json.get('workflow_run_id')}", feat_ref]
             + ensure_list(feature.get("source_refs"))
