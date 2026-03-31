@@ -37,6 +37,7 @@ This skill is a lite-native governed workflow between `ll-product-src-to-epic` a
 6. Run `python scripts/epic_to_feat.py supervisor-review --artifacts-dir <feat-package-dir>` before freeze.
 7. Freeze only after the supervisor records a semantic pass and `python scripts/epic_to_feat.py freeze-guard --artifacts-dir <feat-package-dir>` returns success.
 8. Emit a downstream handoff that preserves `epic_freeze_ref`, `src_root_id`, `feat_refs`, and the downstream workflow list for governed TECH and TESTSET derivation.
+9. When external gate returns `revise` or `retry`, rerun `run`, `executor-run`, or `supervisor-review` with `--revision-request <revision-request.json>` so the regenerated FEAT bundle carries normalized revision context.
 
 ## Workflow Boundary
 
