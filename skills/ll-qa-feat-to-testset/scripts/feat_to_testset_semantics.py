@@ -7,6 +7,14 @@ from typing import Any
 
 from feat_to_testset_common import ensure_list, normalize_semantic_lock
 
+PRODUCT_AXIS_IDS = {
+    "minimal-onboarding-flow",
+    "first-ai-advice-release",
+    "extended-profile-progressive-completion",
+    "device-connect-deferred-entry",
+    "state-and-profile-boundary-alignment",
+}
+
 
 def build_semantic_drift_check(feature: dict[str, Any], bundle_json: dict[str, Any], test_set_yaml: dict[str, Any]) -> dict[str, Any]:
     lock = normalize_semantic_lock(feature.get("semantic_lock"))
@@ -77,6 +85,13 @@ def build_semantic_drift_check(feature: dict[str, Any], bundle_json: dict[str, A
             ]
         ):
             anchor_matches.append("execution_runner_signature")
+    axis_id = str(feature.get("axis_id") or "").strip().lower()
+    if axis_id in PRODUCT_AXIS_IDS:
+        matched_allowed = [
+            item for item in ensure_list(lock.get("allowed_capabilities")) if str(item).strip().lower() in generated_text
+        ]
+        if len(matched_allowed) >= 2:
+            anchor_matches.append("product_flow_axis")
     preserved = not forbidden_hits and len(anchor_matches) >= 1
     return {
         "verdict": "pass" if preserved else "reject",

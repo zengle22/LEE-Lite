@@ -9,6 +9,132 @@ from tests.unit.support_feat_to_testset import FeatToTestSetWorkflowHarness
 
 
 class FeatToTestSetWorkflowTests(FeatToTestSetWorkflowHarness):
+    def _run_feature(self, repo_root: Path, feature: dict[str, object], input_run_id: str, run_id: str) -> Path:
+        bundle = self.make_bundle_json(feature, run_id=input_run_id)
+        input_dir = self.make_feat_package(repo_root, input_run_id, bundle)
+        return self.run_testset_flow(repo_root, input_dir, str(feature["feat_ref"]), run_id)
+
+    def _minimal_onboarding_feature(self, feat_ref: str) -> dict[str, object]:
+        return {
+            "feat_ref": feat_ref,
+            "title": "最小建档主链能力",
+            "axis_id": "minimal-onboarding-flow",
+            "goal": "把首进链路收敛到最小建档页并在提交后立即放行首页。",
+            "scope": [
+                "登录/注册完成后进入单页最小建档页。",
+                "收集 gender、birthdate、height、weight、running_level、recent_injury_status。",
+                "提交成功后写下 profile_minimal_done 并立即进入首页，设备连接后置。",
+            ],
+            "constraints": [
+                "最小建档必须单页完成。",
+                "birthdate 是 canonical 年龄相关字段。",
+                "设备连接只能作为 deferred follow-up entry。",
+            ],
+            "dependencies": ["登录/注册已完成。", "homepage entry guard 可读取最小建档状态。"],
+            "acceptance_checks": [
+                {"id": f"{feat_ref}-AC-01", "scenario": "提交成功后立即进入首页", "given": "required fields valid", "when": "submit minimal profile", "then": "profile_minimal_done and homepage entry allowed"},
+                {"id": f"{feat_ref}-AC-02", "scenario": "缺失或非法字段时留在最小建档页", "given": "birthdate or required fields invalid", "when": "submit minimal profile", "then": "field-level errors are returned and homepage stays blocked"},
+                {"id": f"{feat_ref}-AC-03", "scenario": "设备连接保持后置", "given": "minimal profile submit succeeds", "when": "homepage opens", "then": "device connection remains deferred follow-up only"},
+            ],
+            "source_refs": [feat_ref, "EPIC-SRC-001-001", "SRC-001", "ADR-012"],
+        }
+
+    def _first_ai_advice_feature(self, feat_ref: str) -> dict[str, object]:
+        return {
+            "feat_ref": feat_ref,
+            "title": "首轮 AI 建议释放能力",
+            "axis_id": "first-ai-advice-release",
+            "goal": "最小输入满足时释放首轮 AI 建议。",
+            "scope": [
+                "最低输出固定为 training_advice_level、first_week_action、needs_more_info_prompt、device_connect_prompt。",
+                "running_level 与 recent_injury_status 作为风险门槛。",
+                "不要求扩展画像或设备数据先完成。",
+            ],
+            "constraints": [
+                "风险门槛字段缺失时不得放行正常建议分支。",
+                "首轮建议最低输出字段必须齐全。",
+            ],
+            "dependencies": ["minimal profile 已完成。"],
+            "acceptance_checks": [
+                {"id": f"{feat_ref}-AC-01", "scenario": "最小输入可出首轮建议", "given": "minimal profile ready and risk inputs present", "when": "generate first advice", "then": "training_advice_level and first_week_action are visible"},
+                {"id": f"{feat_ref}-AC-02", "scenario": "风险门槛字段缺失阻断正常建议", "given": "running_level or recent_injury_status missing", "when": "generate first advice", "then": "normal advice branch is blocked and a completion prompt is shown"},
+                {"id": f"{feat_ref}-AC-03", "scenario": "扩展画像和设备数据不是首轮建议前置", "given": "extended profile and device data are absent", "when": "homepage opens after minimal profile", "then": "first advice is still released"},
+            ],
+            "source_refs": [feat_ref, "EPIC-SRC-001-001", "SRC-001", "ADR-012"],
+        }
+
+    def _extended_profile_completion_feature(self, feat_ref: str) -> dict[str, object]:
+        return {
+            "feat_ref": feat_ref,
+            "title": "扩展画像渐进补全能力",
+            "axis_id": "extended-profile-progressive-completion",
+            "goal": "让用户在首页任务卡中渐进补全扩展画像。",
+            "scope": [
+                "首页任务卡暴露扩展画像补全项。",
+                "支持分步 patch 保存与 completion percent 更新。",
+                "保存失败不影响首页可用。",
+            ],
+            "constraints": [
+                "不得要求首日一次性完成完整画像。",
+                "patch save failure 必须保留 retry entry。",
+            ],
+            "dependencies": ["homepage 已进入。"],
+            "acceptance_checks": [
+                {"id": f"{feat_ref}-AC-01", "scenario": "首页任务卡驱动渐进补全", "given": "homepage entered", "when": "load task cards", "then": "user sees next profile completion tasks"},
+                {"id": f"{feat_ref}-AC-02", "scenario": "分步保存刷新完成度", "given": "patch fields valid", "when": "save patch", "then": "completion percent and next task cards refresh"},
+                {"id": f"{feat_ref}-AC-03", "scenario": "保存失败不回退主链", "given": "patch save fails", "when": "save patch", "then": "homepage remains usable and retry entry stays visible"},
+            ],
+            "source_refs": [feat_ref, "EPIC-SRC-001-001", "SRC-001", "ADR-012"],
+        }
+
+    def _device_deferred_entry_feature(self, feat_ref: str) -> dict[str, object]:
+        return {
+            "feat_ref": feat_ref,
+            "title": "设备连接后置增强能力",
+            "axis_id": "device-connect-deferred-entry",
+            "goal": "把设备连接固定为首页后的后置增强入口。",
+            "scope": [
+                "设备连接入口只在首页后出现。",
+                "用户可以 skip，失败不阻塞首页和首轮建议。",
+                "连接成功只增强体验，不覆盖 canonical facts。",
+            ],
+            "constraints": [
+                "设备连接不得阻塞首页进入。",
+                "设备连接不得阻塞首轮建议释放。",
+            ],
+            "dependencies": ["homepage 已进入。"],
+            "acceptance_checks": [
+                {"id": f"{feat_ref}-AC-01", "scenario": "首页后置设备入口可跳过", "given": "homepage entered", "when": "show device entry", "then": "user can skip without losing homepage access"},
+                {"id": f"{feat_ref}-AC-02", "scenario": "设备连接失败保持 non-blocking", "given": "device auth or sync fails", "when": "finalize device connection", "then": "homepage and first advice remain available"},
+                {"id": f"{feat_ref}-AC-03", "scenario": "设备数据只增强体验", "given": "device connection succeeds", "when": "process device result", "then": "enhancement becomes available without rewriting canonical facts"},
+            ],
+            "source_refs": [feat_ref, "EPIC-SRC-001-001", "SRC-001", "ADR-012"],
+        }
+
+    def _state_profile_boundary_feature(self, feat_ref: str) -> dict[str, object]:
+        return {
+            "feat_ref": feat_ref,
+            "title": "状态模型与存储边界统一能力",
+            "axis_id": "state-and-profile-boundary-alignment",
+            "goal": "统一 primary_state / capability_flags 与 canonical profile boundary。",
+            "scope": [
+                "primary_state 与 capability_flags 显式分离。",
+                "user_physical_profile 是身体字段唯一事实源。",
+                "冲突时 unified reader fail closed 并返回 conflict_blocked。",
+            ],
+            "constraints": [
+                "页面流转状态与业务完成状态不得混写。",
+                "projection stores 不得回写 canonical body facts。",
+            ],
+            "dependencies": ["状态边界服务与 unified reader 可被解析。"],
+            "acceptance_checks": [
+                {"id": f"{feat_ref}-AC-01", "scenario": "primary_state 与 capability_flags 显式分离", "given": "onboarding state changes", "when": "write state", "then": "primary_state and capability_flags remain distinct"},
+                {"id": f"{feat_ref}-AC-02", "scenario": "身体字段冲突时 user_physical_profile 胜出", "given": "cross-boundary body-field conflict", "when": "read unified state", "then": "user_physical_profile remains the canonical source and conflict_blocked can be returned"},
+                {"id": f"{feat_ref}-AC-03", "scenario": "统一读取层 fail closed", "given": "conflict remains unresolved", "when": "read unified onboarding state", "then": "downstream gating stops with a fail-closed verdict"},
+            ],
+            "source_refs": [feat_ref, "EPIC-SRC-001-001", "SRC-001", "ADR-012"],
+        }
+
     def test_run_emits_candidate_package_ready_for_external_approval(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             repo_root = Path(temp_dir)
@@ -140,6 +266,55 @@ class FeatToTestSetWorkflowTests(FeatToTestSetWorkflowHarness):
             self.assertEqual(validate.returncode, 0, validate.stderr)
             readiness = self.run_cmd("validate-package-readiness", "--artifacts-dir", str(artifacts_dir))
             self.assertEqual(readiness.returncode, 0, readiness.stderr)
+
+    def test_product_flow_features_emit_feature_specific_testsets(self) -> None:
+        cases = [
+            (
+                self._minimal_onboarding_feature("FEAT-SRC-001-001"),
+                ["profile_minimal_done", "homepage entry", "birthdate", "device connection remains deferred"],
+                ["wave_id", "compat_mode", "cutover_guard_ref", "pilot chain verifier"],
+            ),
+            (
+                self._first_ai_advice_feature("FEAT-SRC-001-002"),
+                ["training_advice_level", "first_week_action", "running_level", "recent_injury_status"],
+                ["authoritative decision object", "formal publication trigger"],
+            ),
+            (
+                self._extended_profile_completion_feature("FEAT-SRC-001-003"),
+                ["首页任务卡", "patch save", "completion percent", "retry entry"],
+                ["authoritative decision object", "formal publication trigger"],
+            ),
+            (
+                self._device_deferred_entry_feature("FEAT-SRC-001-004"),
+                ["device_failed_nonblocking", "device_skipped", "homepage access", "first advice"],
+                ["authoritative decision object", "formal publication trigger"],
+            ),
+            (
+                self._state_profile_boundary_feature("FEAT-SRC-001-005"),
+                ["primary_state", "capability_flags", "user_physical_profile", "conflict_blocked"],
+                ["authoritative decision object", "formal publication trigger"],
+            ),
+        ]
+        for feature, required_markers, forbidden_markers in cases:
+            with self.subTest(feat_ref=feature["feat_ref"]):
+                with tempfile.TemporaryDirectory() as temp_dir:
+                    artifacts_dir = self._run_feature(
+                        Path(temp_dir),
+                        feature,
+                        f"input-{feature['feat_ref']}",
+                        f"output-{feature['feat_ref'].lower()}",
+                    )
+                    bundle_md = (artifacts_dir / "test-set-bundle.md").read_text(encoding="utf-8")
+                    test_set = yaml.safe_load((artifacts_dir / "test-set.yaml").read_text(encoding="utf-8"))
+                    drift = json.loads((artifacts_dir / "semantic-drift-check.json").read_text(encoding="utf-8"))
+
+                    combined = bundle_md + "\n" + json.dumps(test_set, ensure_ascii=False)
+                    self.assertEqual(drift["verdict"], "pass")
+                    self.assertTrue(drift["semantic_lock_present"])
+                    for marker in required_markers:
+                        self.assertIn(marker, combined)
+                    for marker in forbidden_markers:
+                        self.assertNotIn(marker, combined)
 
     def test_revision_request_rerun_persists_revision_context_and_constraints(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:

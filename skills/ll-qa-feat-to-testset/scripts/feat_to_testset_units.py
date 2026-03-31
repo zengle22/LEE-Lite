@@ -246,6 +246,16 @@ def derive_test_units(
         return runner_feedback_units(feature, layers, priority, refs)
     if profile == "runner_observability":
         return runner_observability_units(feature, layers, priority, refs)
+    if profile == "minimal_onboarding":
+        return minimal_onboarding_units(feature, layers, priority, refs)
+    if profile == "first_ai_advice":
+        return first_ai_advice_units(feature, layers, priority, refs)
+    if profile == "extended_profile_completion":
+        return extended_profile_completion_units(feature, layers, priority, refs)
+    if profile == "device_deferred_entry":
+        return device_deferred_entry_units(feature, layers, priority, refs)
+    if profile == "state_profile_boundary":
+        return state_profile_boundary_units(feature, layers, priority, refs)
     if profile == "collaboration":
         return collaboration_units(feature, layers, priority, refs)
     if profile == "gate":
