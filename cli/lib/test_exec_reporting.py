@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import io
+import hashlib
 import json
 from pathlib import Path
 from typing import Any
@@ -156,6 +157,10 @@ def build_results_summary(
         "coverage": {
             "status": coverage_summary.get("status"),
             "line_rate_percent": coverage_summary.get("line_rate_percent"),
+            "branch_rate_percent": coverage_summary.get("branch_rate_percent"),
+            "branch_coverage": coverage_summary.get("branch_coverage"),
+            "covered_branches": coverage_summary.get("covered_branches"),
+            "num_branches": coverage_summary.get("num_branches"),
             "covered_lines": coverage_summary.get("covered_lines"),
             "num_statements": coverage_summary.get("num_statements"),
             "scope": coverage_summary.get("scope"),
@@ -170,10 +175,13 @@ def build_bug_bundle(case_results: list[dict[str, Any]], output_root: Path, work
     for item in case_results:
         if item["status"] != "failed":
             continue
-        bug_id = f"BUG-{slugify(item['case_id'])}"
+        digest = hashlib.sha1(str(item["case_id"]).encode("utf-8")).hexdigest()[:10]
+        bug_id = f"BUG-{slugify(item['case_id'])[:48]}-{digest}"
         bug_ref = to_canonical_path(bug_root / f"{bug_id}.json", workspace_root)
+        bug_path = canonical_to_path(bug_ref, workspace_root)
+        bug_path.parent.mkdir(parents=True, exist_ok=True)
         write_json(
-            workspace_root / bug_ref,
+            bug_path,
             {
                 "bug_id": bug_id,
                 "case_id": item["case_id"],
@@ -185,7 +193,9 @@ def build_bug_bundle(case_results: list[dict[str, Any]], output_root: Path, work
         )
         bugs.append({"bug_id": bug_id, "bug_ref": bug_ref, "case_id": item["case_id"]})
     index_ref = to_canonical_path(bug_root / "index.json", workspace_root)
-    write_json(workspace_root / index_ref, {"bugs": bugs})
+    index_path = canonical_to_path(index_ref, workspace_root)
+    index_path.parent.mkdir(parents=True, exist_ok=True)
+    write_json(index_path, {"bugs": bugs})
     return index_ref
 
 
@@ -228,6 +238,11 @@ def collect_coverage(
         "num_statements": 0,
         "missing_lines": 0,
         "line_rate_percent": None,
+        "branch_coverage": bool(environment.get("coverage_branch_enabled")),
+        "covered_branches": 0,
+        "num_branches": 0,
+        "missing_branches": 0,
+        "branch_rate_percent": None,
         "notes": [],
     }
     if not environment.get("coverage_enabled"):
@@ -247,7 +262,7 @@ def collect_coverage(
     coverage_dir = output_root / "coverage"
     coverage_dir.mkdir(parents=True, exist_ok=True)
     combined_data_file = coverage_dir / ".coverage"
-    cov = Coverage(data_file=str(combined_data_file))
+    cov = Coverage(data_file=str(combined_data_file), branch=bool(environment.get("coverage_branch_enabled")))
     raw_paths = [str(canonical_to_path(str(ref), workspace_root)) for ref in data_refs]
     cov.combine(data_paths=raw_paths, strict=False, keep=True)
     cov.save()
@@ -266,8 +281,17 @@ def collect_coverage(
             "num_statements": totals.get("num_statements"),
             "missing_lines": totals.get("missing_lines"),
             "line_rate_percent": round(float(line_rate), 2),
+            "branch_coverage": bool(details.get("meta", {}).get("branch_coverage", environment.get("coverage_branch_enabled"))),
+            "covered_branches": totals.get("covered_branches", 0),
+            "num_branches": totals.get("num_branches", 0),
+            "missing_branches": totals.get("missing_branches", 0),
         }
     )
+    if summary["num_branches"]:
+        try:
+            summary["branch_rate_percent"] = round((float(summary["covered_branches"]) / float(summary["num_branches"])) * 100.0, 2)
+        except (TypeError, ValueError, ZeroDivisionError):
+            summary["branch_rate_percent"] = None
     report_lines = [
         "# Coverage Report",
         "",
@@ -278,6 +302,15 @@ def collect_coverage(
         f"- measured_files: {summary['measured_files']}",
         f"- scope: {', '.join(summary['scope'])}",
     ]
+    if summary["branch_coverage"]:
+        report_lines.extend(
+            [
+                f"- branch_coverage: {summary['branch_coverage']}",
+                f"- branch_rate_percent: {summary['branch_rate_percent']}",
+                f"- covered_branches: {summary['covered_branches']}",
+                f"- num_branches: {summary['num_branches']}",
+            ]
+        )
     if summary["include"]:
         report_lines.append(f"- include: {', '.join(summary['include'])}")
     if summary["source"]:
@@ -389,7 +422,23 @@ def finalize_execution_outputs(
     output_validation = validate_outputs(workspace_root, case_pack, case_results, refs)
     write_json(workspace_root / refs["output_validation_ref"], output_validation)
     summary = build_results_summary(case_results, compliance, output_ok=output_validation["status"] == "pass", coverage_summary=coverage_summary)
+    summary["projection_mode"] = case_pack.get("projection_mode", "minimal_projection")
+    summary["generation_mode"] = case_pack.get("generation_mode", summary["projection_mode"])
+    summary["expansion_round"] = int(case_pack.get("expansion_round", 0) or 0)
+    summary["expansion_stop_reason"] = str(case_pack.get("expansion_stop_reason", ""))
+    summary["qualification_budget"] = case_pack.get("qualification_budget")
+    summary["qualification_lineage"] = case_pack.get("qualification_lineage", [])
     write_json(workspace_root / refs["results_summary_ref"], summary)
     write_text(workspace_root / refs["test_report_ref"], render_report(summary, compliance, case_results))
     write_json(workspace_root / refs["tse_ref"], build_tse_payload(trace, refs, summary["run_status"]))
-    return {"bug_bundle_ref": refs["bug_bundle_ref"], "run_status": summary["run_status"]}
+    return {
+        "bug_bundle_ref": refs["bug_bundle_ref"],
+        "run_status": summary["run_status"],
+        "coverage_summary": coverage_summary,
+        "projection_mode": summary["projection_mode"],
+        "generation_mode": summary["generation_mode"],
+        "expansion_round": summary["expansion_round"],
+        "qualification_budget": summary.get("qualification_budget"),
+        "expansion_stop_reason": summary.get("expansion_stop_reason", ""),
+        "qualification_lineage": summary.get("qualification_lineage", []),
+    }

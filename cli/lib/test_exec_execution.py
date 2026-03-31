@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import os
+import json
+import shutil
 import shlex
 import subprocess
 from pathlib import Path, PurePath
@@ -57,6 +59,298 @@ def _case_slug(case_id: str) -> str:
     tail = slugify(case_id.split("-")[-1])[-12:] or "case"
     digest = slugify(case_id)[-10:]
     return f"{tail}-{digest}"
+
+
+def _qualification_goal_percent(test_set: dict[str, Any]) -> float | None:
+    goal = test_set.get("coverage_goal")
+    if isinstance(goal, dict):
+        value = goal.get("line_rate_percent")
+        if value is None:
+            return None
+        try:
+            return float(value)
+        except (TypeError, ValueError):
+            return None
+    try:
+        return float(goal) if goal is not None else None
+    except (TypeError, ValueError):
+        return None
+
+
+def _qualification_budget(test_set: dict[str, Any], environment: dict[str, Any]) -> int:
+    raw_budget = environment.get("qualification_budget", test_set.get("qualification_budget", 1))
+    try:
+        return max(0, int(raw_budget))
+    except (TypeError, ValueError):
+        return 1
+
+
+def _qualification_max_rounds(test_set: dict[str, Any], environment: dict[str, Any]) -> int:
+    raw_value = environment.get("max_expansion_rounds", test_set.get("max_expansion_rounds", 1))
+    try:
+        return max(0, int(raw_value))
+    except (TypeError, ValueError):
+        return 1
+
+
+def _qualification_stop_reason(
+    test_set: dict[str, Any],
+    coverage_summary: dict[str, Any],
+    budget: int,
+) -> str:
+    status = str(coverage_summary.get("status", "")).strip().lower()
+    if status != "collected":
+        return "coverage_unavailable" if status in {"disabled", "unavailable"} else f"coverage_{status or 'unknown'}"
+    goal = _qualification_goal_percent(test_set)
+    line_rate = coverage_summary.get("line_rate_percent")
+    if goal is None:
+        return "no_coverage_goal"
+    try:
+        if float(line_rate or 0.0) >= goal:
+            return "coverage_goal_reached"
+    except (TypeError, ValueError):
+        return "coverage_goal_unknown"
+    if not bool(test_set.get("branch_families") or test_set.get("expansion_hints")):
+        return "no_expansion_hints"
+    return "qualification_budget_exhausted" if budget <= 0 else "coverage_below_goal"
+
+
+def _should_expand_qualification(
+    test_set: dict[str, Any],
+    coverage_summary: dict[str, Any],
+    budget: int,
+    round_index: int,
+    max_rounds: int,
+) -> bool:
+    if budget <= 0 or round_index >= max_rounds:
+        return False
+    if not bool(test_set.get("branch_families") or test_set.get("expansion_hints")):
+        return False
+    if str(coverage_summary.get("status", "")).strip().lower() != "collected":
+        return False
+    goal = _qualification_goal_percent(test_set)
+    if goal is None:
+        return False
+    try:
+        return float(coverage_summary.get("line_rate_percent") or 0.0) < goal
+    except (TypeError, ValueError):
+        return False
+def _qualification_lineage_entry(
+    round_index: int,
+    case_pack: dict[str, Any],
+    coverage_summary: dict[str, Any],
+    stop_reason: str,
+) -> dict[str, Any]:
+    return {
+        "round": round_index,
+        "projection_mode": case_pack.get("projection_mode", "minimal_projection"),
+        "generation_mode": case_pack.get("generation_mode", case_pack.get("projection_mode", "minimal_projection")),
+        "expansion_round": int(case_pack.get("expansion_round", 0) or 0),
+        "stop_reason": stop_reason,
+        "coverage_status": coverage_summary.get("status"),
+        "coverage_line_rate_percent": coverage_summary.get("line_rate_percent"),
+        "coverage_scope": coverage_summary.get("scope", []),
+    }
+
+
+def _coverage_expansion_targets(workspace_root: Path, refs: dict[str, str]) -> list[str]:
+    details_ref = refs.get("coverage_details_ref", "")
+    summary_ref = refs.get("coverage_summary_ref", "")
+    if not details_ref:
+        return []
+    details_path = canonical_to_path(details_ref, workspace_root)
+    if not details_path.exists():
+        return []
+    try:
+        payload = json.loads(details_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return []
+    branch_coverage_enabled = bool(payload.get("meta", {}).get("branch_coverage"))
+    files = payload.get("files", {})
+    if not isinstance(files, dict):
+        return []
+    include_order: list[str] = []
+    if summary_ref:
+        summary_path = canonical_to_path(summary_ref, workspace_root)
+        if summary_path.exists():
+            try:
+                summary_payload = json.loads(summary_path.read_text(encoding="utf-8"))
+            except (OSError, json.JSONDecodeError):
+                summary_payload = {}
+            include = summary_payload.get("include", [])
+            if isinstance(include, list):
+                for item in include:
+                    text = str(item).strip().lower()
+                    if text:
+                        include_order.append(text)
+
+    def _variants(value: str) -> list[str]:
+        path = Path(str(value))
+        raw = str(value).strip().lower().replace("\\", "/")
+        variants = [raw, path.as_posix().lower(), path.name.lower(), path.stem.lower()]
+        seen: list[str] = []
+        for item in variants:
+            if item and item not in seen:
+                seen.append(item)
+        return seen
+
+    def _priority_index(file_name: str) -> int:
+        variants = _variants(file_name)
+        for index, include_item in enumerate(include_order):
+            if any(variant == include_item or variant.endswith(include_item) or include_item.endswith(variant) for variant in variants):
+                return index
+        return len(include_order)
+
+    ranked_files: list[tuple[int, float, int, str, dict[str, Any]]] = []
+    for file_name, file_payload in files.items():
+        if not isinstance(file_payload, dict):
+            continue
+        missing_lines = file_payload.get("missing_lines", [])
+        if not isinstance(missing_lines, list):
+            continue
+        missing_branches = file_payload.get("missing_branches", [])
+        if not isinstance(missing_branches, list):
+            missing_branches = []
+        summary = file_payload.get("summary", {})
+        covered_ratio = 0.0
+        if isinstance(summary, dict):
+            try:
+                covered_ratio = float(summary.get("percent_covered", 0.0))
+            except (TypeError, ValueError):
+                covered_ratio = 0.0
+        ranked_files.append(
+            (
+                len(missing_lines) + len(missing_branches),
+                100.0 - covered_ratio,
+                _priority_index(str(file_name)),
+                str(file_name),
+                {
+                    "file_name": str(file_name),
+                    "missing_lines": sorted(
+                        {
+                            int(line)
+                            for line in missing_lines
+                            if not isinstance(line, bool)
+                            and str(line).strip().lstrip("-").isdigit()
+                        }
+                    ),
+                    "missing_branches": [str(item).strip() for item in missing_branches if str(item).strip()],
+                },
+            )
+        )
+    ranked_files.sort(key=lambda item: (-item[0], -item[1], item[2], item[3]))
+    targets: list[str] = []
+    for _, _, _, _, file_info in ranked_files:
+        file_slug = slugify(Path(file_info["file_name"]).stem) or "coverage-file"
+        if branch_coverage_enabled:
+            for branch in file_info["missing_branches"][:2]:
+                branch_slug = slugify(branch.replace("->", " to ")) or "branch"
+                targets.append(f"{file_slug}-missing-branch-{branch_slug}")
+        for line in file_info["missing_lines"][:3]:
+            targets.append(f"{file_slug}-missing-line-{line}")
+        if not branch_coverage_enabled:
+            for branch in file_info["missing_branches"][:2]:
+                branch_slug = slugify(branch.replace("->", " to ")) or "branch"
+                targets.append(f"{file_slug}-missing-branch-{branch_slug}")
+    return targets
+
+
+def _execute_round(
+    workspace_root: Path,
+    trace: dict[str, Any],
+    request_id: str,
+    action: str,
+    test_set: dict[str, Any],
+    environment: dict[str, Any],
+    payload: dict[str, Any],
+    case_pack: dict[str, Any],
+    output_root: Path,
+) -> dict[str, Any]:
+    evidence_root = output_root / "evidence"
+    ui_source_spec = normalize_ui_source_spec(payload)
+    context = resolve_ssot_context(test_set, environment, ui_source_spec)
+    runtime_probe_root: Path | None = None
+    if action == "test-exec-web-e2e":
+        write_playwright_project(workspace_root, output_root, case_pack, environment)
+        ensure_playwright_project(output_root / "playwright-project", environment)
+        runtime_probe_root = output_root / "playwright-project"
+    ui_intent = derive_ui_intent(case_pack, ui_source_spec)
+    ui_source_context = collect_ui_source_context(
+        workspace_root,
+        ui_source_spec,
+        environment,
+        case_pack,
+        project_root=runtime_probe_root,
+    )
+    ui_binding_map = resolve_ui_binding(case_pack, ui_intent, ui_source_spec, ui_source_context)
+    ui_flow_plan = derive_ui_flow_plan(case_pack, ui_binding_map)
+    case_pack = apply_ui_binding(case_pack, ui_binding_map)
+    case_pack = apply_ui_flow_plan(case_pack, ui_flow_plan)
+    script_pack = build_script_pack(action, environment, case_pack, ui_source_spec)
+    case_meta = build_freeze_meta("test_case_pack", case_pack)
+    refs = build_execution_refs(output_root, workspace_root)
+    write_pre_execution_artifacts(
+        workspace_root,
+        refs,
+        _write_yaml,
+        context,
+        ui_intent,
+        ui_source_context,
+        ui_binding_map,
+        ui_flow_plan,
+        case_pack,
+        case_meta,
+    )
+    case_runs, raw_output = execute_cases(workspace_root, output_root, action, case_pack, script_pack, environment, evidence_root)
+    outcome = finalize_execution_outputs(
+        workspace_root,
+        output_root,
+        refs,
+        trace,
+        case_pack,
+        script_pack,
+        environment,
+        case_runs,
+        raw_output,
+        build_freeze_meta,
+    )
+    return {
+        "refs": refs,
+        "case_pack": case_pack,
+        "script_pack": script_pack,
+        "case_runs": case_runs,
+        "raw_output": raw_output,
+        "context": context,
+        "ui_intent": ui_intent,
+        "ui_source_context": ui_source_context,
+        "ui_binding_map": ui_binding_map,
+        "ui_flow_plan": ui_flow_plan,
+        "case_meta": case_meta,
+        "outcome": outcome,
+        "coverage_summary": outcome.get("coverage_summary", {}),
+    }
+
+
+def _promote_round_artifacts(workspace_root: Path, source_refs: dict[str, str], target_refs: dict[str, str]) -> None:
+    for key in (
+        "resolved_ssot_context_ref",
+        "ui_intent_ref",
+        "ui_source_context_ref",
+        "ui_binding_map_ref",
+        "ui_flow_plan_ref",
+        "test_case_pack_ref",
+        "test_case_pack_meta_ref",
+    ):
+        source_ref = source_refs.get(key, "")
+        target_ref = target_refs.get(key, "")
+        if not source_ref or not target_ref:
+            continue
+        source_path = canonical_to_path(source_ref, workspace_root)
+        target_path = canonical_to_path(target_ref, workspace_root)
+        if not source_path.exists():
+            continue
+        target_path.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(source_path, target_path)
 
 
 def _evidence_refs(case_dir: Path, workspace_root: Path) -> dict[str, str]:
@@ -164,6 +458,8 @@ def execute_case(
     diagnostics: list[str] = []
     if coverage_enabled:
         run_command, run_with_shell, coverage_status, coverage_reason = _coverage_command(command_entry, workspace_root, refs["coverage_data_ref"])
+        if isinstance(run_command, list) and bool(environment.get("coverage_branch_enabled")):
+            run_command = [*run_command[:4], "--branch", *run_command[4:]]
         ensure(not coverage_reason, "PRECONDITION_FAILED", coverage_reason)
     stdout_text, stderr_text, exit_code, raw_status, run_diagnostics = _run_subprocess(
         run_command,
@@ -239,53 +535,106 @@ def run_narrow_execution(
         ensure(command_entry, "PRECONDITION_FAILED", "execution command is required")
     run_slug = slugify(f"{action}-{request_id}")
     output_root = workspace_root / "artifacts" / "active" / "qa" / "executions" / run_slug
-    evidence_root = output_root / "evidence"
-    ui_source_spec = normalize_ui_source_spec(payload)
-    context = resolve_ssot_context(test_set, environment, ui_source_spec)
-    raw_case_pack = build_test_case_pack(test_set)
-    runtime_probe_root: Path | None = None
-    if action == "test-exec-web-e2e":
-        write_playwright_project(workspace_root, output_root, raw_case_pack, environment)
-        ensure_playwright_project(output_root / "playwright-project", environment)
-        runtime_probe_root = output_root / "playwright-project"
-    ui_intent = derive_ui_intent(raw_case_pack, ui_source_spec)
-    ui_source_context = collect_ui_source_context(
-        workspace_root,
-        ui_source_spec,
+    coverage_mode = str(environment.get("coverage_mode", "")).strip().lower()
+    qualification_budget = _qualification_budget(test_set, environment)
+    max_expansion_rounds = _qualification_max_rounds(test_set, environment)
+    if coverage_mode != "qualification":
+        case_pack = build_test_case_pack(test_set, environment)
+        round_result = _execute_round(workspace_root, trace, request_id, action, test_set, environment, payload, case_pack, output_root)
+        return {**round_result["refs"], **round_result["outcome"]}
+
+    round0_root = output_root / "qualification-rounds" / "round-0"
+    round0_pack = build_test_case_pack(
+        test_set,
         environment,
-        raw_case_pack,
-        project_root=runtime_probe_root,
+        projection_mode="minimal_projection",
+        qualification_budget=qualification_budget,
+        max_expansion_rounds=max_expansion_rounds,
+        qualification_stop_reason="minimal_projection_only",
+        expansion_round=0,
     )
-    ui_binding_map = resolve_ui_binding(raw_case_pack, ui_intent, ui_source_spec, ui_source_context)
-    ui_flow_plan = derive_ui_flow_plan(raw_case_pack, ui_binding_map)
-    case_pack = apply_ui_binding(raw_case_pack, ui_binding_map)
-    case_pack = apply_ui_flow_plan(case_pack, ui_flow_plan)
-    script_pack = build_script_pack(action, environment, case_pack, ui_source_spec)
-    case_meta = build_freeze_meta("test_case_pack", case_pack)
-    refs = build_execution_refs(output_root, workspace_root)
-    write_pre_execution_artifacts(
-        workspace_root,
-        refs,
-        _write_yaml,
-        context,
-        ui_intent,
-        ui_source_context,
-        ui_binding_map,
-        ui_flow_plan,
-        case_pack,
-        case_meta,
-    )
-    case_runs, raw_output = execute_cases(workspace_root, output_root, action, case_pack, script_pack, environment, evidence_root)
-    outcome = finalize_execution_outputs(
+    round0_result = _execute_round(workspace_root, trace, request_id, action, test_set, environment, payload, round0_pack, round0_root)
+    stop_reason = _qualification_stop_reason(test_set, round0_result["coverage_summary"], qualification_budget)
+    lineage = [_qualification_lineage_entry(0, round0_pack, round0_result["coverage_summary"], stop_reason)]
+    final_result = round0_result
+    final_pack = dict(round0_pack)
+    stable_expansion_targets: list[str] = []
+    round_index = 0
+
+    while _should_expand_qualification(
+        test_set,
+        final_result["coverage_summary"],
+        max(0, qualification_budget - round_index),
+        round_index,
+        max_expansion_rounds,
+    ):
+        round_index += 1
+        round_root = output_root / "qualification-rounds" / f"round-{round_index}"
+        expansion_targets = _coverage_expansion_targets(workspace_root, final_result["refs"])
+        if expansion_targets:
+            stable_expansion_targets = expansion_targets
+        elif stable_expansion_targets:
+            expansion_targets = stable_expansion_targets
+        round_pack = build_test_case_pack(
+            test_set,
+            environment,
+            projection_mode="qualification_expansion",
+            qualification_lineage=lineage,
+            qualification_budget=qualification_budget,
+            qualification_round=round_index,
+            qualification_revision=round_index,
+            max_expansion_rounds=max_expansion_rounds,
+            qualification_stop_reason="coverage_feedback_applied",
+            expansion_round=round_index,
+            expansion_targets=expansion_targets,
+        )
+        round_result = _execute_round(workspace_root, trace, request_id, action, test_set, environment, payload, round_pack, round_root)
+        stop_reason = _qualification_stop_reason(
+            test_set,
+            round_result["coverage_summary"],
+            max(0, qualification_budget - round_index),
+        )
+        lineage = lineage + [_qualification_lineage_entry(round_index, round_pack, round_result["coverage_summary"], stop_reason)]
+        final_result = round_result
+        final_pack = dict(round_pack)
+
+    final_pack["qualification_lineage"] = lineage
+    final_pack["expansion_stop_reason"] = stop_reason
+    final_pack["qualification_max_expansion_rounds"] = max_expansion_rounds
+
+    if round_index == 0:
+        final_refs = build_execution_refs(output_root, workspace_root)
+        _promote_round_artifacts(workspace_root, round0_result["refs"], final_refs)
+        _write_yaml(workspace_root / final_refs["test_case_pack_ref"], final_pack)
+        write_json(workspace_root / final_refs["test_case_pack_meta_ref"], build_freeze_meta("test_case_pack", final_pack))
+        final_outcome = finalize_execution_outputs(
+            workspace_root,
+            output_root,
+            final_refs,
+            trace,
+            final_pack,
+            round0_result["script_pack"],
+            environment,
+            round0_result["case_runs"],
+            round0_result["raw_output"],
+            build_freeze_meta,
+        )
+        return {**final_refs, **final_outcome}
+
+    final_refs = build_execution_refs(output_root, workspace_root)
+    _promote_round_artifacts(workspace_root, final_result["refs"], final_refs)
+    _write_yaml(workspace_root / final_refs["test_case_pack_ref"], final_pack)
+    write_json(workspace_root / final_refs["test_case_pack_meta_ref"], build_freeze_meta("test_case_pack", final_pack))
+    final_outcome = finalize_execution_outputs(
         workspace_root,
         output_root,
-        refs,
+        final_refs,
         trace,
-        case_pack,
-        script_pack,
+        final_pack,
+        final_result["script_pack"],
         environment,
-        case_runs,
-        raw_output,
+        final_result["case_runs"],
+        final_result["raw_output"],
         build_freeze_meta,
     )
-    return {**refs, **outcome}
+    return {**final_refs, **final_outcome}

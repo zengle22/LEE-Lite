@@ -126,6 +126,7 @@ def _apply_testset_coverage_defaults(test_set: dict[str, Any], environment: dict
     if mode == "qualification":
         resolved["coverage_mode"] = "qualification"
         resolved["coverage_enabled"] = True
+        resolved["qualification_budget"] = environment.get("qualification_budget", test_set.get("qualification_budget", 1))
         if explicit_scope:
             resolved["coverage_scope_origin"] = "environment"
             return resolved
@@ -150,6 +151,16 @@ def _apply_testset_coverage_defaults(test_set: dict[str, Any], environment: dict
     return resolved
 
 
+def _validate_testset_execution_boundary(test_set: dict[str, Any]) -> None:
+    ensure(test_set.get("ssot_type") == "TESTSET", "PRECONDITION_FAILED", "test_set_ref must resolve to a TESTSET")
+    ensure(isinstance(test_set.get("test_units", []), list), "PRECONDITION_FAILED", "TESTSET must define test_units as strategy anchors")
+    ensure(
+        not bool(test_set.get("test_case_pack") or test_set.get("script_pack")),
+        "PRECONDITION_FAILED",
+        "TESTSET must not embed execution artifacts such as test_case_pack or script_pack",
+    )
+
+
 def execute_test_exec_skill(
     workspace_root: Path,
     trace: dict[str, Any],
@@ -159,7 +170,7 @@ def execute_test_exec_skill(
 ) -> dict[str, str]:
     test_set = load_yaml_document(str(payload.get("test_set_ref", "")), workspace_root)
     environment = load_yaml_document(str(payload.get("test_environment_ref", "")), workspace_root)
-    ensure(test_set.get("ssot_type") == "TESTSET", "PRECONDITION_FAILED", "test_set_ref must resolve to a TESTSET")
+    _validate_testset_execution_boundary(test_set)
     environment = _apply_testset_coverage_defaults(test_set, environment)
     _validate_environment(action, environment)
     execution_result = run_narrow_execution(workspace_root, trace, request_id, action, test_set, environment, payload)
