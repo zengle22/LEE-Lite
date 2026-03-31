@@ -10,6 +10,7 @@ import sys
 from pathlib import Path
 from typing import Any
 
+from cli.lib.workflow_document_test import build_document_test_report, build_fixability_section
 from feat_to_tech_common import dump_json, load_json, parse_markdown_frontmatter, render_markdown
 
 
@@ -57,8 +58,45 @@ def write_markdown(path: Path, frontmatter: dict[str, Any], body: str) -> None:
     path.write_text(render_markdown(frontmatter, body), encoding="utf-8")
 
 
+def _document_test_report(generated: Any) -> dict[str, Any]:
+    defects = list(generated.defect_list)
+    revision_context = generated.json_payload.get("revision_context") or {}
+    issues = [str(item.get("title") or "").strip() for item in defects if str(item.get("title") or "").strip()]
+    missing_contracts = [name for name, required in {"arch_design": generated.json_payload["arch_required"], "api_contract": generated.json_payload["api_required"]}.items() if required and not generated.json_payload["artifact_refs"].get("arch_spec" if name == "arch_design" else "api_spec")]
+    fixability = build_fixability_section(
+        recommended_next_action="workflow_rebuild" if defects else "submit_to_external_gate",
+        recommended_actor="workflow_rebuild" if defects else "external_gate_review",
+        rebuild_required=len(defects),
+    )
+    return build_document_test_report(
+        workflow_key="dev.feat-to-tech",
+        run_id=generated.run_id,
+        tested_at=str(generated.acceptance_report["created_at"]),
+        defect_list=defects,
+        revision_request_ref=str(revision_context.get("revision_request_ref") or ""),
+        structural={"package_integrity": True, "traceability_integrity": bool(generated.json_payload.get("source_refs")), "blocking": False},
+        logic_consistency={"checked_topics": ["design_focus", "consistency", "artifact_projection", "downstream_handoff"], "conflicts_found": issues, "severity": "blocking" if defects else "none", "blocking": bool(defects)},
+        downstream_readiness={
+            "downstream_target": "dev.tech-to-impl",
+            "consumption_contract_ref": "skills/ll-dev-feat-to-tech/ll.contract.yaml#validation.document_test.downstream_consumption_contract",
+            "ready_for_gate_review": not defects,
+            "blocking_gaps": issues,
+            "missing_contracts": missing_contracts,
+            "assumption_leaks": [str(item) for item in generated.json_payload["design_consistency_check"].get("minor_open_items") or [] if str(item).strip()],
+        },
+        semantic_drift={
+            "revision_context_present": bool(revision_context),
+            "drift_detected": generated.semantic_drift_check.get("verdict") != "pass",
+            "drift_items": list(generated.semantic_drift_check.get("axis_conflicts") or []) + list(generated.semantic_drift_check.get("carrier_topic_issues") or []),
+            "semantic_lock_preserved": generated.semantic_drift_check.get("semantic_lock_preserved", True),
+        },
+        fixability=fixability,
+    )
+
+
 def write_executor_outputs(output_dir: Path, repo_root: Path, package: Any, generated: Any, command_name: str) -> None:
     revision_context = generated.json_payload.get("revision_context") or {}
+    document_test_report = _document_test_report(generated)
     output_dir.mkdir(parents=True, exist_ok=True)
     arch_path = output_dir / "arch-design.md"
     api_path = output_dir / "api-contract.md"
@@ -79,6 +117,7 @@ def write_executor_outputs(output_dir: Path, repo_root: Path, package: Any, gene
     dump_json(output_dir / "tech-review-report.json", generated.review_report)
     dump_json(output_dir / "tech-acceptance-report.json", generated.acceptance_report)
     dump_json(output_dir / "tech-defect-list.json", generated.defect_list)
+    dump_json(output_dir / "document-test-report.json", document_test_report)
     dump_json(output_dir / "handoff-to-tech-impl.json", generated.handoff)
     dump_json(output_dir / "semantic-drift-check.json", generated.semantic_drift_check)
     dump_json(
@@ -94,6 +133,7 @@ def write_executor_outputs(output_dir: Path, repo_root: Path, package: Any, gene
             "review_report_ref": str(output_dir / "tech-review-report.json"),
             "acceptance_report_ref": str(output_dir / "tech-acceptance-report.json"),
             "defect_list_ref": str(output_dir / "tech-defect-list.json"),
+            "document_test_report_ref": str(output_dir / "document-test-report.json"),
             "handoff_ref": str(output_dir / "handoff-to-tech-impl.json"),
             "semantic_drift_check_ref": str(output_dir / "semantic-drift-check.json"),
             "execution_evidence_ref": str(output_dir / "execution-evidence.json"),
@@ -139,6 +179,7 @@ def write_executor_outputs(output_dir: Path, repo_root: Path, package: Any, gene
                 "cli_executor_commit_ref": str(cli_commit["response_path"]),
                 "cli_executor_receipt_ref": cli_commit["response"]["data"].get("receipt_ref", ""),
                 "cli_executor_registry_record_ref": cli_commit["response"]["data"].get("registry_record_ref", ""),
+                "document_test_outcome": document_test_report["test_outcome"],
             },
             "key_decisions": generated.execution_decisions,
             "uncertainties": generated.execution_uncertainties,
@@ -150,6 +191,7 @@ def write_executor_outputs(output_dir: Path, repo_root: Path, package: Any, gene
 def build_supervision_evidence(artifacts_dir: Path, generated: Any) -> dict[str, Any]:
     decision = "pass" if not generated.defect_list else "revise"
     revision_context = generated.json_payload.get("revision_context") or {}
+    document_test_report = _document_test_report(generated)
     findings = [
         {
             "title": "TECH package aligned to selected FEAT" if decision == "pass" else "TECH package requires revision",
@@ -166,6 +208,8 @@ def build_supervision_evidence(artifacts_dir: Path, generated: Any) -> dict[str,
         "semantic_findings": findings,
         "decision": decision,
         "reason": "TECH package passed semantic review." if decision == "pass" else "TECH package needs revision before freeze.",
+        "document_test_report_ref": str(artifacts_dir / "document-test-report.json"),
+        "document_test_outcome": document_test_report["test_outcome"],
         **({"revision_context": revision_context} if revision_context else {}),
     }
 
@@ -173,6 +217,8 @@ def build_supervision_evidence(artifacts_dir: Path, generated: Any) -> dict[str,
 def build_gate_result(generated: Any, supervision_evidence: dict[str, Any]) -> dict[str, Any]:
     consistency = generated.json_payload["design_consistency_check"]
     revision_context = generated.json_payload.get("revision_context") or {}
+    document_test_report = _document_test_report(generated)
+    document_test_non_blocking = document_test_report["test_outcome"] == "no_blocking_defect_found"
     checks = {
         "execution_evidence_present": True,
         "supervision_evidence_present": True,
@@ -181,6 +227,8 @@ def build_gate_result(generated: Any, supervision_evidence: dict[str, Any]) -> d
         "cross_artifact_consistency_passed": consistency["passed"],
         "downstream_handoff_present": True,
         "semantic_lock_preserved": generated.semantic_drift_check.get("semantic_lock_preserved", True),
+        "document_test_report_present": document_test_report["test_outcome"] in {"no_blocking_defect_found", "blocking_defect_found", "inconclusive", "not_applicable"},
+        "document_test_non_blocking": document_test_non_blocking,
     }
     freeze_ready = supervision_evidence["decision"] == "pass" and all(checks.values())
     return {
@@ -204,6 +252,7 @@ def update_supervisor_outputs(
     gate: dict[str, Any],
 ) -> None:
     bundle_json = load_json(artifacts_dir / "tech-design-bundle.json")
+    document_test_report = _document_test_report(generated)
     updated_json = dict(bundle_json)
     updated_json["status"] = "accepted" if supervision["decision"] == "pass" else "revised"
     revision_context = updated_json.get("revision_context") or {}
@@ -222,12 +271,14 @@ def update_supervisor_outputs(
     dump_json(artifacts_dir / "tech-review-report.json", generated.review_report)
     dump_json(artifacts_dir / "tech-acceptance-report.json", generated.acceptance_report)
     dump_json(artifacts_dir / "tech-defect-list.json", generated.defect_list)
+    dump_json(artifacts_dir / "document-test-report.json", document_test_report)
     dump_json(artifacts_dir / "semantic-drift-check.json", generated.semantic_drift_check)
     dump_json(artifacts_dir / "supervision-evidence.json", supervision)
     dump_json(artifacts_dir / "tech-freeze-gate.json", gate)
     manifest = load_json(artifacts_dir / "package-manifest.json")
     manifest["status"] = updated_json["status"]
     manifest["cli_supervisor_commit_ref"] = str(cli_commit["response_path"])
+    manifest["document_test_report_ref"] = str(artifacts_dir / "document-test-report.json")
     if revision_context:
         manifest["revision_request_ref"] = revision_context.get("revision_request_ref", "")
         manifest["revision_summary"] = revision_context.get("summary", "")
@@ -246,6 +297,7 @@ def collect_evidence_report(artifacts_dir: Path) -> Path:
     supervision = load_json(artifacts_dir / "supervision-evidence.json")
     gate = load_json(artifacts_dir / "tech-freeze-gate.json")
     bundle = load_json(artifacts_dir / "tech-design-bundle.json")
+    document_test = load_json(artifacts_dir / "document-test-report.json")
     revision_context = bundle.get("revision_context") or {}
     report_path = artifacts_dir / "evidence-report.md"
     report_path.write_text(
@@ -274,6 +326,12 @@ def collect_evidence_report(artifacts_dir: Path) -> Path:
                 "",
                 f"- decision: {gate.get('decision')}",
                 f"- freeze_ready: {gate.get('freeze_ready')}",
+                "",
+                "## Document Test",
+                "",
+                f"- test_outcome: {document_test.get('test_outcome')}",
+                f"- recommended_next_action: {document_test.get('recommended_next_action')}",
+                f"- recommended_actor: {document_test.get('recommended_actor')}",
             ]
         )
         + "\n",

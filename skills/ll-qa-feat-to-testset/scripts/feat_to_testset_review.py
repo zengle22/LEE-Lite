@@ -138,7 +138,6 @@ def update_supervisor_outputs(artifacts_dir: Path, repo_root: Path, supervision:
     acceptance_report = load_json(artifacts_dir / "test-set-acceptance-report.json")
     freeze_gate = load_json(artifacts_dir / "test-set-freeze-gate.json")
     semantic_drift_check = load_json(artifacts_dir / "semantic-drift-check.json")
-    document_test_report = load_json(artifacts_dir / "document-test-report.json")
     blocking = [item for item in supervision.get("semantic_findings") or [] if str(item.get("severity") or "") in {"P0", "P1"}]
     passed = supervision.get("decision") == "pass"
     manifest_status = "approval_pending" if passed else "review_pending"
@@ -171,6 +170,17 @@ def update_supervisor_outputs(artifacts_dir: Path, repo_root: Path, supervision:
             "updated_at": _utc_now(),
         }
     )
+    document_test_report = build_document_test(
+        run_id=str(bundle_json.get("workflow_run_id") or artifacts_dir.name),
+        tested_at=_utc_now(),
+        bundle_json=bundle_json,
+        semantic_drift_check=semantic_drift_check,
+        defects=supervision.get("semantic_findings") or [],
+        downstream_target=str(bundle_json.get("downstream_target") or ""),
+        required_environment_inputs=load_json(artifacts_dir / "handoff-to-test-execution.json").get("required_environment_inputs"),
+        revision_context=revision_context or None,
+        ready_for_gate_review=passed,
+    )
     freeze_gate.update(
         {
             "status": gate_status,
@@ -185,22 +195,11 @@ def update_supervisor_outputs(artifacts_dir: Path, repo_root: Path, supervision:
                 "handoff_present": True,
                 "required_environment_inputs_present": not blocking,
                 "semantic_lock_preserved": semantic_drift_check.get("semantic_lock_preserved", True),
-                "document_test_report_present": True,
+                "document_test_report_present": document_test_report.get("test_outcome") in {"no_blocking_defect_found", "blocking_defect_found", "inconclusive", "not_applicable"},
                 "document_test_non_blocking": passed,
             },
             "updated_at": _utc_now(),
         }
-    )
-    document_test_report = build_document_test(
-        run_id=str(bundle_json.get("workflow_run_id") or artifacts_dir.name),
-        tested_at=_utc_now(),
-        bundle_json=bundle_json,
-        semantic_drift_check=semantic_drift_check,
-        defects=supervision.get("semantic_findings") or [],
-        downstream_target=str(bundle_json.get("downstream_target") or ""),
-        required_environment_inputs=load_json(artifacts_dir / "handoff-to-test-execution.json").get("required_environment_inputs"),
-        revision_context=revision_context or None,
-        ready_for_gate_review=passed,
     )
     cli_commit = refresh_supervisor_bundle(repo_root, artifacts_dir, manifest_status)
     dump_json(artifacts_dir / "test-set-bundle.json", bundle_json)

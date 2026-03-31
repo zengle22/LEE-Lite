@@ -8,6 +8,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
+from cli.lib.workflow_document_test import validate_document_test_report
 from feat_to_tech_common import ensure_list, load_json, parse_markdown_frontmatter
 
 REQUIRED_OUTPUT_FILES = [
@@ -17,6 +18,7 @@ REQUIRED_OUTPUT_FILES = [
     "tech-review-report.json",
     "tech-acceptance-report.json",
     "tech-defect-list.json",
+    "document-test-report.json",
     "tech-freeze-gate.json",
     "handoff-to-tech-impl.json",
     "semantic-drift-check.json",
@@ -83,6 +85,7 @@ def validate_output_package(artifacts_dir: Path) -> tuple[list[str], dict[str, A
     validate_optional_outputs(errors, artifacts_dir, arch_required, api_required)
     validate_consistency_sections(errors, artifacts_dir, bundle_json)
     validate_handoff(errors, artifacts_dir)
+    errors.extend(validate_document_test_report(load_json(artifacts_dir / "document-test-report.json")))
     validate_adr007_adoption(errors, bundle_json)
     validate_explicit_product_axis_resolution(errors, bundle_json)
     return errors, {

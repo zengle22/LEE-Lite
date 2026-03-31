@@ -5,6 +5,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
+from cli.lib.workflow_document_test import build_document_test_report, build_fixability_section
 from tech_to_impl_builder import DOWNSTREAM_TEMPLATE_ID, DOWNSTREAM_TEMPLATE_PATH
 from tech_to_impl_common import dump_json, ensure_list, load_json, parse_markdown_frontmatter, render_markdown
 from tech_to_impl_derivation import workstream_required_inputs
@@ -44,26 +45,26 @@ def _build_document_test_report(generated: dict[str, Any]) -> dict[str, Any]:
     consistency = generated["consistency"]
     semantic_drift = generated["semantic_drift_check"]
     blocking_found = (not consistency["passed"]) or semantic_drift.get("verdict") == "reject"
-    return {
-        "workflow_key": "dev.tech-to-impl",
-        "run_id": generated["bundle_json"]["workflow_run_id"],
-        "tested_at": datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z"),
-        "test_outcome": "blocking_defect_found" if blocking_found else "no_blocking_defect_found",
-        "defect_counts": {"blocking": 1 if blocking_found else 0, "non_blocking": 0},
-        "recommended_next_action": "workflow_rebuild" if blocking_found else "supervisor_review",
-        "recommended_actor": "workflow_rebuild" if blocking_found else "supervisor_handoff",
-        "sections": {
-            "structural": {"status": "pass", "summary": "Core implementation package artifacts were generated."},
-            "logic_consistency": {"status": "pass" if consistency["passed"] else "fail", "issues": consistency["issues"]},
-            "downstream_readiness": {"status": "pending", "summary": "Awaiting supervisor confirmation."},
-            "semantic_drift": {"status": semantic_drift.get("verdict"), "summary": semantic_drift.get("summary")},
-            "fixability": {"status": "rebuild_required" if blocking_found else "local_semantic_fixable"},
-            "canonical_package": {"status": "pass", "summary": "Package semantics are projected as canonical execution package only."},
-            "freshness": {"status": "pass", "summary": "Package marked fresh_on_generation at creation time."},
-            "discrepancy": {"status": "pass", "summary": "Repo discrepancy policy requires explicit handling before truth changes."},
-            "self_contained_boundary": {"status": "pass", "summary": "Package projects minimum sufficient information, not upstream mirroring."},
-        },
-    }
+    revision_context = generated["bundle_json"].get("revision_context") if isinstance(generated["bundle_json"].get("revision_context"), dict) else {}
+    report = build_document_test_report(
+        workflow_key="dev.tech-to-impl",
+        run_id=generated["bundle_json"]["workflow_run_id"],
+        tested_at=datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z"),
+        defect_list=[{"severity": "P1", "title": item} for item in consistency["issues"]] if blocking_found else [],
+        revision_request_ref=str(revision_context.get("revision_request_ref") or ""),
+        structural={"package_integrity": True, "traceability_integrity": bool(generated["bundle_json"].get("source_refs")), "blocking": False},
+        logic_consistency={"checked_topics": ["workstreams", "handoff", "evidence_plan", "canonical_boundary"], "conflicts_found": list(consistency["issues"]), "severity": "blocking" if blocking_found else "none", "blocking": blocking_found},
+        downstream_readiness={"downstream_target": "template.dev.feature_delivery_l2", "consumption_contract_ref": "skills/ll-dev-tech-to-impl/ll.contract.yaml#validation.document_test.downstream_consumption_contract", "ready_for_gate_review": not blocking_found, "blocking_gaps": list(consistency["issues"]), "missing_contracts": [], "assumption_leaks": []},
+        semantic_drift={"revision_context_present": bool(revision_context), "drift_detected": semantic_drift.get("verdict") == "reject", "drift_items": list(semantic_drift.get("forbidden_axis_detected") or []), "semantic_lock_preserved": semantic_drift.get("semantic_lock_preserved", True)},
+        fixability=build_fixability_section(recommended_next_action="workflow_rebuild" if blocking_found else "submit_to_external_gate", recommended_actor="workflow_rebuild" if blocking_found else "external_gate_review", rebuild_required=1 if blocking_found else 0),
+    )
+    report["sections"].update({
+        "canonical_package": {"status": "pass", "summary": "Package semantics are projected as canonical execution package only."},
+        "freshness": {"status": "pass", "summary": "Package marked fresh_on_generation at creation time."},
+        "discrepancy": {"status": "pass", "summary": "Repo discrepancy policy requires explicit handling before truth changes."},
+        "self_contained_boundary": {"status": "pass", "summary": "Package projects minimum sufficient information, not upstream mirroring."},
+    })
+    return report
 
 
 def write_executor_outputs(output_dir: Path, package: Any, generated: dict[str, Any], command_name: str) -> None:

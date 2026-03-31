@@ -256,11 +256,12 @@ def supervisor_review(
         supervision["revision_round"] = revision_round
     update_supervisor_outputs(artifacts_dir, supervision)
     smoke_gate = load_json(artifacts_dir / "smoke-gate-subject.json")
+    document_test_report = load_json(artifacts_dir / "document-test-report.json")
     proposal_ref = ""
     gate_ready_package_ref = ""
     authoritative_handoff_ref = ""
     gate_pending_ref = ""
-    if smoke_gate.get("ready_for_execution") is True:
+    if smoke_gate.get("ready_for_execution") is True and document_test_report.get("test_outcome") == "no_blocking_defect_found":
         bundle_json = load_json(artifacts_dir / "impl-bundle.json")
         registry_record_ref = _register_impl_candidate(repo_root, artifacts_dir, bundle_json)
         active_run_id = str(bundle_json.get("workflow_run_id") or run_id or artifacts_dir.name)

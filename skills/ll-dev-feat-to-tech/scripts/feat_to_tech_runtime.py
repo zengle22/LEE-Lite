@@ -103,6 +103,8 @@ def validate_package_readiness(artifacts_dir: Path) -> tuple[bool, list[str]]:
     gate = load_json(artifacts_dir / "tech-freeze-gate.json")
     checks = gate.get("checks") or {}
     readiness_errors = [name for name, status in checks.items() if status is not True]
+    if load_json(artifacts_dir / "document-test-report.json").get("test_outcome") != "no_blocking_defect_found":
+        readiness_errors.append("document_test_non_blocking")
     return not readiness_errors, readiness_errors
 
 def executor_run(

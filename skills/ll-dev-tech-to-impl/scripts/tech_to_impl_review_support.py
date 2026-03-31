@@ -8,6 +8,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
+from cli.lib.workflow_document_test import validate_document_test_report
 from tech_to_impl_common import ensure_list, load_json, parse_markdown_frontmatter
 from tech_to_impl_builder import DOWNSTREAM_TEMPLATE_ID, DOWNSTREAM_TEMPLATE_PATH
 from tech_to_impl_derivation import workstream_required_inputs
@@ -72,6 +73,7 @@ def validate_output_package(artifacts_dir: Path) -> tuple[list[str], dict[str, A
     document_test = load_json(artifacts_dir / "document-test-report.json")
     semantic_drift_check = load_json(artifacts_dir / "semantic-drift-check.json")
 
+    errors.extend(validate_document_test_report(document_test))
     errors.extend(check_bundle_identity(bundle_json))
     errors.extend(check_source_refs(bundle_json))
     errors.extend(check_markdown_sections(artifacts_dir))
@@ -314,6 +316,8 @@ def validate_package_readiness(artifacts_dir: Path) -> tuple[bool, list[str]]:
         readiness_errors.append("impl-acceptance-report.json decision must be approve.")
     if smoke_gate.get("ready_for_execution") is not True:
         readiness_errors.append("smoke-gate-subject.json must mark ready_for_execution true.")
+    if load_json(artifacts_dir / "document-test-report.json").get("test_outcome") != "no_blocking_defect_found":
+        readiness_errors.append("document_test_non_blocking")
     if not isinstance(evidence_plan.get("rows"), list) or not evidence_plan.get("rows"):
         readiness_errors.append("dev-evidence-plan.json rows must be non-empty.")
     return not readiness_errors, readiness_errors
