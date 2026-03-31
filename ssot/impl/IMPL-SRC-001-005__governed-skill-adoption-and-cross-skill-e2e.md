@@ -23,14 +23,25 @@ workflow_instance_id: manual-impl-src-001-005-20260325
 package_semantics: canonical_execution_package
 authority_scope: execution_input_only
 selected_upstream_refs:
-  - ADR-014
-  - TECH-SRC-001-005
-  - API-SRC-001-005
-  - API-SRC-001-001
-  - FEAT-SRC-001-005
+  feat_ref: FEAT-SRC-001-005
+  tech_ref: TECH-SRC-001-005
+  authority_refs:
+    - ADR-014
+    - ADR-005
+    - ADR-006
+    - ARCH-SRC-001-001
+    - ARCH-SRC-001-003
+    - API-SRC-001-005
+    - API-SRC-001-001
 provisional_refs: []
 freshness_status: manual_snapshot_requires_rederive_on_upstream_change
 self_contained_policy: minimum_sufficient_information_not_upstream_mirror
+rederive_triggers:
+  - upstream_ref_version_change
+  - acceptance_contract_change
+  - ui_api_testset_contract_change
+  - touch_set_expands_beyond_declared_scope
+repo_discrepancy_status: explicit_discrepancy_handling_required
 conflict_policy: upstream_frozen_objects_override_repo_shape_and_manual_impl_text
 properties:
   feat_ref: FEAT-SRC-001-005
@@ -53,6 +64,7 @@ properties:
 - 它不是新的技术设计层。
 - 它只收敛执行所需最小充分信息，不镜像上游全文。
 - 若上游 ref、验收口径或 touch set 变化，必须重派生或重审 freshness。
+- repo 现状只能作为 discrepancy signal，不能反向升格为 truth source。
 
 ## 1. 本次目标
 

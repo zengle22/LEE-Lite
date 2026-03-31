@@ -24,10 +24,15 @@
 
 当前目录下的 `IMPL` 文档应优先遵循以下阅读口径：
 
+- 先看 frontmatter 里的 `package_semantics / authority_scope / selected_upstream_refs / freshness_status / repo_discrepancy_status`
 - 先看 `Selected Upstream` / `Traceability`
 - 再看 `Implementation Task`、`Integration Plan`、`Evidence Plan`
 - 若文档中存在 `Required / Suggested`、`Normative / Informative` 或 provisional 标记，应以这些分层解释执行优先级
 - 若 `IMPL` 与 `TESTSET` 冲突，以 `TESTSET` 为准；若与 `TECH / API / UI` 冲突，以上游冻结对象为准
+
+新增或补建 `IMPL` 时，优先从以下模板起手：
+
+- `ssot/impl/IMPL_CONTRACT_TEMPLATE.md`
 
 与 `FEAT-SRC-001-005` 对应的 governed skill onboarding matrix 现行落点为：
 

@@ -12,9 +12,37 @@ workflow_run_id: adr018-runner-entry-impl-20260327-r3
 candidate_package_ref: artifacts/tech-to-impl/adr018-runner-entry-impl-20260327-r3
 gate_decision_ref: artifacts/active/gates/decisions/gate-decision-impl-src-003-002.json
 frozen_at: '2026-03-27T02:59:38Z'
+package_semantics: canonical_execution_package
+authority_scope: execution_input_only
+selected_upstream_refs:
+  feat_ref: FEAT-SRC-003-002
+  tech_ref: TECH-SRC-003-002
+  authority_refs:
+    - ARCH-SRC-003-002
+    - API-SRC-003-002
+    - ADR-014
+    - ADR-018
+provisional_refs: []
+freshness_status: manual_snapshot_requires_rederive_on_upstream_change
+rederive_triggers:
+  - upstream_ref_version_change
+  - acceptance_contract_change
+  - ui_api_testset_contract_change
+  - touch_set_expands_beyond_declared_scope
+repo_discrepancy_status: explicit_discrepancy_handling_required
+self_contained_policy: minimum_sufficient_information_not_upstream_mirror
 ---
 
 # Runner 用户入口流 Implementation Task Package
+
+## Package Semantics
+
+- `package_semantics`: canonical execution package / execution-time single entrypoint
+- `authority_scope`: execution input only，不是业务、设计或测试事实源
+- `selected_upstream_refs`: 只消费已冻结 `FEAT / TECH / ARCH / API / ADR` 约束
+- `freshness_status`: 上游 ref、验收口径或 touch set 变化时必须重派生或重审
+- `repo_discrepancy_status`: repo 现状只能暴露差异，不能静默替代上游冻结真相
+- `self_contained_policy`: 收敛执行最小充分信息，不镜像上游全文
 
 ## Selected Upstream
 
