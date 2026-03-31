@@ -138,6 +138,7 @@ def update_supervisor_outputs(artifacts_dir: Path, repo_root: Path, supervision:
     acceptance_report = load_json(artifacts_dir / "test-set-acceptance-report.json")
     freeze_gate = load_json(artifacts_dir / "test-set-freeze-gate.json")
     semantic_drift_check = load_json(artifacts_dir / "semantic-drift-check.json")
+    revision_context = bundle_json.get("revision_context") or {}
     blocking = [item for item in supervision.get("semantic_findings") or [] if str(item.get("severity") or "") in {"P0", "P1"}]
     passed = supervision.get("decision") == "pass"
     manifest_status = "approval_pending" if passed else "review_pending"

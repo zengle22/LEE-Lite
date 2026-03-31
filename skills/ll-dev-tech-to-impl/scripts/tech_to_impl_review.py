@@ -67,6 +67,42 @@ def _build_document_test_report(generated: dict[str, Any]) -> dict[str, Any]:
     return report
 
 
+def _updated_document_test_sections(
+    document_test_report: dict[str, Any],
+    *,
+    passed: bool,
+    blocking: list[dict[str, Any]],
+) -> dict[str, Any]:
+    sections = document_test_report.get("sections") if isinstance(document_test_report.get("sections"), dict) else {}
+    downstream = dict(sections.get("downstream_readiness") or {})
+    downstream.update(
+        {
+            "status": "pass" if passed else "fail",
+            "summary": "Supervisor confirmed downstream execution entry conditions." if passed else "Supervisor found blocking downstream execution issues.",
+            "ready_for_gate_review": passed,
+            "blocking_gaps": [str(item.get("title") or "") for item in blocking if str(item.get("title") or "").strip()],
+        }
+    )
+    fixability = dict(sections.get("fixability") or {})
+    fixability.update(
+        {
+            "mechanical_fixable": 0 if passed else int(fixability.get("mechanical_fixable") or 0),
+            "local_semantic_fixable": 0 if passed else int(fixability.get("local_semantic_fixable") or 0),
+            "rebuild_required": 0 if passed else max(1, int(fixability.get("rebuild_required") or 0)),
+            "human_judgement_required": int(fixability.get("human_judgement_required") or 0),
+            "recommended_next_action": "external_gate_review" if passed else "workflow_rebuild",
+            "recommended_actor": "external_gate_review" if passed else "workflow_rebuild",
+            "status": "local_semantic_fixable" if passed else "rebuild_required",
+            "summary": "Supervisor confirmed no blocking document-level repair remains." if passed else "Supervisor requires workflow rebuild before downstream execution.",
+        }
+    )
+    return {
+        **sections,
+        "downstream_readiness": downstream,
+        "fixability": fixability,
+    }
+
+
 def write_executor_outputs(output_dir: Path, package: Any, generated: dict[str, Any], command_name: str) -> None:
     output_dir.mkdir(parents=True, exist_ok=True)
     revision_metadata = _revision_metadata(generated)
@@ -292,14 +328,7 @@ def update_supervisor_outputs(artifacts_dir: Path, supervision: dict[str, Any]) 
             "defect_counts": {"blocking": len(blocking), "non_blocking": 0},
             "recommended_next_action": "external_gate_review" if passed else "workflow_rebuild",
             "recommended_actor": "external_gate_review" if passed else "workflow_rebuild",
-            "sections": {
-                **(document_test_report.get("sections") or {}),
-                "downstream_readiness": {
-                    "status": "pass" if passed else "fail",
-                    "summary": "Supervisor confirmed downstream execution entry conditions." if passed else "Supervisor found blocking downstream execution issues.",
-                },
-                "fixability": {"status": "local_semantic_fixable" if passed else "rebuild_required"},
-            },
+            "sections": _updated_document_test_sections(document_test_report, passed=passed, blocking=blocking),
             **revision_metadata,
         }
     )

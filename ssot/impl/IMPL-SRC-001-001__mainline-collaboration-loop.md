@@ -138,7 +138,7 @@ properties:
 ## Downstream Handoff
 
 - target template: `template.dev.feature_delivery_l2`
-- primary artifact: `impl-task.md` equivalent is this IMPL SSOT
+- primary artifact: `impl-task.md` equivalent is this IMPL canonical execution package / execution-time single entrypoint
 - supporting refs:
   - `TECH-SRC-001-001`
   - `ARCH-SRC-001-002`
