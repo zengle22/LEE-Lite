@@ -20,6 +20,18 @@ source_refs:
 owner: dev-owner
 workflow_key: manual.impl.from-tech
 workflow_instance_id: manual-impl-src-001-005-20260325
+package_semantics: canonical_execution_package
+authority_scope: execution_input_only
+selected_upstream_refs:
+  - ADR-014
+  - TECH-SRC-001-005
+  - API-SRC-001-005
+  - API-SRC-001-001
+  - FEAT-SRC-001-005
+provisional_refs: []
+freshness_status: manual_snapshot_requires_rederive_on_upstream_change
+self_contained_policy: minimum_sufficient_information_not_upstream_mirror
+conflict_policy: upstream_frozen_objects_override_repo_shape_and_manual_impl_text
 properties:
   feat_ref: FEAT-SRC-001-005
   tech_ref: TECH-SRC-001-005
@@ -31,22 +43,43 @@ properties:
 
 # Governed Skill Adoption and Cross-Skill E2E Implementation Task
 
-## 1. 目标
+## 0. Package Semantics
+
+本对象是本次实施的 `canonical package / execution-time single entrypoint`，用于把上游已冻结的 `FEAT / TECH / API / ADR` 约束收敛成一次可执行输入。
+
+同时明确：
+
+- 它不是业务、设计或测试事实的 SSOT。
+- 它不是新的技术设计层。
+- 它只收敛执行所需最小充分信息，不镜像上游全文。
+- 若上游 ref、验收口径或 touch set 变化，必须重派生或重审 freshness。
+
+## 1. 本次目标
 
 实现 governed skill onboarding、pilot 验证、cutover/fallback 与跨 skill E2E evidence，让主链能力从 foundation 进入真实接入阶段。
 
 本次实施不重写 foundation FEAT 的内部实现。
 
-## 2. 上游依赖
+## 2. Selected Upstream
 
-- `API-SRC-001-005`：rollout / onboarding contract
-- `API-SRC-001-001`：governed runtime baseline, including shared revision-return contract
-- `ADR-006`：pilot 链必须经过 gate / formal publish
-- `ADR-005`：正式对象和 evidence 仍走治理主链
-- 上游 TECH：`TECH-SRC-001-005`
-- 上游 API：
-  - `lee rollout onboard-skill`
-  - `lee audit submit-pilot-evidence`
+- `FEAT-SRC-001-005`：定义 governed skill onboarding 与 cross-skill E2E 的目标边界。
+- `TECH-SRC-001-005`：定义本次实施的主技术设计与模块切分。
+- `API-SRC-001-005`：提供 rollout / onboarding contract。
+- `API-SRC-001-001`：提供 governed runtime baseline 与 shared revision-return contract。
+- `ADR-014`：将 `IMPL` 定义为技术设计下游的正式实施候选冻结层。
+- `ADR-005` / `ADR-006`：约束正式对象、gate、pilot 与 publish 主链规则。
+
+### Normative / MUST
+
+- pilot 链必须经过 `gate / formal publish`，不得绕过治理主链。
+- 不得重新定义 `Gateway / Gate / Registry contract`。
+- repo 现状若与上游冻结对象冲突，不得默认以代码现状为准，必须先做 discrepancy handling。
+- touch set 超出当前实现范围时，不得在本 IMPL 内直接扩边，必须回上游重冻或补派生。
+
+### Informative / Context Only
+
+- foundation 尚在稳定期，因此 pilot evidence 的真实性依赖 rollout 节奏。
+- compat mode、wave state 与 revision coverage 的治理价值高于一次性迁移速度。
 
 ## 3. 实施范围
 
@@ -65,39 +98,22 @@ properties:
   - 重新定义 Gateway / Gate / Registry contract
   - 一次性迁移所有旧 skill
 
-## 4. 实施步骤
+## 4. 实施要求
 
-### Step 1
+### Required
 
-定义 `OnboardingMatrix / CutoverDirective / PilotEvidenceRef` 结构与 wave state。
+- 定义 `OnboardingMatrix / CutoverDirective / PilotEvidenceRef` 结构与 wave state。
+- 实现 onboarding registry 和 rollout state 持久化。
+- 实现 pilot chain verifier，至少覆盖 `producer -> gate -> formal -> consumer -> audit`。
+- 实现 cutover/fallback 判定与状态写回，且在 evidence 不足时 fail closed。
+- 输出 supporting matrix、pilot evidence、cutover recommendation 与 fallback evidence。
 
-完成条件：可表达 skill、wave、compat mode、cutover guard，以及 revision-module included/excluded 判定。
+### Suggested
 
-### Step 2
+- 先固化 onboarding matrix，再推进 runtime state 和 verifier，最后接 cutover/fallback。
+- 在 verifier 中优先覆盖最小可闭环 pilot 链，避免一开始追求全量 workflow 覆盖。
 
-实现 onboarding registry 和 rollout state 持久化。
-
-完成条件：skill 接入范围、波次、compat mode 与 revision-return coverage 可追溯。
-
-### Step 3
-
-实现 pilot chain verifier。
-
-完成条件：至少能验证 `producer -> gate -> formal -> consumer -> audit` 一条完整链。
-
-### Step 4
-
-实现 cutover/fallback 判定与状态写回。
-
-完成条件：wave 只能在 evidence 足够时推进，否则 fail closed。
-
-## 5. 风险与阻塞
-
-- 若 foundation 还没稳定，pilot evidence 会失真。
-- compat mode 若定义不清，cutover/fallback 会变成口头流程。
-- 若 audit evidence 无法回交 gate，rollout 无法形成闭环。
-
-## 6. 交付物
+## 5. 交付物
 
 - 代码：
   - `cli/lib/rollout_state.py`
@@ -112,13 +128,20 @@ properties:
   - cutover recommendation
   - rollback / fallback evidence
 
-## 7. 验收检查点
+## 6. 验收标准
 
 - 至少一条真实 pilot 主链跑通。
 - `compat_mode`、`wave_id`、`cutover_guard_ref` 必须可追溯。
 - included workflows 的 `revision-request` coverage 与 excluded rationale 必须在 onboarding matrix 中明确。
 - pilot evidence 缺失时必须 fail closed，不能继续 rollout。
 - fallback 结果必须记录到 receipt / wave state。
+
+## 7. 风险与注意事项
+
+- 若 foundation 还没稳定，pilot evidence 会失真。
+- compat mode 若定义不清，cutover/fallback 会退化成口头流程。
+- 若 audit evidence 无法回交 gate，rollout 无法形成闭环。
+- 若后续 `TECH / API / TESTSET` 口径变化，本 IMPL 必须重做 freshness check，不能沿用旧快照继续执行。
 
 ## 8. Supporting Artifact
 
