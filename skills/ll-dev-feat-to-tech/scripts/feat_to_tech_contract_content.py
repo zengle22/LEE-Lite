@@ -61,6 +61,43 @@ INTERFACE_CONTRACTS_BY_AXIS = {
         "`GatewayWriteRequest`: input=`logical_path`, `path_class`, `mode`, `payload_ref`, `overwrite`; output=`managed_ref`, `write_receipt_ref`, `registry_record_ref`; errors=`policy_deny`, `registry_prerequisite_failed`, `write_failed`; idempotent=`conditional by logical_path + payload_digest + mode`; precondition=`path 已归类且 payload 可读`。",
         "`PolicyVerdict`: input=`logical_path`, `path_class`, `mode`, `caller_ref`; output=`allow`, `reason_code`, `resolved_path`, `mode_decision`; errors=`invalid_path_class`, `mode_forbidden`; idempotent=`yes`; precondition=`request normalized`。",
     ],
+    "first_ai_advice": [
+        "`GenerateFirstAdvice`: input=`user_ref`, `running_level`, `recent_injury_status`, `profile_ref`; output=`training_advice_level`, `first_week_action`, `needs_more_info_prompt`, `device_connect_prompt`; errors=`risk_gate_blocked`, `minimal_profile_missing`; idempotent=`yes by user_ref + profile_ref`; precondition=`minimal profile already completed`。",
+        "`EvaluateFirstAdviceRiskGate`: input=`running_level`, `recent_injury_status`; output=`risk_gate_passed`, `advice_mode`, `blocking_reason?`; errors=`risk_input_missing`, `risk_domain_invalid`; idempotent=`yes by normalized risk inputs`; precondition=`first-advice generation requested`。",
+    ],
+    "first_ai_advice_release": [
+        "`FirstAdviceReleaseRequest`: input=`user_ref`, `minimal_profile_snapshot_ref`, `running_level`, `recent_injury_status`; output=`advice_release_ref`, `training_advice_level`, `first_week_action`; errors=`minimal_profile_missing`, `risk_gate_blocked`; idempotent=`yes by user_ref + minimal_profile_snapshot_ref`; precondition=`minimal profile already completed`。",
+        "`FirstAdviceReleaseResult`: input=`advice_release_ref`; output=`needs_more_info_prompt`, `device_connect_prompt`, `advice_state`, `ready_for_release`; errors=`advice_generation_failed`; idempotent=`yes`; precondition=`first advice release persisted`。",
+    ],
+    "extended_profile_progressive_completion": [
+        "`ExtendedProfilePatchRequest`: input=`user_ref`, `task_card_ref`, `patch_fields`, `task_card_version?`; output=`saved_patch_ref`, `profile_completion_percent`, `next_task_cards`; errors=`patch_invalid`, `save_failed`, `task_card_stale`; idempotent=`yes by user_ref + task_card_ref + patch_digest`; precondition=`homepage already entered`。",
+        "`ExtendedProfileTasksQuery`: input=`user_ref`; output=`task_cards`, `completion_percent`, `in_progress_task_ref?`; errors=`profile_state_missing`; idempotent=`yes`; precondition=`extended profile flow available from homepage`。",
+    ],
+    "device_connect_deferred_entry": [
+        "`DeferredDeviceConnectionRequest`: input=`user_ref`, `provider`, `entry_context`; output=`connection_session_ref`, `device_connection_offered`, `nonblocking`; errors=`provider_unsupported`, `session_build_failed`; idempotent=`yes by user_ref + provider + entry_context`; precondition=`homepage already entered`。",
+        "`DeferredDeviceConnectionResult`: input=`connection_session_ref`; output=`device_connection_state`, `enhancement_status`, `last_provider_ref?`; errors=`auth_failed`, `sync_failed`, `state_missing`; idempotent=`yes by connection_session_ref`; precondition=`deferred connection session already opened`。",
+    ],
+    "state_and_profile_boundary_alignment": [
+        "`PrimaryStateWriteRequest`: input=`user_ref`, `primary_state`, `capability_flags`; output=`primary_state_ref`, `capability_flags_ref`; errors=`state_transition_invalid`, `conflict_blocked`; idempotent=`yes by user_ref + primary_state`; precondition=`state boundary service initialized`。",
+        "`UnifiedOnboardingStateRead`: input=`user_ref`; output=`primary_state`, `capability_flags`, `canonical_profile_boundary`, `resolved_profile_refs`; errors=`state_missing`, `canonical_profile_missing`; idempotent=`yes`; precondition=`at least one state or profile record exists`。",
+    ],
+    "extended_profile_completion": [
+        "`SaveExtendedProfilePatch`: input=`user_ref`, `patch_fields`, `task_card_ref`; output=`saved_patch_ref`, `profile_completion_percent`, `next_task_cards`; errors=`patch_invalid`, `save_failed`; idempotent=`yes by user_ref + patch_digest`; precondition=`homepage already entered`。",
+        "`GetProfileCompletionTasks`: input=`user_ref`; output=`task_cards`, `completion_percent`, `in_progress_task_ref?`; errors=`profile_state_missing`; idempotent=`yes`; precondition=`extended profile flow already available from homepage`。",
+    ],
+    "device_deferred_entry": [
+        "`StartDeferredDeviceConnection`: input=`user_ref`, `provider`, `entry_context`; output=`connection_session_ref`, `device_connection_offered`, `nonblocking=true`; errors=`provider_unsupported`, `session_build_failed`; idempotent=`yes by user_ref + provider + entry_context`; precondition=`homepage already entered`。",
+        "`FinalizeDeviceConnection`: input=`connection_session_ref`, `provider_result_ref`; output=`device_connected | device_skipped | device_failed_nonblocking`, `enhancement_status`; errors=`auth_failed`, `sync_failed`; idempotent=`yes by connection_session_ref`; precondition=`deferred connection session already opened`。",
+    ],
+    "state_profile_boundary": [
+        "`WritePrimaryState`: input=`user_ref`, `primary_state`; output=`primary_state_ref`, `capability_flags_ref`; errors=`state_transition_invalid`, `conflict_blocked`; idempotent=`yes by user_ref + primary_state`; precondition=`state boundary service initialized`。",
+        "`WritePhysicalProfileCanonical`: input=`user_ref`, `physical_profile_patch`; output=`user_physical_profile_ref`, `canonical_profile_boundary`; errors=`canonical_conflict`, `write_rejected`; idempotent=`yes by user_ref + patch_digest`; precondition=`canonical source ownership resolved`。",
+        "`ReadUnifiedOnboardingState`: input=`user_ref`; output=`primary_state`, `capability_flags`, `canonical_profile_boundary`, `resolved_profile_refs`; errors=`state_missing`; idempotent=`yes`; precondition=`at least one state or profile record exists`。",
+    ],
+    "minimal_onboarding": [
+        "`SubmitMinimalProfile`: input=`gender`, `birthdate`, `height`, `weight`, `running_level`, `recent_injury_status`; output=`profile_minimal_done`, `homepage_entry_allowed`, `profile_ref`; errors=`missing_required_field`, `invalid_birthdate`, `invalid_running_level`, `invalid_recent_injury_status`; idempotent=`yes by user_ref + payload_digest`; precondition=`user 已完成登录/注册并进入最小建档页`。",
+        "`MinimalProfileState`: input=`user_ref`; output=`onboarding_state`, `missing_fields`, `device_connection_deferred`; errors=`profile_state_missing`; idempotent=`yes`; precondition=`user 已进入首进链路`。",
+    ],
     "adoption_e2e": [
         "`OnboardingDirective`: input=`skill_ref`, `wave_id`, `scope`, `compat_mode`; output=`status`, `runtime_binding_ref`, `cutover_guard_ref`; errors=`unknown_skill`, `scope_invalid`, `foundation_missing`; idempotent=`yes by skill_ref + wave_id`; precondition=`foundation features freeze-ready`。",
         "`PilotEvidenceSubmission`: input=`pilot_chain_ref`, `producer_ref`, `consumer_ref`, `audit_ref`, `gate_ref`; output=`evidence_status`, `cutover_recommendation`; errors=`missing_chain_step`, `audit_not_traceable`; idempotent=`yes by pilot_chain_ref`; precondition=`pilot chain 已完整执行一次`。",

@@ -10,7 +10,7 @@ from feat_to_tech_derivation import (
     api_compatibility_rules,
     api_surfaces,
     architecture_topics,
-    explicit_axis,
+    feature_axis,
     responsibility_splits,
 )
 
@@ -42,7 +42,7 @@ def build_selected_feat_section(feature, refs):
         f"- feat_ref: `{refs['feat_ref']}`",
         f"- title: {feature.get('title')}",
         f"- axis_id: {feature.get('axis_id')}",
-        f"- resolved_axis: {explicit_axis(feature) or 'derived'}",
+        f"- resolved_axis: {feature_axis(feature)}",
         f"- epic_freeze_ref: `{refs['epic_ref']}`",
         f"- src_root_id: `{refs['src_ref']}`",
         f"- goal: {feature.get('goal')}",
@@ -170,12 +170,17 @@ def build_arch_docs(feature, refs, source_refs, assessment, arch_diagram, json_p
     if isinstance(acceptance, dict):
         arch_out_of_scope.extend(ensure_list(acceptance.get("out_of_scope")))
     if not arch_out_of_scope:
-        axis = explicit_axis(feature) or "derived"
+        axis = feature_axis(feature)
         defaults = {
             "collaboration": ["Do not define decision vocabulary or final formalization semantics here.", "Do not publish formal objects or downstream admission results here."],
             "formalization": ["Do not redefine authoritative submission or pending visibility here.", "Do not decide downstream consumer admission policy here."],
             "layering": ["Do not redefine handoff submission or materialization dispatch here.", "Do not rewrite path / mode governance here."],
             "io_governance": ["Do not redefine object layering or admission semantics here.", "Do not carry approve / reject business semantics here."],
+            "first_ai_advice": ["Do not redefine homepage shell ownership here.", "Do not require expanded profile or device data before minimum first-advice release."],
+            "extended_profile_completion": ["Do not move extended profile completion back into first-day blocking onboarding here.", "Do not treat partial-save failure as homepage access revocation."],
+            "device_deferred_entry": ["Do not reintroduce device connection as a homepage or first-advice prerequisite here.", "Do not let device sync ownership overwrite canonical onboarding/profile facts here."],
+            "state_profile_boundary": ["Do not blur page-flow state and business completion state here.", "Do not let non-canonical profile stores win body-field conflicts here."],
+            "minimal_onboarding": ["Do not rewrite login/registration ownership here.", "Do not reintroduce device connection as a blocking prerequisite before homepage entry."],
             "adoption_e2e": ["Do not rewrite foundation FEAT internal semantics here.", "Do not create a parallel gate or audit decision model here."],
         }
         arch_out_of_scope.extend(defaults.get(axis, []))

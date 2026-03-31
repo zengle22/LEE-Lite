@@ -55,6 +55,23 @@ EXECUTION_RUNNER_AXIS_MAP = {
     "runner-observability-surface": "runner_observability",
 }
 
+PRODUCT_FLOW_AXIS_MAP = {
+    "first-ai-advice-release": "first_ai_advice",
+    "extended-profile-progressive-completion": "extended_profile_completion",
+    "device-connect-deferred-entry": "device_deferred_entry",
+    "state-and-profile-boundary-alignment": "state_profile_boundary",
+    "minimal-onboarding-flow": "minimal_onboarding",
+}
+
+MINIMAL_ONBOARDING_FIELD_MARKERS = [
+    "gender",
+    "birthdate",
+    "height",
+    "weight",
+    "running_level",
+    "recent_injury_status",
+]
+
 
 def review_projection_axis(feature: dict[str, Any]) -> str:
     lock = feature.get("semantic_lock") or {}
@@ -99,6 +116,21 @@ def execution_runner_axis(feature: dict[str, Any]) -> str:
         return "runner_observability"
     if domain_type == "execution_runner_rule":
         return "runner_ready_job"
+    return ""
+
+
+def product_flow_axis(feature: dict[str, Any]) -> str:
+    axis_id = str(feature.get("axis_id") or "").strip().lower()
+    if axis_id in PRODUCT_FLOW_AXIS_MAP:
+        return PRODUCT_FLOW_AXIS_MAP[axis_id]
+    text = feature_text(feature)
+    if not any(marker in text for marker in ["最小建档", "minimal profile", "minimal onboarding", "profile_minimal_done"]):
+        return ""
+    if not any(marker in text for marker in ["首页", "homepage", "home page", "enter home", "首页放行"]):
+        return ""
+    field_hits = sum(1 for marker in MINIMAL_ONBOARDING_FIELD_MARKERS if marker in text)
+    if field_hits >= 3:
+        return "minimal_onboarding"
     return ""
 
 
@@ -189,7 +221,7 @@ def explicit_axis(feature: dict[str, Any]) -> str:
     # Prefer the execution-runner axis when the semantic lock/title overlaps on
     # generic words like "回写"/"feedback". Otherwise execution FEATs can be
     # misclassified into review-projection writeback content.
-    for axis in [execution_runner_axis(feature), review_projection_axis(feature)]:
+    for axis in [execution_runner_axis(feature), review_projection_axis(feature), product_flow_axis(feature)]:
         if axis:
             return axis
     axis_id = str(feature.get("axis_id") or "").strip().lower()
@@ -204,6 +236,28 @@ def explicit_axis(feature: dict[str, Any]) -> str:
     return mapping.get(axis_id, "")
 
 
+def looks_like_adoption_e2e(core_text: str, full_text: str) -> bool:
+    rollout_tokens = ["migration", "cutover", "pilot", "wave", "rollout"]
+    skill_tokens = [
+        "skill",
+        "skills",
+        "技能接入",
+        "cross skill",
+        "cross-skill",
+        "compat mode",
+        "compat_mode",
+        "pilot evidence",
+        "onboarding matrix",
+        "runtime binding",
+        "producer -> gate",
+        "consumer",
+        "audit",
+    ]
+    has_rollout_signal = any(token in core_text for token in rollout_tokens)
+    has_skill_signal = any(token in full_text for token in skill_tokens)
+    return has_rollout_signal and has_skill_signal
+
+
 def assess_optional_artifacts(feature: dict[str, Any], package: Any | None = None) -> dict[str, Any]:
     arch_hits = keyword_hits(feature, ARCH_KEYWORDS)
     api_hits = keyword_hits(feature, STRONG_API_KEYWORDS)
@@ -214,6 +268,11 @@ def assess_optional_artifacts(feature: dict[str, Any], package: Any | None = Non
         "formalization",
         "layering",
         "io_governance",
+        "first_ai_advice",
+        "extended_profile_completion",
+        "device_deferred_entry",
+        "state_profile_boundary",
+        "minimal_onboarding",
         "adoption_e2e",
         "runner_ready_job",
         "runner_operator_entry",
@@ -227,6 +286,11 @@ def assess_optional_artifacts(feature: dict[str, Any], package: Any | None = Non
         "formalization",
         "layering",
         "io_governance",
+        "first_ai_advice",
+        "extended_profile_completion",
+        "device_deferred_entry",
+        "state_profile_boundary",
+        "minimal_onboarding",
         "adoption_e2e",
         "runner_ready_job",
         "runner_operator_entry",
@@ -262,13 +326,22 @@ def design_focus(feature: dict[str, Any]) -> str:
 
 
 def implementation_rules(feature: dict[str, Any]) -> list[str]:
-    rules = ensure_list(feature.get("constraints"))[:4]
+    axis = feature_axis(feature)
+    rewritten_rules: list[str] = []
+    for item in ensure_list(feature.get("constraints"))[:4]:
+        text = str(item).strip()
+        if text == "来源与依赖约束：保持与原始输入同题，不扩展到 EPIC、FEAT、TASK 或实现设计。":
+            text = "来源与依赖约束：保持与原始输入同题，不扩展到相邻 FEAT、TASK 排期细节或超出本 FEAT 边界的实现域。"
+        rewritten_rules.append(text)
+    rules = rewritten_rules
     source_refs = ensure_list(feature.get("source_refs"))
     if "ADR-007" in source_refs and feature_axis(feature) == "adoption_e2e":
         rules.extend([
             "Authoritative inherited constraints：对外暴露一个宽 skill family：`skill.qa.test_exec_web_e2e` 与 `skill.qa.test_exec_cli`。",
             "Authoritative inherited constraints：内部保留一个窄 runner family：`skill.runner.test_e2e` 与 `skill.runner.test_cli`。",
         ])
+    if axis == "state_profile_boundary":
+        rules.append("Projection stores 只能作为只读 projection / read model，不得回写 canonical body facts，也不得覆盖 user_physical_profile 的唯一事实源地位。")
     for check in feature.get("acceptance_checks") or []:
         if isinstance(check, dict):
             scenario = str(check.get("scenario") or "").strip()
@@ -280,11 +353,22 @@ def implementation_rules(feature: dict[str, Any]) -> list[str]:
 
 def non_functional_requirements(feature: dict[str, Any], package: Any) -> list[str]:
     refs = ensure_list(feature.get("source_refs")) + ensure_list(package.feat_json.get("source_refs"))
+    axis = feature_axis(feature)
     requirements = [
         "Preserve FEAT, EPIC, and SRC traceability across every emitted design object.",
-        "Keep the package freeze-ready by recording execution evidence and supervision evidence.",
         "Do not bypass the FEAT acceptance boundary with task-level sequencing or implementation tickets.",
     ]
+    axis_specific_requirement = {
+        "first_ai_advice": "Keep first-advice output, risk-gate decisions, and fallback-mode evidence traceable in freeze-ready artifacts.",
+        "extended_profile_completion": "Keep patch-save results, profile-completion-percent updates, and retry-state evidence traceable in freeze-ready artifacts.",
+        "device_deferred_entry": "Keep deferred-device-connection outcomes and homepage/first-advice preservation evidence traceable in freeze-ready artifacts.",
+        "state_profile_boundary": "Keep canonical-ownership decisions, conflict-blocked outcomes, and unified-reader judgments traceable in freeze-ready artifacts.",
+        "minimal_onboarding": "Keep minimal-profile submission results, homepage-entry decisions, and deferred-device-entry evidence traceable in freeze-ready artifacts.",
+    }.get(axis)
+    if axis_specific_requirement:
+        requirements.append(axis_specific_requirement)
+    else:
+        requirements.append("Keep the package freeze-ready by recording execution evidence and supervision evidence.")
     if any(ref.startswith("ADR-") for ref in refs):
         requirements.append("Respect inherited ADR constraints when defining runtime carriers, boundary contracts, and rollout safety.")
     return unique_strings(requirements)
@@ -418,7 +502,7 @@ def feature_axis(feature: dict[str, Any]) -> str:
         return "collaboration"
     if any(token in core_text for token in ["path", "registry", "gateway", "artifact io", "路径", "落盘", "写入模式"]):
         return "io_governance"
-    if any(token in core_text for token in ["onboarding", "migration", "cutover", "pilot", "wave", "rollout"]):
+    if looks_like_adoption_e2e(core_text, full_text):
         return "adoption_e2e"
     if any(token in full_text for token in ["candidate package", "formal object", "formal refs", "lineage"]):
         return "layering"

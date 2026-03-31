@@ -97,6 +97,177 @@ def normalize_semantic_lock(payload: Any) -> dict[str, Any]:
     return {key: value for key, value in lock.items() if value not in ("", [], None)}
 
 
+def derive_semantic_lock(feature: Any, inherited_payload: Any = None) -> dict[str, Any]:
+    existing = normalize_semantic_lock(feature.get("semantic_lock") if isinstance(feature, dict) else None)
+    if existing:
+        return existing
+    inherited = normalize_semantic_lock(inherited_payload)
+    if inherited:
+        return inherited
+    if not isinstance(feature, dict):
+        return {}
+
+    identity = feature.get("identity_and_scenario") if isinstance(feature.get("identity_and_scenario"), dict) else {}
+    completed_state = str(identity.get("completed_state") or "").strip()
+    boundary = feature.get("frozen_downstream_boundary") if isinstance(feature.get("frozen_downstream_boundary"), dict) else {}
+    inheritance_candidates = ensure_list(boundary.get("frozen_business_semantics"))
+    inherited_rule = (
+        str(inheritance_candidates[0]).strip()
+        if inheritance_candidates
+        else ""
+    )
+    axis_id = str(feature.get("axis_id") or "").strip().lower()
+    title = str(feature.get("title") or "").strip().lower()
+    text_parts = [
+        str(feature.get("goal") or ""),
+        *ensure_list(feature.get("scope")),
+        *ensure_list(feature.get("constraints")),
+    ]
+    text = "\n".join(part.lower() for part in text_parts if str(part).strip())
+
+    def product_lock(
+        *,
+        domain_type: str,
+        primary_object: str,
+        lifecycle_stage: str,
+        allowed_capabilities: list[str],
+        forbidden_capabilities: list[str],
+        default_truth: str,
+        default_rule: str,
+    ) -> dict[str, Any]:
+        return normalize_semantic_lock(
+            {
+                "domain_type": domain_type,
+                "one_sentence_truth": completed_state or default_truth,
+                "primary_object": primary_object,
+                "lifecycle_stage": lifecycle_stage,
+                "allowed_capabilities": allowed_capabilities,
+                "forbidden_capabilities": forbidden_capabilities,
+                "inheritance_rule": inherited_rule or default_rule,
+            }
+        )
+
+    if axis_id == "first-ai-advice-release":
+        return product_lock(
+            domain_type="first_advice_release_flow",
+            primary_object="first advice",
+            lifecycle_stage="advice visible",
+            allowed_capabilities=[
+                "training_advice_level",
+                "first_week_action",
+                "needs_more_info_prompt",
+                "device_connect_prompt",
+                "running_level",
+                "recent_injury_status",
+                "risk gate",
+                "first advice",
+            ],
+            forbidden_capabilities=[
+                "genericrequest",
+                "ll rollout onboard-skill",
+                "pilot chain",
+                "cutover",
+            ],
+            default_truth="Minimal profile completion is enough to generate a safe first advice output without requiring expanded profile or device data first.",
+            default_rule="Downstream TECH must preserve first-advice output and risk-gate semantics instead of collapsing into a generic runtime skeleton.",
+        )
+    if axis_id == "extended-profile-progressive-completion":
+        return product_lock(
+            domain_type="extended_profile_completion_flow",
+            primary_object="extended profile task card",
+            lifecycle_stage="incremental save",
+            allowed_capabilities=[
+                "task card",
+                "incremental save",
+                "profile completion",
+                "extended profile patch",
+                "homepage usable",
+                "retry entry",
+            ],
+            forbidden_capabilities=[
+                "genericrequest",
+                "ll rollout onboard-skill",
+                "pilot chain",
+                "cutover",
+            ],
+            default_truth="Users can progressively complete extended profile fields from homepage task cards and each save stands alone.",
+            default_rule="Downstream TECH must preserve task-card progressive completion and incremental-save semantics instead of collapsing into a generic runtime skeleton.",
+        )
+    if axis_id == "device-connect-deferred-entry":
+        return product_lock(
+            domain_type="device_deferred_entry_flow",
+            primary_object="deferred device connection",
+            lifecycle_stage="nonblocking enhancement",
+            allowed_capabilities=[
+                "device connection",
+                "deferred entry",
+                "device skipped",
+                "device failed nonblocking",
+                "homepage entered",
+                "first advice available",
+            ],
+            forbidden_capabilities=[
+                "genericrequest",
+                "ll rollout onboard-skill",
+                "pilot chain",
+                "cutover",
+            ],
+            default_truth="Device connection stays a deferred enhancement path and must not block homepage entry or first-day advice.",
+            default_rule="Downstream TECH must preserve deferred non-blocking device-entry semantics instead of collapsing into a generic runtime skeleton.",
+        )
+    if axis_id == "state-and-profile-boundary-alignment":
+        return product_lock(
+            domain_type="state_profile_boundary_rule",
+            primary_object="canonical onboarding state",
+            lifecycle_stage="boundary alignment",
+            allowed_capabilities=[
+                "primary_state",
+                "capability_flags",
+                "user_physical_profile",
+                "runner_profiles",
+                "canonical read",
+                "conflict validator",
+                "single source of truth",
+            ],
+            forbidden_capabilities=[
+                "genericrequest",
+                "ll rollout onboard-skill",
+                "pilot chain",
+                "cutover",
+            ],
+            default_truth="Page flow state and business completion state must not be mixed, and body-field conflicts must resolve to one canonical source of truth.",
+            default_rule="Downstream TECH must preserve state-boundary and single-source-of-truth semantics instead of collapsing into a generic runtime skeleton.",
+        )
+    if axis_id == "minimal-onboarding-flow" or "最小建档" in title or "minimal onboarding" in text or "profile_minimal_done" in text:
+        return product_lock(
+            domain_type="product_onboarding_flow",
+            primary_object="minimal profile",
+            lifecycle_stage="homepage entry",
+            allowed_capabilities=[
+                "minimal profile",
+                "birthdate",
+                "running_level",
+                "recent_injury_status",
+                "profile_minimal_done",
+                "homepage entry",
+                "device connection deferred",
+            ],
+            forbidden_capabilities=[
+                "ll rollout onboard-skill",
+                "onboardingdirective",
+                "pilotevidencesubmission",
+                "pilot chain",
+                "cutover",
+                "compat mode",
+                "migration wave",
+                "rollout state",
+            ],
+            default_truth="User completes the minimal profile and can immediately enter homepage while device connection stays deferred.",
+            default_rule="Downstream TECH must preserve minimal profile completion semantics and must not replace them with rollout or pilot governance semantics.",
+        )
+    return {}
+
+
 def semantic_lock_errors(payload: Any) -> list[str]:
     lock = normalize_semantic_lock(payload)
     if not lock:

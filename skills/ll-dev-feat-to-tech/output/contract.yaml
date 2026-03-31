@@ -51,3 +51,4 @@ notes:
   - ARCH and API must be emitted only when the need assessment says they are required.
   - The package must carry a final cross-artifact consistency result before freeze.
   - Optional ARCH/API sections inside the bundle should remain reference summaries, while full content lives in the standalone `arch-design.md` and `api-contract.md` artifacts.
+  - selected_feat should preserve downstream execution metadata when present, including `ui_ref`, `testset_ref`, and structured `provisional_refs`, so `tech-to-impl` does not have to recover them from freeform prose.

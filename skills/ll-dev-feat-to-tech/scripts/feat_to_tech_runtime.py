@@ -5,10 +5,20 @@ Lite-native runtime support for feat-to-tech.
 
 from __future__ import annotations
 
+import sys
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
+WORKSPACE_ROOT = Path(__file__).resolve().parents[3]
+if str(WORKSPACE_ROOT) not in sys.path:
+    sys.path.insert(0, str(WORKSPACE_ROOT))
+
+from cli.lib.workflow_revision import (
+    load_revision_request,
+    materialize_revision_request,
+    normalize_revision_context,
+)
 from feat_to_tech_cli_integration import (
     build_gate_result,
     build_supervision_evidence,
@@ -17,13 +27,13 @@ from feat_to_tech_cli_integration import (
     write_executor_outputs,
 )
 from feat_to_tech_common import (
+    derive_semantic_lock,
     dump_json,
     ensure_list,
     find_feature,
     guess_repo_root_from_input,
     load_feat_package,
     load_json,
-    normalize_semantic_lock,
     resolve_input_artifacts_dir,
     validate_input_package,
 )
@@ -61,61 +71,28 @@ def display_list(values: list[str]) -> str:
     return ", ".join(items) if items else "None"
 
 
-def _repo_relative_or_abs(repo_root: Path, path: Path) -> str:
-    try:
-        return path.resolve().relative_to(repo_root.resolve()).as_posix()
-    except ValueError:
-        return path.resolve().as_posix()
-
-
 def _load_revision_request(revision_request_path: str | Path | None, artifacts_dir: Path | None = None) -> tuple[dict[str, Any] | None, Path | None]:
-    candidate_paths: list[Path] = []
-    if revision_request_path:
-        candidate_paths.append(Path(revision_request_path).resolve())
-    if artifacts_dir is not None:
-        candidate_paths.append((artifacts_dir / "revision-request.json").resolve())
-    for candidate in candidate_paths:
-        if candidate.exists():
-            payload = load_json(candidate)
-            if isinstance(payload, dict):
-                return payload, candidate
-    return None, None
+    return load_revision_request(revision_request_path, artifacts_dir=artifacts_dir, load_json=load_json)
 
 
 def _build_revision_context(repo_root: Path, revision_request: dict[str, Any] | None, revision_request_path: Path | None) -> dict[str, Any] | None:
-    if not revision_request:
-        return None
-    revision_round = revision_request.get("revision_round")
-    decision_reason = str(revision_request.get("decision_reason") or "").strip()
-    decision_target = str(revision_request.get("decision_target") or "").strip()
-    summary = decision_reason
-    if revision_round not in (None, ""):
-        summary = f"Revision round {revision_round}: {decision_reason or decision_target or 'apply reviewer feedback.'}"
-    elif decision_target and decision_reason:
-        summary = f"{decision_target}: {decision_reason}"
-    elif decision_target:
-        summary = decision_target
-    elif not summary:
-        summary = "Revision request received."
-    return {
-        "revision_request_ref": _repo_relative_or_abs(repo_root, revision_request_path) if revision_request_path else "",
-        "revision_round": revision_round,
-        "decision_type": str(revision_request.get("decision_type") or "").strip(),
-        "decision_target": decision_target,
-        "decision_reason": decision_reason,
-        "source_gate_decision_ref": str(revision_request.get("source_gate_decision_ref") or "").strip(),
-        "source_return_job_ref": str(revision_request.get("source_return_job_ref") or "").strip(),
-        "authoritative_input_ref": str(revision_request.get("authoritative_input_ref") or "").strip(),
-        "summary": summary,
-    }
+    context = normalize_revision_context(
+        revision_request,
+        repo_root=repo_root,
+        revision_request_path=revision_request_path,
+        ensure_list=ensure_list,
+    )
+    return context or None
 
 
 def _materialize_revision_request(artifacts_dir: Path, revision_request: dict[str, Any] | None) -> None:
-    revision_request_path = artifacts_dir / "revision-request.json"
-    if revision_request:
-        dump_json(revision_request_path, revision_request)
-    elif revision_request_path.exists():
-        revision_request_path.unlink()
+    materialize_revision_request(
+        artifacts_dir,
+        revision_request=revision_request,
+        load_json=load_json,
+        dump_json=dump_json,
+        delete_if_missing=True,
+    )
 
 
 
@@ -149,7 +126,7 @@ def executor_run(
     if feature is None:
         raise ValueError(f"Selected feat_ref not found: {effective_feat_ref}")
     feature = dict(feature)
-    feature["semantic_lock"] = normalize_semantic_lock(feature.get("semantic_lock") or package.semantic_lock)
+    feature["semantic_lock"] = derive_semantic_lock(feature, package.semantic_lock)
 
     effective_run_id = run_id or f"{package.run_id}--{effective_feat_ref.lower()}"
     generated = build_tech_package(package, feature, effective_feat_ref, effective_run_id, utc_now, revision_request=revision_context)
@@ -196,7 +173,7 @@ def supervisor_review(
     if feature is None:
         raise ValueError(f"Selected feat_ref not found: {feat_ref}")
     feature = dict(feature)
-    feature["semantic_lock"] = normalize_semantic_lock(feature.get("semantic_lock") or package.semantic_lock)
+    feature["semantic_lock"] = derive_semantic_lock(feature, package.semantic_lock)
     effective_run_id = run_id or artifacts_dir.name
     generated = build_tech_package(package, feature, feat_ref, effective_run_id, utc_now, revision_request=revision_context)
     supervision = build_supervision_evidence(artifacts_dir, generated)

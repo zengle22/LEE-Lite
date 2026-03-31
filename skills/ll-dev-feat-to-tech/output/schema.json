@@ -50,6 +50,36 @@
     "api_ref": {
       "type": ["string", "null"]
     },
+    "selected_feat": {
+      "type": "object",
+      "properties": {
+        "feat_ref": { "type": "string" },
+        "axis_id": { "type": "string" },
+        "title": { "type": "string" },
+        "goal": { "type": "string" },
+        "ui_ref": { "type": "string" },
+        "testset_ref": { "type": "string" },
+        "provisional_refs": {
+          "type": "array",
+          "items": {
+            "oneOf": [
+              { "type": "string" },
+              {
+                "type": "object",
+                "properties": {
+                  "ref": { "type": "string" },
+                  "impact_scope": { "type": "string" },
+                  "follow_up_action": { "type": "string" }
+                },
+                "required": ["ref"],
+                "additionalProperties": true
+              }
+            ]
+          }
+        }
+      },
+      "additionalProperties": true
+    },
     "design_consistency_check": {
       "type": "object",
       "required": ["passed", "structural_passed", "semantic_passed", "checks", "issues", "minor_open_items"],

@@ -1624,6 +1624,1348 @@
       "failure_path": "```python\ndef governed_write_with_compensation(request: GatewayWriteRequest) -> GatewayWriteResult:\n    normalized = normalize_write_request(request)\n    verdict = preflight_policy_check(normalized)\n    if not verdict.allow:\n        return GatewayWriteResult.reject(reason_code=verdict.reason_code)\n    artifact_ref = commit_via_gateway(normalized, verdict.resolved_path)\n    try:\n        receipt = build_write_receipt(artifact_ref, verdict)\n    except ReceiptBuildError:\n        mark_receipt_pending(artifact_ref)\n        return GatewayWriteResult.partial_success(artifact_ref=artifact_ref)\n    return GatewayWriteResult(artifact_ref=artifact_ref, receipt_ref=receipt.receipt_ref)\n```"
     }
   },
+  "first_ai_advice": {
+    "architecture_topics": [
+      "Boundary to minimal onboarding: 本 FEAT 只消费已完成的最小建档结果与风险门槛输入，不回写最小建档流程本身。",
+      "Boundary to homepage shell: 本 FEAT 只定义首页首轮建议 panel 与生成链，不扩张首页其他信息架构。",
+      "Boundary to expanded profile / device data: 缺失扩展画像或设备数据只能走保守建议与补充提示，不能阻塞首轮建议释放。"
+    ],
+    "responsibility_splits": [
+      "First advice panel owns homepage presentation of training_advice_level, first_week_action, needs_more_info_prompt, and device_connect_prompt.",
+      "First advice service owns minimal-input advice generation and advice_visible release.",
+      "Risk gate evaluator owns running_level / recent_injury_status checks before the advice payload becomes user-visible."
+    ],
+    "api_surfaces": [
+      "first advice generation contract",
+      "first advice risk gate contract"
+    ],
+    "api_cli_commands": [
+      "`POST /v1/home/first-advice/generate` via first-advice service surface",
+      "`POST /v1/home/first-advice/risk-gate` via first-advice service surface"
+    ],
+    "api_command_specs": [
+      {
+        "command": "POST /v1/home/first-advice/generate",
+        "surface": "`POST /v1/home/first-advice/generate` via first-advice service surface",
+        "request_schema": [
+          "`user_ref: string`",
+          "`profile_ref: string`",
+          "`running_level: string`",
+          "`recent_injury_status: string`"
+        ],
+        "response_schema": [
+          "success envelope=`{ ok: true, result }`",
+          "result fields=`training_advice_level`, `first_week_action`, `needs_more_info_prompt`, `device_connect_prompt`, `advice_visible`",
+          "error envelope=`{ ok: false, error }`"
+        ],
+        "field_semantics": [
+          "`training_advice_level` is the minimum actionable advice grade visible on first release.",
+          "`needs_more_info_prompt` is the conservative follow-up when advice quality is constrained by missing inputs."
+        ],
+        "enum_domain": [
+          "`running_level` must use the frozen onboarding domain.",
+          "`recent_injury_status` must stay machine-readable for risk gating."
+        ],
+        "invariants": [
+          "first advice must remain available without expanded profile or device data when risk gate passes",
+          "advice_visible can only become true after risk gate evaluation"
+        ],
+        "canonical_refs": [
+          "`profile_ref`",
+          "`training_advice_level`"
+        ],
+        "errors": [
+          "`risk_gate_blocked`",
+          "`minimal_profile_missing`"
+        ],
+        "idempotency": "`user_ref + profile_ref`",
+        "preconditions": [
+          "minimal profile already completed"
+        ]
+      },
+      {
+        "command": "POST /v1/home/first-advice/risk-gate",
+        "surface": "`POST /v1/home/first-advice/risk-gate` via first-advice service surface",
+        "request_schema": [
+          "`running_level: string`",
+          "`recent_injury_status: string`"
+        ],
+        "response_schema": [
+          "success envelope=`{ ok: true, result }`",
+          "result fields=`risk_gate_passed`, `advice_mode`, `blocking_reason?`",
+          "error envelope=`{ ok: false, error }`"
+        ],
+        "field_semantics": [
+          "`advice_mode` distinguishes normal first-advice release from conservative prompt fallback."
+        ],
+        "enum_domain": [
+          "`advice_mode ∈ {normal_release, conservative_prompt}`"
+        ],
+        "invariants": [
+          "risk gate must run before advice payload becomes user-visible"
+        ],
+        "canonical_refs": [
+          "`risk_gate_passed`",
+          "`advice_mode`"
+        ],
+        "errors": [
+          "`risk_input_missing`",
+          "`risk_domain_invalid`"
+        ],
+        "idempotency": "`running_level + recent_injury_status`",
+        "preconditions": [
+          "risk inputs are present"
+        ]
+      }
+    ],
+    "implementation_architecture": [
+      "首页在 `profile_minimal_done` 后立即允许渲染 first advice panel，并通过 risk gate evaluator 决定 advice_visible 与 fallback mode。",
+      "First advice service 在最小输入上生成最低可执行输出：training_advice_level、first_week_action、needs_more_info_prompt、device_connect_prompt。",
+      "缺失扩展画像或设备数据时不阻塞首轮建议，只影响 advice mode 与补充提示。"
+    ],
+    "implementation_modules": [
+      "First advice panel renderer：负责首页首轮建议展示与 advice_visible 切换。",
+      "First advice service：负责生成 training_advice_level / first_week_action 等最低输出。",
+      "Risk gate evaluator：负责 running_level / recent_injury_status 风险门槛判断。",
+      "Advice prompt builder：负责 normal_release 与 conservative_prompt 模式下的提示拼装。"
+    ],
+    "state_model": [
+      "`profile_minimal_done` -> `advice_inputs_ready` -> `advice_generated` -> `advice_visible`",
+      "`advice_inputs_ready(fail)` -> `risk_gate_blocked` -> `completion_prompt_visible`",
+      "`advice_visible` must not require expanded profile completion or device connection first."
+    ],
+    "architecture_diagram": "```text\n[Minimal Profile Complete] -> [Risk Gate Evaluator] -> [First Advice Service] -> [First Advice Panel]\n                                                           |\n                                                           +--> [Conservative Prompt / Device Connect Prompt]\n```",
+    "tech_runtime_view": "```text\n[home/first_advice_panel]\n            |\n            v\n[advice/first_advice_service] --> [advice/risk_gate_evaluator]\n                                 |\n                                 +--> [advice/first_advice_prompt_builder]\n```",
+    "flow_diagram": "```text\nHomepage -> Risk Gate Evaluator   : evaluate running_level / recent_injury_status\nRisk Gate -> First Advice Service : release first advice when safe\nFirst Advice Service -> Panel     : publish training_advice_level / first_week_action\nFirst Advice Service -> Prompt    : publish needs_more_info_prompt / device_connect_prompt\n```",
+    "implementation_strategy": [
+      "先冻结最低 advice 输出字段与 risk gate 条件，再实现 generation carrier。",
+      "把首轮建议释放和 conservative prompt fallback 放进同一条 advice generation 链，避免旁路分叉。",
+      "最后验证最小输入可出建议、风险门槛可拦截、扩展画像/设备数据缺失不阻塞三条主干。"
+    ],
+    "implementation_unit_mapping": [
+      "`home/first_advice_panel` (`new`): 首页展示首轮建议和补充提示。",
+      "`advice/first_advice_service` (`new`): 生成 training_advice_level、first_week_action 与 advice_visible。",
+      "`advice/risk_gate_evaluator` (`new`): 判断 running_level / recent_injury_status 风险门槛。",
+      "`advice/first_advice_prompt_builder` (`new`): 生成 needs_more_info_prompt 和 device_connect_prompt。"
+    ],
+    "main_sequence": [
+      "1. resolve minimal-profile completion and first-advice input readiness",
+      "2. evaluate running_level and recent_injury_status through GenerateFirstAdvice / EvaluateFirstAdviceRiskGate",
+      "3. build training_advice_level and first_week_action when risk gate passes",
+      "4. publish needs_more_info_prompt and device_connect_prompt when conservative fallback is needed",
+      "5. mark advice_visible on the homepage first advice panel"
+    ],
+    "exception_compensation": [
+      "risk gate input missing：返回 conservative prompt mode，不得伪造 normal_release advice。",
+      "advice generation fail：保留 homepage 可用，显示 retryable degraded message 与补充信息入口。",
+      "panel render fail：不回退 minimal onboarding completion，仅记录 advice_pending visibility state。"
+    ],
+    "integration_points": [
+      "调用方：homepage shell 在 profile_minimal_done 后调用本 FEAT 的 first advice generation surface。",
+      "挂接点：risk gate evaluator 必须在 advice_visible 前执行，不能由页面层直接跳过。",
+      "旧系统兼容：device connect prompt 可以增强首轮建议，但不能成为 release 前置。"
+    ],
+    "minimal_code_skeleton": {
+      "happy_path": "```python\ndef generate_first_advice(request: GenerateFirstAdvice) -> FirstAdviceResult:\n    gate = evaluate_first_advice_risk_gate(request.running_level, request.recent_injury_status)\n    require(gate.risk_gate_passed, gate.blocking_reason)\n    payload = build_first_advice_payload(request.profile_ref, gate.advice_mode)\n    return FirstAdviceResult(training_advice_level=payload.training_advice_level, first_week_action=payload.first_week_action, needs_more_info_prompt=payload.needs_more_info_prompt, device_connect_prompt=payload.device_connect_prompt, advice_visible=True)\n```",
+      "failure_path": "```python\ndef generate_first_advice_with_fallback(request: GenerateFirstAdvice) -> FirstAdviceResult:\n    gate = evaluate_first_advice_risk_gate(request.running_level, request.recent_injury_status)\n    if not gate.risk_gate_passed:\n        return FirstAdviceResult.conservative_prompt(reason=gate.blocking_reason)\n    return generate_first_advice(request)\n```"
+    }
+  },
+  "extended_profile_completion": {
+    "architecture_topics": [
+      "Boundary to minimal onboarding: 本 FEAT 只在首页后继续扩展画像，不把扩展字段重新前置成首日阻塞条件。",
+      "Boundary to homepage shell: 本 FEAT 只定义 task card 渲染、增量保存与完成度更新，不改写首页主链进入条件。",
+      "Boundary to first advice: 扩展画像补全可以增强建议质量，但保存失败不得撤销首页或首轮建议可用性。"
+    ],
+    "responsibility_splits": [
+      "Task card renderer owns homepage task card presentation and retry entry.",
+      "Extended profile patch service owns incremental save and patch validation.",
+      "Profile completion updater owns completion percent and next_task_cards projection."
+    ],
+    "api_surfaces": [
+      "extended profile patch contract",
+      "profile completion tasks contract"
+    ],
+    "api_cli_commands": [
+      "`PATCH /v1/profile/extended-patch` via extended-profile service surface",
+      "`GET /v1/profile/completion-tasks` via extended-profile service surface"
+    ],
+    "api_command_specs": [
+      {
+        "command": "PATCH /v1/profile/extended-patch",
+        "surface": "`PATCH /v1/profile/extended-patch` via extended-profile service surface",
+        "request_schema": [
+          "`user_ref: string`",
+          "`task_card_ref: string`",
+          "`patch_fields: object`"
+        ],
+        "response_schema": [
+          "success envelope=`{ ok: true, result }`",
+          "result fields=`saved_patch_ref`, `profile_completion_percent`, `next_task_cards`",
+          "error envelope=`{ ok: false, error, field_errors? }`"
+        ],
+        "field_semantics": [
+          "`patch_fields` applies only to extended profile ownership fields and must remain incrementally savable.",
+          "`profile_completion_percent` is a progress projection, not the homepage-entry gate."
+        ],
+        "enum_domain": [],
+        "invariants": [
+          "patch save failure must not revoke homepage usability",
+          "each successful save must update next_task_cards deterministically"
+        ],
+        "canonical_refs": [
+          "`saved_patch_ref`",
+          "`profile_completion_percent`"
+        ],
+        "errors": [
+          "`patch_invalid`",
+          "`save_failed`"
+        ],
+        "idempotency": "`user_ref + patch_digest`",
+        "preconditions": [
+          "homepage already entered"
+        ]
+      },
+      {
+        "command": "GET /v1/profile/completion-tasks",
+        "surface": "`GET /v1/profile/completion-tasks` via extended-profile service surface",
+        "request_schema": [
+          "`user_ref: string`"
+        ],
+        "response_schema": [
+          "success envelope=`{ ok: true, result }`",
+          "result fields=`task_cards`, `completion_percent`, `in_progress_task_ref?`",
+          "error envelope=`{ ok: false, error }`"
+        ],
+        "field_semantics": [
+          "`task_cards` is the homepage-facing backlog for progressive completion."
+        ],
+        "enum_domain": [],
+        "invariants": [
+          "completion tasks must remain available even when a previous patch save failed"
+        ],
+        "canonical_refs": [
+          "`task_cards`",
+          "`completion_percent`"
+        ],
+        "errors": [
+          "`profile_state_missing`"
+        ],
+        "idempotency": "`user_ref`",
+        "preconditions": [
+          "extended profile completion already enabled for homepage"
+        ]
+      }
+    ],
+    "implementation_architecture": [
+      "首页通过 task card renderer 暴露扩展画像补全过程，用户可分步填写、分步保存。",
+      "Extended profile patch service 只处理 patch_fields 与 incremental save，不把部分失败升级成首页不可用。",
+      "Profile completion updater 每次保存后更新 completion percent 和 next_task_cards。"
+    ],
+    "implementation_modules": [
+      "Homepage task card renderer：负责渲染扩展画像任务卡和 retry entry。",
+      "Extended profile form units：负责分步字段编组与 patch_fields 校验。",
+      "Extended profile patch service：负责 SaveExtendedProfilePatch 的增量保存。",
+      "Profile completion updater：负责 completion percent 与 next_task_cards 更新。"
+    ],
+    "state_model": [
+      "`homepage_entered` -> `profile_extension_in_progress` -> `profile_extension_partially_done` -> `profile_extension_done`",
+      "`profile_extension_in_progress(fail)` -> `patch_save_failed_retryable` -> `profile_extension_in_progress`",
+      "`homepage_entered` must remain usable regardless of patch save outcome."
+    ],
+    "architecture_diagram": "```text\n[Homepage] -> [Task Card Renderer] -> [Extended Profile Form Units] -> [Extended Profile Patch Service]\n                                                                         |\n                                                                         +--> [Profile Completion Updater]\n```",
+    "tech_runtime_view": "```text\n[home/profile_task_card_renderer]\n                 |\n                 v\n[profile/profile_extension_form_units] --> [profile/profile_extension_patch_service]\n                                          |\n                                          +--> [profile/profile_completion_updater]\n```",
+    "flow_diagram": "```text\nHomepage -> Task Card Renderer        : show completion tasks\nTask Card -> Patch Service            : save extended profile patch\nPatch Service -> Completion Updater   : update completion percent and next_task_cards\nCompletion Updater -> Homepage        : refresh visible task cards without revoking homepage access\n```",
+    "implementation_strategy": [
+      "先冻结 task card 结构、patch 粒度和 completion percent 口径，再实现增量保存。",
+      "把 patch save failure 设计成 retryable side path，而不是 homepage blocking failure。",
+      "最后验证 task card 渐进补全、分步保存、失败后可重试三条主干。"
+    ],
+    "implementation_unit_mapping": [
+      "`home/profile_task_card_renderer` (`new`): 首页任务卡与补全入口渲染。",
+      "`profile/profile_extension_form_units` (`new`): 扩展画像 patch 字段编组与校验。",
+      "`profile/profile_extension_patch_service` (`new`): 执行 SaveExtendedProfilePatch 增量保存。",
+      "`profile/profile_completion_updater` (`new`): 计算 completion percent 和 next_task_cards。"
+    ],
+    "main_sequence": [
+      "1. render homepage task cards via GetProfileCompletionTasks",
+      "2. open one task card and collect patch_fields",
+      "3. save patch through SaveExtendedProfilePatch",
+      "4. recompute profile_completion_percent and next_task_cards",
+      "5. refresh homepage task cards while keeping homepage usable"
+    ],
+    "exception_compensation": [
+      "patch validation fail：停留在当前 task card，并返回 field-level errors。",
+      "patch save fail：保留 homepage 可用和 retry entry，不回退到 blocking onboarding。",
+      "completion updater fail：允许 patch 已保存，但把 completion projection 标记为 refresh_pending。"
+    ],
+    "integration_points": [
+      "调用方：homepage shell 在用户进入首页后调用任务卡和增量保存 surface。",
+      "挂接点：completion updater 只更新扩展画像完成度，不改写首页进入条件。",
+      "旧系统兼容：已存在的完整画像页面可保留，但其保存结果需要回写到同一 incremental patch service。"
+    ],
+    "minimal_code_skeleton": {
+      "happy_path": "```python\ndef save_extended_profile_patch(request: SaveExtendedProfilePatch) -> ExtendedProfilePatchResult:\n    patch = validate_extended_profile_patch(request.patch_fields)\n    saved_patch_ref = persist_extended_profile_patch(request.user_ref, patch)\n    completion = recompute_profile_completion(request.user_ref)\n    return ExtendedProfilePatchResult(saved_patch_ref=saved_patch_ref, profile_completion_percent=completion.percent, next_task_cards=completion.next_task_cards)\n```",
+      "failure_path": "```python\ndef save_extended_profile_patch_or_retry(request: SaveExtendedProfilePatch) -> ExtendedProfilePatchResult:\n    patch = validate_extended_profile_patch(request.patch_fields)\n    if patch.errors:\n        return ExtendedProfilePatchResult.reject(field_errors=patch.errors)\n    try:\n        return save_extended_profile_patch(request)\n    except ExtendedProfileSaveError:\n        return ExtendedProfilePatchResult.retryable_failure(reason='patch_save_failed')\n```"
+    }
+  },
+  "device_deferred_entry": {
+    "architecture_topics": [
+      "Boundary to homepage availability: 本 FEAT 只消费用户已进入首页和首轮建议已可见的前置，不得反向把设备连接变成前置门槛。",
+      "Boundary to device vendor auth/sync: 这里只冻结 deferred entry、callback handling 和 non-blocking result，不在本 FEAT 内展开厂商接入实现细节。",
+      "Device connection result may enhance experience surfaces, but must not rewrite minimal onboarding completion or homepage admission facts."
+    ],
+    "responsibility_splits": [
+      "Homepage deferred device entry owns entry visibility、skip affordance and retry entry.",
+      "Device connection flow owns auth initiation、callback completion and connection result persistence.",
+      "Experience enhancement integrator owns post-connection enrichments without revoking homepage entry or first-advice availability."
+    ],
+    "api_surfaces": [
+      "deferred device connection start contract",
+      "deferred device connection finalize contract"
+    ],
+    "api_cli_commands": [
+      "`POST /v1/device/deferred-connection/start` via deferred device connection service",
+      "`POST /v1/device/deferred-connection/finalize` via deferred device connection service"
+    ],
+    "api_command_specs": [
+      {
+        "command": "POST /v1/device/deferred-connection/start",
+        "surface": "`POST /v1/device/deferred-connection/start` via deferred device connection service",
+        "request_schema": [
+          "`user_ref: string`",
+          "`homepage_session_ref: string`",
+          "`device_vendor: string`",
+          "`entry_source: string`"
+        ],
+        "response_schema": [
+          "success envelope=`{ ok: true, result }`",
+          "result fields=`connection_attempt_ref`, `redirect_uri`, `homepage_access_preserved`",
+          "error envelope=`{ ok: false, error }`"
+        ],
+        "field_semantics": [
+          "`homepage_access_preserved` must remain true for all start outcomes in this FEAT.",
+          "`entry_source` distinguishes deferred homepage entry from any future settings re-entry."
+        ],
+        "enum_domain": [
+          "`entry_source ∈ {homepage_banner, homepage_card, followup_prompt}`"
+        ],
+        "invariants": [
+          "device connection start must not revoke homepage entry",
+          "device connection start must remain skippable"
+        ],
+        "canonical_refs": [
+          "`connection_attempt_ref`"
+        ],
+        "errors": [
+          "`unsupported_device_vendor`",
+          "`connection_start_unavailable`"
+        ],
+        "idempotency": "`user_ref + device_vendor + homepage_session_ref`",
+        "preconditions": [
+          "user has already entered homepage"
+        ]
+      },
+      {
+        "command": "POST /v1/device/deferred-connection/finalize",
+        "surface": "`POST /v1/device/deferred-connection/finalize` via deferred device connection service",
+        "request_schema": [
+          "`user_ref: string`",
+          "`connection_attempt_ref: string`",
+          "`callback_payload_ref: string`"
+        ],
+        "response_schema": [
+          "success envelope=`{ ok: true, result }`",
+          "result fields=`connection_status`, `experience_enhancement_ready`, `homepage_access_preserved`, `first_advice_access_preserved`",
+          "error envelope=`{ ok: false, error }`"
+        ],
+        "field_semantics": [
+          "`connection_status` distinguishes connected, skipped and failed_nonblocking outcomes.",
+          "`experience_enhancement_ready` only reflects optional enhancement availability."
+        ],
+        "enum_domain": [
+          "`connection_status ∈ {device_connected, device_skipped, device_failed_nonblocking}`"
+        ],
+        "invariants": [
+          "finalize failure must not revoke homepage entry",
+          "connected device data may enhance experience but must not overwrite minimal onboarding canonical profile facts"
+        ],
+        "canonical_refs": [
+          "`connection_status`",
+          "`experience_enhancement_ready`"
+        ],
+        "errors": [
+          "`device_auth_failed`",
+          "`device_sync_failed`"
+        ],
+        "idempotency": "`connection_attempt_ref + callback_payload_ref`",
+        "preconditions": [
+          "connection attempt has been started from deferred homepage entry"
+        ]
+      }
+    ],
+    "implementation_architecture": [
+      "首页在主链已放行后暴露 deferred device entry，允许立即跳过，不把设备连接重新拉回 blocking onboarding。",
+      "设备连接 flow 只负责 auth start、callback finalize 和 connection result persistence；失败语义必须是 non-blocking。",
+      "连接成功后的数据只进入体验增强分支，不得反写最小建档完成态或覆盖 canonical 身体信息事实。"
+    ],
+    "implementation_modules": [
+      "Homepage deferred device entry surface：渲染入口、跳过动作和重试入口。",
+      "Deferred device connection coordinator：负责发起 auth、接 callback、写连接状态。",
+      "Connection result handler：负责把 connected / skipped / failed_nonblocking 投影到首页增强入口。",
+      "Experience enhancement guard：确保增强数据只影响加分体验，不回写 onboarding/mainline completion facts。"
+    ],
+    "state_model": [
+      "`homepage_entered` -> `device_connection_offered` -> `device_connected`",
+      "`device_connection_offered` -> `device_skipped`",
+      "`device_connection_offered` -> `device_failed_nonblocking`",
+      "`device_connected` may enable enhancement surfaces, but homepage and first-advice access remain preserved in all three terminal outcomes."
+    ],
+    "architecture_diagram": "```text\n[Homepage Entered] -> [Deferred Device Entry] -> [Connection Coordinator] -> [Connection Result Store]\n                                  |                       |\n                                  +--> [Skip Path]        +--> [Experience Enhancement Guard]\n```",
+    "tech_runtime_view": "```text\n[homepage/deferred_device_entry]\n              |\n              v\n[device_connection/start] --> [device_connection/finalize] --> [device_connection/result_handler]\n                                                               |\n                                                               +--> [experience/enhancement_guard]\n```",
+    "flow_diagram": "```text\nUser -> Homepage Deferred Entry : choose connect or skip\nEntry -> Connection Coordinator : start auth\nCoordinator -> Device Vendor     : redirect / callback\nCoordinator -> Result Handler    : persist connected / skipped / failed_nonblocking\nResult Handler -> Homepage       : keep mainline usable\nResult Handler -> Enhancement    : unlock optional enriched experience only\n```",
+    "implementation_strategy": [
+      "先冻结 deferred / non-blocking 语义和终态枚举，再接 start/finalize 两个接口面。",
+      "把 homepage_access_preserved 与 first_advice_access_preserved 视为强不变量，避免设备异常回撤主链可用性。",
+      "最后验证 skip、auth fail、sync fail 三条异常分支都不会影响首页主链。"
+    ],
+    "implementation_unit_mapping": [
+      "`homepage/deferred_device_entry` (`new`): 首页后置设备连接入口与 skip/retry 交互。",
+      "`device_connection/start` (`new`): 启动 deferred auth flow 并生成 connection_attempt_ref。",
+      "`device_connection/finalize` (`new`): 接 callback、持久化连接终态和 enhancement readiness。",
+      "`device_connection/result_handler` (`new`): 统一投影 connected / skipped / failed_nonblocking 结果。",
+      "`experience/enhancement_guard` (`new`): 隔离设备增强分支，不让其回写 onboarding canonical facts。"
+    ],
+    "main_sequence": [
+      "1. enter homepage after minimal onboarding mainline completion",
+      "2. expose deferred device connection entry with an explicit skip path",
+      "3. start device auth flow when the user chooses connect",
+      "4. finalize callback and persist `device_connected`, `device_skipped`, or `device_failed_nonblocking`",
+      "5. keep homepage and first-advice access preserved for all deferred outcomes",
+      "6. unlock optional enhancement surfaces only when device connection succeeds"
+    ],
+    "exception_compensation": [
+      "device auth start fail：保留首页可用并提供 retry entry，不回退主链。",
+      "device auth callback/finalize fail：记录 `device_failed_nonblocking`，首页和首轮建议继续可用。",
+      "enhancement projection fail：允许连接状态已成功，但把增强体验标记为 refresh_pending，不覆盖 canonical onboarding/profile facts。"
+    ],
+    "integration_points": [
+      "调用方：homepage shell 在主链放行后调用 deferred device entry。",
+      "挂接点：连接状态写入后只能影响 optional enhancement entry，不得改写首页放行或首轮建议 readiness。",
+      "旧系统兼容：已有设备连接设置页可保留，但它的结果必须汇入同一 deferred connection result model。"
+    ],
+    "minimal_code_skeleton": {
+      "happy_path": "```python\ndef finalize_deferred_device_connection(request: FinalizeDeviceConnection) -> DeferredDeviceConnectionResult:\n    callback = validate_device_callback(request.callback_payload_ref)\n    connection = persist_device_connection_result(request.user_ref, callback)\n    return DeferredDeviceConnectionResult(connection_status='device_connected', experience_enhancement_ready=True, homepage_access_preserved=True, first_advice_access_preserved=True)\n```",
+      "failure_path": "```python\ndef finalize_deferred_device_connection_or_keep_homepage(request: FinalizeDeviceConnection) -> DeferredDeviceConnectionResult:\n    try:\n        return finalize_deferred_device_connection(request)\n    except DeviceConnectionError:\n        return DeferredDeviceConnectionResult(connection_status='device_failed_nonblocking', experience_enhancement_ready=False, homepage_access_preserved=True, first_advice_access_preserved=True)\n```"
+    }
+  },
+  "state_profile_boundary": {
+    "architecture_topics": [
+      "Boundary to page flow: 本 FEAT 冻结业务状态与存储边界，不重新定义页面交互细节。",
+      "Boundary to downstream recommendation/runtime: 下游只能读取 canonical boundary 暴露的统一视图，不得自行拼装冲突字段。",
+      "Primary state、capability flags 和 canonical profile ownership must be explicit so completion and eligibility judgments never depend on derived aliases."
+    ],
+    "responsibility_splits": [
+      "Onboarding state store owns primary_state and capability_flags transitions.",
+      "Physical profile store owns canonical body facts such as birthdate、height and weight.",
+      "Canonical state reader owns unified reads across stores and fail-closed conflict handling."
+    ],
+    "api_surfaces": [
+      "primary state write contract",
+      "canonical physical profile write contract",
+      "unified onboarding state read contract"
+    ],
+    "api_cli_commands": [
+      "`POST /v1/onboarding/primary-state` via onboarding state boundary service",
+      "`POST /v1/profile/physical-canonical` via canonical profile boundary service",
+      "`GET /v1/onboarding/unified-state` via canonical state reader"
+    ],
+    "api_command_specs": [
+      {
+        "command": "POST /v1/onboarding/primary-state",
+        "surface": "`POST /v1/onboarding/primary-state` via onboarding state boundary service",
+        "request_schema": [
+          "`user_ref: string`",
+          "`primary_state: string`",
+          "`capability_flags: object`"
+        ],
+        "response_schema": [
+          "success envelope=`{ ok: true, result }`",
+          "result fields=`primary_state`, `capability_flags_ref`",
+          "error envelope=`{ ok: false, error }`"
+        ],
+        "field_semantics": [
+          "`primary_state` is the authoritative onboarding/business progression state.",
+          "`capability_flags` capture availability facts and must not replace primary_state."
+        ],
+        "enum_domain": [
+          "`primary_state ∈ {registered, minimal_profile_in_progress, profile_minimal_done, homepage_entered}`"
+        ],
+        "invariants": [
+          "write must preserve known legal state transitions",
+          "capability flag mutation must not invent completion states"
+        ],
+        "canonical_refs": [
+          "`primary_state`",
+          "`capability_flags_ref`"
+        ],
+        "errors": [
+          "`illegal_primary_state_transition`",
+          "`invalid_capability_flag_payload`"
+        ],
+        "idempotency": "`user_ref + primary_state + capability_flags_digest`",
+        "preconditions": [
+          "user exists in onboarding state boundary"
+        ]
+      },
+      {
+        "command": "POST /v1/profile/physical-canonical",
+        "surface": "`POST /v1/profile/physical-canonical` via canonical profile boundary service",
+        "request_schema": [
+          "`user_ref: string`",
+          "`birthdate?: string`",
+          "`height?: number`",
+          "`weight?: number`",
+          "`running_level?: string`",
+          "`recent_injury_status?: string`"
+        ],
+        "response_schema": [
+          "success envelope=`{ ok: true, result }`",
+          "result fields=`physical_profile_ref`, `canonical_fields_written`",
+          "error envelope=`{ ok: false, error }`"
+        ],
+        "field_semantics": [
+          "`birthdate` remains the canonical age-related field; derived age must not become the truth source.",
+          "Body-field conflicts must resolve in favor of `user_physical_profile` as the canonical store."
+        ],
+        "enum_domain": [
+          "`canonical_fields_written` is a frozen list of canonical body fields written in this operation"
+        ],
+        "invariants": [
+          "conflicting writes across non-canonical stores must fail closed",
+          "canonical profile writes must not mutate primary_state directly"
+        ],
+        "canonical_refs": [
+          "`physical_profile_ref`",
+          "`canonical_fields_written`"
+        ],
+        "errors": [
+          "`cross_boundary_conflict`",
+          "`canonical_profile_validation_failed`"
+        ],
+        "idempotency": "`user_ref + canonical_profile_digest`",
+        "preconditions": [
+          "user identity is resolved"
+        ]
+      },
+      {
+        "command": "GET /v1/onboarding/unified-state",
+        "surface": "`GET /v1/onboarding/unified-state` via canonical state reader",
+        "request_schema": [
+          "`user_ref: string`"
+        ],
+        "response_schema": [
+          "success envelope=`{ ok: true, result }`",
+          "result fields=`primary_state`, `capability_flags`, `canonical_profile_boundary`, `conflict_blocked`",
+          "error envelope=`{ ok: false, error }`"
+        ],
+        "field_semantics": [
+          "`canonical_profile_boundary` identifies the stores that may author onboarding-related body facts.",
+          "`conflict_blocked` indicates unified reads are fail-closed until conflicting writes are resolved."
+        ],
+        "enum_domain": [
+          "`canonical_profile_boundary ∈ {user_physical_profile, runner_profiles_readonly_projection}`"
+        ],
+        "invariants": [
+          "eligibility and completion checks must read canonical fields instead of derived aliases",
+          "reader must fail closed when cross-boundary conflicts remain unresolved"
+        ],
+        "canonical_refs": [
+          "`primary_state`",
+          "`canonical_profile_boundary`",
+          "`conflict_blocked`"
+        ],
+        "errors": [
+          "`unified_state_missing`",
+          "`conflict_resolution_required`"
+        ],
+        "idempotency": "`user_ref`",
+        "preconditions": [
+          "user exists in canonical boundary services"
+        ]
+      }
+    ],
+    "implementation_architecture": [
+      "把 `primary_state` 和 `capability_flags` 从页面局部态中剥离出来，作为 onboarding state boundary 的显式业务状态承载。",
+      "把 `birthdate / height / weight / running_level / recent_injury_status` 等 canonical 身体字段的所有权固定到 `user_physical_profile`，其余存储只能做 projection。",
+      "统一读取层必须通过 canonical reader 暴露 completion/eligibility 所需字段，并在跨边界冲突时 fail closed。"
+    ],
+    "implementation_modules": [
+      "Onboarding state boundary service：读写 `primary_state` 与 `capability_flags`。",
+      "Canonical physical profile store adapter：统一写入和校验 canonical 身体字段。",
+      "Unified onboarding state reader：基于 canonical 字段拼装完成态和能力开关视图。",
+      "Cross-boundary conflict validator：检测 users / user_physical_profile / runner_profiles 之间的冲突写入。"
+    ],
+    "state_model": [
+      "`primary_state` captures business progression state and is authoritative for onboarding completion.",
+      "`capability_flags` capture feature availability facts and must not replace `primary_state`.",
+      "`canonical_profile_boundary` identifies `user_physical_profile` as the sole authority for body facts while `runner_profiles` remains a read model or downstream projection.",
+      "`conflict_blocked=true` means unified reads and downstream eligibility checks fail closed until conflicts are resolved."
+    ],
+    "architecture_diagram": "```text\n[Onboarding State Service] ----> [Unified Onboarding State Reader]\n          |                                 ^\n          v                                 |\n[Primary State + Capability Flags]   [Canonical Physical Profile Store]\n                                              ^\n                                              |\n                                  [Cross-Boundary Conflict Validator]\n```",
+    "tech_runtime_view": "```text\n[state_boundary/write_primary_state]\n                |\n                +--> [state_boundary/write_capability_flags]\n                |\n                +--> [profile_boundary/write_physical_profile_canonical]\n                |\n                +--> [state_boundary/read_unified_onboarding_state]\n```",
+    "flow_diagram": "```text\nService -> WritePrimaryState             : persist primary_state + flags\nService -> WritePhysicalProfileCanonical : persist canonical body fields\nReader  -> Conflict Validator            : check cross-boundary conflicts\nReader  -> Unified State Result          : return canonical completion/eligibility view or fail closed\n```",
+    "implementation_strategy": [
+      "先冻结 state/store ownership 规则，再定义读写 contract，最后补统一 reader。",
+      "把 completion、eligibility 和 downstream gating 全部绑定到 canonical fields + primary_state，禁止依赖 derived age 或旁路 store。",
+      "最后验证冲突写入、非法状态迁移和 unified read fail-closed 三条异常主干。"
+    ],
+    "implementation_unit_mapping": [
+      "`state_boundary/write_primary_state` (`new`): 持久化 `primary_state` 和合法状态迁移。",
+      "`state_boundary/write_capability_flags` (`new`): 持久化 capability flags，不越权创造完成态。",
+      "`profile_boundary/write_physical_profile_canonical` (`new`): 向 `user_physical_profile` 写入 canonical 身体字段。",
+      "`state_boundary/read_unified_onboarding_state` (`new`): 输出统一 completion/eligibility 视图。",
+      "`state_boundary/conflict_validator` (`new`): 检测并阻断跨边界冲突写入。"
+    ],
+    "main_sequence": [
+      "1. write legal `primary_state` transitions into onboarding state boundary",
+      "2. write canonical body fields into `user_physical_profile`",
+      "3. reject cross-boundary conflicts instead of silently merging conflicting stores",
+      "4. read unified onboarding state through canonical reader",
+      "5. derive completion and eligibility from `primary_state`, `capability_flags`, and canonical fields only"
+    ],
+    "exception_compensation": [
+      "illegal primary state transition：拒绝写入并保留上一个 authoritative state。",
+      "cross-boundary canonical profile conflict：fail closed，记录 audit/conflict evidence，禁止 unified reader 放行下游判断。",
+      "unified reader detects unresolved conflict：返回 `conflict_blocked=true`，要求先修复边界冲突。"
+    ],
+    "integration_points": [
+      "调用方：onboarding completion、homepage guard、first-advice gate 都必须通过 unified reader 读取状态。",
+      "挂接点：旧的 `runner_profiles` 读取面可以保留，但只能作为 projection，不得在身体字段冲突时胜出。",
+      "旧系统兼容：`age` 可作为临时派生展示值保留，但 completion 和 eligibility 判断必须基于 canonical `birthdate`。"
+    ],
+    "minimal_code_skeleton": {
+      "happy_path": "```python\ndef read_unified_onboarding_state(user_ref: str) -> UnifiedOnboardingState:\n    state = load_primary_state(user_ref)\n    flags = load_capability_flags(user_ref)\n    profile = load_canonical_physical_profile(user_ref)\n    ensure_no_cross_boundary_conflict(user_ref, profile)\n    return UnifiedOnboardingState(primary_state=state, capability_flags=flags, canonical_profile_boundary='user_physical_profile', conflict_blocked=False)\n```",
+      "failure_path": "```python\ndef write_physical_profile_canonical_or_block(request: WritePhysicalProfileCanonical) -> WriteResult:\n    conflicts = detect_cross_boundary_conflicts(request.user_ref, request)\n    if conflicts:\n        raise CrossBoundaryConflict('conflict_blocked')\n    return persist_canonical_physical_profile(request)\n```"
+    }
+  },
+  "minimal_onboarding": {
+    "architecture_topics": [
+      "Boundary to registration/authentication: 本 FEAT 只消费“已登录/已注册”前置条件，不重写登录注册实现。",
+      "Boundary to homepage shell: 本 FEAT 只负责最小建档完成后的首页放行条件，不扩张首页内容或推荐逻辑。",
+      "Boundary to device connection: 设备连接入口必须后置，不能重新变回首进主链阻塞条件。"
+    ],
+    "responsibility_splits": [
+      "Minimal profile page owns one-page input collection and inline validation feedback.",
+      "Profile completion service owns canonical field normalization, persistence, and `profile_minimal_done` state transition.",
+      "Homepage entry guard owns post-submit entry allowance; device connection remains a deferred follow-up entry."
+    ],
+    "api_surfaces": [
+      "minimal profile submission contract",
+      "minimal profile state contract"
+    ],
+    "api_cli_commands": [
+      "`POST /v1/onboarding/minimal-profile` via onboarding service surface",
+      "`GET /v1/onboarding/minimal-profile-state` via onboarding service surface"
+    ],
+    "api_command_specs": [
+      {
+        "command": "POST /v1/onboarding/minimal-profile",
+        "surface": "`POST /v1/onboarding/minimal-profile` via onboarding service surface",
+        "request_schema": [
+          "`gender: string`",
+          "`birthdate: string`",
+          "`height: number`",
+          "`weight: number`",
+          "`running_level: string`",
+          "`recent_injury_status: string`"
+        ],
+        "response_schema": [
+          "success envelope=`{ ok: true, result }`",
+          "result fields=`profile_ref`, `profile_minimal_done`, `homepage_entry_allowed`, `device_connection_deferred`",
+          "error envelope=`{ ok: false, error, field_errors? }`"
+        ],
+        "field_semantics": [
+          "`birthdate` is the canonical age-related field for downstream persistence and derivation.",
+          "`profile_minimal_done` is the authoritative completion marker that gates homepage entry."
+        ],
+        "enum_domain": [
+          "`running_level` must use a frozen onboarding domain rather than free-text labels.",
+          "`recent_injury_status` must remain machine-readable for downstream recommendations."
+        ],
+        "invariants": [
+          "homepage entry can only be allowed after all required minimal profile fields validate",
+          "device connection must remain deferred even when submission succeeds"
+        ],
+        "canonical_refs": [
+          "`profile_ref`",
+          "`profile_minimal_done`"
+        ],
+        "errors": [
+          "`missing_required_field`",
+          "`invalid_birthdate`",
+          "`invalid_running_level`",
+          "`invalid_recent_injury_status`"
+        ],
+        "idempotency": "`user_ref + payload_digest`",
+        "preconditions": [
+          "user has completed login/registration and is routed into the minimal profile page"
+        ]
+      },
+      {
+        "command": "GET /v1/onboarding/minimal-profile-state",
+        "surface": "`GET /v1/onboarding/minimal-profile-state` via onboarding service surface",
+        "request_schema": [
+          "`user_ref: string`"
+        ],
+        "response_schema": [
+          "success envelope=`{ ok: true, result }`",
+          "result fields=`onboarding_state`, `missing_fields`, `homepage_entry_allowed`, `device_connection_deferred`",
+          "error envelope=`{ ok: false, error }`"
+        ],
+        "field_semantics": [
+          "`onboarding_state` distinguishes in-progress minimal profile from completed minimal profile.",
+          "`missing_fields` is a UI-facing recovery hint, not a replacement for validation."
+        ],
+        "enum_domain": [
+          "`onboarding_state ∈ {minimal_profile_in_progress, profile_minimal_done}`"
+        ],
+        "invariants": [
+          "completed users must not be forced back into blocking device connection before homepage entry"
+        ],
+        "canonical_refs": [
+          "`onboarding_state`",
+          "`missing_fields`"
+        ],
+        "errors": [
+          "`profile_state_missing`"
+        ],
+        "idempotency": "`user_ref`",
+        "preconditions": [
+          "user already exists in onboarding state store"
+        ]
+      }
+    ],
+    "implementation_architecture": [
+      "登录/注册成功后，路由守卫先判断 `profile_minimal_done`，未完成时进入单页最小建档页，完成后直接进入首页。",
+      "最小建档提交链只负责收集和校验首日必要字段、写入 canonical profile 数据，并显式写下 `profile_minimal_done` 完成标记。",
+      "设备连接入口与主链解耦，只能在首页放行后以 deferred entry 方式继续出现。"
+    ],
+    "implementation_modules": [
+      "Minimal profile form schema：定义 `gender / birthdate / height / weight / running_level / recent_injury_status` 的页面输入与校验规则。",
+      "Minimal profile submission handler：负责 canonical normalization、字段校验、持久化与错误返回。",
+      "Onboarding completion state service：负责写入 `profile_minimal_done`、暴露当前最小建档状态。",
+      "Homepage entry guard：负责登录后与提交后的首页放行判断，并隔离设备连接后置入口。"
+    ],
+    "state_model": [
+      "`registered` -> `minimal_profile_in_progress` -> `profile_minimal_done` -> `homepage_entered`",
+      "`minimal_profile_in_progress(fail)` -> `field_error_visible` -> `minimal_profile_in_progress`",
+      "`profile_minimal_done` must preserve `device_connection_deferred=true` until the post-home entry path is explicitly opened."
+    ],
+    "architecture_diagram": "```text\n[Auth Complete] -> [Homepage Entry Guard] -> [Minimal Profile Page] -> [Profile Completion Service] -> [Profile State Store]\n                                                |\n                                                +--> [Homepage]\n                                                +--> [Deferred Device Connection Entry]\n```",
+    "tech_runtime_view": "```text\n[ui/minimal_profile_page]\n              |\n              v\n[onboarding/minimal_profile_schema] --> [onboarding/minimal_profile_submit]\n                                       |\n                                       +--> [onboarding/profile_state_service] --> [routing/homepage_entry_guard]\n                                       +--> [device_connection/deferred_entry]\n```",
+    "flow_diagram": "```text\nUser -> Minimal Profile Page         : fill required fields\nPage -> Submission Handler           : submit minimal profile\nSubmission Handler -> Profile Store  : persist canonical fields + completion marker\nProfile Store -> Homepage Entry Guard: evaluate homepage entry eligibility\nHomepage Entry Guard -> Homepage     : allow enter home immediately\nHomepage Entry Guard -> Device Entry : keep deferred follow-up only\n```",
+    "implementation_strategy": [
+      "先冻结最小建档字段、完成态与设备连接后置边界，再落页面与提交服务。",
+      "把 `profile_minimal_done` 视为单一 authoritative 完成标记，避免页面局部态与业务完成态分裂。",
+      "最后验证登录后路由、提交成功放行首页、提交失败留在表单、设备连接不阻塞这四条主干语义。"
+    ],
+    "implementation_unit_mapping": [
+      "`ui/minimal_profile_page` (`new`): 单页收集最小建档字段并渲染字段级错误。",
+      "`onboarding/minimal_profile_schema` (`new`): 冻结 required fields、枚举域与 canonical normalization 规则。",
+      "`onboarding/minimal_profile_submit` (`new`): 执行校验、持久化、完成态写入与 structured error 返回。",
+      "`onboarding/profile_state_service` (`new`): 读写 `minimal_profile_in_progress` / `profile_minimal_done` 状态。",
+      "`routing/homepage_entry_guard` (`extend`): 登录后与提交后统一判断首页放行与后置设备连接入口。"
+    ],
+    "main_sequence": [
+      "1. complete login/registration and resolve current onboarding state",
+      "2. route incomplete users into the single-page minimal profile flow",
+      "3. validate `gender`, `birthdate`, `height`, `weight`, `running_level`, and `recent_injury_status`",
+      "4. persist canonical minimal profile fields and mark `profile_minimal_done`",
+      "5. allow immediate homepage entry",
+      "6. expose device connection only as a deferred follow-up entry"
+    ],
+    "exception_compensation": [
+      "required field missing or invalid：停留在最小建档页并返回 field-level errors，不得提前放行首页。",
+      "profile write succeeds but completion marker write fails：标记 `completion_state_pending`，禁止首页放行并保留可重试提交。",
+      "homepage guard reads inconsistent state：fail closed 到最小建档页，禁止偷偷按旧状态放行首页。"
+    ],
+    "integration_points": [
+      "调用方：登录/注册完成后的路由守卫进入本 FEAT，输入必须是已认证 user context。",
+      "挂接点：提交成功后必须经由统一 homepage entry guard，而不是页面层直接跳转绕过状态判断。",
+      "旧系统兼容：设备连接入口可保留，但只能从首页后置入口进入，不能重新插回首进阻塞链路。"
+    ],
+    "minimal_code_skeleton": {
+      "happy_path": "```python\ndef submit_minimal_profile(request: SubmitMinimalProfile) -> MinimalProfileResult:\n    normalized = normalize_minimal_profile(request)\n    validate_required_fields(normalized)\n    profile_ref = persist_minimal_profile(normalized)\n    mark_profile_minimal_done(request.user_ref, profile_ref)\n    return MinimalProfileResult(profile_ref=profile_ref, profile_minimal_done=True, homepage_entry_allowed=True, device_connection_deferred=True)\n```",
+      "failure_path": "```python\ndef submit_minimal_profile_or_stay(request: SubmitMinimalProfile) -> MinimalProfileResult:\n    normalized = normalize_minimal_profile(request)\n    errors = validate_minimal_profile(normalized)\n    if errors:\n        return MinimalProfileResult.reject(field_errors=errors, homepage_entry_allowed=False)\n    return submit_minimal_profile(request)\n```"
+    }
+  },
+  "first_ai_advice_release": {
+    "architecture_topics": [
+      "Boundary to minimal onboarding: 本 FEAT 只消费 minimal profile completion 和 safety gate，不要求扩展画像或设备连接先完成。",
+      "Boundary to profile enrichment: first advice release 只产出首轮建议与提示，不承担后续补全任务卡编排。",
+      "Dedicated advice release placement is required so first-release payload、safety gate 和 follow-up prompt remain authoritative."
+    ],
+    "responsibility_splits": [
+      "Advice release engine owns首轮建议生成与释放状态写入。",
+      "Safety gate owns running_level 与 recent_injury_status 的风险门槛判断。",
+      "Onboarding/homepage surfaces own only visibility and navigation, not advice wording."
+    ],
+    "api_surfaces": [
+      "first advice release contract",
+      "first advice readiness snapshot contract"
+    ],
+    "api_cli_commands": [
+      "`POST /v1/advice/first-release` via advice release service",
+      "`GET /v1/advice/first-release-state` via advice release service"
+    ],
+    "api_command_specs": [
+      {
+        "command": "POST /v1/advice/first-release",
+        "surface": "`POST /v1/advice/first-release` via advice release service",
+        "request_schema": [
+          "`user_ref: string`",
+          "`profile_ref: string`",
+          "`minimal_profile_snapshot_ref: string`",
+          "`release_context_ref?: string`"
+        ],
+        "response_schema": [
+          "success envelope=`{ ok: true, command_ref, trace_ref, result }`",
+          "result fields=`advice_release_ref`, `training_advice_level`, `first_week_action`, `needs_more_info_prompt`, `device_connect_prompt`",
+          "error envelope=`{ ok: false, command_ref, trace_ref, error }`"
+        ],
+        "field_semantics": [
+          "`training_advice_level` is a coarse, release-safe level for the first week.",
+          "`needs_more_info_prompt` is a follow-up hint, not a blocker for advice release.",
+          "`device_connect_prompt` remains a deferred follow-up and must not block first advice."
+        ],
+        "enum_domain": [
+          "`training_advice_level ∈ {gentle, standard, cautious}`"
+        ],
+        "invariants": [
+          "first advice release must not require extended profile or device data",
+          "release payload must always preserve a machine-readable first-week action"
+        ],
+        "canonical_refs": [
+          "`advice_release_ref`",
+          "`training_advice_level`",
+          "`first_week_action`"
+        ],
+        "errors": [
+          "`profile_not_minimal_done`",
+          "`risk_gate_failed`",
+          "`advice_generation_failed`"
+        ],
+        "idempotency": "`profile_ref + minimal_profile_snapshot_ref`",
+        "preconditions": [
+          "minimal profile has reached completed state",
+          "safety gate resolved from running_level and recent_injury_status"
+        ]
+      },
+      {
+        "command": "GET /v1/advice/first-release-state",
+        "surface": "`GET /v1/advice/first-release-state` via advice release service",
+        "request_schema": [
+          "`user_ref: string`"
+        ],
+        "response_schema": [
+          "success envelope=`{ ok: true, command_ref, trace_ref, result }`",
+          "result fields=`advice_state`, `ready_for_release`, `blocking_missing_fields`, `next_prompt_ref`",
+          "error envelope=`{ ok: false, command_ref, trace_ref, error }`"
+        ],
+        "field_semantics": [
+          "`blocking_missing_fields` is a release hint for the next follow-up, not a recommendation to block advice.",
+          "`next_prompt_ref` should point to the lowest-friction next action."
+        ],
+        "enum_domain": [
+          "`advice_state ∈ {advice_pending, advice_ready, advice_released}`"
+        ],
+        "invariants": [
+          "state query must never rewrite release state",
+          "device connection must never appear as a prerequisite for advice readiness"
+        ],
+        "canonical_refs": [
+          "`advice_state`",
+          "`ready_for_release`",
+          "`next_prompt_ref`"
+        ],
+        "errors": [
+          "`advice_state_missing`"
+        ],
+        "idempotency": "`user_ref`",
+        "preconditions": [
+          "user onboarding state is already known"
+        ]
+      }
+    ],
+    "implementation_architecture": [
+      "Minimal profile completion produces a release-ready snapshot that can be consumed without waiting for extended profile or device connection.",
+      "Safety gate evaluates the canonical minimal fields and emits a first advice release verdict plus follow-up prompts.",
+      "Homepage and device flows can surface the released advice, but they must not own advice text generation."
+    ],
+    "implementation_modules": [
+      "Advice release engine：负责生成并落盘首轮 AI 建议。",
+      "Safety gate：负责基于 minimal profile 进行风险门槛判断。",
+      "Follow-up prompt composer：负责组装 needs_more_info_prompt 与 device_connect_prompt。"
+    ],
+    "state_model": [
+      "`profile_minimal_done` -> `advice_ready` -> `advice_released` -> `advice_visible`",
+      "`risk_gate_failed` -> `needs_more_info_visible` -> `advice_ready`"
+    ],
+    "architecture_diagram": "```text\n[Minimal Profile Done] -> [Safety Gate] -> [Advice Release Engine] -> [First Advice Visible]\n                                         |\n                                         +--> [Follow-up Prompt Composer]\n```",
+    "tech_runtime_view": "```text\n[advice/release_gate.py]\n              |\n              v\n[advice/first_release_engine.py] --> [advice/first_release_store.py]\n              |\n              +--> [advice/follow_up_prompt.py]\n```",
+    "flow_diagram": "```text\nMinimal Profile -> Safety Gate          : verify release-safe inputs\nSafety Gate     -> Release Engine       : authorize first advice\nRelease Engine   -> Advice Store        : persist release payload\nAdvice Store     -> Homepage / Profile  : expose first advice and follow-up prompts\n```",
+    "implementation_strategy": [
+      "先冻结 minimal profile snapshot 和 safety gate，再实现首轮建议释放。",
+      "把 device_connect_prompt 作为后续提示而不是 release 阻塞项。",
+      "最后验证 advice release 可以在 minimal profile 完成后独立成立。"
+    ],
+    "implementation_unit_mapping": [
+      "`advice/release_gate.py` (`new`): 评估 minimal profile 和安全门槛。",
+      "`advice/first_release_engine.py` (`new`): 生成首轮 AI 建议 payload。",
+      "`advice/first_release_store.py` (`new`): 持久化 advice release state 与结果。",
+      "`advice/follow_up_prompt.py` (`new`): 组装后续补充提示，不阻塞首轮建议。"
+    ],
+    "main_sequence": [
+      "1. load minimal profile snapshot",
+      "2. evaluate safety gate for first advice release",
+      "3. generate training_advice_level and first_week_action",
+      "4. persist advice release state",
+      "5. surface follow-up prompts without blocking release"
+    ],
+    "exception_compensation": [
+      "minimal profile 未完成：返回 `profile_not_minimal_done` 并保留 release pending。",
+      "safety gate 失败：返回可解释的 `needs_more_info_prompt`，但不得把 device connection 变成 blocker。",
+      "advice generation 失败：保留 release gate verdict，标记 `advice_generation_pending`，允许重试而不回退首页流程。"
+    ],
+    "integration_points": [
+      "调用方：最小建档完成后由 advice release service 拉起首轮建议，不需要等扩展画像。",
+      "挂接点：首页和 onboarding 完成态都可以展示 release 结果，但不重新解释风险门槛。",
+      "旧系统兼容：缺少扩展画像时，系统必须退化为首轮建议 + follow-up prompt，而不是阻断。"
+    ],
+    "minimal_code_skeleton": {
+      "happy_path": "```python\ndef release_first_advice(request: FirstAdviceReleaseRequest) -> FirstAdviceReleaseResult:\n    snapshot = load_minimal_profile_snapshot(request.minimal_profile_snapshot_ref)\n    verdict = evaluate_first_advice_gate(snapshot)\n    advice = generate_first_advice(snapshot, verdict)\n    persist_first_advice(request.user_ref, advice, verdict)\n    return FirstAdviceReleaseResult(advice_release_ref=advice.ref, training_advice_level=advice.level, first_week_action=advice.first_week_action, needs_more_info_prompt=advice.needs_more_info_prompt, device_connect_prompt=advice.device_connect_prompt)\n```",
+      "failure_path": "```python\ndef release_first_advice_or_hold(request: FirstAdviceReleaseRequest) -> FirstAdviceReleaseResult:\n    snapshot = load_minimal_profile_snapshot(request.minimal_profile_snapshot_ref)\n    verdict = evaluate_first_advice_gate(snapshot)\n    if not verdict.allow:\n        return FirstAdviceReleaseResult.hold(reason='risk_gate_failed', needs_more_info_prompt=verdict.prompt)\n    return release_first_advice(request)\n```"
+    }
+  },
+  "extended_profile_progressive_completion": {
+    "architecture_topics": [
+      "Boundary to minimal onboarding: 本 FEAT 只承接主页后的扩展画像渐进补全，不回写最小建档的完成判定。",
+      "Boundary to first advice release: 扩展补全可优化后续建议，但不得成为首轮建议的前置阻塞。",
+      "Dedicated task-card flow is required so each patch save remains independently persistent and independently recoverable."
+    ],
+    "responsibility_splits": [
+      "Task card orchestrator owns card ordering, save intent, and next-step recommendation.",
+      "Patch persistence service owns incremental field writes and patch-level idempotency.",
+      "Progress tracker owns completion percent and derived task visibility, not canonical profile authority."
+    ],
+    "api_surfaces": [
+      "`POST /v1/profile/extended-patch`",
+      "`GET /v1/profile/extended-tasks`"
+    ],
+    "api_cli_commands": [
+      "`POST /v1/profile/extended-patch` via profile progressive completion service",
+      "`GET /v1/profile/extended-tasks` via profile progressive completion service"
+    ],
+    "api_command_specs": [
+      {
+        "command": "POST /v1/profile/extended-patch",
+        "surface": "`POST /v1/profile/extended-patch` via profile progressive completion service",
+        "request_schema": [
+          "`user_ref: string`",
+          "`task_card_ref: string`",
+          "`patch_fields: object`"
+        ],
+        "response_schema": [
+          "success envelope=`{ ok: true, command_ref, trace_ref, result }`",
+          "result fields=`saved_patch_ref`, `profile_completion_percent`, `next_task_cards`",
+          "error envelope=`{ ok: false, command_ref, trace_ref, error }`"
+        ],
+        "field_semantics": [
+          "`patch_fields` is a partial profile update and must not replace the full profile document.",
+          "`profile_completion_percent` is derived from persisted patch coverage, not from UI state."
+        ],
+        "enum_domain": [],
+        "invariants": [
+          "each patch save must be independently replayable",
+          "completion percent must never exceed the canonical field coverage actually persisted"
+        ],
+        "canonical_refs": [
+          "`saved_patch_ref`",
+          "`profile_completion_percent`",
+          "`next_task_cards`"
+        ],
+        "errors": [
+          "`patch_invalid`",
+          "`save_failed`",
+          "`task_card_stale`"
+        ],
+        "idempotency": "`user_ref + task_card_ref + patch_digest`",
+        "preconditions": [
+          "homepage is already entered",
+          "task card metadata has been resolved"
+        ]
+      },
+      {
+        "command": "GET /v1/profile/extended-tasks",
+        "surface": "`GET /v1/profile/extended-tasks` via profile progressive completion service",
+        "request_schema": [
+          "`user_ref: string`"
+        ],
+        "response_schema": [
+          "success envelope=`{ ok: true, command_ref, trace_ref, result }`",
+          "result fields=`task_cards`, `completion_percent`, `in_progress_task_ref?`",
+          "error envelope=`{ ok: false, command_ref, trace_ref, error }`"
+        ],
+        "field_semantics": [
+          "`task_cards` are homepage-visible extension prompts, not required onboarding blockers.",
+          "`in_progress_task_ref` only identifies the current patch branch."
+        ],
+        "enum_domain": [],
+        "invariants": [
+          "task card list must be stable for the same profile snapshot",
+          "querying tasks must not mutate the underlying profile"
+        ],
+        "canonical_refs": [
+          "`task_cards`",
+          "`completion_percent`",
+          "`in_progress_task_ref`"
+        ],
+        "errors": [
+          "`profile_state_missing`"
+        ],
+        "idempotency": "`user_ref`",
+        "preconditions": [
+          "extended profile flow is available from homepage"
+        ]
+      }
+    ],
+    "implementation_architecture": [
+      "Homepage task cards present progressive completion work without changing the minimal onboarding gate.",
+      "Each patch save is persisted as a standalone increment so a partial completion can resume from the last saved card.",
+      "Progress snapshots are derived from canonical field coverage and are never treated as the source of truth."
+    ],
+    "implementation_modules": [
+      "Extended profile task card catalog：负责提供主页上的扩展补全任务卡。",
+      "Patch validation service：负责校验局部 patch 的字段与格式。",
+      "Progress tracker：负责计算 completion percent 并产出下一批 task cards。"
+    ],
+    "state_model": [
+      "`homepage_entered` -> `extended_profile_available` -> `extended_profile_editing` -> `patch_saved` -> `progress_advanced` -> `profile_complete`",
+      "`patch_invalid` -> `extended_profile_editing`"
+    ],
+    "architecture_diagram": "```text\n[Homepage Entered] -> [Task Card Catalog] -> [Patch Validation Service] -> [Patch Store] -> [Progress Tracker]\n                                                            |\n                                                            +--> [Next Task Cards]\n```",
+    "tech_runtime_view": "```text\n[profile/extended_patch_service.py]\n              |\n              v\n[profile/task_card_catalog.py] --> [profile/progress_tracker.py]\n              |\n              +--> [profile/completion_snapshot.py]\n```",
+    "flow_diagram": "```text\nHomepage Task Card -> Patch Validation : validate incremental fields\nPatch Validation   -> Patch Store      : persist one patch branch\nPatch Store        -> Progress Tracker : recalculate completion\nProgress Tracker   -> Homepage         : surface next task cards\n```",
+    "implementation_strategy": [
+      "先冻结 task-card 目录和 patch schema，再实现局部保存。",
+      "把 completion percent 视作派生值，避免 UI 进度反写成权威状态。",
+      "最后验证单卡保存、连续保存和中断恢复都能保持独立 idempotency。"
+    ],
+    "implementation_unit_mapping": [
+      "`profile/task_card_catalog.py` (`new`): 提供扩展画像任务卡与排序。",
+      "`profile/extended_patch_service.py` (`new`): 校验并保存局部 patch。",
+      "`profile/progress_tracker.py` (`new`): 计算 completion percent 与下一批任务卡。",
+      "`profile/completion_snapshot.py` (`new`): 生成可展示的进度快照。"
+    ],
+    "main_sequence": [
+      "1. load homepage task-card catalog",
+      "2. open selected patch branch",
+      "3. validate patch_fields and task_card_ref",
+      "4. persist patch increment and completion snapshot",
+      "5. recalculate next task cards and return progress"
+    ],
+    "exception_compensation": [
+      "patch_invalid：返回字段级错误，不影响已保存的其他扩展字段。",
+      "save_failed：保留 task card 当前位置并允许重试同一 patch branch。",
+      "task card version stale：返回 `task_card_stale` 并重新拉取任务目录。"
+    ],
+    "integration_points": [
+      "调用方：主页 task card 区域拉起扩展补全 patch。",
+      "挂接点：首轮建议只读取已完成的 canonical minimal/profile snapshot，不等待扩展补全结束。",
+      "旧系统兼容：未完成的扩展画像只影响 task cards，不得阻断首页进入或 advice release。"
+    ],
+    "minimal_code_skeleton": {
+      "happy_path": "```python\ndef save_extended_profile_patch(request: ExtendedProfilePatchRequest) -> ExtendedProfilePatchResult:\n    catalog = load_task_card_catalog(request.user_ref)\n    validate_patch(request.patch_fields, request.task_card_ref, catalog)\n    saved_patch = persist_patch_increment(request.user_ref, request.task_card_ref, request.patch_fields)\n    progress = recalculate_completion(request.user_ref)\n    return ExtendedProfilePatchResult(saved_patch_ref=saved_patch.ref, profile_completion_percent=progress.percent, next_task_cards=progress.next_cards)\n```",
+      "failure_path": "```python\ndef save_extended_profile_patch_or_retry(request: ExtendedProfilePatchRequest) -> ExtendedProfilePatchResult:\n    if not is_valid_task_card(request.task_card_ref):\n        return ExtendedProfilePatchResult.fail(reason='task_card_stale')\n    return save_extended_profile_patch(request)\n```"
+    }
+  },
+  "device_connect_deferred_entry": {
+    "architecture_topics": [
+      "Boundary to homepage entry: 设备连接只能作为首页后的增强入口，不得反向阻塞主链进入。",
+      "Boundary to advice release and profile completion: 设备连接可补充上下文，但不得成为建议释放或扩展画像的前置条件。",
+      "Deferred connection session must stay optional so unsupported providers degrade to skip/fail-nonblocking instead of blocking the user."
+    ],
+    "responsibility_splits": [
+      "Deferred entry coordinator owns when to offer device connection and how to surface it after homepage entry.",
+      "Provider adapter owns auth, sync, and device-specific result normalization.",
+      "Connection session store owns session lifecycle and nonblocking result persistence."
+    ],
+    "api_surfaces": [
+      "`POST /v1/device/connect/deferred`",
+      "`GET /v1/device/connect/deferred-state`"
+    ],
+    "api_cli_commands": [
+      "`POST /v1/device/connect/deferred` via device deferred connection service",
+      "`GET /v1/device/connect/deferred-state` via device deferred connection service"
+    ],
+    "api_command_specs": [
+      {
+        "command": "POST /v1/device/connect/deferred",
+        "surface": "`POST /v1/device/connect/deferred` via device deferred connection service",
+        "request_schema": [
+          "`user_ref: string`",
+          "`provider: string`",
+          "`entry_context: string`"
+        ],
+        "response_schema": [
+          "success envelope=`{ ok: true, command_ref, trace_ref, result }`",
+          "result fields=`connection_session_ref`, `device_connection_offered`, `nonblocking`",
+          "error envelope=`{ ok: false, command_ref, trace_ref, error }`"
+        ],
+        "field_semantics": [
+          "`device_connection_offered` signals an optional post-entry enhancement, not a required gate.",
+          "`nonblocking` must always be true for supported responses."
+        ],
+        "enum_domain": [],
+        "invariants": [
+          "homepage entry must stay open even if device setup fails",
+          "offering device connection must not mutate primary onboarding state"
+        ],
+        "canonical_refs": [
+          "`connection_session_ref`",
+          "`device_connection_offered`",
+          "`nonblocking`"
+        ],
+        "errors": [
+          "`provider_unsupported`",
+          "`session_build_failed`"
+        ],
+        "idempotency": "`user_ref + provider + entry_context`",
+        "preconditions": [
+          "homepage is already entered"
+        ]
+      },
+      {
+        "command": "GET /v1/device/connect/deferred-state",
+        "surface": "`GET /v1/device/connect/deferred-state` via device deferred connection service",
+        "request_schema": [
+          "`user_ref: string`"
+        ],
+        "response_schema": [
+          "success envelope=`{ ok: true, command_ref, trace_ref, result }`",
+          "result fields=`device_connection_state`, `enhancement_status`, `last_provider_ref?`",
+          "error envelope=`{ ok: false, command_ref, trace_ref, error }`"
+        ],
+        "field_semantics": [
+          "`enhancement_status` only reflects post-entry enhancement state and never blocks onboarding completion."
+        ],
+        "enum_domain": [
+          "`device_connection_state ∈ {not_offered, offered, connected, skipped, failed_nonblocking}`"
+        ],
+        "invariants": [
+          "querying deferred state must not open a new connection session"
+        ],
+        "canonical_refs": [
+          "`device_connection_state`",
+          "`enhancement_status`"
+        ],
+        "errors": [
+          "`state_missing`"
+        ],
+        "idempotency": "`user_ref`",
+        "preconditions": [
+          "onboarding state is already known"
+        ]
+      }
+    ],
+    "implementation_architecture": [
+      "Deferred device connection is initialized only after homepage entry so unsupported or slow providers remain nonblocking.",
+      "A provider adapter normalizes device-specific auth/sync results into a single enhancement result contract.",
+      "The session store records optional sessions separately from core onboarding state to keep the main chain isolated."
+    ],
+    "implementation_modules": [
+      "Deferred device connection service：负责首页后的连接发起与收口。",
+      "Provider adapter：负责第三方设备供应商的 auth 和 sync 适配。",
+      "Connection session store：负责会话状态和非阻塞结果持久化。"
+    ],
+    "state_model": [
+      "`homepage_entered` -> `device_connection_offered` -> `connection_session_opened` -> `device_connected`",
+      "`device_skipped` / `device_failed_nonblocking` remain terminal enhancement states without blocking the main flow"
+    ],
+    "architecture_diagram": "```text\n[Homepage Entered] -> [Deferred Connection Offer] -> [Provider Adapter] -> [Connection Session Store]\n                                                   |\n                                                   +--> [Nonblocking Result]\n```",
+    "tech_runtime_view": "```text\n[device/deferred_connection_service.py]\n              |\n              v\n[device/provider_adapter.py] --> [device/connection_session_store.py]\n              |\n              +--> [device/connection_result_mapper.py]\n```",
+    "flow_diagram": "```text\nHomepage Entry -> Offer Device Connection : surface optional enhancement\nOffer Device  -> Provider Adapter         : open deferred session\nProvider      -> Session Store            : persist device result\nSession Store -> Homepage                 : expose enhancement status without blocking\n```",
+    "implementation_strategy": [
+      "先冻结 deferred session contract，再实现 provider 适配。",
+      "把连接结果归类为 enhancement 状态，不允许把 device 成败回写为主链 gate。",
+      "最后验证 unsupported provider、auth fail、sync fail 都是非阻塞退化。"
+    ],
+    "implementation_unit_mapping": [
+      "`device/deferred_connection_service.py` (`new`): 拉起首页后的延迟设备连接。",
+      "`device/provider_adapter.py` (`new`): 适配设备供应商的 auth/sync 行为。",
+      "`device/connection_session_store.py` (`new`): 保存 deferred session 和 enhancement state。",
+      "`device/connection_result_mapper.py` (`new`): 将 provider result 映射成统一状态。"
+    ],
+    "main_sequence": [
+      "1. detect homepage entry completion",
+      "2. offer optional device connection",
+      "3. open deferred connection session",
+      "4. complete provider auth/sync or skip/fail nonblocking",
+      "5. persist enhancement status and return to homepage"
+    ],
+    "exception_compensation": [
+      "provider unsupported：立即降级为 `device_skipped`，不影响首页进入。",
+      "auth failed or sync failed：记录 `device_failed_nonblocking` 并允许后续重新发起。",
+      "session expired：关闭旧会话并允许重新打开新会话，不触发主链回滚。"
+    ],
+    "integration_points": [
+      "调用方：首页进入后可展示设备连接卡片，但不在首轮建档/首轮建议之前出现。",
+      "挂接点：设备连接结果可供首页和扩展画像读取，但只能作为 enhancement 反馈。",
+      "旧系统兼容：没有设备能力时系统必须直接退化为 skipped，不可阻塞主链。"
+    ],
+    "minimal_code_skeleton": {
+      "happy_path": "```python\ndef start_deferred_device_connection(request: DeferredDeviceConnectionRequest) -> DeferredDeviceConnectionResult:\n    session = open_device_connection_session(request.user_ref, request.provider, request.entry_context)\n    provider_result = connect_provider(session)\n    return finalize_device_connection(session.ref, provider_result)\n```",
+      "failure_path": "```python\ndef start_deferred_device_connection_or_skip(request: DeferredDeviceConnectionRequest) -> DeferredDeviceConnectionResult:\n    if not provider_supported(request.provider):\n        return DeferredDeviceConnectionResult.skip(reason='provider_unsupported')\n    return start_deferred_device_connection(request)\n```"
+    }
+  },
+  "state_and_profile_boundary_alignment": {
+    "architecture_topics": [
+      "Boundary to onboarding state: primary_state 与 capability_flags 是统一状态视图，但不能替代各自 owner 的写入责任。",
+      "Boundary to physical profile authority: user_physical_profile is the canonical source for physical profile conflicts and must override stale mirror data.",
+      "Dedicated boundary alignment service is required so reads can unify state without collapsing storage ownership."
+    ],
+    "responsibility_splits": [
+      "Boundary alignment service owns unified read synthesis and conflict resolution order.",
+      "Primary state store owns onboarding progression and capability flags for state gating.",
+      "Physical profile store owns canonical physical attributes and conflict resolution truth."
+    ],
+    "api_surfaces": [
+      "`POST /v1/onboarding/primary-state`",
+      "`GET /v1/onboarding/unified-state`"
+    ],
+    "api_cli_commands": [
+      "`POST /v1/onboarding/primary-state` via onboarding state boundary service",
+      "`GET /v1/onboarding/unified-state` via onboarding state boundary service"
+    ],
+    "api_command_specs": [
+      {
+        "command": "POST /v1/onboarding/primary-state",
+        "surface": "`POST /v1/onboarding/primary-state` via onboarding state boundary service",
+        "request_schema": [
+          "`user_ref: string`",
+          "`primary_state: string`",
+          "`capability_flags: object`"
+        ],
+        "response_schema": [
+          "success envelope=`{ ok: true, command_ref, trace_ref, result }`",
+          "result fields=`primary_state_ref`, `capability_flags_ref`",
+          "error envelope=`{ ok: false, command_ref, trace_ref, error }`"
+        ],
+        "field_semantics": [
+          "`primary_state` is the canonical onboarding progression state.",
+          "`capability_flags` are derived from state and profile boundaries, not arbitrary UI flags."
+        ],
+        "enum_domain": [],
+        "invariants": [
+          "state writes must remain separate from physical profile writes",
+          "the same request must not rewrite profile authority"
+        ],
+        "canonical_refs": [
+          "`primary_state_ref`",
+          "`capability_flags_ref`"
+        ],
+        "errors": [
+          "`state_transition_invalid`",
+          "`conflict_blocked`"
+        ],
+        "idempotency": "`user_ref + primary_state`",
+        "preconditions": [
+          "state boundary service initialized"
+        ]
+      },
+      {
+        "command": "GET /v1/onboarding/unified-state",
+        "surface": "`GET /v1/onboarding/unified-state` via onboarding state boundary service",
+        "request_schema": [
+          "`user_ref: string`"
+        ],
+        "response_schema": [
+          "success envelope=`{ ok: true, command_ref, trace_ref, result }`",
+          "result fields=`primary_state`, `capability_flags`, `canonical_profile_boundary`, `resolved_profile_refs`",
+          "error envelope=`{ ok: false, command_ref, trace_ref, error }`"
+        ],
+        "field_semantics": [
+          "`canonical_profile_boundary` exposes which profile source currently wins conflict resolution."
+        ],
+        "enum_domain": [],
+        "invariants": [
+          "unified read must prefer canonical physical profile over stale mirrors",
+          "querying unified state must not mutate either store"
+        ],
+        "canonical_refs": [
+          "`primary_state`",
+          "`capability_flags`",
+          "`canonical_profile_boundary`"
+        ],
+        "errors": [
+          "`state_missing`"
+        ],
+        "idempotency": "`user_ref`",
+        "preconditions": [
+          "at least one state or profile record exists"
+        ]
+      }
+    ],
+    "implementation_architecture": [
+      "The alignment service merges primary state and physical profile boundaries into one unified read path while preserving separate ownership on writes.",
+      "Conflict resolution always prefers user_physical_profile when profile data disagree with mirrored or stale copies.",
+      "Unified state is a read model only; it does not become a new authoritative write source."
+    ],
+    "implementation_modules": [
+      "Boundary alignment service：负责合并 primary_state 与 capability_flags 的统一读取。",
+      "Canonical profile resolver：负责处理 user_physical_profile 的冲突优先级。",
+      "Unified state view：负责输出可供主页、建议和设备流共享的统一状态。"
+    ],
+    "state_model": [
+      "`primary_state_recorded` -> `capability_flags_resolved` -> `canonical_profile_boundary_resolved` -> `unified_onboarding_state_ready`",
+      "`conflict_detected` -> `boundary_resolution_required` -> `canonical_profile_preferred`"
+    ],
+    "architecture_diagram": "```text\n[Primary State Store] --> [Boundary Alignment Service] <-- [Canonical Physical Profile Store]\n                                       |\n                                       v\n                              [Unified Onboarding State]\n```",
+    "tech_runtime_view": "```text\n[state/boundary_service.py]\n              |\n              v\n[state/unified_state_view.py] --> [profile/canonical_profile_resolver.py]\n              |\n              +--> [state/capability_flag_store.py]\n```",
+    "flow_diagram": "```text\nState Write      -> Boundary Service      : persist primary state separately\nProfile Write    -> Canonical Resolver    : keep physical profile authoritative\nBoundary Service -> Unified State View    : synthesize read-only combined state\nUnified State    -> Consumers            : serve homepage, advice, and device flows\n```",
+    "implementation_strategy": [
+      "先冻结 primary_state 与 physical_profile 的写边界，再实现统一读模型。",
+      "冲突解析必须优先 physical profile authority，避免镜像表写入污染主链。",
+      "最后验证 advice、extended profile、device flows 都只消费统一视图，不直接争抢写权。"
+    ],
+    "implementation_unit_mapping": [
+      "`state/boundary_service.py` (`new`): 合并 primary_state 与 capability_flags。",
+      "`state/unified_state_view.py` (`new`): 输出统一 onboarding 状态读模型。",
+      "`profile/canonical_profile_resolver.py` (`new`): 处理 physical profile canonical 冲突优先级。",
+      "`state/capability_flag_store.py` (`new`): 保存 capability flags 派生结果。"
+    ],
+    "main_sequence": [
+      "1. resolve authoritative owner for state and profile writes",
+      "2. write or update primary_state separately",
+      "3. write canonical physical profile separately",
+      "4. resolve capability flags and conflict precedence",
+      "5. serve unified onboarding state to downstream consumers"
+    ],
+    "exception_compensation": [
+      "conflicting state/profile writes：阻止写入并返回 `conflict_blocked`，要求重新拉取统一视图。",
+      "canonical profile missing：返回 `state_missing` 或 `canonical_profile_missing`，不得伪造边界。",
+      "stale mirror read：降级到 canonical physical profile 并标记 `resolved_profile_refs`。"
+    ],
+    "integration_points": [
+      "调用方：minimal onboarding、extended profile、first advice release 和 device deferred entry 都应读取 unified state。",
+      "挂接点：写入仍按各自 owner 分离，统一状态只作为消费侧视图。 ",
+      "旧系统兼容：若某个旧表存在镜像数据，读取必须显式标记 canonical winner，不得模糊化。"
+    ],
+    "minimal_code_skeleton": {
+      "happy_path": "```python\ndef write_primary_state(request: PrimaryStateWriteRequest) -> PrimaryStateWriteResult:\n    primary_state_ref = persist_primary_state(request.user_ref, request.primary_state)\n    capability_flags_ref = recalculate_capability_flags(request.user_ref, request.primary_state)\n    return PrimaryStateWriteResult(primary_state_ref=primary_state_ref, capability_flags_ref=capability_flags_ref)\n```",
+      "failure_path": "```python\ndef read_unified_onboarding_state_or_resolve(request: UnifiedStateRequest) -> UnifiedStateResult:\n    unified = load_unified_onboarding_state(request.user_ref)\n    if unified.conflict_detected:\n        return UnifiedStateResult.fail(reason='conflict_blocked')\n    return unified\n```"
+    }
+  },
   "adoption_e2e": {
     "architecture_topics": [
       "Boundary to foundation FEATs: 本 FEAT 只定义 onboarding/pilot/cutover 挂接边界，不重写 collaboration、gate decision/publication、IO foundation internals。",

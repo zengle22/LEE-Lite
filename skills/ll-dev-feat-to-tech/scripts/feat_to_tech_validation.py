@@ -45,6 +45,13 @@ REQUIRED_TECH_SUBHEADINGS = [
     "### Integration Points",
     "### Minimal Code Skeleton",
 ]
+PRODUCT_AXIS_IDS = {
+    "minimal-onboarding-flow",
+    "first-ai-advice-release",
+    "extended-profile-progressive-completion",
+    "device-connect-deferred-entry",
+    "state-and-profile-boundary-alignment",
+}
 REQUIRED_API_HEADINGS = [
     "## Contract Scope",
     "## Response Envelope",
@@ -77,6 +84,7 @@ def validate_output_package(artifacts_dir: Path) -> tuple[list[str], dict[str, A
     validate_consistency_sections(errors, artifacts_dir, bundle_json)
     validate_handoff(errors, artifacts_dir)
     validate_adr007_adoption(errors, bundle_json)
+    validate_explicit_product_axis_resolution(errors, bundle_json)
     return errors, {
         "valid": not errors,
         "feat_ref": feat_ref,
@@ -153,6 +161,12 @@ def validate_consistency_sections(errors, artifacts_dir, bundle_json):
     semantic_drift_check = load_json(artifacts_dir / "semantic-drift-check.json")
     if bundle_json.get("semantic_lock") and semantic_drift_check.get("semantic_lock_preserved") is not True:
         errors.append("semantic-drift-check.json must preserve semantic_lock when semantic_lock is present.")
+    if semantic_drift_check.get("verdict") != "pass":
+        errors.append("semantic-drift-check.json must report verdict=pass for freeze-ready TECH output.")
+    required_drift_keys = {"matched_allowed_capabilities", "axis_conflicts", "carrier_topic_issues", "topic_alignment_ok", "lock_gate_ok"}
+    missing = required_drift_keys.difference(set(semantic_drift_check.keys()))
+    if missing:
+        errors.append("semantic-drift-check.json is missing required review keys: " + ", ".join(sorted(missing)))
     markdown_text = (artifacts_dir / "tech-design-bundle.md").read_text(encoding="utf-8")
     _, markdown_body = parse_markdown_frontmatter(markdown_text)
     for heading in REQUIRED_MARKDOWN_HEADINGS:
@@ -190,3 +204,11 @@ def validate_adr007_adoption(errors, bundle_json):
         ]:
             if marker not in joined_rules:
                 errors.append("ADR-007 adoption_e2e TECH must preserve inherited family marker: " + marker)
+
+
+def validate_explicit_product_axis_resolution(errors, bundle_json):
+    selected_feat = bundle_json.get("selected_feat") or {}
+    axis_id = str(selected_feat.get("axis_id") or "").strip().lower()
+    resolved_axis = str(selected_feat.get("resolved_axis") or "").strip().lower()
+    if axis_id in PRODUCT_AXIS_IDS and resolved_axis == "generic":
+        errors.append(f"selected_feat.axis_id={axis_id} must not resolve to generic TECH output.")

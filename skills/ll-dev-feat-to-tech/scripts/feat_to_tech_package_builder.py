@@ -6,9 +6,16 @@ Package assembly helpers for feat-to-tech runtime.
 from __future__ import annotations
 
 from dataclasses import dataclass
+from pathlib import Path
+import sys
 from typing import Any
 
-from feat_to_tech_common import ensure_list, normalize_semantic_lock, unique_strings
+WORKSPACE_ROOT = Path(__file__).resolve().parents[3]
+if str(WORKSPACE_ROOT) not in sys.path:
+    sys.path.insert(0, str(WORKSPACE_ROOT))
+
+from cli.lib.workflow_revision import normalize_revision_context
+from feat_to_tech_common import derive_semantic_lock, ensure_list, normalize_semantic_lock, unique_strings
 from feat_to_tech_derivation import (
     api_command_specs,
     api_compatibility_rules,
@@ -21,6 +28,7 @@ from feat_to_tech_derivation import (
     design_focus,
     exception_compensation,
     explicit_axis,
+    feature_axis,
     flow_diagram,
     implementation_architecture,
     implementation_modules,
@@ -40,6 +48,134 @@ from feat_to_tech_derivation import (
 from feat_to_tech_documents import build_api_docs, build_arch_docs, build_markdown_body, build_tech_docs
 
 DOWNSTREAM_WORKFLOW = "workflow.dev.tech_to_impl"
+
+TOPIC_FAMILIES = {
+    "first_ai_advice": {
+        "markers": [
+            "generatefirstadvice",
+            "evaluatefirstadviceriskgate",
+            "training_advice_level",
+            "first_week_action",
+            "needs_more_info_prompt",
+            "device_connect_prompt",
+            "firstadvicepanel",
+            "advice_visible",
+        ],
+        "min_hits": 2,
+    },
+    "extended_profile_completion": {
+        "markers": [
+            "saveextendedprofilepatch",
+            "getprofilecompletiontasks",
+            "profile_extension_in_progress",
+            "profile_extension_done",
+            "incrementalsave",
+            "taskcard",
+            "completionupdater",
+        ],
+        "min_hits": 2,
+    },
+    "device_deferred_entry": {
+        "markers": [
+            "startdeferreddeviceconnection",
+            "finalizedeviceconnection",
+            "device_connection_offered",
+            "device_failed_nonblocking",
+            "device_skipped",
+            "deferreddeviceentry",
+            "homepage_entered",
+        ],
+        "min_hits": 2,
+    },
+    "state_profile_boundary": {
+        "markers": [
+            "writeprimarystate",
+            "writecapabilityflags",
+            "writephysicalprofilecanonical",
+            "readunifiedonboardingstate",
+            "primary_state",
+            "capability_flags",
+            "canonical_profile_boundary",
+            "conflict_blocked",
+            "user_physical_profile",
+        ],
+        "min_hits": 2,
+    },
+    "minimal_onboarding": {
+        "markers": [
+            "submitminimalprofile",
+            "profile_minimal_done",
+            "homepageentryguard",
+            "minimalprofilepage",
+            "device_connection_deferred",
+            "homepageentryallowed",
+            "post/v1/onboarding/minimal-profile",
+        ],
+        "min_hits": 2,
+    },
+    "adoption_e2e": {
+        "markers": [
+            "onboardingdirective",
+            "pilotevidencesubmission",
+            "llrolloutonboard-skill",
+            "pilotchain",
+            "cutover",
+            "compat_mode",
+            "rolloutstate",
+            "fallback_triggered",
+        ],
+        "min_hits": 2,
+    },
+    "formalization": {
+        "markers": [
+            "gatedecision",
+            "gatebriefrecord",
+            "llgateevaluate",
+            "llgatedispatch",
+            "decision_target",
+            "pendinghumandecision",
+            "formalpublication",
+        ],
+        "min_hits": 2,
+    },
+    "collaboration": {
+        "markers": [
+            "handoffenvelope",
+            "decisionreturnenvelope",
+            "gatependingref",
+            "authoritativehandoff",
+        ],
+        "min_hits": 2,
+    },
+    "layering": {
+        "markers": [
+            "admissionrequest",
+            "lineageresolverequest",
+            "formalrefs",
+            "candidatepackage",
+            "authoritativeformalref",
+        ],
+        "min_hits": 2,
+    },
+    "io_governance": {
+        "markers": [
+            "gatewaywriterequest",
+            "policyverdict",
+            "managedref",
+            "registryrecordref",
+            "logicalpath",
+        ],
+        "min_hits": 2,
+    },
+}
+
+PRODUCT_AXIS_IDS = {
+    "minimal-onboarding-flow",
+    "first-ai-advice-release",
+    "extended-profile-progressive-completion",
+    "device-connect-deferred-entry",
+    "state-and-profile-boundary-alignment",
+}
 
 
 @dataclass
@@ -66,40 +202,112 @@ class GeneratedTechPackage:
 
 def build_semantic_drift_check(feature: dict[str, Any], generated_text_parts: list[str]) -> dict[str, Any]:
     lock = normalize_semantic_lock(feature.get("semantic_lock"))
-    if not lock:
-        return {
-            "verdict": "not_applicable",
-            "semantic_lock_present": False,
-            "semantic_lock_preserved": True,
-            "forbidden_axis_detected": [],
-            "anchor_matches": [],
-            "summary": "No semantic_lock present.",
-        }
-
-    generated_text = " ".join(part for part in generated_text_parts if str(part).strip()).lower()
-    forbidden_hits = [item for item in lock.get("forbidden_capabilities", []) if str(item).strip().lower() in generated_text]
+    axis = feature_axis(feature)
+    axis_id = str(feature.get("axis_id") or "").strip().lower()
+    generated_text = compact_text(" ".join(part for part in generated_text_parts if str(part).strip()))
+    forbidden_hits = [item for item in lock.get("forbidden_capabilities", []) if compact_text(str(item)) in generated_text]
     anchor_matches = collect_anchor_matches(feature, lock, generated_text)
-    preserved = not forbidden_hits and len(anchor_matches) >= 1
+    matched_allowed_capabilities = [
+        item for item in ensure_list(lock.get("allowed_capabilities")) if compact_text(str(item)) in generated_text
+    ]
+    family_hits = topic_family_hits(generated_text)
+    axis_conflicts = collect_axis_conflicts(axis, family_hits)
+    carrier_topic_issues = collect_carrier_topic_issues(feature, axis, family_hits, axis_conflicts, matched_allowed_capabilities)
+    if axis == "generic" and axis_id in PRODUCT_AXIS_IDS:
+        carrier_topic_issues.append(f"explicit product axis `{axis_id}` resolved to generic TECH output")
+    topic_alignment_ok = not axis_conflicts and not carrier_topic_issues
+    lock_gate_ok = True if not lock else (len(anchor_matches) >= 1 or len(matched_allowed_capabilities) >= 2)
+    preserved = not forbidden_hits and topic_alignment_ok and lock_gate_ok
     return {
         "verdict": "pass" if preserved else "reject",
-        "semantic_lock_present": True,
+        "semantic_lock_present": bool(lock),
         "semantic_lock_preserved": preserved,
+        "topic_alignment_ok": topic_alignment_ok,
+        "lock_gate_ok": lock_gate_ok,
         "domain_type": lock.get("domain_type"),
         "one_sentence_truth": lock.get("one_sentence_truth"),
+        "matched_allowed_capabilities": matched_allowed_capabilities,
         "forbidden_axis_detected": forbidden_hits,
+        "axis_conflicts": axis_conflicts,
+        "carrier_topic_issues": carrier_topic_issues,
         "anchor_matches": anchor_matches,
-        "summary": "semantic_lock preserved." if preserved else "semantic_lock drift detected.",
+        "summary": (
+            "semantic_lock preserved."
+            if lock and preserved
+            else "topic alignment preserved."
+            if preserved
+            else "semantic_lock drift detected."
+        ),
     }
+
+
+def compact_text(text: str) -> str:
+    return "".join(str(text).lower().split())
+
+
+def topic_family_hits(generated_text: str) -> dict[str, list[str]]:
+    hits: dict[str, list[str]] = {}
+    for axis, family in TOPIC_FAMILIES.items():
+        axis_hits = [marker for marker in family["markers"] if marker in generated_text]
+        if axis_hits:
+            hits[axis] = axis_hits
+    return hits
+
+
+def collect_axis_conflicts(axis: str, family_hits: dict[str, list[str]]) -> list[str]:
+    conflicts: list[str] = []
+    selected_family = TOPIC_FAMILIES.get(axis)
+    selected_hits = family_hits.get(axis, [])
+    if not selected_family:
+        return conflicts
+    if len(selected_hits) >= selected_family["min_hits"]:
+        return conflicts
+    for foreign_axis, foreign_hits in family_hits.items():
+        if foreign_axis == axis:
+            continue
+        if len(foreign_hits) >= 2:
+            conflicts.append(f"{foreign_axis}: " + ", ".join(foreign_hits[:4]))
+    return conflicts
+
+
+def collect_carrier_topic_issues(
+    feature: dict[str, Any],
+    axis: str,
+    family_hits: dict[str, list[str]],
+    axis_conflicts: list[str],
+    matched_allowed_capabilities: list[str],
+) -> list[str]:
+    issues: list[str] = []
+    selected_family = TOPIC_FAMILIES.get(axis)
+    selected_hits = family_hits.get(axis, [])
+    if selected_family and len(selected_hits) < selected_family["min_hits"]:
+        issues.append(
+            f"{axis} TECH did not preserve enough topic markers: "
+            + (", ".join(selected_hits[:4]) if selected_hits else "none")
+        )
+    if axis_conflicts:
+        issues.append("Resolved axis conflicts with foreign topic family: " + "; ".join(axis_conflicts))
+    if axis == "minimal_onboarding" and matched_allowed_capabilities and len(matched_allowed_capabilities) < 2:
+        issues.append("minimal_onboarding TECH did not preserve enough minimal-profile/homepage-entry capability markers.")
+    identity = feature.get("identity_and_scenario") if isinstance(feature.get("identity_and_scenario"), dict) else {}
+    completed_state = str(identity.get("completed_state") or "").strip().lower()
+    if axis == "minimal_onboarding" and completed_state:
+        if "首页" in completed_state and "homepage" not in compact_text(completed_state) and "homepage" not in "".join(selected_hits):
+            issues.append("minimal_onboarding completed_state mentions homepage entry, but generated TECH does not mention homepage entry.")
+        if ("设备" in completed_state or "device" in completed_state) and "device" not in "".join(selected_hits):
+            issues.append("minimal_onboarding completed_state mentions deferred device connection, but generated TECH does not mention device handling.")
+    return issues
 
 
 def collect_anchor_matches(feature: dict[str, Any], lock: dict[str, Any], generated_text: str) -> list[str]:
     matches: list[str] = []
     token_groups = {
-        "domain_type": [str(lock.get("domain_type") or "").replace("_", " ").lower()],
-        "primary_object": [token for token in str(lock.get("primary_object") or "").replace("_", " ").lower().split() if token],
-        "lifecycle_stage": [token for token in str(lock.get("lifecycle_stage") or "").replace("_", " ").lower().split() if token],
+        "domain_type": [compact_text(str(lock.get("domain_type") or ""))],
+        "primary_object": [compact_text(str(lock.get("primary_object") or ""))],
+        "lifecycle_stage": [compact_text(str(lock.get("lifecycle_stage") or ""))],
     }
     for label, tokens in token_groups.items():
+        tokens = [token for token in tokens if token]
         if tokens and all(token in generated_text for token in tokens):
             matches.append(label)
     if str(lock.get("domain_type") or "").strip().lower() == "review_projection_rule":
@@ -126,28 +334,8 @@ def collect_anchor_matches(feature: dict[str, Any], lock: dict[str, Any], genera
 
 
 def _build_revision_context(revision_request: dict[str, Any] | None) -> dict[str, Any] | None:
-    if not revision_request:
-        return None
-    revision_round = revision_request.get("revision_round")
-    decision_target = str(revision_request.get("decision_target") or "").strip()
-    decision_reason = str(revision_request.get("decision_reason") or "").strip()
-    revision_note = "Revision request received."
-    if revision_round not in (None, ""):
-        revision_note = f"Revision round {revision_round}: {decision_reason or 'apply reviewer feedback.'}"
-    elif decision_target or decision_reason:
-        revision_note = ": ".join(part for part in [decision_target, decision_reason] if part) or revision_note
-    context = {
-        "revision_request_ref": str(revision_request.get("revision_request_ref") or ""),
-        "revision_round": revision_round,
-        "decision_type": str(revision_request.get("decision_type") or "").strip(),
-        "decision_target": decision_target,
-        "decision_reason": decision_reason,
-        "source_gate_decision_ref": str(revision_request.get("source_gate_decision_ref") or "").strip(),
-        "source_return_job_ref": str(revision_request.get("source_return_job_ref") or "").strip(),
-        "authoritative_input_ref": str(revision_request.get("authoritative_input_ref") or "").strip(),
-        "summary": revision_note,
-    }
-    return context
+    context = normalize_revision_context(revision_request, ensure_list=ensure_list)
+    return context or None
 
 
 def build_tech_package(
@@ -159,7 +347,7 @@ def build_tech_package(
     revision_request: dict[str, Any] | None = None,
 ) -> GeneratedTechPackage:
     feature = dict(feature)
-    feature["semantic_lock"] = normalize_semantic_lock(feature.get("semantic_lock") or package.semantic_lock)
+    feature["semantic_lock"] = derive_semantic_lock(feature, package.semantic_lock)
     refs = build_refs(feature, package)
     assessment = assess_optional_artifacts(feature, package)
     revision_context = _build_revision_context(revision_request)
@@ -170,7 +358,7 @@ def build_tech_package(
         [
             str(feature.get("title") or ""),
             str(feature.get("goal") or ""),
-            explicit_axis(feature) or "",
+            feature_axis(feature),
             " ".join(context["focus"]),
             " ".join(context["rules"]),
             " ".join(context["implementation_arch"]),
@@ -297,6 +485,15 @@ def build_defects(focus, consistency, semantic_drift_check):
         defects.append({"severity": "P1", "title": "Cross-artifact consistency failed", "detail": "; ".join(consistency["issues"])})
     if semantic_drift_check["verdict"] == "reject":
         defects.append({"severity": "P1", "title": "semantic_lock drift detected", "detail": semantic_drift_check["summary"]})
+    for issue in semantic_drift_check.get("carrier_topic_issues") or []:
+        defects.append({"severity": "P1", "title": "TECH carrier drifted away from FEAT topic", "detail": issue})
+    axis_conflicts = semantic_drift_check.get("axis_conflicts") or []
+    if axis_conflicts:
+        defects.append({
+            "severity": "P1",
+            "title": "Resolved axis conflicts with generated TECH keyword family",
+            "detail": "Conflicting markers: " + ", ".join(str(item) for item in axis_conflicts),
+        })
     return defects
 
 
@@ -351,7 +548,7 @@ def build_json_payload(run_id, feature, refs, source_refs, assessment, context, 
         "arch_required": assessment["arch_required"],
         "api_required": assessment["api_required"],
         "need_assessment": assessment,
-        "selected_feat": {**selected_feat_snapshot(feature), "resolved_axis": explicit_axis(feature) or "derived"},
+        "selected_feat": {**selected_feat_snapshot(feature), "resolved_axis": feature_axis(feature)},
         "tech_design": build_tech_design_block(context),
         "optional_arch": build_optional_arch_block(feature, refs, assessment),
         "optional_api": build_optional_api_block(feature, refs, assessment, context["api_specs"]),
@@ -437,17 +634,18 @@ def build_frontmatter(run_id, refs, assessment, source_refs, feature, status, re
 
 
 def build_review_report(run_id, refs, defects, utc_now_fn):
+    passed = not defects
     return {
         "review_id": f"tech-review-{run_id}",
         "review_type": "tech_design_review",
         "subject_refs": [refs["feat_ref"], refs["tech_ref"]],
-        "summary": "TECH package preserves FEAT traceability and downstream implementation readiness.",
+        "summary": "TECH package preserves FEAT traceability and downstream implementation readiness." if passed else "TECH package needs revision before it can be treated as aligned to the selected FEAT.",
         "findings": [
-            "TECH is present and aligned to the selected FEAT.",
+            "TECH is present and aligned to the selected FEAT." if passed else "TECH / FEAT semantic alignment is not yet credible.",
             "Optional companions were emitted only when need assessment required them.",
             "A final cross-artifact consistency check was recorded before freeze.",
         ],
-        "decision": "pass" if not defects else "revise",
+        "decision": "pass" if passed else "revise",
         "risks": [defect["detail"] for defect in defects],
         "created_at": utc_now_fn(),
     }
