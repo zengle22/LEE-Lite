@@ -56,3 +56,4 @@ notes:
   - The selected FEAT must already be independently acceptable at the FEAT layer before TESTSET derivation begins.
   - `feat_ref` selection is mandatory because a feat_freeze_package may contain multiple FEATs.
   - Optional TECH, delivery-prep, UI, or legacy requirement refs may refine QA context but must not override FEAT scope.
+  - The upstream FEAT context may supply acceptance and strategy signals, but it must not force the TESTSET to enumerate every runnable qualification case up front.

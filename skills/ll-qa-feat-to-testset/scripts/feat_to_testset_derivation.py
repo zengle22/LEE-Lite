@@ -73,6 +73,67 @@ def derive_risk_focus(feature: dict[str, Any]) -> list[str]:
     return derive_risk_focus_impl(feature, feature_profile(feature))
 
 
+def derive_coverage_goal(feature: dict[str, Any]) -> dict[str, Any]:
+    if not derive_feature_owned_code_paths(feature):
+        return {}
+    goal: dict[str, Any] = {"line_rate_percent": 80}
+    if feature_profile(feature) in {"runner_observability", "runner_dispatch", "pilot"}:
+        goal["branch_rate_percent"] = 70
+    return goal
+
+
+def derive_branch_families(feature: dict[str, Any]) -> list[str]:
+    if not derive_feature_owned_code_paths(feature):
+        return []
+    profile = feature_profile(feature)
+    families = [profile]
+    extras = {
+        "runner_operator_entry": ["entry-mode-start", "entry-mode-resume", "context-lineage"],
+        "runner_ready_job": ["approve-vs-non-approve", "progression-mode", "ready-vs-hold"],
+        "runner_control_surface": ["claim-run-complete-fail", "ownership-guard", "state-transition"],
+        "runner_intake": ["ready-scan", "claim-conflict", "lease-recovery"],
+        "runner_dispatch": ["target-skill-routing", "authoritative-input-lineage", "dispatch-fail-closed"],
+        "runner_feedback": ["done-vs-failed-vs-retry", "failure-evidence", "retry-reentry"],
+        "runner_observability": ["status-buckets", "snapshot-traceability", "read-only-monitoring"],
+        "pilot": ["pilot-chain", "fallback-path", "rollout-audit"],
+    }
+    families.extend(extras.get(profile, []))
+    return unique_strings(families)
+
+
+def derive_expansion_hints(feature: dict[str, Any], units: list[dict[str, Any]]) -> list[str]:
+    if not derive_feature_owned_code_paths(feature):
+        return []
+    hints: list[str] = []
+    for unit in units[:5]:
+        hints.extend(
+            [
+                str(unit.get("unit_ref") or "").strip(),
+                str(unit.get("acceptance_ref") or "").strip(),
+                str(unit.get("title") or "").strip(),
+            ]
+        )
+    return unique_strings([item for item in hints if item])
+
+
+def derive_qualification_expectation(feature: dict[str, Any]) -> str:
+    if not derive_feature_owned_code_paths(feature):
+        return ""
+    return "required" if derive_priority(feature) == "P1" else "recommended"
+
+
+def derive_qualification_budget(feature: dict[str, Any], units: list[dict[str, Any]]) -> int | None:
+    if not derive_feature_owned_code_paths(feature):
+        return None
+    return max(len(units) + 2, 6)
+
+
+def derive_max_expansion_rounds(feature: dict[str, Any]) -> int | None:
+    if not derive_feature_owned_code_paths(feature):
+        return None
+    return 2
+
+
 def derive_preconditions(feature: dict[str, Any]) -> list[str]:
     preconditions = ensure_list(feature.get("dependencies"))[:3]
     if not preconditions:
@@ -250,6 +311,12 @@ def derive_strategy_yaml(feature: dict[str, Any], package_json: dict[str, Any]) 
         "acceptance_traceability": derive_acceptance_traceability(feature, units),
         "governing_adrs": governing_adrs(feature, package_json),
         "semantic_lock": normalize_semantic_lock(feature.get("semantic_lock")),
+        "coverage_goal": derive_coverage_goal(feature),
+        "branch_families": derive_branch_families(feature),
+        "expansion_hints": derive_expansion_hints(feature, units),
+        "qualification_expectation": derive_qualification_expectation(feature),
+        "qualification_budget": derive_qualification_budget(feature, units),
+        "max_expansion_rounds": derive_max_expansion_rounds(feature),
     }
 
 
@@ -292,7 +359,7 @@ def build_test_set_yaml(feature: dict[str, Any], package_json: dict[str, Any]) -
     feat_ref = str(feature.get("feat_ref") or "")
     layers = derive_test_layers(feature)
     units = derive_test_units(feature)
-    return {
+    test_set_yaml = {
         "id": derive_test_set_ref(feat_ref),
         "ssot_type": "TESTSET",
         "workflow_key": "qa.feat-to-testset",
@@ -308,6 +375,10 @@ def build_test_set_yaml(feature: dict[str, Any], package_json: dict[str, Any]) -
         "coverage_scope": ensure_list(feature.get("scope")),
         "recommended_coverage_scope_name": derive_recommended_coverage_scope_name(feature),
         "feature_owned_code_paths": derive_feature_owned_code_paths(feature),
+        "coverage_goal": derive_coverage_goal(feature),
+        "branch_families": derive_branch_families(feature),
+        "expansion_hints": derive_expansion_hints(feature, units),
+        "qualification_expectation": derive_qualification_expectation(feature),
         "risk_focus": derive_risk_focus(feature),
         "preconditions": derive_preconditions(feature),
         "environment_assumptions": derive_environment_assumptions(feature, layers),
@@ -327,4 +398,11 @@ def build_test_set_yaml(feature: dict[str, Any], package_json: dict[str, Any]) -
         "semantic_lock": normalize_semantic_lock(feature.get("semantic_lock")),
         "status": "draft",
     }
+    qualification_budget = derive_qualification_budget(feature, units)
+    if qualification_budget is not None:
+        test_set_yaml["qualification_budget"] = qualification_budget
+    max_expansion_rounds = derive_max_expansion_rounds(feature)
+    if max_expansion_rounds is not None:
+        test_set_yaml["max_expansion_rounds"] = max_expansion_rounds
+    return test_set_yaml
 

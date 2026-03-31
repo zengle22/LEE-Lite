@@ -4,8 +4,15 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from pathlib import Path
+import sys
 from typing import Any
 
+WORKSPACE_ROOT = Path(__file__).resolve().parents[3]
+if str(WORKSPACE_ROOT) not in sys.path:
+    sys.path.insert(0, str(WORKSPACE_ROOT))
+
+from cli.lib.workflow_revision import normalize_revision_context
 from feat_to_testset_common import (
     dump_json,
     dump_yaml,
@@ -128,32 +135,28 @@ def _format_acceptance_traceability(rows: list[dict[str, Any]]) -> list[str]:
     return lines
 
 
+def _format_qualification_fields(strategy_yaml: dict[str, Any]) -> list[str]:
+    lines = ["- qualification:"]
+    coverage_goal = strategy_yaml.get("coverage_goal") or {}
+    if coverage_goal:
+        lines.append("  - coverage_goal:")
+        for key, value in coverage_goal.items():
+            lines.append(f"    - {key}: {value}")
+    lines.extend(
+        [
+            f"  - qualification_expectation: {strategy_yaml.get('qualification_expectation', '')}",
+            f"  - qualification_budget: {strategy_yaml.get('qualification_budget')}",
+            f"  - max_expansion_rounds: {strategy_yaml.get('max_expansion_rounds')}",
+        ]
+    )
+    lines.extend(_format_field_list("branch_families", ensure_list(strategy_yaml.get("branch_families"))))
+    lines.extend(_format_field_list("expansion_hints", ensure_list(strategy_yaml.get("expansion_hints"))))
+    return lines
+
+
 def _build_revision_context(revision_request: dict[str, Any] | None) -> dict[str, Any] | None:
-    if not revision_request:
-        return None
-    revision_round = revision_request.get("revision_round")
-    decision_target = str(revision_request.get("decision_target") or "").strip()
-    decision_reason = str(revision_request.get("decision_reason") or "").strip()
-    summary = decision_reason
-    if revision_round not in (None, ""):
-        summary = f"Revision round {revision_round}: {decision_reason or decision_target or 'apply reviewer feedback.'}"
-    elif decision_target and decision_reason:
-        summary = f"{decision_target}: {decision_reason}"
-    elif decision_target:
-        summary = decision_target
-    elif not summary:
-        summary = "Revision request received."
-    return {
-        "revision_request_ref": str(revision_request.get("revision_request_ref") or ""),
-        "revision_round": revision_round,
-        "decision_type": str(revision_request.get("decision_type") or "").strip(),
-        "decision_target": decision_target,
-        "decision_reason": decision_reason,
-        "source_gate_decision_ref": str(revision_request.get("source_gate_decision_ref") or "").strip(),
-        "source_return_job_ref": str(revision_request.get("source_return_job_ref") or "").strip(),
-        "authoritative_input_ref": str(revision_request.get("authoritative_input_ref") or "").strip(),
-        "summary": summary,
-    }
+    context = normalize_revision_context(revision_request)
+    return context or None
 
 
 def _build_candidate_context(package: Any, feature: dict[str, Any], run_id: str, revision_context: dict[str, Any] | None = None) -> dict[str, Any]:
@@ -321,12 +324,33 @@ def _build_candidate_package_body(context: dict[str, Any], documents: dict[str, 
         "src_ref": test_set_yaml.get("src_ref"),
         "source_refs": source_refs,
         "semantic_lock": feature["semantic_lock"],
+        "coverage_goal": test_set_yaml.get("coverage_goal", {}),
+        "branch_families": test_set_yaml.get("branch_families", []),
+        "expansion_hints": test_set_yaml.get("expansion_hints", []),
+        "qualification_expectation": test_set_yaml.get("qualification_expectation", ""),
+        "qualification_budget": test_set_yaml.get("qualification_budget"),
+        "max_expansion_rounds": test_set_yaml.get("max_expansion_rounds"),
         "artifact_refs": artifact_refs,
         "gate_subject_refs": gate_subject_refs,
         "downstream_target": downstream_skill,
         **({"revision_context": context["revision_context"]} if context.get("revision_context") else {}),
     }
-    bundle_frontmatter = {key: bundle_json[key] for key in ["artifact_type", "workflow_key", "workflow_run_id", "status", "package_role", "schema_version", "feat_ref", "test_set_ref", "derived_slug", "source_refs", "semantic_lock"]}
+    bundle_frontmatter = {
+        key: bundle_json[key]
+        for key in [
+            "artifact_type",
+            "workflow_key",
+            "workflow_run_id",
+            "status",
+            "package_role",
+            "schema_version",
+            "feat_ref",
+            "test_set_ref",
+            "derived_slug",
+            "source_refs",
+            "semantic_lock",
+        ]
+    }
     if context.get("revision_context"):
         bundle_frontmatter["revision_request_ref"] = context["revision_context"].get("revision_request_ref", "")
         bundle_frontmatter["revision_summary"] = context["revision_context"].get("summary", "")
@@ -335,7 +359,12 @@ def _build_candidate_package_body(context: dict[str, Any], documents: dict[str, 
             f"# {bundle_json['title']}",
             "## Selected FEAT\n\n" + "\n".join([f"- feat_ref: `{feature.get('feat_ref')}`", f"- title: {feature.get('title')}", f"- goal: {feature.get('goal')}", f"- epic_ref: `{test_set_yaml.get('epic_ref')}`", f"- src_ref: `{test_set_yaml.get('src_ref')}`"]),
             "## Requirement Analysis\n\n" + "\n".join(_format_field_list("coverage_scope", ensure_list(test_set_yaml.get("coverage_scope"))) + _format_field_list("risk_focus", ensure_list(test_set_yaml.get("risk_focus"))) + _format_field_list("preconditions", ensure_list(test_set_yaml.get("preconditions"))) + _format_field_list("coverage_exclusions", ensure_list(test_set_yaml.get("coverage_exclusions")))),
-            "## Strategy Draft\n\n" + "\n".join([f"- priority: {strategy_yaml.get('priority')}"] + _format_field_list("test_layers", ensure_list(strategy_yaml.get("test_layers"))) + _format_test_units(test_units)),
+            "## Strategy Draft\n\n" + "\n".join(
+                [f"- priority: {strategy_yaml.get('priority')}"]
+                + _format_field_list("test_layers", ensure_list(strategy_yaml.get("test_layers")))
+                + _format_qualification_fields(strategy_yaml)
+                + _format_test_units(test_units)
+            ),
             "## TESTSET\n\n" + "\n".join([f"- main_object: `{test_set_ref}`", f"- file: `{artifact_refs['test_set']}`", f"- status: `{test_set_yaml.get('status')}`", f"- environment_assumptions_count: {len(ensure_list(test_set_yaml.get('environment_assumptions')))}", f"- pass_criteria_count: {len(ensure_list(test_set_yaml.get('pass_criteria')))}", f"- evidence_required_count: {len(ensure_list(test_set_yaml.get('evidence_required')))}", "- only `test-set.yaml` is the formal main object; companion artifacts remain subordinate evidence.", "- main_object_fields:", "  - coverage_scope", "  - risk_focus", "  - preconditions", "  - environment_assumptions", "  - test_layers", "  - test_units", "  - coverage_exclusions", "  - pass_criteria", "  - evidence_required", "  - acceptance_traceability", "  - source_refs", "  - governing_adrs", "  - status", "- environment_assumptions:", *[f"  - {item}" for item in ensure_list(test_set_yaml.get("environment_assumptions"))], "- pass_criteria:", *[f"  - {item}" for item in ensure_list(test_set_yaml.get("pass_criteria"))], "- evidence_required:", *[f"  - {item}" for item in ensure_list(test_set_yaml.get("evidence_required"))]]),
             "## Gate Subjects\n\n" + "\n".join(gate_subject_lines),
             "## Downstream Handoff\n\n" + "\n".join([f"- target_skill: `{downstream_skill}`", f"- package_ref: `{handoff['package_ref']}`", "- required_environment_inputs:", *[f"  - {category}: {', '.join(ensure_list(values))}" for category, values in context["required_environment_inputs"].items()]]),

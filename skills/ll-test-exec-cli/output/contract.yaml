@@ -51,3 +51,4 @@ notes:
   - A non-failed run may still require external review. Acceptance remains downstream of this skill.
   - coverage_summary_ref and coverage_report_ref must be present; when coverage is not enabled, they should still resolve to disabled-status artifacts.
   - Smoke/acceptance runs may legitimately report disabled coverage, but coverage qualification runs must produce measurable coverage artifacts suitable for gate evaluation.
+  - `test_case_pack_ref` may refer to a minimal projection pack or to a qualification-expanded pack revision; either way, the source `TESTSET` remains the strategy authority.

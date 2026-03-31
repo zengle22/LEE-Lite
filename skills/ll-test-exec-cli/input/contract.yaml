@@ -14,6 +14,7 @@ required_payload_fields:
   - test_environment_ref
 optional_payload_fields:
   - proposal_ref
+  - qualification_budget
 optional_environment_fields:
   - coverage_mode
   - coverage_enabled
@@ -44,4 +45,6 @@ notes:
   - coverage_mode, when present, should distinguish smoke_acceptance from coverage_qualification. Smoke/acceptance runs may disable coverage; qualification runs should require measurable coverage artifacts.
   - coverage_enabled may be set to true only for compatible script or module command_entry values. Avoid python -c for coverage-enabled paths.
   - When coverage_include is omitted, the skill may automatically adopt feature_owned_code_paths emitted by the TESTSET for coverage qualification runs only; smoke runs should not auto-enable coverage.
+  - TESTSET remains a strategy-level object. Qualification runs may expand runnable cases in `TestCasePack`, but they must not require the source TESTSET to pre-enumerate all coverage branches.
+  - Qualification expansion should start from the minimal `test_units` projection and may use strategy hints such as `coverage_goal`, `branch_families`, `expansion_hints`, and `qualification_expectation` when present.
   - If request payload meaning changes, the caller must use a new request_id. Reusing a request_id with different payload content is a hard failure, not a replay.

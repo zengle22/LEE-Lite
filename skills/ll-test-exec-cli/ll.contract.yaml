@@ -26,6 +26,9 @@ runtime:
   run_modes:
     - smoke_acceptance
     - coverage_qualification
+  qualification_generation_modes:
+    - minimal_projection
+    - qualification_expansion
   command: python -m cli skill test-exec-cli --request <request.json> --response-out <response.json>
   entry_script: python -m cli
   working_directory: E:\ai\LEE-Lite-skill-first
@@ -93,6 +96,7 @@ gate:
   reject_when:
     - authoritative_input_missing
     - testset_not_formal
+    - testset_embeds_execution_inventory
     - environment_modality_mismatch
     - missing_command_entry
     - coverage_enabled_with_python_inline_command

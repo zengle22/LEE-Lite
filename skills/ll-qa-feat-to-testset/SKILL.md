@@ -6,6 +6,7 @@ description: Governed LL workflow skill for transforming one frozen FEAT inside 
 # LL QA FEAT to TESTSET
 
 This skill implements ADR-012 as a lite-native governed workflow between `ll-product-epic-to-feat` and downstream QA execution consumers. It accepts one selected frozen FEAT and produces a `test_set_candidate_package`; it does not self-materialize a final `test_set_freeze_package`.
+`TESTSET` is the strategy-level output. It defines what should be tested, why, and which minimum strategy anchors must map to acceptance. It does not pre-enumerate every runnable case that may later be required for coverage qualification; if more runnable cases are needed later, express that through strategy fields and let downstream test execution expand them.
 
 ## Canonical Authority
 
@@ -35,17 +36,21 @@ This skill implements ADR-012 as a lite-native governed workflow between `ll-pro
 7. Run `python scripts/feat_to_testset.py supervisor-review --artifacts-dir <candidate-package-dir>` to bring the package to `review_pending` or `approval_pending`.
 8. Run `python scripts/feat_to_testset.py freeze-guard --artifacts-dir <candidate-package-dir>` only to verify candidate readiness for external approval, not to self-freeze.
 9. Emit `handoff-to-test-execution.json` so downstream QA execution can consume the formal `TESTSET` after external approval materializes the freeze package.
+10. When qualification coverage depth matters, express that need through strategy fields such as `coverage_goal`, `branch_families`, `expansion_hints`, and `qualification_expectation`, rather than exploding the `TESTSET` into a hand-maintained runnable case inventory.
+11. Treat `test_units` as the minimum strategy-to-acceptance mapping, not as the final execution inventory for coverage qualification.
+12. When external gate returns `revise` or `retry`, rerun `run`, `executor-run`, or `supervisor-review` with `--revision-request <revision-request.json>` so the regenerated candidate package preserves normalized revision context and evidence.
 
 ## Workflow Boundary
 
 - Input: one `feat_freeze_package` plus one selected `feat_ref`
 - Output: one `test_set_candidate_package` with one formal `TESTSET` draft object, companion QA artifacts, and machine-readable gate subjects
-- Out of scope: self-issuing human approval decisions, materializing the final `test_set_freeze_package`, generating `TestCasePack`, `ScriptPack`, or `TSE`
+- Out of scope: self-issuing human approval decisions, materializing the final `test_set_freeze_package`, generating `TestCasePack`, `ScriptPack`, `TSE`, or pre-enumerating all runnable qualification cases
 
 ## Non-Negotiable Rules
 
 - Do not accept raw requirements, SRC candidates, EPIC packages, or standalone FEAT markdown outside a governed `feat_freeze_package`.
 - Do not treat `analysis.md`, `strategy-draft.yaml`, or `test-set-bundle.md` as parallel SSOTs. Only `test-set.yaml` is the formal main object.
 - Do not let optional context such as TECH, delivery prep, or UI refs overwrite FEAT scope or acceptance boundaries.
+- Do not turn `TESTSET` into a manually expanded execution inventory just to chase line coverage; coverage-driven case expansion belongs to downstream test execution runtime.
 - Do not self-approve `test_set_approval` inside the skill. External gate and human-review consumers own that decision.
 - Do not mark the package as frozen from inside the candidate workflow. `approved` means ready for external freeze materialization, not frozen.

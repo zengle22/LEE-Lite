@@ -10,6 +10,8 @@ import yaml
 
 from feat_to_testset_common import dump_json, dump_yaml, ensure_list, load_json, parse_markdown_frontmatter, render_markdown
 from feat_to_testset_cli_integration import refresh_supervisor_bundle
+from feat_to_testset_document_test import build_document_test
+from cli.lib.workflow_document_test import validate_document_test_report
 
 ENVIRONMENT_INPUT_CATEGORIES = [
     "environment",
@@ -29,6 +31,7 @@ REQUIRED_OUTPUT_FILES = [
     "test-set-review-report.json",
     "test-set-acceptance-report.json",
     "test-set-defect-list.json",
+    "document-test-report.json",
     "test-set-freeze-gate.json",
     "gate-subject-index.json",
     "analysis-review-subject.json",
@@ -121,6 +124,8 @@ def build_supervision_evidence(artifacts_dir: Path) -> dict[str, Any]:
             if decision == "pass"
             else "TESTSET candidate package requires revision before external approval."
         ),
+        "document_test_report_ref": str(artifacts_dir / "document-test-report.json"),
+        "document_test_outcome": "no_blocking_defect_found" if decision == "pass" else "blocking_defect_found",
         **({"revision_context": revision_context} if revision_context else {}),
     }
 
@@ -133,6 +138,7 @@ def update_supervisor_outputs(artifacts_dir: Path, repo_root: Path, supervision:
     acceptance_report = load_json(artifacts_dir / "test-set-acceptance-report.json")
     freeze_gate = load_json(artifacts_dir / "test-set-freeze-gate.json")
     semantic_drift_check = load_json(artifacts_dir / "semantic-drift-check.json")
+    document_test_report = load_json(artifacts_dir / "document-test-report.json")
     blocking = [item for item in supervision.get("semantic_findings") or [] if str(item.get("severity") or "") in {"P0", "P1"}]
     passed = supervision.get("decision") == "pass"
     manifest_status = "approval_pending" if passed else "review_pending"
@@ -179,9 +185,22 @@ def update_supervisor_outputs(artifacts_dir: Path, repo_root: Path, supervision:
                 "handoff_present": True,
                 "required_environment_inputs_present": not blocking,
                 "semantic_lock_preserved": semantic_drift_check.get("semantic_lock_preserved", True),
+                "document_test_report_present": True,
+                "document_test_non_blocking": passed,
             },
             "updated_at": _utc_now(),
         }
+    )
+    document_test_report = build_document_test(
+        run_id=str(bundle_json.get("workflow_run_id") or artifacts_dir.name),
+        tested_at=_utc_now(),
+        bundle_json=bundle_json,
+        semantic_drift_check=semantic_drift_check,
+        defects=supervision.get("semantic_findings") or [],
+        downstream_target=str(bundle_json.get("downstream_target") or ""),
+        required_environment_inputs=load_json(artifacts_dir / "handoff-to-test-execution.json").get("required_environment_inputs"),
+        revision_context=revision_context or None,
+        ready_for_gate_review=passed,
     )
     cli_commit = refresh_supervisor_bundle(repo_root, artifacts_dir, manifest_status)
     dump_json(artifacts_dir / "test-set-bundle.json", bundle_json)
@@ -189,9 +208,11 @@ def update_supervisor_outputs(artifacts_dir: Path, repo_root: Path, supervision:
     dump_json(artifacts_dir / "test-set-review-report.json", review_report)
     dump_json(artifacts_dir / "test-set-acceptance-report.json", acceptance_report)
     dump_json(artifacts_dir / "test-set-defect-list.json", supervision.get("semantic_findings") or [])
+    dump_json(artifacts_dir / "document-test-report.json", document_test_report)
     dump_json(artifacts_dir / "test-set-freeze-gate.json", freeze_gate)
     dump_json(artifacts_dir / "supervision-evidence.json", supervision)
     manifest["cli_supervisor_commit_ref"] = str(cli_commit["response_path"])
+    manifest["document_test_report_ref"] = str(artifacts_dir / "document-test-report.json")
     dump_json(artifacts_dir / "package-manifest.json", manifest)
     return cli_commit
 
@@ -362,6 +383,7 @@ def validate_output_package(artifacts_dir: Path) -> tuple[list[str], dict[str, A
     freeze_gate = load_json(artifacts_dir / "test-set-freeze-gate.json")
     handoff = load_json(artifacts_dir / "handoff-to-test-execution.json")
     semantic_drift_check = load_json(artifacts_dir / "semantic-drift-check.json")
+    errors.extend(validate_document_test_report(load_json(artifacts_dir / "document-test-report.json")))
 
     _validate_identity(bundle_json, errors)
     _validate_source_refs(bundle_json, errors)
@@ -400,6 +422,7 @@ def validate_package_readiness(artifacts_dir: Path) -> tuple[bool, list[str]]:
     freeze_gate = load_json(artifacts_dir / "test-set-freeze-gate.json")
     review_report = load_json(artifacts_dir / "test-set-review-report.json")
     acceptance_report = load_json(artifacts_dir / "test-set-acceptance-report.json")
+    document_test_report = load_json(artifacts_dir / "document-test-report.json")
     readiness_errors: list[str] = []
     if bundle_json.get("status") != "approval_pending":
         readiness_errors.append("Candidate package status must be approval_pending.")
@@ -415,6 +438,8 @@ def validate_package_readiness(artifacts_dir: Path) -> tuple[bool, list[str]]:
         readiness_errors.append("test-set-review-report.json decision must be pass.")
     if acceptance_report.get("decision") != "approve":
         readiness_errors.append("test-set-acceptance-report.json decision must be approve.")
+    if document_test_report.get("test_outcome") != "no_blocking_defect_found":
+        readiness_errors.append("document_test_non_blocking")
     return not readiness_errors, readiness_errors
 
 
@@ -423,6 +448,7 @@ def collect_evidence_report(artifacts_dir: Path) -> Path:
     supervision = load_json(artifacts_dir / "supervision-evidence.json")
     gate = load_json(artifacts_dir / "test-set-freeze-gate.json")
     bundle = load_json(artifacts_dir / "test-set-bundle.json")
+    document_test = load_json(artifacts_dir / "document-test-report.json")
     revision_context = bundle.get("revision_context") or {}
     report_path = artifacts_dir / "evidence-report.md"
     report_path.write_text(
@@ -451,6 +477,12 @@ def collect_evidence_report(artifacts_dir: Path) -> Path:
                 "",
                 f"- status: {gate.get('status')}",
                 f"- ready_for_external_approval: {gate.get('ready_for_external_approval')}",
+                "",
+                "## Document Test",
+                "",
+                f"- test_outcome: {document_test.get('test_outcome')}",
+                f"- recommended_next_action: {document_test.get('recommended_next_action')}",
+                f"- recommended_actor: {document_test.get('recommended_actor')}",
                 "",
             ]
         )

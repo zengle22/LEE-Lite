@@ -1,9 +1,12 @@
-version: 0.1.0
+version: 0.2.0
 states:
   - drafted
   - structurally_validated
   - semantically_reviewed
+  - document_tested
   - revised
+  - supervisor_reviewed
+  - gate_ready
   - accepted
   - frozen
   - rejected
@@ -17,6 +20,18 @@ transitions:
     - revised
     - rejected
   semantically_reviewed:
+    - document_tested
+    - revised
+    - rejected
+  document_tested:
+    - supervisor_reviewed
+    - revised
+    - rejected
+  supervisor_reviewed:
+    - gate_ready
+    - revised
+    - rejected
+  gate_ready:
     - accepted
     - revised
     - rejected
@@ -28,6 +43,20 @@ transitions:
     - revised
   frozen: []
   rejected: []
+
+state_semantics:
+  document_tested:
+    evidence_complete: true
+    implies_ready: false
+    implies_approved: false
+    implies_frozen: false
+  supervisor_reviewed:
+    evidence_submission_review_complete: true
+    implies_authoritative_approval: false
+  gate_ready:
+    external_gate_submission_ready: true
+    implies_approved: false
+    implies_frozen: false
 
 limits:
   max_revision_rounds: 3

@@ -39,3 +39,4 @@ Use this skill when a new repository needs the standard LEE Lite project layout,
 - Do not overwrite unmanaged existing files.
 - Do not place runtime state inside durable governed directories.
 - Do not report completion without both execution evidence and supervision evidence.
+- Do not treat this skill as a gate-return-driven document regeneration workflow. `project-init` is intentionally outside the shared revision module coverage.

@@ -5,10 +5,20 @@ Lite-native runtime support for feat-to-testset.
 
 from __future__ import annotations
 
+import sys
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
+WORKSPACE_ROOT = Path(__file__).resolve().parents[3]
+if str(WORKSPACE_ROOT) not in sys.path:
+    sys.path.insert(0, str(WORKSPACE_ROOT))
+
+from cli.lib.workflow_revision import (
+    load_revision_request,
+    materialize_revision_request,
+    normalize_revision_context,
+)
 from feat_to_testset_candidate import build_candidate_package, write_executor_outputs
 from feat_to_testset_cli_integration import refresh_supervisor_bundle
 from feat_to_testset_common import (
@@ -21,6 +31,7 @@ from feat_to_testset_common import (
     resolve_input_artifacts_dir,
     validate_input_package,
 )
+from feat_to_testset_document_test import build_document_test
 from feat_to_testset_gate_integration import (
     create_gate_ready_package,
     create_handoff_proposal,
@@ -60,61 +71,27 @@ def repo_relative(repo_root: Path, path: Path) -> str:
     return path.resolve().relative_to(repo_root.resolve()).as_posix()
 
 
-def _repo_relative_or_abs(repo_root: Path, path: Path) -> str:
-    try:
-        return path.resolve().relative_to(repo_root.resolve()).as_posix()
-    except ValueError:
-        return path.resolve().as_posix()
-
-
 def _load_revision_request(revision_request_path: str | Path | None, artifacts_dir: Path | None = None) -> tuple[dict[str, Any] | None, Path | None]:
-    candidate_paths: list[Path] = []
-    if revision_request_path:
-        candidate_paths.append(Path(revision_request_path).resolve())
-    if artifacts_dir is not None:
-        candidate_paths.append((artifacts_dir / "revision-request.json").resolve())
-    for candidate in candidate_paths:
-        if candidate.exists():
-            payload = load_json(candidate)
-            if isinstance(payload, dict):
-                return payload, candidate
-    return None, None
+    return load_revision_request(revision_request_path, artifacts_dir=artifacts_dir, load_json=load_json)
 
 
 def _build_revision_context(repo_root: Path, revision_request: dict[str, Any] | None, revision_request_path: Path | None) -> dict[str, Any] | None:
-    if not revision_request:
-        return None
-    revision_round = revision_request.get("revision_round")
-    decision_reason = str(revision_request.get("decision_reason") or "").strip()
-    decision_target = str(revision_request.get("decision_target") or "").strip()
-    summary = decision_reason
-    if revision_round not in (None, ""):
-        summary = f"Revision round {revision_round}: {decision_reason or decision_target or 'apply reviewer feedback.'}"
-    elif decision_target and decision_reason:
-        summary = f"{decision_target}: {decision_reason}"
-    elif decision_target:
-        summary = decision_target
-    elif not summary:
-        summary = "Revision request received."
-    return {
-        "revision_request_ref": _repo_relative_or_abs(repo_root, revision_request_path) if revision_request_path else "",
-        "revision_round": revision_round,
-        "decision_type": str(revision_request.get("decision_type") or "").strip(),
-        "decision_target": decision_target,
-        "decision_reason": decision_reason,
-        "source_gate_decision_ref": str(revision_request.get("source_gate_decision_ref") or "").strip(),
-        "source_return_job_ref": str(revision_request.get("source_return_job_ref") or "").strip(),
-        "authoritative_input_ref": str(revision_request.get("authoritative_input_ref") or "").strip(),
-        "summary": summary,
-    }
+    context = normalize_revision_context(
+        revision_request,
+        repo_root=repo_root,
+        revision_request_path=revision_request_path,
+    )
+    return context or None
 
 
 def _materialize_revision_request(artifacts_dir: Path, revision_request: dict[str, Any] | None) -> None:
-    revision_request_path = artifacts_dir / "revision-request.json"
-    if revision_request:
-        dump_json(revision_request_path, revision_request)
-    elif revision_request_path.exists():
-        revision_request_path.unlink()
+    materialize_revision_request(
+        artifacts_dir,
+        revision_request=revision_request,
+        load_json=load_json,
+        dump_json=dump_json,
+        delete_if_missing=True,
+    )
 
 
 def yaml_load(path: Path) -> dict[str, Any]:
@@ -155,6 +132,25 @@ def executor_run(
 
     _materialize_revision_request(output_dir, revision_request)
     write_executor_outputs(output_dir, repo_root, package, generated, f"python scripts/feat_to_testset.py executor-run --input {input_path} --feat-ref {effective_feat_ref}")
+    document_test_report = build_document_test(
+        run_id=generated.run_id,
+        tested_at=str(generated.acceptance_report.get("created_at") or utc_now()),
+        bundle_json=generated.bundle_json,
+        semantic_drift_check=generated.semantic_drift_check,
+        defects=list(generated.defect_list),
+        downstream_target=str(generated.bundle_json.get("downstream_target") or DOWNSTREAM_WORKFLOW),
+        required_environment_inputs=generated.handoff.get("required_environment_inputs"),
+        revision_context=generated.revision_context,
+        ready_for_gate_review=not generated.defect_list,
+    )
+    dump_json(output_dir / "document-test-report.json", document_test_report)
+    manifest = load_json(output_dir / "package-manifest.json")
+    manifest["document_test_report_ref"] = str(output_dir / "document-test-report.json")
+    dump_json(output_dir / "package-manifest.json", manifest)
+    execution = load_json(output_dir / "execution-evidence.json")
+    execution["document_test_report_ref"] = str(output_dir / "document-test-report.json")
+    execution.setdefault("structural_results", {})["document_test_outcome"] = document_test_report["test_outcome"]
+    dump_json(output_dir / "execution-evidence.json", execution)
     return {
         "ok": True,
         "run_id": effective_run_id,
@@ -198,12 +194,14 @@ def supervisor_review(
     generated = build_candidate_package(package, feature, feat_ref, effective_run_id, revision_request=revision_context)
     supervision = build_supervision_evidence(artifacts_dir)
     supervisor_commit = update_supervisor_outputs(artifacts_dir, repo_root, supervision)
+    document_test_report = load_json(artifacts_dir / "document-test-report.json")
+    document_test_non_blocking = document_test_report.get("test_outcome") == "no_blocking_defect_found"
 
     proposal_ref = ""
     gate_ready_package_ref = ""
     authoritative_handoff_ref = ""
     gate_pending_ref = ""
-    if supervision["decision"] == "pass":
+    if supervision["decision"] == "pass" and document_test_non_blocking:
         proposal_path = create_handoff_proposal(
             repo_root=repo_root,
             artifacts_dir=artifacts_dir,
@@ -251,6 +249,7 @@ def supervisor_review(
         "authoritative_handoff_ref": authoritative_handoff_ref,
         "gate_pending_ref": gate_pending_ref,
         "artifacts_dir": str(artifacts_dir),
+        "document_test_outcome": document_test_report.get("test_outcome", ""),
         "revision_request_ref": revision_context["revision_request_ref"] if revision_context else "",
     }
 
