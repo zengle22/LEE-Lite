@@ -203,6 +203,39 @@ caller_assumptions:
   - governed skill 只负责 candidate/evidence/proposal，不负责最终 decision/materialization。
   - formal ssot object、authoritative handoff submission、dispatch result 与 run closure 只能由 gate/control 层物化。
   - human gate 可通过文件对象与 loop 消费链协作，不要求必须先有 Web UI。
+revision_return_contract:
+  summary: >
+    对于会接收 external gate `revise` / `retry` 返回并重新生成 governed 文档包的 workflow，
+    `revision-request.json`、`revision_context` 与 evidence lineage 必须采用统一 contract，
+    不得由每个 skill 各自发明一套返修接口。
+  applies_when:
+    - workflow 会重生成 governed authored package，而不是只返回执行结果 envelope
+    - external gate 可能把 revise 或 retry return job 回送给该 workflow
+    - rerun 需要把 gate 决策理由、basis refs 与 revision_round 带回新包
+  required_runtime_behavior:
+    - "`run` 入口必须支持显式 `revision-request` 输入；若 skill 暴露 `executor-run`、`supervisor-review`，对应入口也应支持同一输入面"
+    - "rerun artifacts 目录必须物化 `revision-request.json`"
+    - "runtime 必须生成标准化 `revision_context`，至少包含 `decision_type`、`decision_reason`、`revision_round`、`basis_refs`、`source_gate_decision_ref`、`source_return_job_ref?`、`revision_request_ref`、`summary`"
+    - "package bundle、manifest、execution evidence、supervision evidence 必须保留 `revision_request_ref`；适用时同时保留 `revision_summary` 或完整 `revision_context`"
+  included_workflows:
+    - product.raw-to-src
+    - product.src-to-epic
+    - product.epic-to-feat
+    - dev.feat-to-ui
+    - dev.feat-to-tech
+    - qa.feat-to-testset
+    - dev.tech-to-impl
+  excluded_workflows:
+    - governance.gate-human-orchestrator
+    - repo.project-init
+    - skill.test-exec-cli
+    - skill.test-exec-web-e2e
+    - workflow.execution-loop-job-runner
+  special_case:
+    product.raw-to-src: >
+      raw-to-src 必须共享同一套 revision-request / revision_context contract，
+      但仍保留本地 dual-loop auto-fix、patchable vs blocking 判定与 retry budget；
+      通用模块只统一 request/context 接缝，不替代其专有修复机制。
 interfaces:
   - interface_id: artifact_operations
     provider: ll artifact

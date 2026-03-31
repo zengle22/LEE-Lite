@@ -36,4 +36,35 @@
 - `product.epic-to-feat::adr018-entry-surface-feat-r3`
 - `qa.feat-to-testset`
 
+## TESTSET 与 Test Execution 的边界
+
+`TESTSET` 在本仓库中应理解为：
+
+* 一个受治理的测试策略对象
+* 定义测试范围、风险重点、acceptance traceability、最小测试单元、环境前提与 evidence 要求
+* 不等于最终 runnable case inventory
+
+因此：
+
+* `test_units`
+  * 表达最小策略单元与 acceptance mapping
+  * 不是最终要跑多少条 execution cases 的承诺
+* `feature_owned_code_paths`
+  * 表达 qualification 覆盖目标所对应的代码范围
+  * 不表示 `TESTSET` 必须手工枚举完所有覆盖率所需分支样本
+
+最终的：
+
+* `TestCasePack`
+* `ScriptPack`
+* `TSE`
+* qualification 阶段自动扩展出的 runnable cases
+
+都属于 ADR-007 定义的 test execution runtime 范围，而不属于 `TESTSET` 主对象范围。
+
+换句话说：
+
+* `qa.feat-to-testset` 回答“测什么、为什么测、重点测哪里”
+* `qa.test-exec-*` 回答“具体怎么跑、需要展开成多少 runnable cases 才能达到 smoke 或 qualification 目标”
+
 后续如果继续补新的 runner testset 变体，应优先通过 skill + gate 物化成 `TESTSET-SRC-<src>-<slot>`，不要再回退到 `TESTSET-SRC-ADR...` 或旧的 release/devplan/testplan 写法。

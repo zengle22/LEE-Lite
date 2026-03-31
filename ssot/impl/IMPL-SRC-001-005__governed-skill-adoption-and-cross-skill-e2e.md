@@ -40,6 +40,7 @@ properties:
 ## 2. 上游依赖
 
 - `API-SRC-001-005`：rollout / onboarding contract
+- `API-SRC-001-001`：governed runtime baseline, including shared revision-return contract
 - `ADR-006`：pilot 链必须经过 gate / formal publish
 - `ADR-005`：正式对象和 evidence 仍走治理主链
 - 上游 TECH：`TECH-SRC-001-005`
@@ -70,13 +71,13 @@ properties:
 
 定义 `OnboardingMatrix / CutoverDirective / PilotEvidenceRef` 结构与 wave state。
 
-完成条件：可表达 skill、wave、compat mode、cutover guard。
+完成条件：可表达 skill、wave、compat mode、cutover guard，以及 revision-module included/excluded 判定。
 
 ### Step 2
 
 实现 onboarding registry 和 rollout state 持久化。
 
-完成条件：skill 接入范围、波次和 compat mode 可追溯。
+完成条件：skill 接入范围、波次、compat mode 与 revision-return coverage 可追溯。
 
 ### Step 3
 
@@ -103,8 +104,9 @@ properties:
   - `cli/lib/pilot_chain.py`
   - rollout/audit command 扩展
 - 计划：
-  - onboarding matrix
+  - onboarding matrix: `ssot/impl/IMPL-SRC-001-005-001__governed-skill-integration-matrix-and-onboarding-scope-definition.md`
   - migration wave / cutover / fallback plan
+  - revision-module coverage matrix
 - 证据：
   - pilot evidence
   - cutover recommendation
@@ -114,8 +116,13 @@ properties:
 
 - 至少一条真实 pilot 主链跑通。
 - `compat_mode`、`wave_id`、`cutover_guard_ref` 必须可追溯。
+- included workflows 的 `revision-request` coverage 与 excluded rationale 必须在 onboarding matrix 中明确。
 - pilot evidence 缺失时必须 fail closed，不能继续 rollout。
 - fallback 结果必须记录到 receipt / wave state。
+
+## 8. Supporting Artifact
+
+- onboarding matrix ref: `ssot/impl/IMPL-SRC-001-005-001__governed-skill-integration-matrix-and-onboarding-scope-definition.md`
 
 ## Workstream 适用性
 

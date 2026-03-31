@@ -40,6 +40,7 @@
 * 输出 package 结构
 * human gate 外置方式
 * 与 ADR-007 测试执行链的接缝
+* 如何避免把 coverage qualification 所需的大量 runnable cases 反向塞回 `TESTSET`
 
 一次性冻结为统一基线。
 
@@ -147,6 +148,7 @@ LL 正式采用：
 7. `analysis_review` 与 `strategy_review` 属于 review gate，允许提出 revise_request，但不得直接冻结 package。
 8. `test_set_approval` 属于 blocking approval gate，不通过则不得物化为正式可执行 `test_set_freeze_package`。
 9. 输出 package 必须显式对接 ADR-007 的测试执行链，优先服务于 `TestSet` 消费，而不是重新引入 plan 文档链。
+10. `TESTSET` 必须定义策略边界、最小测试单元与 qualification 扩展线索，但不负责直接枚举为覆盖率达标所需的全部 runnable cases。
 
 ---
 
@@ -185,6 +187,7 @@ LL 正式采用：
 
 * 执行测试；
 * 生成 `TestCasePack`、`ScriptPack` 或 `TSE`；
+* 为 coverage qualification 预先枚举全部 runnable case 实例；
 * 把 strategy draft 升格为独立 SSOT；
 * 绕过 FEAT 直接从原始需求起草 TESTSET；
 * 在 skill 内自行完成最终 human approval。
@@ -313,6 +316,16 @@ QA 模板中的 `module` 字段在 skill 化后应收敛为：
 * `test plan`
 
 这些文件只作为 package 内的支持性证据和评审材料存在。
+
+本 ADR 进一步冻结：
+
+## **`TESTSET` 是测试策略规格，不是 execution-ready case inventory。**
+
+因此：
+
+* `test_units` 表达最小策略单元与 acceptance mapping；
+* `coverage_scope`、`risk_focus`、`environment_assumptions`、`evidence_required` 表达执行期必须遵守的策略边界；
+* 为 coverage qualification 达标而新增的 runnable cases，应由 ADR-007 定义的 test execution runtime 在 `TestCasePack` 层展开，而不是回写为新的 `TESTSET` 主体内容。
 
 ## 5.3 推荐 artifact 清单
 
@@ -463,9 +476,11 @@ status:
 
 * `feat_ref` 必须等于本次运行选定的 FEAT；
 * `test_units` 表达最小测试覆盖单元，不得混写成策略段落、执行脚本或大篮子式 `test_items`；
+* `test_units` 不是最终 runnable case 数承诺，而是下游 execution runtime 进行 minimal projection 与 qualification expansion 的锚点；
 * `acceptance_traceability` 必须覆盖 FEAT 的 acceptance checks，而不是只写模糊测试目标；
 * `environment_assumptions` 用于表达环境前提、依赖系统、数据前提和基础执行约束；
 * `coverage_exclusions` 用于显式表达本 TESTSET 不覆盖或延后覆盖的区域；
+* 如需为下游 qualification expansion 提供明确线索，应优先增加策略字段，如 `coverage_goal`、`branch_families`、`expansion_hints`、`qualification_expectation`，而不是直接把 `TESTSET` 膨胀为数十或数百个执行级 case；
 * `source_refs` 必须至少保留 `FEAT-*`、`EPIC-*`、`SRC-*` 与上游 workflow run ref；
 * `status` 在最终 freeze 前不得标记为 `accepted` 或 `frozen`。
 
@@ -721,6 +736,15 @@ ADR-007 的测试执行链消费的是：
 * rerun / investigate context
 
 不能反客为主，成为下游执行链的正式主输入。
+
+补充边界如下：
+
+* `ll-qa-feat-to-testset`
+  * 负责定义：测什么、为什么测、重点测哪里、最小单元如何映射 acceptance
+* `ll-test-exec-cli` / `ll-test-exec-web-e2e`
+  * 负责定义：怎么展开成 runnable cases、怎么翻译成脚本、怎么采 evidence、qualification 未达标时怎么继续扩展
+
+因此，coverage-driven case expansion 不是 FEAT-to-TESTSET skill 的责任。
 
 ---
 

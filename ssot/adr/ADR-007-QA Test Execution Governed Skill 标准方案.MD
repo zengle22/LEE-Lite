@@ -22,6 +22,7 @@ LL 当前已经在产品主链上逐步建立 governed skill、外置 gate、art
 * 合规检查、结果判定、报告汇总、Bug 起草如何分层；
 * 执行失败、测试失败、执行不可采信三者如何区分；
 * 复跑时到底复用什么，重建什么，何时必须新建 revision。
+* 当 coverage qualification 目标未达标时，究竟应该由 `TestSet` 继续膨胀，还是由 test execution runtime 负责自动扩展 runnable cases。
 
 如果不把这条链路正式冻结为独立 ADR，后续实现会持续出现下列漂移：
 
@@ -29,6 +30,8 @@ LL 当前已经在产品主链上逐步建立 governed skill、外置 gate、art
 * 有人把 test execution 理解为“从需求一直生成到报告的全链”；
 * 有人把 `TestCasePack` 当中间缓存；
 * 有人把 `TestCasePack` 当长期人工维护的主 SSOT；
+* 有人把 `TestSet.test_units` 误当成最终 runnable case 清单；
+* 有人把 coverage 未达标理解成必须手工回写更多 case 到 `TestSet`；
 * 有人把脚本小修与语义性重写混成同一种 patch；
 * 有人把 `invalid_run` 和 `failed` 当同义状态；
 * 有人把环境说明文档当 `test_environment_ref` 的实际 contract。
@@ -148,9 +151,11 @@ LL 正式采用：
 11. freeze 后的修改必须受 allowed / forbidden mutation 规则约束；一旦触及语义层，必须新建 revision。
 12. `invalid_run` 与 `failed` 必须严格分离。
 13. 复跑必须至少区分：
-    * `re_execute`
-    * `re_bind_and_execute`
-    * `full_regenerate`
+   * `re_execute`
+   * `re_bind_and_execute`
+   * `full_regenerate`
+14. `TestSet` 是策略级测试规格，不是最终 runnable case 清单；`TestCasePack`、`ScriptPack` 与 qualification 阶段的 case expansion 归属于 test execution runtime。
+15. 在 `coverage_qualification` 模式下，runtime 必须以 coverage target 为目标生成或扩展 runnable cases，而不是要求上游 `TestSet` 预先枚举所有分支实例。
 
 ---
 
@@ -250,16 +255,24 @@ LL 在 QA test execution 中维持二元角色：
 * scope
 * risk focus
 * coverage strategy
+* qualification coverage goal
+* branch families / expansion hints
 * allowed / forbidden test methods
 * priority policy
 * 显式 `ssot_refs`
+* 最小策略单元 `test_units`
 
 它不直接定义：
 
-* 每条具体 case 的完整步骤；
+* 最终 runnable case 数；
+* qualification 阶段为了 line coverage 展开的全部分支实例；
 * 每个边界值；
 * 每个定位器；
 * 每条脚本实现。
+
+正式规则是：
+
+## **`TestSet` 定义“应该覆盖什么”与“为何覆盖”，不定义“最终要跑多少个 runnable execution cases”。**
 
 ## 4.2 TestEnvironmentSpec
 
@@ -349,6 +362,19 @@ LL 在 QA test execution 中维持二元角色：
 
 它是一次执行及其复跑的可冻结输入，不是顶层长期主 SSOT。
 
+`TestCasePack` 可以来源于两种生成模式：
+
+* `minimal_projection`
+  * 只把 `TestSet.test_units` 投影为最小可执行集合；
+  * 适用于 smoke / acceptance run。
+* `qualification_expansion`
+  * 在 `minimal_projection` 基础上，结合 `coverage_goal`、`feature_owned_code_paths`、`branch_families` 与 runtime feedback 自动扩展 runnable cases；
+  * 适用于 coverage qualification run。
+
+因此：
+
+## **coverage qualification 时产生的额外 runnable cases 属于 `TestCasePack` 扩展结果，不属于 `TestSet` 主对象内容膨胀。**
+
 最少字段应包括：
 
 * `test_case_pack_id`
@@ -371,6 +397,14 @@ LL 在 QA test execution 中维持二元角色：
 * `boundary_checks`
 * `allow_mock`
 * `source_traceability`
+* `derivation_basis`
+
+其中：
+
+* `derivation_basis = test_unit`
+  * 表示该 case 直接来源于 `TestSet.test_units`
+* `derivation_basis = qualification_expansion`
+  * 表示该 case 为满足 qualification 覆盖目标，由 runtime 在策略边界内自动展开
 
 ## 4.5 ScriptPack
 
@@ -541,6 +575,22 @@ LL 在 QA test execution 中维持二元角色：
 * 同脚本同 case 的重试；
 * 同一脚本包切换等价环境做对比验证。
 
+## 5.2.1 Qualification 扩展模式
+
+当 `run_mode = coverage_qualification` 时，runtime 必须在上述复跑模式之外，再支持 coverage-driven execution expansion：
+
+1. 先生成 `minimal_projection` 版本的 `TestCasePack`
+2. 执行并采集 coverage
+3. 读取 coverage summary
+4. 基于 `feature_owned_code_paths`、`coverage_goal`、`branch_families` 与 `expansion_hints` 派生增量 runnable cases
+5. 形成新的 expanded `TestCasePack` revision 并执行
+6. 直到：
+   * 达到 coverage target
+   * 或达到 qualification budget / revision budget
+   * 或进入人工审查所需的不可自动判定分支
+
+runtime 必须保留每轮 expanded pack 与 coverage result 的 lineage，禁止把“自动扩展出来的 runnable cases”静默回写成新的 `TestSet` 主对象。
+
 ## 5.3 对外输出
 
 宽 skill 必须输出：
@@ -667,11 +717,19 @@ QA test execution 的正式流程冻结为 11 步：
 
 目标：
 
-* 从 `TestSet + ResolvedSSOTContext` 生成具体测试用例。
+* 从 `TestSet + ResolvedSSOTContext` 生成具体测试用例；
+* 在 smoke / acceptance run 中生成最小投影；
+* 在 qualification run 中允许继续扩展为满足 coverage target 的 runnable case pack。
 
 输出：
 
 * `test_case_pack_draft`
+
+补充原则：
+
+* `TestSet.test_units` 是最小策略单元，不是最终 case 数承诺；
+* qualification 扩展不得突破 `TestSet` 已声明的 scope、risk focus、acceptance_traceability 与 forbidden methods；
+* runtime 可以增加 runnable case 数，但不能借此引入新的产品需求、越界场景或额外业务语义。
 
 ## 7.3 `test_case_pack_freeze`
 
@@ -920,6 +978,9 @@ run 级状态固定为：
 * `TestEnvironmentSpec` 结构校验
 * `ResolvedSSOTContext` manifest 生成
 * `TestCasePack` schema 校验
+* qualification coverage target 评估
+* coverage feedback loop
+* expanded `TestCasePack` 生成与 lineage 记录
 * `ScriptPack` schema 校验
 * freeze、checksum、artifact manifest、registration
 * runner CLI 调用

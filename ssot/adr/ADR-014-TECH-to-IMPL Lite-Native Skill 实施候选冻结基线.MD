@@ -4,7 +4,7 @@
 * 日期：2026-03-25
 * 决策者：Le Zeng
 * 适用范围：`ll-dev-tech-to-impl` skill、`dev.tech-to-impl` lite-native runtime、`feature_impl_candidate_package`
-* 相关 ADR：ADR-008、ADR-009、ADR-013
+* 相关 ADR：ADR-008、ADR-009、ADR-013、ADR-034
 
 ---
 
@@ -136,10 +136,13 @@ LL 正式采用：
 8. 该 candidate package 的正式 handoff 目标固定为：
    * `template.dev.feature_delivery_l2`
 9. 当前 skill 冻结的是 **研发实施单边界**，不是 repo 代码已经完成的最终证明。
+10. `IMPL` 的正确身份是本次执行输入的 canonical package / execution-time single entrypoint，而不是业务、设计或测试事实的 SSOT。
+11. `IMPL` 应自包含执行所需最小充分信息，但不得镜像上游全文。
+12. 若 repo 现状与上游冻结对象冲突，不得默认以代码现状为准，必须显式进入 discrepancy handling。
 
 同时，本 ADR 直接冻结以下硬定义：
 
-## **IMPL 是基于已冻结 ADR / TECH / API 的研发实施任务文档，用于组织代码实现、集成接线、迁移切换与交付验收；IMPL 不得新增或改写上游技术决策与实现边界。**
+## **IMPL 是基于已冻结 ADR / FEAT / TECH / API / TESTSET 等上游对象收敛而成的研发实施任务文档与执行契约包，用于组织代码实现、集成接线、迁移切换与交付验收；IMPL 不得新增或改写上游技术决策与实现边界。**
 
 ---
 
@@ -164,7 +167,7 @@ LL 正式采用：
 
 也就是说：
 
-## **`tech2impl` 的第一真相，是本地 lite-native runtime + contract + impl candidate package 结构；但其设计 authority 仍来自上游已冻结的 `TECH/ARCH/API`。**
+## **`tech2impl` 的本地 runtime authority，是 lite-native runtime + contract + impl candidate package 结构；但其设计 authority 仍来自上游已冻结的 `TECH/ARCH/API`，并受 `ADR-034` 对 execution package 语义的约束。**
 
 ---
 
@@ -196,6 +199,29 @@ planning companion 可选参考：
 
 ## **`tech2impl` 不是从任意 FEAT markdown 起草实现计划，而是从已冻结 `TECH` 派生一个可执行的 Dev 实施入口。**
 
+同时：
+
+* repo context 只能作为 execution context，不得替代上游 truth source；
+* 若 repo 现状与已冻结 `FEAT / TECH / API / TESTSET` 冲突，必须显式记录 discrepancy，并决定是修代码对齐上游，还是发起上游修订；
+* 不允许把“当前代码就是这样”静默升级成新的 authority。
+
+## 4.1 受控例外机制
+
+当上游对象并非全部完全冻结时，`tech2impl` 可以在受控条件下带入 provisional inputs，例如：
+
+* `UI` 尚未完全冻结
+* `TESTSET` 只冻结了部分覆盖
+* `API` 只有部分契约已定
+* `TECH` 已 accepted，但实现落地受历史债约束
+
+但必须同时满足：
+
+1. 显式标记 `provisional_ref` / `provisional_source`
+2. 写清未冻结部分的影响范围、风险边界与受影响验收项
+3. 明确 provisional 内容不得被 downstream 当作最终 truth
+4. 生成 follow-up freeze task、revision request 或补冻动作
+5. 不得把 provisional 内容静默写成强制性实施事实
+
 ---
 
 # 5. 输出边界
@@ -226,6 +252,10 @@ planning companion 可选参考：
 这里的正式主对象不是单个 markdown，而是：
 
 ## **一个带上游设计引用、实施任务分解、workstream 适用性、Evidence Entry 和 Smoke Subject 的研发实施包。**
+
+该包的语义进一步收敛为：
+
+## **本次执行输入的 canonical package，而不是新的 domain truth package。**
 
 ---
 
@@ -298,6 +328,25 @@ planning companion 可选参考：
 
 ## **IMPL 模板应保持轻量，避免长成另一份 `TECH`。**
 
+更具体地说：
+
+* 应展开执行所需最小充分信息；
+* 规则事实、关键接口、关键边界、验收映射可以展开；
+* 长篇历史论证、完整设计正文、完整测试正文默认保留摘要 + ref；
+* `IMPL` 必须 self-contained，但不得 copy-contained。
+
+## 6.4 Freshness 与重派生
+
+以下情况必须触发 re-derive 或 revision review：
+
+* selected upstream ref 的版本或状态发生变化
+* `TESTSET` acceptance / coverage 发生变化
+* `API` 或 `UI` 契约发生变化
+* `TECH` 的 boundary、接口、touch set 或失败策略发生变化
+* 实际 touch set 超出原先 `IMPL` 范围
+* 交付物要求或验收口径发生变化
+* provisional input 被正式冻结、否决或替换
+
 ---
 
 # 7. Workstream 规则
@@ -343,7 +392,7 @@ planning companion 可选参考：
 
 正式解释为：
 
-## **下游 Feature Delivery L2 不再自己从 FEAT 或 TECH 重新拼 phase 输入，而是直接消费 IMPL 已冻结好的执行入口。**
+## **下游 Feature Delivery L2 不再自己从 FEAT 或 TECH 重新拼 phase 输入，而是直接消费 IMPL 已冻结好的 canonical execution package。**
 
 ---
 
@@ -357,6 +406,9 @@ planning companion 可选参考：
 4. 无条件机械输出 FE/BE 两个 workstream plan
 5. 让 `tech2impl` 退化成 release plan、QA strategy 或新的 shadow design doc
 6. 不保留 `TECH/API/ADR` 引用，导致 Dev 再次猜测设计语义
+7. 把 `IMPL` 当成业务/设计/测试事实的 SSOT 来直接补需求、补设计或替代 `TESTSET`
+8. 为了“自包含”而复制上游全文，导致 `IMPL` 变成上游镜像
+9. 发现 repo 与上游冻结对象冲突时，默认以代码现状为准
 
 ---
 
@@ -379,5 +431,5 @@ tech_design_package + feat_ref + tech_ref
 
 本 ADR 冻结其核心语义：
 
-## **`tech2impl` 的正确收敛方式，不是把 `IMPL` 继续做成第二层技术设计，而是让它成为基于已冻结 `ADR / TECH / API` 的研发实施任务文档，用于组织实现、接线、迁移与验收，但不得改写上游技术决策。**
+## **`tech2impl` 的正确收敛方式，不是把 `IMPL` 继续做成第二层技术设计，也不是把它抬成新的事实源，而是让它成为基于已冻结上游对象收敛得到的 canonical execution package，用于组织实现、接线、迁移与验收，但不得改写上游技术决策。**
 

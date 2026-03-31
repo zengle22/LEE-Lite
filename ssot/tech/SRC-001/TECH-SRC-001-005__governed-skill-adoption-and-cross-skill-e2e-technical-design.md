@@ -58,9 +58,12 @@ properties:
 - integration matrix
 - migration cutover and fallback
 - pilot chain and guarded gate branch
+- revision-return coverage and normalized `revision-request` adoption
 
 ## Implementation Rules
 - Required inputs: FEAT-SRC-001-005, EPIC-SRC-001-001, ARCH-SRC-001-001, REL-001, ADR-009
 - Required outputs: contract baseline, runtime integration slices, validation hooks
 - Preferred carriers: CLI orchestration helpers, file-backed pilot evidence, loop-compatible validation hooks
+- Onboarding matrix must classify each governed skill as `revision-module included` or `excluded`, with rationale.
+- For included workflows, onboarding rules must require a shared `revision-request.json -> revision_context -> evidence lineage` contract instead of skill-local variants.
 - Forbidden shortcuts: 不得 path guessing，不得口头约定替代 contract，不得改写 acceptance 标准，不得把 adoption/E2E 先绑定到必需的前端平台或独立 rollout service。
