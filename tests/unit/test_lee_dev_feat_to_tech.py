@@ -1,12 +1,193 @@
 import json
+import sys
 import tempfile
 import unittest
 from pathlib import Path
 
 from tests.unit.support_feat_to_tech import FeatToTechWorkflowHarness
 
+SCRIPT_ROOT = Path(__file__).resolve().parents[2] / "skills" / "ll-dev-feat-to-tech" / "scripts"
+if str(SCRIPT_ROOT) not in sys.path:
+    sys.path.insert(0, str(SCRIPT_ROOT))
+
+from feat_to_tech_common import derive_semantic_lock
+from feat_to_tech_derivation import feature_axis
+from feat_to_tech_package_builder import build_defects, build_semantic_drift_check
 
 class FeatToTechWorkflowTests(FeatToTechWorkflowHarness):
+    def _json(self, path: Path):
+        return json.loads(path.read_text(encoding="utf-8"))
+
+    def _run_feat(self, repo_root: Path, feature: dict[str, object], input_run_id: str, tech_run_id: str):
+        bundle = self.make_bundle_json(feature, run_id=input_run_id)
+        if isinstance(feature.get("semantic_lock"), dict): bundle["semantic_lock"] = feature["semantic_lock"]
+        input_dir = self.make_feat_package(repo_root, input_run_id, bundle)
+        result = self.run_cmd("run", "--input", str(input_dir), "--feat-ref", str(feature["feat_ref"]), "--repo-root", str(repo_root), "--run-id", tech_run_id)
+        return result, repo_root / "artifacts" / "feat-to-tech" / tech_run_id
+
+    def _minimal_onboarding_feature(self, feat_ref: str, **overrides: object) -> dict[str, object]:
+        feature: dict[str, object] = {
+            "feat_ref": feat_ref,
+            "title": "最小建档主链能力",
+            "axis_id": "minimal-onboarding-flow",
+            "track": "foundation",
+            "goal": "把首进链路收敛到最小建档页并在提交后立即放行首页。",
+            "scope": ["登录/注册完成后，未完成最小建档的用户进入单页最小建档页。", "最小建档页必须稳定收集 gender、birthdate、height、weight、running_level、recent_injury_status。", "用户提交最小建档后立即允许进入首页，设备连接保持后置，不阻塞首进链路。"],
+            "constraints": ["最小建档必须维持单页完成，不拆成多步向导。", "birthdate 是 canonical 年龄相关字段，不能用自由推测字段替代。", "device connection 只能作为 deferred follow-up entry，不能重新变成 blocking prerequisite。"],
+            "dependencies": ["Boundary to auth: 登录/注册已经完成。", "Boundary to homepage: 首页内容本身不在本 FEAT 内。"],
+            "outputs": ["minimal profile completion", "homepage entry allowance"],
+            "acceptance_checks": [{"scenario": "Minimal profile submit allows homepage entry", "given": "required fields valid", "when": "submit minimal profile", "then": "profile_minimal_done and homepage entry allowed"}, {"scenario": "Device connection remains deferred", "given": "minimal profile submit succeeds", "when": "home is entered", "then": "device connection is follow-up only"}, {"scenario": "Invalid required fields stay on the page", "given": "birthdate or required fields invalid", "when": "submit is attempted", "then": "field-level errors are returned and homepage entry stays blocked"}],
+            "source_refs": [feat_ref, "EPIC-SRC-001-001", "SRC-001"],
+        }
+        feature.update(overrides)
+        if feature.get("axis_id") is None:
+            feature.pop("axis_id", None)
+        return feature
+
+    def _adoption_e2e_feature(self, feat_ref: str, **overrides: object) -> dict[str, object]:
+        feature: dict[str, object] = {
+            "feat_ref": feat_ref,
+            "title": "governed skill 接入与 pilot 闭环流",
+            "axis_id": "skill-adoption-e2e",
+            "goal": "让新 skill 能按 onboarding、pilot、cutover/fallback 的主链接入流程稳定落地。",
+            "scope": ["定义 onboarding directive、pilot evidence 与 cutover guard 的业务交付物。", "定义 producer -> gate -> formal -> consumer -> audit 的最小 pilot 闭环。", "定义 compat mode、fallback 与 cutover 的业务边界。"],
+            "constraints": ["本 FEAT 不重写 foundation FEAT 的内部实现。", "pilot evidence 必须成为 authoritative rollout input。", "fallback 结果必须显式记录到 receipt。"],
+            "dependencies": ["Boundary to formal 发布与下游准入流: pilot 只能消费已发布 formal refs。", "Boundary to 主链候选提交与交接流: producer 提交仍沿 authoritative handoff 进入 gate pending。"],
+            "outputs": ["onboarding directive", "pilot evidence submission", "cutover recommendation"],
+            "acceptance_checks": [{"scenario": "Pilot chain is complete", "given": "producer to audit", "when": "validated", "then": "闭环证据齐全"}, {"scenario": "Fallback is explicit", "given": "pilot failure", "when": "cutover reviewed", "then": "fallback outcome 被记录"}, {"scenario": "Compat mode is frozen", "given": "legacy skill", "when": "onboarded", "then": "compat mode 明确可追踪"}],
+            "source_refs": [feat_ref, "EPIC-SRC-001-001", "SRC-001"],
+        }
+        feature.update(overrides)
+        return feature
+
+    def _first_ai_advice_feature(self, feat_ref: str, **overrides: object) -> dict[str, object]:
+        feature: dict[str, object] = {
+            "feat_ref": feat_ref,
+            "title": "首轮 AI 建议释放能力",
+            "axis_id": "first-ai-advice-release",
+            "track": "foundation",
+            "goal": "在最小建档完成后，基于最低必要输入释放首轮训练建议，并对缺失风险输入 fail closed。",
+            "scope": [
+                "读取最小建档结果与首轮建议最低输入。",
+                "基于 running_level 和 recent_injury_status 执行风险门槛判断。",
+                "在首页释放最小可用的首轮建议与补充提示。",
+            ],
+            "constraints": [
+                "缺失 risk gate 关键字段时不得放行正常建议分支。",
+                "不要求扩展画像或设备连接先完成。",
+                "首页可见性与建议生成必须围绕 canonical 最小输入展开。",
+            ],
+            "dependencies": [
+                "Boundary to 最小建档主链: 只消费 profile_minimal_done 和 canonical minimal profile fields。",
+                "Boundary to 扩展画像: 补全任务卡与增量保存不在本 FEAT 内。",
+            ],
+            "outputs": ["first advice payload", "risk gate decision", "homepage advice visibility"],
+            "acceptance_checks": [
+                {"scenario": "Advice is released after minimal profile completion", "given": "minimal profile is done and risk inputs are present", "when": "homepage opens", "then": "first advice becomes visible"},
+                {"scenario": "Missing risk inputs block normal advice", "given": "running_level or recent_injury_status missing", "when": "advice generation is attempted", "then": "normal advice branch is blocked and a completion prompt is shown"},
+                {"scenario": "First advice keeps minimum output contract", "given": "safe minimum inputs", "when": "first advice is generated", "then": "training advice level and first week action are present"},
+            ],
+            "source_refs": [feat_ref, "EPIC-SRC-001-001", "SRC-001"],
+        }
+        feature.update(overrides)
+        return feature
+
+    def _extended_profile_completion_feature(self, feat_ref: str, **overrides: object) -> dict[str, object]:
+        feature: dict[str, object] = {
+            "feat_ref": feat_ref,
+            "title": "扩展画像渐进补全能力",
+            "axis_id": "extended-profile-progressive-completion",
+            "track": "foundation",
+            "goal": "让用户在首页通过任务卡渐进补全扩展画像，并通过增量保存持续更新完成度。",
+            "scope": [
+                "在首页渲染扩展画像任务卡与下一步补全项。",
+                "支持分步 patch 保存与完成度刷新。",
+                "保存失败时保留首页可用与重试入口。",
+            ],
+            "constraints": [
+                "不能把扩展画像补全重新拉回首进阻塞链路。",
+                "patch 保存必须是 incremental，而不是整页重提交流程。",
+                "保存失败不得撤销 homepage_entered。",
+            ],
+            "dependencies": [
+                "Boundary to 首页 shell: 只依赖首页容器承载任务卡，不定义首页其他内容。",
+                "Boundary to 最小建档: 最小建档完成态仍由上游主链负责。",
+            ],
+            "outputs": ["profile completion tasks", "extended profile patch result", "completion projection"],
+            "acceptance_checks": [
+                {"scenario": "Task cards guide progressive completion", "given": "homepage entered", "when": "tasks are loaded", "then": "user sees next profile completion tasks"},
+                {"scenario": "Incremental save updates completion", "given": "patch fields are valid", "when": "user saves a task", "then": "completion percent and next task cards refresh"},
+                {"scenario": "Save failure keeps homepage usable", "given": "patch persistence fails", "when": "save returns", "then": "homepage remains usable and retry entry stays visible"},
+            ],
+            "source_refs": [feat_ref, "EPIC-SRC-001-001", "SRC-001"],
+        }
+        feature.update(overrides)
+        return feature
+
+    def _device_deferred_entry_feature(self, feat_ref: str, **overrides: object) -> dict[str, object]:
+        feature: dict[str, object] = {
+            "feat_ref": feat_ref,
+            "title": "设备连接后置增强能力",
+            "axis_id": "device-connect-deferred-entry",
+            "track": "foundation",
+            "goal": "把设备连接固定为首页后的增强入口，允许跳过，并保证失败不影响主链可用性。",
+            "scope": [
+                "在首页暴露后置设备连接入口与跳过动作。",
+                "定义 deferred start/finalize 连接流程与结果状态。",
+                "把连接结果限制在体验增强分支。",
+            ],
+            "constraints": [
+                "设备连接不可成为首页进入或首轮建议释放前置。",
+                "连接失败必须是 non-blocking。",
+                "设备数据不得覆盖最小建档 canonical 事实。",
+            ],
+            "dependencies": [
+                "Boundary to 首页主链: 只消费 homepage_entered 前置，不改写主链放行逻辑。",
+                "Boundary to 设备厂商接入: 厂商协议细节不在本 FEAT 内。",
+            ],
+            "outputs": ["deferred device connection status", "enhancement readiness", "retry or skip entry"],
+            "acceptance_checks": [
+                {"scenario": "Deferred entry stays skippable", "given": "homepage entered", "when": "device entry is shown", "then": "user can skip without losing homepage access"},
+                {"scenario": "Connection failure is non-blocking", "given": "device auth or sync fails", "when": "connection finalizes", "then": "homepage and first advice remain available"},
+                {"scenario": "Connected data only enhances experience", "given": "device connection succeeds", "when": "data arrives", "then": "enhancement becomes available without rewriting canonical onboarding facts"},
+            ],
+            "source_refs": [feat_ref, "EPIC-SRC-001-001", "SRC-001"],
+        }
+        feature.update(overrides)
+        return feature
+
+    def _state_profile_boundary_feature(self, feat_ref: str, **overrides: object) -> dict[str, object]:
+        feature: dict[str, object] = {
+            "feat_ref": feat_ref,
+            "title": "状态模型与存储边界统一能力",
+            "axis_id": "state-and-profile-boundary-alignment",
+            "track": "foundation",
+            "goal": "统一 primary_state、capability_flags 和 canonical profile 边界，确保完成态与资格判断只读唯一事实源。",
+            "scope": [
+                "定义 onboarding primary_state 与 capability_flags 的持久化边界。",
+                "定义 user_physical_profile 与 runner_profiles 的 canonical ownership。",
+                "定义统一读取层和冲突阻断策略。",
+            ],
+            "constraints": [
+                "身体字段冲突时 user_physical_profile 必须是唯一事实源。",
+                "completion 和 eligibility 判断不得依赖 derived age 或旁路 store。",
+                "跨边界冲突写入必须 fail closed。",
+            ],
+            "dependencies": [
+                "Boundary to 页面层: 页面局部态不承担业务完成态权威。",
+                "Boundary to 下游 runtime: 下游只允许读 unified onboarding state。",
+            ],
+            "outputs": ["primary state record", "canonical physical profile write", "unified onboarding state"],
+            "acceptance_checks": [
+                {"scenario": "Primary state and flags are explicit", "given": "onboarding progresses", "when": "state is written", "then": "primary_state and capability_flags remain distinct"},
+                {"scenario": "Canonical profile boundary is enforced", "given": "body field writes conflict", "when": "boundary is evaluated", "then": "non-canonical write is blocked"},
+                {"scenario": "Unified reader fails closed on conflicts", "given": "unresolved cross-boundary conflict", "when": "state is read", "then": "conflict_blocked is returned and downstream gating stops"},
+            ],
+            "source_refs": [feat_ref, "EPIC-SRC-001-001", "SRC-001"],
+        }
+        feature.update(overrides)
+        return feature
+
     def test_run_emits_tech_and_optional_arch_api_when_required(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             repo_root = Path(temp_dir)
@@ -521,51 +702,279 @@ class FeatToTechWorkflowTests(FeatToTechWorkflowHarness):
             self.assertIn("decision_not_dispatchable", api_md)
             self.assertIn("Success envelope", api_md)
 
-    def test_adoption_e2e_feat_emits_api_contract(self) -> None:
+    def test_minimal_onboarding_feat_emits_profile_flow_tech(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
-            repo_root = Path(temp_dir)
-            feature = {
-                "feat_ref": "FEAT-SRC-001-006",
-                "title": "governed skill 接入与 pilot 闭环流",
-                "axis_id": "skill-adoption-e2e",
-                "goal": "让新 skill 能按 onboarding、pilot、cutover/fallback 的主链接入流程稳定落地。",
-                "scope": [
-                    "定义 onboarding directive、pilot evidence 与 cutover guard 的业务交付物。",
-                    "定义 producer -> gate -> formal -> consumer -> audit 的最小 pilot 闭环。",
-                    "定义 compat mode、fallback 与 cutover 的业务边界。",
-                ],
-                "constraints": [
-                    "本 FEAT 不重写 foundation FEAT 的内部实现。",
-                    "pilot evidence 必须成为 authoritative rollout input。",
-                    "fallback 结果必须显式记录到 receipt。",
-                ],
-                "dependencies": [
-                    "Boundary to formal 发布与下游准入流: pilot 只能消费已发布 formal refs。",
-                    "Boundary to 主链候选提交与交接流: producer 提交仍沿 authoritative handoff 进入 gate pending。",
-                ],
-                "outputs": ["onboarding directive", "pilot evidence submission", "cutover recommendation"],
-                "acceptance_checks": [
-                    {"scenario": "Pilot chain is complete", "given": "producer to audit", "when": "validated", "then": "闭环证据齐全"},
-                    {"scenario": "Fallback is explicit", "given": "pilot failure", "when": "cutover reviewed", "then": "fallback outcome 被记录"},
-                    {"scenario": "Compat mode is frozen", "given": "legacy skill", "when": "onboarded", "then": "compat mode 明确可追踪"},
-                ],
-                "source_refs": ["FEAT-SRC-001-006", "EPIC-SRC-001-001", "SRC-001"],
-            }
-            bundle = self.make_bundle_json(feature, run_id="feat-adoption-api")
-            input_dir = self.make_feat_package(repo_root, "feat-adoption-api", bundle)
-
-            result = self.run_cmd("run", "--input", str(input_dir), "--feat-ref", "FEAT-SRC-001-006", "--repo-root", str(repo_root), "--run-id", "tech-adoption-api")
-            self.assertEqual(result.returncode, 0, result.stderr)
-            artifacts_dir = Path(json.loads(result.stdout)["artifacts_dir"])
-            design = json.loads((artifacts_dir / "tech-design-bundle.json").read_text(encoding="utf-8"))
+            result, artifacts_dir = self._run_feat(
+                Path(temp_dir),
+                self._minimal_onboarding_feature("FEAT-SRC-001-012"),
+                "feat-minimal-onboarding",
+                "tech-minimal-onboarding",
+            )
+            design = self._json(artifacts_dir / "tech-design-bundle.json")
+            drift = self._json(artifacts_dir / "semantic-drift-check.json")
+            tech_md = (artifacts_dir / "tech-spec.md").read_text(encoding="utf-8")
             api_md = (artifacts_dir / "api-contract.md").read_text(encoding="utf-8")
 
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertEqual(design["selected_feat"]["resolved_axis"], "minimal_onboarding")
+            self.assertEqual(design["semantic_lock"]["domain_type"], "product_onboarding_flow")
+            self.assertEqual(drift["verdict"], "pass")
+            self.assertTrue(drift["semantic_lock_present"])
+            self.assertIn("profile_minimal_done", drift["matched_allowed_capabilities"])
+            self.assertIn("SubmitMinimalProfile", tech_md)
+            self.assertIn("POST /v1/onboarding/minimal-profile", api_md)
+            self.assertNotIn("OnboardingDirective", tech_md)
+            self.assertNotIn("cutover", tech_md.lower())
+
+    def test_minimal_onboarding_semantic_lock_blocks_rollout_and_pilot_carriers(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            feature = self._minimal_onboarding_feature(
+                "FEAT-SRC-001-014",
+                scope=[
+                    "登录/注册完成后，未完成最小建档的用户进入单页最小建档页。",
+                    "最小建档页必须稳定收集 gender、birthdate、height、weight、running_level、recent_injury_status。",
+                    "错误方案：还要输出 onboarding directive、pilot evidence 与 cutover recommendation。",
+                ],
+                constraints=[
+                    "最小建档必须维持单页完成，不拆成多步向导。",
+                    "ll rollout onboard-skill 与 compat mode 不能变成最小建档主链载体。",
+                    "device connection 只能作为 deferred follow-up entry，不能重新变成 blocking prerequisite。",
+                ],
+                outputs=["minimal profile completion", "homepage entry allowance", "pilot evidence submission"],
+                acceptance_checks=[
+                    {"scenario": "Minimal profile submit allows homepage entry", "given": "required fields valid", "when": "submit minimal profile", "then": "profile_minimal_done and homepage entry allowed"},
+                    {"scenario": "Pilot carrier wrongly appears", "given": "rollout chain", "when": "reviewed", "then": "OnboardingDirective and PilotEvidenceSubmission are emitted"},
+                    {"scenario": "Invalid required fields stay on the page", "given": "birthdate or required fields invalid", "when": "submit is attempted", "then": "field-level errors are returned and homepage entry stays blocked"},
+                ],
+            )
+            result, artifacts_dir = self._run_feat(Path(temp_dir), feature, "feat-minimal-onboarding-drift", "tech-minimal-onboarding-drift")
+            design = self._json(artifacts_dir / "tech-design-bundle.json")
+            drift = self._json(artifacts_dir / "semantic-drift-check.json")
+            review = self._json(artifacts_dir / "tech-review-report.json")
+            acceptance = self._json(artifacts_dir / "tech-acceptance-report.json")
+            defects = self._json(artifacts_dir / "tech-defect-list.json")
+            gate = self._json(artifacts_dir / "tech-freeze-gate.json")
+
+            self.assertNotEqual(result.returncode, 0)
+            self.assertIn("semantic-drift-check.json must preserve semantic_lock", result.stderr)
+            self.assertEqual(design["semantic_lock"]["domain_type"], "product_onboarding_flow")
+            self.assertEqual(drift["verdict"], "reject")
+            self.assertFalse(drift["semantic_lock_preserved"])
+            self.assertTrue(any(item in drift["forbidden_axis_detected"] for item in ["ll rollout onboard-skill", "cutover", "compat mode"]))
+            self.assertEqual(review["decision"], "revise")
+            self.assertEqual(acceptance["decision"], "revise")
+            self.assertTrue(any(item["title"] == "semantic_lock drift detected" for item in defects))
+            self.assertFalse(gate["freeze_ready"])
+
+    def test_product_flow_axes_emit_feat_specific_tech_instead_of_generic_template(self) -> None:
+        cases = [
+            (
+                self._first_ai_advice_feature("FEAT-SRC-001-002"),
+                "first_ai_advice",
+                ["GenerateFirstAdvice", "EvaluateFirstAdviceRiskGate", "advice_generated", "training_advice_level"],
+                "Keep first-advice output, risk-gate decisions, and fallback-mode evidence traceable in freeze-ready artifacts.",
+                None,
+            ),
+            (
+                self._extended_profile_completion_feature("FEAT-SRC-001-003"),
+                "extended_profile_completion",
+                ["SaveExtendedProfilePatch", "GetProfileCompletionTasks", "profile_extension_in_progress", "profile_completion_percent"],
+                "Keep patch-save results, profile-completion-percent updates, and retry-state evidence traceable in freeze-ready artifacts.",
+                None,
+            ),
+            (
+                self._device_deferred_entry_feature("FEAT-SRC-001-004"),
+                "device_deferred_entry",
+                ["StartDeferredDeviceConnection", "FinalizeDeviceConnection", "device_failed_nonblocking", "homepage_access_preserved"],
+                "Keep deferred-device-connection outcomes and homepage/first-advice preservation evidence traceable in freeze-ready artifacts.",
+                None,
+            ),
+            (
+                self._state_profile_boundary_feature("FEAT-SRC-001-005"),
+                "state_profile_boundary",
+                ["WritePrimaryState", "WritePhysicalProfileCanonical", "ReadUnifiedOnboardingState", "canonical_profile_boundary"],
+                "Keep canonical-ownership decisions, conflict-blocked outcomes, and unified-reader judgments traceable in freeze-ready artifacts.",
+                "Projection stores 只能作为只读 projection / read model，不得回写 canonical body facts，也不得覆盖 user_physical_profile 的唯一事实源地位。",
+            ),
+        ]
+        for feature, expected_axis, markers, nfr_marker, rule_marker in cases:
+            with self.subTest(axis=expected_axis):
+                with tempfile.TemporaryDirectory() as temp_dir:
+                    result, artifacts_dir = self._run_feat(
+                        Path(temp_dir),
+                        feature,
+                        f"feat-{expected_axis}",
+                        f"tech-{expected_axis}",
+                    )
+                    design = self._json(artifacts_dir / "tech-design-bundle.json")
+                    drift = self._json(artifacts_dir / "semantic-drift-check.json")
+                    tech_md = (artifacts_dir / "tech-spec.md").read_text(encoding="utf-8")
+                    api_md = (artifacts_dir / "api-contract.md").read_text(encoding="utf-8")
+
+                    self.assertEqual(result.returncode, 0, result.stderr)
+                    self.assertEqual(design["selected_feat"]["axis_id"], feature["axis_id"])
+                    self.assertEqual(design["selected_feat"]["resolved_axis"], expected_axis)
+                    self.assertEqual(drift["verdict"], "pass")
+                    self.assertTrue(drift["topic_alignment_ok"])
+                    self.assertTrue(drift["lock_gate_ok"])
+                    self.assertNotEqual(design["selected_feat"]["resolved_axis"], "generic")
+                    for marker in markers:
+                        self.assertIn(marker, tech_md + "\n" + api_md)
+                    self.assertNotIn("genericRequest", tech_md)
+                    self.assertNotIn("[runtime.py] -> [contracts.py] -> [receipts.py]", tech_md)
+                    self.assertNotIn("`prepared` -> `executed` -> `recorded`", tech_md)
+                    self.assertNotIn("不扩展到 EPIC、FEAT、TASK 或实现设计", tech_md)
+                    self.assertNotIn("Keep the package freeze-ready by recording execution evidence and supervision evidence.", tech_md)
+                    self.assertIn(nfr_marker, tech_md)
+                    if rule_marker:
+                        self.assertIn(rule_marker, tech_md)
+
+    def test_implementation_rules_rewrite_legacy_not_expand_sentence_for_product_feat(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            feature = self._first_ai_advice_feature(
+                "FEAT-SRC-001-026",
+                constraints=[
+                    "来源与依赖约束：保持与原始输入同题，不扩展到 EPIC、FEAT、TASK 或实现设计。",
+                    "缺失 risk gate 关键字段时不得放行正常建议分支。",
+                    "不要求扩展画像或设备连接先完成。",
+                ],
+            )
+            result, artifacts_dir = self._run_feat(
+                Path(temp_dir),
+                feature,
+                "feat-legacy-constraint-rewrite",
+                "tech-legacy-constraint-rewrite",
+            )
+            tech_md = (artifacts_dir / "tech-spec.md").read_text(encoding="utf-8")
+
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertNotIn("不扩展到 EPIC、FEAT、TASK 或实现设计", tech_md)
+            self.assertIn("不扩展到相邻 FEAT、TASK 排期细节或超出本 FEAT 边界的实现域", tech_md)
+
+    def test_product_flow_axes_reject_generic_placeholder_tech(self) -> None:
+        generic_placeholder = [
+            "[runtime.py] -> [contracts.py] -> [receipts.py]",
+            "`prepared` -> `executed` -> `recorded`",
+            "`genericRequest`",
+            "normalize request execute authoritative carrier persist evidence and refs return structured result",
+        ]
+        cases = [
+            (self._first_ai_advice_feature("FEAT-SRC-001-022"), "first_ai_advice"),
+            (self._extended_profile_completion_feature("FEAT-SRC-001-023"), "extended_profile_completion"),
+            (self._device_deferred_entry_feature("FEAT-SRC-001-024"), "device_deferred_entry"),
+            (self._state_profile_boundary_feature("FEAT-SRC-001-025"), "state_profile_boundary"),
+        ]
+        for feature, expected_axis in cases:
+            with self.subTest(axis=expected_axis):
+                feature["semantic_lock"] = derive_semantic_lock(feature)
+                drift = build_semantic_drift_check(feature, generic_placeholder)
+                defects = build_defects([expected_axis], {"passed": True, "issues": []}, drift)
+
+                self.assertEqual(feature_axis(feature), expected_axis)
+                self.assertEqual(drift["verdict"], "reject")
+                self.assertFalse(drift["topic_alignment_ok"])
+                self.assertTrue(any(expected_axis in issue for issue in drift["carrier_topic_issues"]))
+                self.assertTrue(any(item["title"] == "semantic_lock drift detected" for item in defects))
+
+    def test_axis_keyword_family_conflicts_fail_semantic_drift_checks(self) -> None:
+        cases = [
+            (
+                self._minimal_onboarding_feature(
+                    "FEAT-SRC-001-015",
+                    scope=["收集 gender、birthdate、height、weight、running_level、recent_injury_status。", "最小建档完成后允许进入首页。", "设备连接保持后置。"],
+                    constraints=["不允许把设备连接重新变成首进阻塞前置。"],
+                    identity_and_scenario={"completed_state": "用户提交最小建档后立即允许进入首页，且设备绑定不再阻塞首进链路。"},
+                ),
+                [
+                    "OnboardingDirective ll rollout onboard-skill compat mode migration wave cutover guard pilot chain audit submit-pilot-evidence",
+                    "cli/lib/rollout_state.py cli/lib/pilot_chain.py rollout state",
+                ],
+                "minimal_onboarding",
+            ),
+            (
+                {
+                    "feat_ref": "FEAT-SRC-001-016",
+                    "title": "governed skill 接入与 pilot 闭环流",
+                    "axis_id": "skill-adoption-e2e",
+                    "semantic_lock": {
+                        "domain_type": "adoption_flow_rule",
+                        "one_sentence_truth": "Adoption flow keeps onboarding, pilot, cutover, and fallback semantics on the governed skill path.",
+                        "primary_object": "pilot evidence",
+                        "lifecycle_stage": "cutover",
+                        "allowed_capabilities": ["pilot evidence", "compat mode", "cutover"],
+                        "forbidden_capabilities": ["profile_minimal_done"],
+                        "inheritance_rule": "Downstream TECH must preserve pilot and cutover semantics.",
+                    },
+                },
+                ["SubmitMinimalProfile profile_minimal_done homepage entry guard POST /v1/onboarding/minimal-profile device_connection_deferred"],
+                "adoption_e2e",
+            ),
+        ]
+        for feature, generated_text_parts, expected_axis in cases:
+            with self.subTest(axis=expected_axis):
+                feature["semantic_lock"] = feature.get("semantic_lock") or derive_semantic_lock(feature)
+                drift = build_semantic_drift_check(feature, generated_text_parts)
+                defects = build_defects([expected_axis], {"passed": True, "issues": []}, drift)
+
+                self.assertEqual(feature_axis(feature), expected_axis)
+                self.assertEqual(drift["verdict"], "reject")
+                self.assertTrue(drift["axis_conflicts"])
+                self.assertTrue(any(defect["title"] == "Resolved axis conflicts with generated TECH keyword family" for defect in defects))
+
+    def test_product_onboarding_words_do_not_false_positive_adoption_e2e(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            feature = self._minimal_onboarding_feature(
+                "FEAT-SRC-001-013",
+                axis_id=None,
+                title="Minimal onboarding profile page",
+                goal="Collect the minimum profile and then let the user enter the homepage immediately.",
+                scope=[
+                    "Show one minimal onboarding page after registration.",
+                    "Collect gender, birthdate, height, weight, running_level, and recent_injury_status.",
+                    "Allow homepage entry right after minimal profile submission.",
+                ],
+                constraints=[
+                    "Inherited rollout requirements stay outside this FEAT and must not redefine the product flow.",
+                    "Device connection remains deferred after homepage entry.",
+                ],
+                dependencies=[],
+                outputs=["minimal profile state", "homepage entry allowance"],
+                acceptance_checks=[
+                    {"scenario": "minimum profile completes onboarding", "given": "required fields valid", "when": "submitted", "then": "homepage becomes available"},
+                    {"scenario": "required field errors block homepage entry", "given": "required fields missing", "when": "submitted", "then": "homepage stays blocked and field errors are visible"},
+                    {"scenario": "device connection is still deferred", "given": "minimal profile completes", "when": "homepage opens", "then": "device connection remains a follow-up path"},
+                ],
+            )
+            result, artifacts_dir = self._run_feat(Path(temp_dir), feature, "feat-onboarding-no-adoption", "tech-onboarding-no-adoption")
+            design = self._json(artifacts_dir / "tech-design-bundle.json")
+            tech_md = (artifacts_dir / "tech-spec.md").read_text(encoding="utf-8")
+
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertEqual(design["selected_feat"]["resolved_axis"], "minimal_onboarding")
+            self.assertNotIn("OnboardingDirective", tech_md)
+            self.assertNotIn("PilotEvidenceSubmission", tech_md)
+            self.assertNotIn("rollout_state.py", tech_md)
+            self.assertNotIn("cutover", tech_md.lower())
+
+    def test_adoption_e2e_feat_emits_api_contract(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            result, artifacts_dir = self._run_feat(
+                Path(temp_dir),
+                self._adoption_e2e_feature("FEAT-SRC-001-006"),
+                "feat-adoption-api",
+                "tech-adoption-api",
+            )
+            design = self._json(artifacts_dir / "tech-design-bundle.json")
+            drift = self._json(artifacts_dir / "semantic-drift-check.json")
+            api_md = (artifacts_dir / "api-contract.md").read_text(encoding="utf-8")
+
+            self.assertEqual(result.returncode, 0, result.stderr)
             self.assertTrue(design["api_required"])
+            self.assertEqual(drift["verdict"], "pass")
             self.assertIn("ll rollout onboard-skill", api_md)
             self.assertIn("ll audit submit-pilot-evidence", api_md)
             self.assertIn("compat_mode", api_md)
             self.assertIn("cutover_recommendation", api_md)
-            self.assertIn("Canonical refs:", api_md)
 
     def test_execution_runner_operator_entry_feat_emits_runner_entry_tech(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:

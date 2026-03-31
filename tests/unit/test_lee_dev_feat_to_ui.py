@@ -184,3 +184,92 @@ class FeatToUiWorkflowTests(FeatToUiWorkflowHarness):
             self.assertTrue((artifacts_dir / "[UI-FEAT-UI-002-profile-entry]__ui_spec.md").exists())
             self.assertTrue((artifacts_dir / "[UI-FEAT-UI-002-goal-selection]__ui_spec.md").exists())
             self.assertTrue((artifacts_dir / "ui-flow-map.md").exists())
+
+    def test_revision_request_rerun_persists_revision_context(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            repo_root = Path(temp_dir)
+            feature = {
+                "feat_ref": "FEAT-UI-REVISION",
+                "title": "训练目标设置",
+                "goal": "让用户完成训练目标设置并进入下一步。",
+                "scope": ["目标选择", "失败反馈", "下一步跳转"],
+                "constraints": ["必须保留失败重试", "必须显式记录 revise 上下文"],
+                "acceptance_checks": [{"scenario": "用户完成目标设置", "then": "进入下一步"}],
+                "source_refs": ["FEAT-UI-REVISION", "EPIC-SRC-009-001", "SRC-009"],
+                "ui_units": [
+                    {
+                        "slug": "goal-selection",
+                        "page_name": "目标设置",
+                        "entry_condition": "用户进入目标设置页。",
+                        "exit_condition": "用户提交目标后进入下一步。",
+                        "branch_paths": [
+                            {"title": "Branch A", "steps": ["未选择目标", "点击下一步", "显示校验提示", "重新选择"]},
+                            {"title": "Branch B", "steps": ["提交失败", "展示错误", "允许重试", "重新提交"]},
+                        ],
+                        "input_fields": [{"field": "goal_id", "type": "enum", "required": True}],
+                        "required_fields": ["goal_id"],
+                        "user_actions": ["选择目标", "点击下一步"],
+                        "system_actions": ["加载页面", "保存目标"],
+                        "frontend_validation_rules": ["goal_id 必选"],
+                        "data_dependencies": ["目标选项列表"],
+                        "api_touchpoints": ["GET /goal/options", "POST /profile/goal"],
+                        "validation_feedback": "未选择目标时显示校验提示。",
+                        "error_feedback": "失败时展示明确错误。",
+                        "retry_behavior": "允许修正后再次提交。",
+                    }
+                ],
+            }
+            bundle = self.make_bundle_json(feature, run_id="feat-ui-revision-input")
+            input_dir = self.make_feat_package(repo_root, "feat-ui-revision-input", bundle)
+
+            initial = self.run_cmd("run", "--input", str(input_dir), "--feat-ref", "FEAT-UI-REVISION", "--repo-root", str(repo_root), "--run-id", "ui-revision")
+            self.assertEqual(initial.returncode, 0, initial.stderr)
+            artifacts_dir = Path(json.loads(initial.stdout)["artifacts_dir"])
+
+            revision_request = {
+                "workflow_key": "dev.feat-to-ui",
+                "run_id": "ui-revision",
+                "source_run_id": "feat-ui-revision-input",
+                "decision_type": "revise",
+                "decision_target": "ui_spec_bundle",
+                "decision_reason": "补充 revise 上下文并要求页面保留恢复性提示。",
+                "revision_round": 1,
+                "source_gate_decision_ref": "artifacts/gate-human-orchestrator/revision-decision.json",
+                "source_return_job_ref": "artifacts/jobs/waiting-human/ui-revision-return.json",
+                "authoritative_input_ref": "artifacts/epic-to-feat/feat-ui-revision-input/feat-freeze-bundle.json",
+            }
+            revision_request_path = repo_root / "revision-request.json"
+            revision_request_path.write_text(json.dumps(revision_request, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+
+            rerun = self.run_cmd(
+                "run",
+                "--input",
+                str(input_dir),
+                "--feat-ref",
+                "FEAT-UI-REVISION",
+                "--repo-root",
+                str(repo_root),
+                "--run-id",
+                "ui-revision",
+                "--allow-update",
+                "--revision-request",
+                str(revision_request_path),
+            )
+            self.assertEqual(rerun.returncode, 0, rerun.stderr)
+
+            bundle_json = json.loads((artifacts_dir / "ui-spec-bundle.json").read_text(encoding="utf-8"))
+            manifest = json.loads((artifacts_dir / "package-manifest.json").read_text(encoding="utf-8"))
+            execution = json.loads((artifacts_dir / "execution-evidence.json").read_text(encoding="utf-8"))
+            supervision = json.loads((artifacts_dir / "supervision-evidence.json").read_text(encoding="utf-8"))
+            gate = json.loads((artifacts_dir / "ui-spec-freeze-gate.json").read_text(encoding="utf-8"))
+            revision_materialized = json.loads((artifacts_dir / "revision-request.json").read_text(encoding="utf-8"))
+            report = (artifacts_dir / "evidence-report.md").read_text(encoding="utf-8")
+
+            self.assertEqual(revision_materialized["decision_reason"], revision_request["decision_reason"])
+            self.assertEqual(bundle_json["revision_context"]["revision_request_ref"], "revision-request.json")
+            self.assertEqual(manifest["revision_request_ref"], "revision-request.json")
+            self.assertEqual(execution["revision_context"]["revision_request_ref"], "revision-request.json")
+            self.assertEqual(supervision["revision_context"]["revision_request_ref"], "revision-request.json")
+            self.assertEqual(gate["revision_context"]["revision_request_ref"], "revision-request.json")
+            self.assertTrue(any("Applied revision context:" in item for item in execution["key_decisions"]))
+            self.assertIn("revision_request_ref: revision-request.json", report)

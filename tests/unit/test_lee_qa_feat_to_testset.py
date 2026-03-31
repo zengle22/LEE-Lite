@@ -106,6 +106,12 @@ class FeatToTestSetWorkflowTests(FeatToTestSetWorkflowHarness):
             self.assertTrue(all(unit.get("pass_conditions") for unit in test_set["test_units"]))
             self.assertTrue(all(row.get("acceptance_scenario") for row in test_set["acceptance_traceability"]))
             self.assertTrue(all(row.get("coverage_status") == "covered" for row in test_set["acceptance_traceability"]))
+            self.assertEqual(test_set["coverage_goal"]["line_rate_percent"], 80)
+            self.assertEqual(test_set["qualification_expectation"], "required")
+            self.assertGreaterEqual(test_set["qualification_budget"], 6)
+            self.assertEqual(test_set["max_expansion_rounds"], 2)
+            self.assertTrue(test_set["branch_families"])
+            self.assertTrue(test_set["expansion_hints"])
             self.assertTrue(any("pending_state" in ref for unit in test_set["test_units"] for ref in unit["supporting_refs"]))
             self.assertTrue(any("gate_pending_ref" in ref for unit in test_set["test_units"] for ref in unit["supporting_refs"]))
             self.assertTrue(any("assigned_gate_queue" in ref for unit in test_set["test_units"] for ref in unit["supporting_refs"]))
@@ -113,6 +119,12 @@ class FeatToTestSetWorkflowTests(FeatToTestSetWorkflowHarness):
             self.assertTrue(any("canonical_payload_path" in item for unit in test_set["test_units"] for item in unit["pass_conditions"]))
             self.assertTrue(any("response envelope" in item for unit in test_set["test_units"] for item in unit["required_evidence"]))
             self.assertFalse(any("error code -> retryable -> idempotent_replay mapping" in item for unit in test_set["test_units"] for item in unit["observation_points"]))
+            self.assertEqual(bundle_json["coverage_goal"]["line_rate_percent"], 80)
+            self.assertEqual(bundle_json["qualification_expectation"], "required")
+            self.assertGreaterEqual(bundle_json["qualification_budget"], 6)
+            self.assertEqual(bundle_json["max_expansion_rounds"], 2)
+            self.assertTrue(bundle_json["branch_families"])
+            self.assertTrue(bundle_json["expansion_hints"])
             self.assertIn("acceptance_traceability", bundle_markdown)
             self.assertIn("input_preconditions:", bundle_markdown)
             self.assertIn("required_evidence:", bundle_markdown)
@@ -266,6 +278,12 @@ class FeatToTestSetWorkflowTests(FeatToTestSetWorkflowHarness):
 
             self.assertEqual(handoff["target_skill"], "skill.qa.test_exec_web_e2e")
             self.assertEqual(bundle_json["downstream_target"], "skill.qa.test_exec_web_e2e")
+            test_set = yaml.safe_load((artifacts_dir / "test-set.yaml").read_text(encoding="utf-8"))
+            if test_set.get("feature_owned_code_paths"):
+                self.assertEqual(test_set["coverage_goal"]["line_rate_percent"], 80)
+                self.assertEqual(test_set["qualification_expectation"], "required")
+                self.assertTrue(test_set["branch_families"])
+                self.assertTrue(test_set["expansion_hints"])
             self.assertTrue(
                 any(
                     any(token in item.lower() for token in ["browser", "page", "locator", "selector", "ui"])

@@ -752,6 +752,8 @@ class RawToSrcWorkflowTests(unittest.TestCase):
             self.assertTrue(any("首页任务卡只用于增强" in item for item in constraints))
             self.assertTrue(any("AI 首轮建议至少应包含" in item for item in constraints))
             self.assertIn(str(artifacts_dir / "revision-request.json"), candidate["source_refs"])
+            self.assertEqual(candidate["revision_context"]["revision_request_ref"], str(artifacts_dir / "revision-request.json"))
+            self.assertIn("Gate revise:", candidate["revision_context"]["summary"])
 
             execution = json.loads((artifacts_dir / "execution-evidence.json").read_text(encoding="utf-8"))
             supervision = json.loads((artifacts_dir / "supervision-evidence.json").read_text(encoding="utf-8"))
@@ -772,6 +774,64 @@ class RawToSrcWorkflowTests(unittest.TestCase):
             self.assertIn("revision_minimal_risk_input", patch_codes)
             self.assertIn("revision_state_capabilities", patch_codes)
             self.assertIn("revision_non_blocking_onboarding", patch_codes)
+
+    def test_supervisor_review_accepts_explicit_revision_request(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            repo_root = Path(temp_dir)
+            self.make_repo(repo_root)
+            revision_request = repo_root / "revision-request.json"
+            revision_request.write_text(
+                json.dumps(
+                    {
+                        "workflow_key": "product.raw-to-src",
+                        "run_id": "test-run-supervisor-revision",
+                        "source_run_id": "test-run-supervisor-revision",
+                        "decision_type": "revise",
+                        "decision_reason": "补丁一：running_level 应收敛为单一训练基础轴。",
+                        "decision_target": "raw-to-src.test-run-supervisor-revision.src-candidate",
+                        "basis_refs": ["artifacts/active/gates/decisions/gate-decision.json"],
+                        "revision_round": 1,
+                        "source_gate_decision_ref": "artifacts/active/gates/decisions/gate-decision.json",
+                    },
+                    ensure_ascii=False,
+                    indent=2,
+                ),
+                encoding="utf-8",
+            )
+
+            executor = self.run_cmd(
+                "executor-run",
+                "--input",
+                str(FIXTURES / "raw-requirement.md"),
+                "--repo-root",
+                str(repo_root),
+                "--run-id",
+                "test-run-supervisor-revision",
+                "--revision-request",
+                str(revision_request),
+            )
+            self.assertEqual(executor.returncode, 0, executor.stderr)
+            artifacts_dir = Path(json.loads(executor.stdout)["artifacts_dir"])
+            (artifacts_dir / "revision-request.json").unlink()
+
+            supervisor = self.run_cmd(
+                "supervisor-review",
+                "--artifacts-dir",
+                str(artifacts_dir),
+                "--repo-root",
+                str(repo_root),
+                "--run-id",
+                "test-run-supervisor-revision",
+                "--allow-update",
+                "--revision-request",
+                str(revision_request),
+            )
+            self.assertEqual(supervisor.returncode, 0, supervisor.stderr)
+
+            candidate = json.loads((artifacts_dir / "src-candidate.json").read_text(encoding="utf-8"))
+            self.assertIn("revision_context", candidate)
+            self.assertEqual(candidate["revision_context"]["revision_request_ref"], str(artifacts_dir / "revision-request.json"))
+            self.assertTrue((artifacts_dir / "revision-request.json").exists())
 
     def test_executor_and_supervisor_commands_respect_boundary(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
