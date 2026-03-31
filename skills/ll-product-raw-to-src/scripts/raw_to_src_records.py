@@ -84,6 +84,7 @@ def build_handoff_proposal(
         "primary_artifact_ref": str(candidate_path),
         "supporting_artifact_refs": [
             str(artifacts_dir / "source-semantic-findings.json"),
+            str(artifacts_dir / "document-test-report.json"),
             str(artifacts_dir / "acceptance-report.json"),
             str(artifacts_dir / "defect-list.json"),
             str(artifacts_dir / "result-summary.json"),
@@ -232,6 +233,7 @@ def build_package_manifest(
     status: str,
     action: str,
     handoff_ref: str | None,
+    document_test_report_ref: str | None = None,
     gate_ready_package_ref: str | None = None,
     authoritative_handoff_ref: str | None = None,
     gate_pending_ref: str | None = None,
@@ -247,6 +249,7 @@ def build_package_manifest(
         "run_state_ref": str(artifacts_dir / "run-state.json"),
         "patch_lineage_ref": str(artifacts_dir / "patch-lineage.json"),
         "source_semantic_findings_ref": str(artifacts_dir / "source-semantic-findings.json"),
+        "document_test_report_ref": document_test_report_ref or str(artifacts_dir / "document-test-report.json"),
         "acceptance_report_ref": str(artifacts_dir / "acceptance-report.json"),
         "semantic_inventory_ref": str(artifacts_dir / "semantic-inventory.json"),
         "source_provenance_map_ref": str(artifacts_dir / "source-provenance-map.json"),
@@ -305,6 +308,8 @@ def build_supervision_evidence(
     acceptance_report: dict[str, Any],
     semantic_findings: list[dict[str, Any]],
     action: str,
+    document_test_report_ref: str = "",
+    document_test_outcome: str = "",
     revision_request_ref: str = "",
 ) -> dict[str, Any]:
     reason = "Candidate is freeze-ready for external gate." if action == "next_skill" else "External gate materialization is required before downstream flow."
@@ -321,6 +326,10 @@ def build_supervision_evidence(
         "readiness_recommendation": action,
         "ownership_scope": "read_only_review",
     }
+    if document_test_report_ref:
+        evidence["document_test_report_ref"] = document_test_report_ref
+    if document_test_outcome:
+        evidence["document_test_outcome"] = document_test_outcome
     if revision_request_ref:
         evidence["revision_request_ref"] = revision_request_ref
     return evidence

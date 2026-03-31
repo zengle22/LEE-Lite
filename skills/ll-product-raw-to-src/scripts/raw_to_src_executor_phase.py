@@ -28,6 +28,7 @@ from raw_to_src_loop_helpers import (
     validate_intake_document,
 )
 from raw_to_src_records import build_execution_evidence, build_patch_lineage, stage
+from raw_to_src_revision import persist_revision_request
 
 
 def ensure_dir(path: Path) -> Path:
@@ -38,19 +39,6 @@ def ensure_dir(path: Path) -> Path:
 def write_json(path: Path, data: Any) -> None:
     ensure_dir(path.parent)
     path.write_text(json.dumps(data, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
-
-
-def persist_revision_request(
-    revision_request_path: Path | None,
-    repo_root: Path,
-    artifacts_dir: Path,
-) -> str:
-    if revision_request_path is None or not revision_request_path.exists():
-        return ""
-    target_path = artifacts_dir / "revision-request.json"
-    shutil.copy2(revision_request_path, target_path)
-    return str(target_path.resolve().relative_to(repo_root.resolve()).as_posix())
-
 
 def freeze_input_source(input_path: Path, repo_root: Path, artifacts_dir: Path, document: dict[str, Any]) -> dict[str, Any]:
     input_dir = ensure_dir(artifacts_dir / "input")

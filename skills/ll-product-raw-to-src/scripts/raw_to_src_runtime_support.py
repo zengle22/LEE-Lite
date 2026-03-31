@@ -9,6 +9,7 @@ import json
 from pathlib import Path
 from typing import Any
 
+from cli.lib.workflow_document_test import validate_document_test_report
 from raw_to_src_common import WORKFLOW_KEY, read_text, validate_candidate_markdown
 from raw_to_src_records import SEMANTIC_BUDGET, STRUCTURAL_BUDGET, TOTAL_BUDGET
 
@@ -61,6 +62,7 @@ def validate_output_package(artifacts_dir: Path) -> tuple[list[str], dict[str, A
         "normalization-decisions.json",
         "omission-and-compression-report.json",
         "source-semantic-findings.json",
+        "document-test-report.json",
         "acceptance-report.json",
         "defect-list.json",
         "retry-budget-report.json",
@@ -81,6 +83,8 @@ def validate_output_package(artifacts_dir: Path) -> tuple[list[str], dict[str, A
             errors.append("source-semantic-findings.json must contain findings.")
         if "acceptance_findings" not in acceptance_report:
             errors.append("acceptance-report.json must contain acceptance_findings.")
+    if (artifacts_dir / "document-test-report.json").exists():
+        errors.extend(validate_document_test_report(read_json(artifacts_dir / "document-test-report.json")))
     if (artifacts_dir / "proposed-next-actions.json").exists():
         actions = read_json(artifacts_dir / "proposed-next-actions.json")
         if actions["recommended_action"] != "blocked" and not (artifacts_dir / "handoff-proposal.json").exists():

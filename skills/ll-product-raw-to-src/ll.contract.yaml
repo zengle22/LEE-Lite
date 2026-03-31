@@ -1,6 +1,6 @@
 skill_id: ll-product-raw-to-src
 skill_type: workflow
-version: 0.5.2
+version: 0.6.0
 workflow_key: product.raw-to-src
 
 roles:
@@ -44,6 +44,7 @@ output:
     - src-candidate.json
     - structural-report.json
     - source-semantic-findings.json
+    - document-test-report.json
     - acceptance-report.json
     - patch-lineage.json
     - run-state.json
@@ -62,6 +63,54 @@ validation:
   semantic:
     input_checklist: input/semantic-checklist.md
     output_checklist: output/semantic-checklist.md
+  document_test:
+    report_artifact: document-test-report.json
+    state: document_tested
+    repair_profile: full_document_test_plus_local_repair_friendly
+    required_top_level_fields:
+      - workflow_key
+      - run_id
+      - tested_at
+      - test_outcome
+      - defect_counts
+      - recommended_next_action
+      - recommended_actor
+      - sections
+    test_outcome_enum:
+      - no_blocking_defect_found
+      - blocking_defect_found
+      - inconclusive
+      - not_applicable
+    required_sections:
+      - structural
+      - logic_consistency
+      - downstream_readiness
+      - semantic_drift
+      - fixability
+    fixability_classes:
+      - mechanical_fixable
+      - local_semantic_fixable
+      - rebuild_required
+      - human_judgement_required
+    recommended_actor_enum:
+      - executor_local_patch
+      - workflow_rebuild
+      - supervisor_handoff
+      - external_gate_review
+      - human_owner_decision
+    escalation_rules:
+      - main_structure_boundary_state_model_or_acceptance_change_requires_rebuild
+      - cross_document_consistency_or_handoff_contract_change_defaults_to_rebuild
+      - product_goal_priority_strategy_or_org_dependency_conflict_requires_human_judgement
+      - authority_or_revision_conflict_requires_human_judgement
+      - only_low_risk_field_ref_manifest_evidence_repairs_remain_mechanical
+    downstream_consumption_contract:
+      target_workflow: product.src-to-epic
+      checks:
+        - problem_statement_closed
+        - key_constraints_and_scope_support_epic_derivation
+        - semantic_inventory_and_provenance_complete
+        - revision_context_and_source_refs_traceable
 
 evidence:
   execution_schema: evidence/execution-evidence.schema.json
@@ -71,6 +120,19 @@ evidence:
 lifecycle:
   definition_file: ll.lifecycle.yaml
   max_revision_rounds: 3
+  state_semantics:
+    document_tested:
+      evidence_complete: true
+      implies_ready: false
+      implies_approved: false
+      implies_frozen: false
+    supervisor_reviewed:
+      evidence_submission_review_complete: true
+      implies_authoritative_approval: false
+    gate_ready:
+      external_gate_submission_ready: true
+      implies_approved: false
+      implies_frozen: false
   budgets:
     structural_fix_budget: 3
     semantic_fix_budget: 2
@@ -82,6 +144,7 @@ gate:
     - input_semantic_pass
     - output_structural_pass
     - output_semantic_pass
+    - document_test_report_present
     - execution_evidence_present
     - supervision_evidence_present
   model: external

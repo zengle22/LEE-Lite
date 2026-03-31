@@ -10,6 +10,10 @@ import json
 import sys
 from pathlib import Path
 
+WORKSPACE_ROOT = Path(__file__).resolve().parents[3]
+if str(WORKSPACE_ROOT) not in sys.path:
+    sys.path.insert(0, str(WORKSPACE_ROOT))
+
 from raw_to_src_agent_phases import executor_run, supervisor_review
 from raw_to_src_common import load_raw_input, validate_input_document
 from raw_to_src_runtime import (
@@ -50,6 +54,7 @@ def command_supervisor_review(args: argparse.Namespace) -> int:
         repo_root=repo_root_from(args.repo_root),
         run_id=args.run_id or Path(args.artifacts_dir).resolve().name,
         allow_update=args.allow_update,
+        revision_request_path=Path(args.revision_request).resolve() if args.revision_request else None,
     )
     print(json.dumps(result, ensure_ascii=False))
     return 0
@@ -108,6 +113,7 @@ def build_parser() -> argparse.ArgumentParser:
     supervisor_parser.add_argument("--repo-root")
     supervisor_parser.add_argument("--run-id")
     supervisor_parser.add_argument("--allow-update", action="store_true")
+    supervisor_parser.add_argument("--revision-request")
     supervisor_parser.set_defaults(func=command_supervisor_review)
 
     validate_input_parser = subparsers.add_parser("validate-input")

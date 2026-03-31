@@ -27,6 +27,13 @@ Use this skill when a raw requirement, ADR, business opportunity, or frozen busi
 8. Validate the candidate package with `python scripts/raw_to_src.py validate-package-readiness --artifacts-dir <dir>` before external gate consumption.
 9. Review `result-summary.json`, `proposed-next-actions.json`, `handoff-proposal.json`, `job-proposal.json`, and the gate submission refs before external gate review continues.
 
+## Revision Return Handling
+
+- When external gate returns `revise` or `retry`, rerun `python scripts/raw_to_src.py run --input <path> --repo-root <repo-root> --allow-update --revision-request <revision-request.json>`.
+- If the executor output already exists, `python scripts/raw_to_src.py supervisor-review --artifacts-dir <dir> --repo-root <repo-root> --allow-update --revision-request <revision-request.json>` is also valid.
+- The runtime materializes `revision-request.json` into the artifacts directory and records normalized `revision_context`, `revision_request_ref`, and `revision_summary`.
+- `raw-to-src` keeps its dual-loop local repair model; shared revision handling does not replace `patchable/blocking`, minimal patching, or budget enforcement.
+
 ## Stage Mapping
 
 The runner preserves the ADR-002 dual-loop model as stage outputs:
