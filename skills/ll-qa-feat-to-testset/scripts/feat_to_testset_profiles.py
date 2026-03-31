@@ -7,10 +7,140 @@ from typing import Any
 
 from feat_to_testset_common import ensure_list, normalize_semantic_lock
 
+PRODUCT_PROFILE_AXIS_MAP = {
+    "minimal-onboarding-flow": "minimal_onboarding",
+    "first-ai-advice-release": "first_ai_advice",
+    "extended-profile-progressive-completion": "extended_profile_completion",
+    "device-connect-deferred-entry": "device_deferred_entry",
+    "state-and-profile-boundary-alignment": "state_profile_boundary",
+}
+
+
+def derive_semantic_lock(feature: dict[str, Any]) -> dict[str, Any]:
+    lock = normalize_semantic_lock(feature.get("semantic_lock"))
+    if lock:
+        return lock
+    axis_id = str(feature.get("axis_id") or "").strip().lower()
+    if axis_id == "minimal-onboarding-flow":
+        return {
+            "domain_type": "product_onboarding_test_rule",
+            "one_sentence_truth": "TESTSET must validate the one-page minimal profile flow, profile_minimal_done completion, homepage entry, and deferred device connection boundary.",
+            "primary_object": "最小建档 首页",
+            "lifecycle_stage": "profile_minimal_done homepage",
+            "allowed_capabilities": [
+                "最小建档",
+                "首页",
+                "profile_minimal_done",
+                "birthdate",
+                "running_level",
+                "recent_injury_status",
+                "设备绑定",
+            ],
+            "forbidden_capabilities": [
+                "authoritative decision object",
+                "formal publication trigger",
+                "cutover_guard_ref",
+                "pilot evidence package",
+                "compat_mode",
+                "wave state",
+            ],
+            "inheritance_rule": "TESTSET must stay on onboarding completion semantics and must not drift into pilot/gate governance coverage.",
+        }
+    if axis_id == "first-ai-advice-release":
+        return {
+            "domain_type": "first_advice_release_test_rule",
+            "one_sentence_truth": "TESTSET must validate first advice release, risk-gate blocking, minimum output fields, and the non-dependency on extended profile or device data.",
+            "primary_object": "首轮 ai 建议",
+            "lifecycle_stage": "advice_visible risk_gate",
+            "allowed_capabilities": [
+                "首轮 AI 建议",
+                "training_advice_level",
+                "first_week_action",
+                "needs_more_info_prompt",
+                "device_connect_prompt",
+                "running_level",
+                "recent_injury_status",
+            ],
+            "forbidden_capabilities": [
+                "authoritative decision object",
+                "formal publication trigger",
+                "approve / revise / retry / handoff / reject",
+                "candidate package",
+            ],
+            "inheritance_rule": "TESTSET must stay on first-advice/risk-gate semantics and must not drift into gate-decision testing.",
+        }
+    if axis_id == "extended-profile-progressive-completion":
+        return {
+            "domain_type": "extended_profile_completion_test_rule",
+            "one_sentence_truth": "TESTSET must validate homepage task-card progressive completion, incremental save, completion updates, and retryable save failures that do not revoke homepage access.",
+            "primary_object": "首页 任务卡 增量保存",
+            "lifecycle_stage": "profile_extension homepage_entered",
+            "allowed_capabilities": [
+                "首页任务卡",
+                "增量保存",
+                "completion percent",
+                "next_task_cards",
+                "retry",
+            ],
+            "forbidden_capabilities": [
+                "authoritative decision object",
+                "formal publication trigger",
+                "approve / revise / retry / handoff / reject",
+                "candidate package",
+            ],
+            "inheritance_rule": "TESTSET must stay on progressive-completion semantics and must not drift into gate-decision testing.",
+        }
+    if axis_id == "device-connect-deferred-entry":
+        return {
+            "domain_type": "device_deferred_entry_test_rule",
+            "one_sentence_truth": "TESTSET must validate deferred device entry, skip/non-blocking failure behavior, and the preservation of homepage and first-advice availability.",
+            "primary_object": "设备连接 首页",
+            "lifecycle_stage": "homepage_entered device_connection",
+            "allowed_capabilities": [
+                "设备连接",
+                "首页",
+                "首轮建议",
+                "device_failed_nonblocking",
+                "device_skipped",
+            ],
+            "forbidden_capabilities": [
+                "authoritative decision object",
+                "formal publication trigger",
+                "approve / revise / retry / handoff / reject",
+                "candidate package",
+            ],
+            "inheritance_rule": "TESTSET must stay on deferred-device-entry semantics and must not drift into gate-decision testing.",
+        }
+    if axis_id == "state-and-profile-boundary-alignment":
+        return {
+            "domain_type": "state_profile_boundary_test_rule",
+            "one_sentence_truth": "TESTSET must validate primary_state / capability_flags separation, canonical ownership in user_physical_profile, conflict_blocked fail-closed behavior, and unified-reader judgments.",
+            "primary_object": "primary_state capability_flags user_physical_profile",
+            "lifecycle_stage": "canonical_profile_boundary conflict_blocked",
+            "allowed_capabilities": [
+                "primary_state",
+                "capability_flags",
+                "user_physical_profile",
+                "runner_profiles",
+                "conflict_blocked",
+                "canonical_profile_boundary",
+            ],
+            "forbidden_capabilities": [
+                "authoritative decision object",
+                "formal publication trigger",
+                "approve / revise / retry / handoff / reject",
+                "candidate package",
+            ],
+            "inheritance_rule": "TESTSET must stay on state/profile-boundary semantics and must not drift into gate-decision testing.",
+        }
+    return {}
+
 
 def feature_profile(feature: dict[str, Any]) -> str:
-    lock = normalize_semantic_lock(feature.get("semantic_lock"))
+    lock = derive_semantic_lock(feature)
     axis_id = str(feature.get("axis_id") or "").strip().lower()
+    if axis_id in PRODUCT_PROFILE_AXIS_MAP:
+        return PRODUCT_PROFILE_AXIS_MAP[axis_id]
     if axis_id == "skill-adoption-e2e":
         return "pilot"
     if axis_id == "ready-job-emission":
@@ -121,8 +251,11 @@ def derive_priority(feature: dict[str, Any]) -> str:
 
 def derive_test_layers(feature: dict[str, Any]) -> list[str]:
     layers = ["integration"]
-    joined_text = " ".join(ensure_list(feature.get("scope")) + [str(feature.get("axis_id") or ""), str(feature.get("track") or ""), feature_profile(feature)]).lower()
+    profile = feature_profile(feature)
+    joined_text = " ".join(ensure_list(feature.get("scope")) + [str(feature.get("axis_id") or ""), str(feature.get("track") or ""), profile]).lower()
     if any(marker in joined_text for marker in ["e2e", "pilot", "ui", "cross skill", "cross-skill"]):
+        layers.append("e2e")
+    if profile in {"minimal_onboarding", "extended_profile_completion", "device_deferred_entry"} and "e2e" not in layers:
         layers.append("e2e")
     return layers
 
@@ -143,6 +276,11 @@ def derive_recommended_coverage_scope_name(feature: dict[str, Any]) -> list[str]
         "runner_dispatch": "execution runner dispatch feature",
         "runner_feedback": "execution runner feedback feature",
         "runner_observability": "execution runner observability feature",
+        "minimal_onboarding": "minimal onboarding feature",
+        "first_ai_advice": "first advice release feature",
+        "extended_profile_completion": "extended profile completion feature",
+        "device_deferred_entry": "deferred device connection feature",
+        "state_profile_boundary": "state/profile boundary feature",
     }
     return [mapping.get(profile, f"{title or 'feature'} coverage")]
 
@@ -205,6 +343,31 @@ def derive_feature_owned_code_paths(feature: dict[str, Any]) -> list[str]:
             "cli/lib/runner_monitor.py",
             "cli/lib/job_queue.py",
             "cli/commands/loop/command.py",
+        ],
+        "minimal_onboarding": [
+            "app/onboarding/minimal_profile_page.tsx",
+            "app/onboarding/minimal_profile_submit.ts",
+            "app/routing/homepage_entry_guard.ts",
+        ],
+        "first_ai_advice": [
+            "app/home/first_advice_panel.tsx",
+            "app/advice/first_advice_service.ts",
+            "app/advice/risk_gate_evaluator.ts",
+        ],
+        "extended_profile_completion": [
+            "app/home/profile_task_card_renderer.tsx",
+            "app/profile/profile_extension_patch_service.ts",
+            "app/profile/profile_completion_updater.ts",
+        ],
+        "device_deferred_entry": [
+            "app/home/deferred_device_entry.tsx",
+            "app/device_connection/deferred_connection_service.ts",
+            "app/device_connection/result_handler.ts",
+        ],
+        "state_profile_boundary": [
+            "app/state_boundary/primary_state_service.ts",
+            "app/profile_boundary/physical_profile_store.ts",
+            "app/state_boundary/unified_onboarding_state_reader.ts",
         ],
     }
     return mapping.get(feature_profile(feature), [])

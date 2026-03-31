@@ -19,6 +19,18 @@ from feat_to_testset_runner_units import (
 from feat_to_testset_units_common import unit_payload
 
 
+def _check_ref(checks: list[dict[str, Any]], feat_ref: str, index: int) -> str:
+    if 0 <= index - 1 < len(checks):
+        return str(checks[index - 1].get("id") or f"{feat_ref}-AC-{index:02d}")
+    return f"{feat_ref}-AC-{index:02d}"
+
+
+def _check_field(checks: list[dict[str, Any]], index: int, key: str, default: str) -> str:
+    if 0 <= index - 1 < len(checks):
+        return str(checks[index - 1].get(key) or default)
+    return default
+
+
 def default_units(
     feature: dict[str, Any],
     layers: list[str],
@@ -62,6 +74,81 @@ def default_units(
             )
         )
     return units
+
+
+def minimal_onboarding_units(
+    feature: dict[str, Any],
+    layers: list[str],
+    priority: str,
+    refs: list[str],
+) -> list[dict[str, Any]]:
+    feat_ref = str(feature.get("feat_ref") or "")
+    checks = list(feature.get("acceptance_checks") or [])
+    return [
+        unit_payload(feat_ref, 1, _check_ref(checks, feat_ref, 1), "最小建档必填字段校验通过后写下 profile_minimal_done 并立即放行首页", priority, layers, [_check_field(checks, 1, "given", "登录/注册已完成。"), "最小建档页已可提交。"], "提交包含 gender、birthdate、height、weight、running_level、recent_injury_status 的最小建档表单。", ["profile_minimal_done", "homepage entry allowed", "canonical minimal profile fields。"], ["必填字段全部通过后写下 profile_minimal_done。", "用户立即进入首页，且设备连接保持后置。"], ["必填字段通过但未写下 profile_minimal_done。", "提交成功后仍被阻塞在首页外。"], ["minimal profile submission evidence", "homepage entry decision evidence", "canonical field write evidence"], refs + ["profile_minimal_done", "birthdate", "running_level", "recent_injury_status", "homepage entry"]),
+        unit_payload(feat_ref, 2, _check_ref(checks, feat_ref, 2), "必填字段缺失或非法时停留在单页最小建档并返回字段级错误", priority, layers, [_check_field(checks, 2, "given", "birthdate 或必填字段缺失/非法。")], "提交缺失或非法的最小建档表单。", ["field-level errors", "homepage entry blocked", "page stays on minimal onboarding。"], ["字段级错误可见，且 homepage entry 继续被阻止。", "不会跳过单页最小建档直接进入首页。"], ["缺失/非法字段仍可进入首页。", "错误只在日志出现而页面无可见反馈。"], ["validation failure evidence", "field-error snapshot", "homepage blocked verdict"], refs + ["field-level errors", "homepage blocked"]),
+        unit_payload(feat_ref, 3, _check_ref(checks, feat_ref, 3), "birthdate 保持 canonical 年龄字段且设备连接仍为 deferred follow-up", priority, layers, ["最小建档提交成功。", "设备连接入口已配置为 follow-up path。"], "检查 canonical 字段写入与设备入口展示时机。", ["birthdate canonical write", "deferred device entry", "homepage visible state。"], ["birthdate 作为 canonical 年龄字段被写入。", "设备连接只在首页后作为 deferred follow-up entry 出现。"], ["使用非 canonical 年龄字段判断完成态。", "设备连接重新变成首进阻塞前置。"], ["canonical birthdate evidence", "deferred device entry evidence", "homepage-visible trace"], refs + ["birthdate", "deferred device entry"]),
+    ]
+
+
+def first_ai_advice_units(
+    feature: dict[str, Any],
+    layers: list[str],
+    priority: str,
+    refs: list[str],
+) -> list[dict[str, Any]]:
+    feat_ref = str(feature.get("feat_ref") or "")
+    checks = list(feature.get("acceptance_checks") or [])
+    return [
+        unit_payload(feat_ref, 1, _check_ref(checks, feat_ref, 1), "最小输入满足时释放首轮建议并补齐最低输出字段", priority, layers, [_check_field(checks, 1, "given", "minimal profile 已完成且风险输入齐全。")], "触发首页首轮建议生成。", ["training_advice_level", "first_week_action", "needs_more_info_prompt", "device_connect_prompt。"], ["首轮建议可见，且最低输出字段齐全。", "生成路径只依赖 minimal profile + risk gate 输入。"], ["首轮建议可见但最低输出字段不完整。", "要求扩展画像或设备数据才能出首轮建议。"], ["first advice payload evidence", "advice visibility evidence", "minimum-output snapshot"], refs + ["training_advice_level", "first_week_action", "needs_more_info_prompt", "device_connect_prompt"]),
+        unit_payload(feat_ref, 2, _check_ref(checks, feat_ref, 2), "running_level 或 recent_injury_status 缺失时阻断正常建议分支并进入补充提示", priority, layers, [_check_field(checks, 2, "given", "risk gate 关键字段缺失。")], "在缺少 running_level 或 recent_injury_status 的情况下触发首轮建议。", ["risk gate verdict", "normal advice blocked", "completion prompt visible。"], ["正常 advice branch 被阻断，并显示补充提示。", "不会伪造 training_advice_level / first_week_action 作为正常建议。"], ["risk gate 缺字段仍放行正常建议。", "缺少补充提示或 fallback evidence。"], ["risk gate verdict evidence", "blocked normal-advice evidence", "completion prompt evidence"], refs + ["running_level", "recent_injury_status", "risk gate"]),
+        unit_payload(feat_ref, 3, _check_ref(checks, feat_ref, 3), "扩展画像或设备数据缺失不阻塞首轮建议释放", priority, layers, ["扩展画像未完成或设备未连接。"], "在 minimal profile 完成后直接进入首页首轮建议路径。", ["advice visible state", "extended profile absent", "device data absent。"], ["不要求先补齐扩展画像或设备数据即可释放首轮建议。", "缺失额外数据时只影响 prompt/fallback，而不影响首轮建议主链。"], ["扩展画像或设备未完成导致首页无首轮建议。", "设备数据被错误当作首轮建议前置。"], ["non-blocking advice-release evidence", "prompt-mode evidence", "homepage advice trace"], refs + ["extended profile", "device data", "homepage advice"]),
+    ]
+
+
+def extended_profile_completion_units(
+    feature: dict[str, Any],
+    layers: list[str],
+    priority: str,
+    refs: list[str],
+) -> list[dict[str, Any]]:
+    feat_ref = str(feature.get("feat_ref") or "")
+    checks = list(feature.get("acceptance_checks") or [])
+    return [
+        unit_payload(feat_ref, 1, _check_ref(checks, feat_ref, 1), "首页任务卡展示扩展画像补全项并允许从首页发起渐进补全", priority, layers, [_check_field(checks, 1, "given", "homepage 已进入。")], "加载首页任务卡与扩展画像补全入口。", ["task cards", "in-progress task", "homepage remains usable。"], ["首页出现扩展画像任务卡与下一步补全项。", "补全入口位于首页，不重新回到首日 blocking onboarding。"], ["首页不出现任务卡或补全入口。", "补全入口把用户拉回首日阻塞链路。"], ["task-card rendering evidence", "homepage task snapshot", "entry-point trace"], refs + ["首页任务卡", "渐进补全"]),
+        unit_payload(feat_ref, 2, _check_ref(checks, feat_ref, 2), "分步 patch 保存后刷新 completion percent 与 next task cards", priority, layers, [_check_field(checks, 2, "given", "存在可补全的扩展画像字段。")], "提交一次扩展画像 patch 保存。", ["saved patch ref", "profile completion percent", "next task cards。"], ["每次 patch 保存都能独立成功并刷新 completion percent。", "用户再次进入首页时能从新的任务卡状态继续补全。"], ["patch 保存成功但 completion percent 未更新。", "每次保存都要求重新提交整页完整画像。"], ["patch save evidence", "completion percent update evidence", "next-task-cards evidence"], refs + ["patch save", "completion percent", "next task cards"]),
+        unit_payload(feat_ref, 3, _check_ref(checks, feat_ref, 3), "patch 保存失败时首页仍可用并保留 retry entry", priority, layers, [_check_field(checks, 3, "given", "patch save 过程发生失败。")], "触发 patch save failure。", ["homepage available", "retry entry", "failure message。"], ["保存失败不会撤销 homepage_entered。", "失败后保留 retry entry 并允许继续从首页发起补全。"], ["patch save 失败后首页不可用。", "失败后没有 retry entry 或恢复路径。"], ["retry-state evidence", "homepage preservation evidence", "patch failure evidence"], refs + ["retry entry", "homepage_entered"]),
+    ]
+
+
+def device_deferred_entry_units(
+    feature: dict[str, Any],
+    layers: list[str],
+    priority: str,
+    refs: list[str],
+) -> list[dict[str, Any]]:
+    feat_ref = str(feature.get("feat_ref") or "")
+    checks = list(feature.get("acceptance_checks") or [])
+    return [
+        unit_payload(feat_ref, 1, _check_ref(checks, feat_ref, 1), "设备连接入口只在首页后出现，并允许 skip", priority, layers, [_check_field(checks, 1, "given", "homepage 已进入。")], "进入首页并检查设备连接入口。", ["deferred device entry", "skip action", "homepage available。"], ["设备连接入口只在首页后显示。", "用户可 skip，且不影响首页继续可用。"], ["设备连接入口出现在首页前。", "skip 后首页或首轮建议不可用。"], ["deferred device entry evidence", "skip-path evidence", "homepage preservation evidence"], refs + ["deferred device entry", "device_skipped"]),
+        unit_payload(feat_ref, 2, _check_ref(checks, feat_ref, 2), "设备授权或同步失败时维持 non-blocking，并保留首页与首轮建议可用", priority, layers, [_check_field(checks, 2, "given", "device auth 或 sync 失败。")], "触发 deferred device connection finalize failure。", ["device_failed_nonblocking", "homepage preserved", "first advice preserved。"], ["失败被记录为 non-blocking 结果。", "首页进入与首轮建议可用性保持不变。"], ["设备失败导致首页回退或首轮建议消失。", "失败结果没有留下 machine-readable 状态。"], ["non-blocking failure evidence", "homepage preserved evidence", "first-advice preserved evidence"], refs + ["device_failed_nonblocking", "homepage preserved", "first advice"]),
+        unit_payload(feat_ref, 3, _check_ref(checks, feat_ref, 3), "设备连接成功仅增强体验，不得覆盖 canonical onboarding/profile 事实", priority, layers, [_check_field(checks, 3, "given", "设备连接成功并产生增强数据。")], "完成 deferred device connection 成功路径并检查后续写入。", ["enhancement ready", "canonical onboarding facts", "canonical profile facts。"], ["成功连接后只增强后续体验或建议精度。", "设备数据不会回写覆盖最小建档或 canonical 身体字段事实。"], ["设备成功连接后覆盖 canonical onboarding/profile 事实。", "增强数据被错误地当作主链前置条件。"], ["device-connected enhancement evidence", "canonical-boundary evidence", "non-overwrite trace"], refs + ["device_connected", "canonical facts", "enhancement"]),
+    ]
+
+
+def state_profile_boundary_units(
+    feature: dict[str, Any],
+    layers: list[str],
+    priority: str,
+    refs: list[str],
+) -> list[dict[str, Any]]:
+    feat_ref = str(feature.get("feat_ref") or "")
+    checks = list(feature.get("acceptance_checks") or [])
+    return [
+        unit_payload(feat_ref, 1, _check_ref(checks, feat_ref, 1), "primary_state 与 capability_flags 保持显式分离且不混写", priority, layers, [_check_field(checks, 1, "given", "onboarding 状态正在流转。")], "分别写入 primary_state 与 capability_flags，并读取统一结果。", ["primary_state", "capability_flags", "unified state read。"], ["primary_state 与 capability_flags 被单独持久化并保持语义分离。", "完成态判断不会被 capability_flags 伪造。"], ["primary_state 与 capability_flags 被混写或互相覆盖。", "能力开关被错误当作完成态真相源。"], ["primary_state write evidence", "capability_flags evidence", "unified state read evidence"], refs + ["primary_state", "capability_flags"]),
+        unit_payload(feat_ref, 2, _check_ref(checks, feat_ref, 2), "身体字段跨对象冲突时 user_physical_profile 作为唯一事实源并触发 conflict_blocked", priority, layers, [_check_field(checks, 2, "given", "存在 users / user_physical_profile / runner_profiles 跨对象身体字段冲突。")], "触发跨边界冲突读取或写入。", ["user_physical_profile", "runner_profiles", "conflict_blocked。"], ["user_physical_profile 保持唯一事实源。", "跨对象冲突时 unified-reader 或写入路径 fail closed 并返回 conflict_blocked。"], ["non-canonical store 覆盖 user_physical_profile。", "冲突存在但系统继续放行完成态/资格判断。"], ["canonical ownership evidence", "conflict_blocked evidence", "fail-closed verdict"], refs + ["user_physical_profile", "runner_profiles", "conflict_blocked"]),
+        unit_payload(feat_ref, 3, _check_ref(checks, feat_ref, 3), "统一读取层只依据 canonical_profile_boundary 做完成态与资格判断", priority, layers, [_check_field(checks, 3, "given", "存在完成态与资格判断请求。")], "通过 unified reader 读取 onboarding / profile 边界状态。", ["canonical_profile_boundary", "eligibility verdict", "completion verdict。"], ["完成态与资格判断只依赖 canonical fields 与 primary_state。", "派生值或 projection store 不能反向覆盖 canonical facts。"], ["eligibility / completion 读取旁路 canonical_profile_boundary。", "projection store 回写 canonical body facts。"], ["unified-reader judgment evidence", "canonical boundary evidence", "projection non-overwrite evidence"], refs + ["canonical_profile_boundary", "completion verdict", "eligibility verdict"]),
+    ]
 
 
 def collaboration_units(

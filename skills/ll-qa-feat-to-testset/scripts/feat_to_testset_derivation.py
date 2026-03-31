@@ -140,6 +140,11 @@ def derive_preconditions(feature: dict[str, Any]) -> list[str]:
         preconditions = ["selected FEAT 及其上游 source refs 可被稳定解析。"]
     profile = feature_profile(feature)
     extras = {
+        "minimal_onboarding": ["登录/注册后最小建档主链可被执行。", "minimal profile state 与 homepage entry guard 可被解析。"],
+        "first_ai_advice": ["minimal profile 已完成且可触发首轮建议生成。", "risk gate evaluator 可读取 running_level 与 recent_injury_status。"],
+        "extended_profile_completion": ["homepage task card 已可见。", "扩展画像 patch 保存与 completion updater 可被解析。"],
+        "device_deferred_entry": ["homepage 已可进入。", "deferred device entry 与 callback finalize surface 可被解析。"],
+        "state_profile_boundary": ["primary_state / capability_flags 状态边界已存在。", "canonical profile store 与 unified reader 可被解析。"],
         "runner_ready_job": ["approve decision 已存在且 dispatchable。", "ready queue writer 可写入 artifacts/jobs/ready。"],
         "runner_operator_entry": ["Claude/Codex CLI 可调用 runner skill entry。", "runner context bootstrapper 可创建或恢复 run context。"],
         "runner_control_surface": ["runner control surface 已暴露 lifecycle commands。", "runner context 与 ownership record 可被解析。"],
@@ -168,6 +173,26 @@ def derive_pass_criteria(feature: dict[str, Any]) -> list[str]:
     if derive_priority(feature) == "P1":
         criteria.append("高风险或 adoption/E2E 路径需要明确的环境、数据与 pilot execution 前提。")
     extras = {
+        "minimal_onboarding": [
+            "required fields invalid 时必须阻止 homepage entry，并留下字段级错误 evidence。",
+            "device connection 只能作为 deferred follow-up entry，不得重新阻塞首进链路。",
+        ],
+        "first_ai_advice": [
+            "risk gate 缺字段或高风险时必须阻止正常 advice branch，并返回补充提示路径。",
+            "training_advice_level / first_week_action / needs_more_info_prompt / device_connect_prompt 必须齐全可追溯。",
+        ],
+        "extended_profile_completion": [
+            "任务卡分步补全与增量保存必须可执行，且 completion percent / next task cards 会刷新。",
+            "patch save failure 不得撤销 homepage_entered，必须保留 retry entry。",
+        ],
+        "device_deferred_entry": [
+            "设备连接只能在首页后以 deferred entry 方式出现，并允许 skip。",
+            "device_failed_nonblocking / device_skipped 结果不得阻塞首页或首轮建议。",
+        ],
+        "state_profile_boundary": [
+            "primary_state / capability_flags 语义必须显式区分，不能混写。",
+            "cross-boundary 冲突必须 fail closed，且 user_physical_profile 保持唯一事实源。",
+        ],
         "runner_ready_job": [
             "approve 后必须产出 ready execution job，并保留 approve-to-job lineage。",
             "non-approve 路径不得生成 ready queue item。",
@@ -241,6 +266,11 @@ def derive_evidence_required(feature: dict[str, Any], layers: list[str]) -> list
     if "e2e" in layers:
         evidence.append("若进入 e2e 层，需补充 pilot 链路或 UI/integration context 的执行前提证据")
     extras = {
+        "minimal_onboarding": ["minimal profile submission evidence", "homepage entry decision evidence", "deferred device entry evidence"],
+        "first_ai_advice": ["first advice payload evidence", "risk gate verdict evidence", "fallback / completion prompt evidence"],
+        "extended_profile_completion": ["task-card rendering evidence", "patch save evidence", "completion percent update evidence"],
+        "device_deferred_entry": ["deferred device connection evidence", "skip / non-blocking failure evidence", "homepage preservation evidence"],
+        "state_profile_boundary": ["primary_state write evidence", "canonical ownership / conflict_blocked evidence", "unified-reader judgment evidence"],
         "runner_ready_job": ["ready execution job evidence", "approve-to-job lineage evidence", "ready queue receipt"],
         "runner_operator_entry": ["runner invocation receipt", "runner context bootstrap evidence", "runner skill entry trace"],
         "runner_control_surface": ["runner control action record", "job ownership evidence", "control-plane state transition evidence"],

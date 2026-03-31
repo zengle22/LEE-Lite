@@ -37,6 +37,7 @@ from feat_to_testset_gate_integration import (
     create_handoff_proposal,
     submit_gate_pending,
 )
+from feat_to_testset_profiles import derive_semantic_lock
 from feat_to_testset_review import (
     build_supervision_evidence,
     collect_evidence_report,
@@ -122,7 +123,7 @@ def executor_run(
     if feature is None:
         raise ValueError(f"Selected feat_ref not found: {effective_feat_ref}")
     feature = dict(feature)
-    feature["semantic_lock"] = normalize_semantic_lock(feature.get("semantic_lock") or package.semantic_lock)
+    feature["semantic_lock"] = derive_semantic_lock({**feature, "semantic_lock": feature.get("semantic_lock") or package.semantic_lock})
 
     effective_run_id = run_id or f"{package.run_id}--{effective_feat_ref.lower()}"
     generated = build_candidate_package(package, feature, effective_feat_ref, effective_run_id, revision_request=revision_context)
@@ -189,7 +190,7 @@ def supervisor_review(
     if feature is None:
         raise ValueError(f"Selected feat_ref not found: {feat_ref}")
     feature = dict(feature)
-    feature["semantic_lock"] = normalize_semantic_lock(feature.get("semantic_lock") or package.semantic_lock)
+    feature["semantic_lock"] = derive_semantic_lock({**feature, "semantic_lock": feature.get("semantic_lock") or package.semantic_lock})
     effective_run_id = run_id or artifacts_dir.name
     generated = build_candidate_package(package, feature, feat_ref, effective_run_id, revision_request=revision_context)
     supervision = build_supervision_evidence(artifacts_dir)

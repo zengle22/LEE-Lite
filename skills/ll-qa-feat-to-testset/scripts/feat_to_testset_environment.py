@@ -15,6 +15,56 @@ def _cli_or_web_context(downstream_target: str) -> str:
 
 
 _PROFILE_ENVIRONMENT_EXTRAS: dict[str, dict[str, list[str]]] = {
+    "minimal_onboarding": {
+        "data": ["minimal profile fixture", "required-field validation failure sample", "homepage entry allowance sample"],
+        "services": ["minimal profile submit service", "homepage entry guard"],
+        "access": [
+            "读取并写入 minimal profile state / profile_minimal_done 的权限",
+            "触发登录后路由与首页进入判定的权限",
+        ],
+        "feature_flags": ["minimal onboarding entry guard / deferred device entry enablement"],
+        "ui_or_integration_context": ["登录/注册后 -> 最小建档页 -> 首页 的页面或接口执行上下文"],
+    },
+    "first_ai_advice": {
+        "data": ["minimal profile ready fixture", "risk gate input sample", "conservative prompt fallback sample"],
+        "services": ["first advice generator", "risk gate evaluator"],
+        "access": [
+            "读取 minimal profile 与写入 first advice visibility 的权限",
+            "调用 advice generation / risk gate 的权限",
+        ],
+        "feature_flags": ["first advice release guard / risk-gate strict mode"],
+        "ui_or_integration_context": ["首页首轮建议释放与补充提示的集成上下文"],
+    },
+    "extended_profile_completion": {
+        "data": ["homepage task-card fixture", "profile patch sample", "patch save failure sample"],
+        "services": ["profile patch service", "profile completion updater"],
+        "access": [
+            "读取首页任务卡与写入扩展画像 patch 的权限",
+            "读取 completion percent / next task cards 的权限",
+        ],
+        "feature_flags": ["extended profile task-card enablement / retry-entry guard"],
+        "ui_or_integration_context": ["首页任务卡补全与增量保存上下文"],
+    },
+    "device_deferred_entry": {
+        "data": ["homepage entered fixture", "device connect callback sample", "device auth/sync failure sample"],
+        "services": ["deferred device connection coordinator", "device connection result handler"],
+        "access": [
+            "启动 deferred device entry 与读取 connection result 的权限",
+            "读取 homepage / first-advice preservation 状态的权限",
+        ],
+        "feature_flags": ["deferred device entry enablement / non-blocking failure guard"],
+        "ui_or_integration_context": ["首页后置设备连接入口与 callback finalize 上下文"],
+    },
+    "state_profile_boundary": {
+        "data": ["primary_state fixture", "capability_flags fixture", "cross-boundary conflict sample"],
+        "services": ["primary state service", "canonical physical profile store", "unified onboarding state reader"],
+        "access": [
+            "读取和写入 primary_state / capability_flags / canonical profile boundary 的权限",
+            "读取 conflict_blocked verdict 与 unified-reader 结果的权限",
+        ],
+        "feature_flags": ["canonical profile boundary strict mode / unified-reader fail-closed guard"],
+        "ui_or_integration_context": ["状态边界读写与 unified-reader 集成上下文"],
+    },
     "projection_generation": {
         "data": ["freeze-ready Machine SSOT fixture", "projection template / derived-only marker fixture"],
         "services": ["projection template resolver", "projection renderer"],

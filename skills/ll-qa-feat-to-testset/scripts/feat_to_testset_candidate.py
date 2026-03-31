@@ -31,6 +31,7 @@ from feat_to_testset_derivation import (
     derive_required_environment_inputs,
     derive_strategy_yaml,
 )
+from feat_to_testset_profiles import derive_semantic_lock
 from feat_to_testset_semantics import build_semantic_drift_check
 
 SUBJECT_FILE_NAMES = {
@@ -161,7 +162,7 @@ def _build_revision_context(revision_request: dict[str, Any] | None) -> dict[str
 
 def _build_candidate_context(package: Any, feature: dict[str, Any], run_id: str, revision_context: dict[str, Any] | None = None) -> dict[str, Any]:
     feature = dict(feature)
-    feature["semantic_lock"] = normalize_semantic_lock(feature.get("semantic_lock") or package.semantic_lock)
+    feature["semantic_lock"] = derive_semantic_lock({**feature, "semantic_lock": feature.get("semantic_lock") or package.semantic_lock})
     test_set_yaml = build_test_set_yaml(feature, package.feat_json)
     if revision_context and revision_context.get("summary"):
         test_set_yaml["preconditions"] = unique_strings(ensure_list(test_set_yaml.get("preconditions")) + [f"Revision constraint: {revision_context['summary']}"])
