@@ -1229,6 +1229,74 @@ class FeatToTestSetWorkflowTests(FeatToTestSetWorkflowHarness):
             )
             self.assertEqual(validate.returncode, 0, validate.stderr)
 
+    def test_formal_feat_ref_falls_back_to_trace_run_when_source_package_ref_missing(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            repo_root = Path(temp_dir)
+            feature = {
+                "feat_ref": "FEAT-SRC-001-303",
+                "title": "正式 FEAT registry 回退解析",
+                "goal": "当历史 formal registry 没有 source_package_ref 时，仍能回退到 trace run 的 package dir。",
+                "scope": ["允许 formal admission 进入 TESTSET。", "历史 registry 记录缺少 source_package_ref。", "仍能解析到 epic-to-feat package dir。"],
+                "constraints": ["不得跳过 FEAT。", "不得丢失 run_ref。", "必须优先兼容历史 registry。"],
+                "acceptance_checks": [
+                    {"id": "AC-01", "scenario": "fallback resolves package dir", "given": "formal FEAT without source_package_ref", "when": "run feat-to-testset", "then": "trace run directory is used as package dir"},
+                    {"id": "AC-02", "scenario": "selected feat remains explicit", "given": "formal FEAT", "when": "derive TESTSET", "then": "feat_ref is preserved"},
+                    {"id": "AC-03", "scenario": "input mode is formal admission", "given": "historical formal FEAT", "when": "validate input", "then": "input_mode=formal_admission"},
+                ],
+                "source_refs": ["FEAT-SRC-001-303", "EPIC-SRC-001", "SRC-001"],
+            }
+            bundle = self.make_bundle_json(feature, run_id="feat-formal-fallback")
+            self.make_feat_package(repo_root, "feat-formal-fallback", bundle)
+            formal_feat_path = repo_root / "ssot" / "feat" / "FEAT-SRC-001-303__fallback-mainline.md"
+            formal_feat_path.parent.mkdir(parents=True, exist_ok=True)
+            formal_feat_path.write_text(
+                "---\nid: FEAT-SRC-001-303\nssot_type: FEAT\ntitle: 正式 FEAT registry 回退解析\nstatus: frozen\n---\n\n# 正式 FEAT registry 回退解析\n",
+                encoding="utf-8",
+            )
+            registry_dir = repo_root / "artifacts" / "registry"
+            registry_dir.mkdir(parents=True, exist_ok=True)
+            (registry_dir / "formal-feat-feat-src-001-303.json").write_text(
+                json.dumps(
+                    {
+                        "artifact_ref": "formal.feat.feat-src-001-303",
+                        "managed_artifact_ref": "ssot/feat/FEAT-SRC-001-303__fallback-mainline.md",
+                        "status": "materialized",
+                        "trace": {"run_ref": "feat-formal-fallback", "workflow_key": "product.epic-to-feat"},
+                        "metadata": {
+                            "layer": "formal",
+                            "assigned_id": "FEAT-SRC-001-303",
+                            "feat_ref": "FEAT-SRC-001-303",
+                            "ssot_type": "FEAT",
+                        },
+                        "lineage": ["epic-to-feat.feat-formal-fallback.feat-freeze-bundle", "artifacts/active/gates/decisions/gate-decision.json"],
+                    },
+                    ensure_ascii=False,
+                    indent=2,
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+
+            result = self.run_cmd(
+                "run",
+                "--input",
+                "formal.feat.feat-src-001-303",
+                "--feat-ref",
+                "FEAT-SRC-001-303",
+                "--repo-root",
+                str(repo_root),
+                "--run-id",
+                "testset-from-formal-fallback",
+            )
+            self.assertEqual(result.returncode, 0, result.stderr)
+            payload = json.loads(result.stdout)
+            self.assertEqual(payload["input_mode"], "formal_admission")
+            manifest = json.loads((Path(payload["artifacts_dir"]) / "package-manifest.json").read_text(encoding="utf-8"))
+            self.assertEqual(
+                manifest["input_artifacts_dir"],
+                str((repo_root / "artifacts" / "epic-to-feat" / "feat-formal-fallback").resolve()),
+            )
+
 
 if __name__ == "__main__":
     unittest.main()

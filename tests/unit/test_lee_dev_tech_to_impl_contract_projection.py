@@ -69,10 +69,20 @@ class TechToImplContractProjectionTests(TechToImplWorkflowHarness):
             self.assertIn("## 10. 风险与注意事项", impl_task)
             self.assertIn("### In Scope", impl_task)
             self.assertIn("### Out of Scope", impl_task)
+            self.assertIn("### TECH Contract Snapshot", impl_task)
+            self.assertIn("### ARCH Constraint Snapshot", impl_task)
+            self.assertIn("### State Model Snapshot", impl_task)
+            self.assertIn("### Main Sequence Snapshot", impl_task)
+            self.assertIn("### Integration Points Snapshot", impl_task)
+            self.assertIn("### Implementation Unit Mapping Snapshot", impl_task)
+            self.assertIn("### API Contract Snapshot", impl_task)
+            self.assertIn("### UI Constraint Snapshot", impl_task)
             self.assertIn("### Touch Set / Module Plan", impl_task)
             self.assertIn("### Allowed", impl_task)
             self.assertIn("### Forbidden", impl_task)
             self.assertIn("### Acceptance Trace", impl_task)
+            self.assertIn("normalize candidate/proposal/evidence submission", impl_task)
+            self.assertIn("HandoffEnvelope", impl_task)
             self.assertIn("- status: `execution_ready`", impl_task)
             self.assertNotIn("- status: `in_progress`", impl_task)
             self.assertIn("### Required", impl_task)
@@ -145,6 +155,36 @@ class TechToImplContractProjectionTests(TechToImplWorkflowHarness):
             validate = self.run_cmd("validate-output", "--artifacts-dir", str(artifacts_dir))
             self.assertNotEqual(validate.returncode, 0)
             self.assertIn("document-test-report.json", validate.stdout)
+
+    def test_run_normalizes_source_refs_to_selected_optional_authorities(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            repo_root = Path(temp_dir)
+            feature = self._feature("FEAT-SRC-009-005")
+            feature["ui_ref"] = "UI-SRC-009-005"
+            feature["testset_ref"] = "TESTSET-SRC-009-005"
+            bundle = self.make_bundle_json(feature, run_id="tech-impl-source-refs", arch_required=True, api_required=True)
+            bundle["source_refs"] = list(bundle["source_refs"]) + [
+                "ARCH-SRC-999-001",
+                "API-SRC-999-001",
+                "UI-SRC-999-001",
+                "TESTSET-SRC-999-001",
+            ]
+            input_dir = self.make_tech_package(repo_root, "tech-impl-source-refs", bundle)
+
+            artifacts_dir = self.run_impl_flow(repo_root, input_dir, feature["feat_ref"], bundle["tech_ref"])
+            impl_bundle = json.loads((artifacts_dir / "impl-bundle.json").read_text(encoding="utf-8"))
+
+            self.assertIn("ARCH-SRC-009-005", impl_bundle["source_refs"])
+            self.assertIn("API-SRC-009-005", impl_bundle["source_refs"])
+            self.assertIn("UI-SRC-009-005", impl_bundle["source_refs"])
+            self.assertIn("TESTSET-SRC-009-005", impl_bundle["source_refs"])
+            self.assertNotIn("ARCH-SRC-999-001", impl_bundle["source_refs"])
+            self.assertNotIn("API-SRC-999-001", impl_bundle["source_refs"])
+            self.assertNotIn("UI-SRC-999-001", impl_bundle["source_refs"])
+            self.assertNotIn("TESTSET-SRC-999-001", impl_bundle["source_refs"])
+
+            validate = self.run_cmd("validate-output", "--artifacts-dir", str(artifacts_dir))
+            self.assertEqual(validate.returncode, 0, validate.stderr)
 
     def test_validate_input_rejects_malformed_structured_provisional_ref(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:

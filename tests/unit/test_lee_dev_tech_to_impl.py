@@ -1,12 +1,63 @@
 import json
+import sys
 import tempfile
 import unittest
 from pathlib import Path
 
+ROOT = Path(__file__).resolve().parents[2]
+SCRIPTS_DIR = ROOT / "skills" / "ll-dev-tech-to-impl" / "scripts"
+if str(SCRIPTS_DIR) not in sys.path:
+    sys.path.insert(0, str(SCRIPTS_DIR))
+
+from tech_to_impl_package_builder import build_semantic_drift_check
 from tests.unit.support_tech_to_impl import TechToImplWorkflowHarness
 
 
 class TechToImplWorkflowTests(TechToImplWorkflowHarness):
+    def test_semantic_drift_accepts_allowed_capability_signature_when_primary_anchors_are_absent(self) -> None:
+        feature = {
+            "title": "扩展画像渐进补全能力",
+            "goal": "让扩展画像在首页任务卡中按步补全并独立保存。",
+            "semantic_lock": {
+                "domain_type": "extended_profile_completion_flow",
+                "one_sentence_truth": "用户可在首页按任务卡逐步补充跑步背景与扩展画像，且每次补全都能独立保存。",
+                "primary_object": "extended profile task card",
+                "lifecycle_stage": "incremental save",
+                "allowed_capabilities": [
+                    "task card",
+                    "profile completion",
+                    "extended profile patch",
+                ],
+                "forbidden_capabilities": [
+                    "genericrequest",
+                ],
+            },
+        }
+        bundle_json = {
+            "title": "扩展画像渐进补全能力 Implementation Task Package",
+            "selected_scope": {
+                "scope": [
+                    "将扩展画像后置到首页任务卡与增量补全过程中，允许分步填写、分步保存。",
+                ]
+            },
+        }
+        upstream_design_refs = {
+            "frozen_decisions": {
+                "implementation_rules": [
+                    "扩展画像渐进补全能力 必须围绕 task card、profile completion 和 patch save 语义实现。",
+                ],
+                "integration_points": [
+                    "homepage shell 在用户进入首页后调用任务卡和增量保存 surface。",
+                ],
+            }
+        }
+
+        drift = build_semantic_drift_check(feature, bundle_json, upstream_design_refs)
+
+        self.assertEqual(drift["verdict"], "pass")
+        self.assertTrue(drift["semantic_lock_preserved"])
+        self.assertIn("allowed_capability_signature", drift["anchor_matches"])
+
     def test_run_emits_impl_task_package_with_dual_surfaces(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             repo_root = Path(temp_dir)
@@ -61,12 +112,22 @@ class TechToImplWorkflowTests(TechToImplWorkflowHarness):
             self.assertIn("See `smoke-gate-subject.json`", bundle_markdown)
             self.assertIn("## 6. 实施要求", impl_task)
             self.assertIn("## 8. 验收标准与 TESTSET 映射", impl_task)
+            self.assertIn("### TECH Contract Snapshot", impl_task)
+            self.assertIn("### ARCH Constraint Snapshot", impl_task)
+            self.assertIn("### State Model Snapshot", impl_task)
+            self.assertIn("### Main Sequence Snapshot", impl_task)
+            self.assertIn("### Integration Points Snapshot", impl_task)
+            self.assertIn("### Implementation Unit Mapping Snapshot", impl_task)
+            self.assertIn("### API Contract Snapshot", impl_task)
+            self.assertIn("### UI Constraint Snapshot", impl_task)
             self.assertIn("### Touch Set / Module Plan", impl_task)
             self.assertIn("### Acceptance Trace", impl_task)
             self.assertIn("- status: `execution_ready`", impl_task)
             self.assertNotIn("- status: `in_progress`", impl_task)
             self.assertIn("cli/lib/protocol.py", impl_task)
             self.assertIn("cli/lib/mainline_runtime.py", impl_task)
+            self.assertIn("handoff_prepared -> handoff_submitted -> gate_pending_visible -> decision_returned", impl_task)
+            self.assertIn("HandoffEnvelope", impl_task)
             self.assertNotIn("keeping approval and re-entry semantics outside this FEAT", impl_task)
             self.assertIn("Frozen touch set is implemented without design drift.", impl_task)
             self.assertIn("Frozen contracts and runtime sequence execute through the implementation entry.", impl_task)

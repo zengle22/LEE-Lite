@@ -1,9 +1,48 @@
 from __future__ import annotations
 
-from _test_exec_skill_support import SkillRuntimeHarness, python_file_command, read_json, write_json, write_yaml
+import yaml
+from ._test_exec_skill_support import SkillRuntimeHarness, python_file_command, read_json, write_json, write_yaml
 
 
 class TestWebExecSkillRuntime(SkillRuntimeHarness):
+    def assert_adr035_traceability_artifacts(self, payload: dict, expected_cases: int, require_acceptance_items: bool = False) -> None:
+        test_case_pack = yaml.safe_load(self.resolve_ref(payload["test_case_pack_ref"]).read_text(encoding="utf-8")) or {}
+        results_summary = read_json(self.resolve_ref(payload["results_summary_ref"]))
+        traceability_summary = test_case_pack.get("traceability_summary") or {}
+        traceability = results_summary.get("traceability") or {}
+
+        self.assertIn("functional_areas", test_case_pack)
+        self.assertIn("logic_dimensions", test_case_pack)
+        self.assertIn("state_model", test_case_pack)
+        self.assertIn("coverage_matrix", test_case_pack)
+        self.assertTrue(test_case_pack["functional_areas"])
+        self.assertIn("universal", test_case_pack["logic_dimensions"])
+        self.assertIn("stateful", test_case_pack["logic_dimensions"])
+        self.assertIn("control_surface", test_case_pack["logic_dimensions"])
+        self.assertTrue(test_case_pack["state_model"])
+        self.assertIn("acceptance_rows", test_case_pack["coverage_matrix"])
+        self.assertIn("unit_rows", test_case_pack["coverage_matrix"])
+        self.assertGreaterEqual(len(test_case_pack["coverage_matrix"]["unit_rows"]), expected_cases)
+        self.assertIn("acceptance_traceability", traceability_summary)
+        self.assertIn("risk_traceability", traceability_summary)
+        self.assertIn("functional_area_traceability", traceability_summary)
+        self.assertIn("case_family_counts", traceability_summary)
+        self.assertGreaterEqual(len(traceability_summary["functional_area_traceability"]), 1)
+        self.assertGreaterEqual(len(traceability_summary["case_family_counts"]), 1)
+        if require_acceptance_items:
+            self.assertGreaterEqual(len(traceability_summary["acceptance_traceability"]), 1)
+
+        self.assertIn("acceptance_traceability", traceability)
+        self.assertIn("risk_traceability", traceability)
+        self.assertIn("functional_area_traceability", traceability)
+        self.assertIn("case_family_counts", traceability)
+        self.assertGreaterEqual(len(traceability["functional_area_traceability"]), 1)
+        self.assertGreaterEqual(len(traceability["case_family_counts"]), 1)
+        if require_acceptance_items:
+            self.assertGreaterEqual(len(traceability["acceptance_traceability"]), 1)
+            self.assertGreaterEqual(len(traceability["risk_traceability"]), 1)
+        self.assertEqual(results_summary["run_status"], payload["run_status"])
+
     def test_web_skill_emits_candidate_and_handoff_with_real_testset(self) -> None:
         npm_script, playwright_script = self.write_fake_playwright_scripts()
         env_ref = self.write_env_spec(
@@ -28,6 +67,7 @@ class TestWebExecSkillRuntime(SkillRuntimeHarness):
         self.assertEqual(self.run_cli("skill", "test-exec-web-e2e", "--request", str(req), "--response-out", str(response)), 0)
         payload = read_json(response)
         ui_intent, ui_source_context, ui_binding_map, candidate = self.assert_execution_outputs(payload["data"], expected_cases=3, expected_status="completed")
+        self.assert_adr035_traceability_artifacts(payload["data"], expected_cases=3, require_acceptance_items=True)
         flow_plan = read_json(self.resolve_ref(payload["data"]["ui_flow_plan_ref"]))
         self.assertTrue(all(item["derivation_mode"] in {"governance_inferred", "fallback_smoke"} for item in ui_intent["cases"]))
         self.assertTrue(all("intent_confidence" in item for item in ui_intent["cases"]))
@@ -106,6 +146,7 @@ class TestWebExecSkillRuntime(SkillRuntimeHarness):
         self.assertEqual(self.run_cli("skill", "test-exec-web-e2e", "--request", str(req), "--response-out", str(response)), 0)
         payload = read_json(response)["data"]
         ui_intent, ui_source_context, binding_map, candidate = self.assert_execution_outputs(payload, expected_cases=1, expected_status="completed")
+        self.assert_adr035_traceability_artifacts(payload, expected_cases=1)
         flow_plan = read_json(self.resolve_ref(payload["ui_flow_plan_ref"]))
         expected_spec = {"codebase_ref": "repo://frontend/app-shell", "runtime_ref": "runtime://staging/web-shell", "prototype_ref": "proto://login-flow-v1"}
         self.assertEqual(ui_intent["ui_source_spec"], expected_spec)
@@ -177,6 +218,7 @@ class TestWebExecSkillRuntime(SkillRuntimeHarness):
         self.assertEqual(self.run_cli("skill", "test-exec-web-e2e", "--request", str(req), "--response-out", str(response)), 0)
         payload = read_json(response)["data"]
         _, ui_source_context, binding_map, _ = self.assert_execution_outputs(payload, expected_cases=1, expected_status="completed")
+        self.assert_adr035_traceability_artifacts(payload, expected_cases=1)
         flow_plan = read_json(self.resolve_ref(payload["ui_flow_plan_ref"]))
         self.assertTrue(ui_source_context["codebase"]["resolved"])
         self.assertGreater(len(ui_source_context["element_catalog"]), 0)
@@ -239,6 +281,7 @@ class TestWebExecSkillRuntime(SkillRuntimeHarness):
         self.assertEqual(self.run_cli("skill", "test-exec-web-e2e", "--request", str(req), "--response-out", str(response)), 0)
         payload = read_json(response)["data"]
         _, ui_source_context, binding_map, _ = self.assert_execution_outputs(payload, expected_cases=1, expected_status="completed")
+        self.assert_adr035_traceability_artifacts(payload, expected_cases=1)
         flow_plan = read_json(self.resolve_ref(payload["ui_flow_plan_ref"]))
         self.assertEqual(ui_source_context["runtime"]["pages"][0]["fetch_status"], "ok")
         self.assertGreaterEqual(ui_source_context["source_summary"]["runtime_fetch_ok_count"], 1)
@@ -322,6 +365,7 @@ class TestWebExecSkillRuntime(SkillRuntimeHarness):
         self.assertEqual(self.run_cli("skill", "test-exec-web-e2e", "--request", str(req), "--response-out", str(response)), 0)
         payload = read_json(response)["data"]
         _, ui_source_context, binding_map, _ = self.assert_execution_outputs(payload, expected_cases=1, expected_status="completed")
+        self.assert_adr035_traceability_artifacts(payload, expected_cases=1)
         flow_plan = read_json(self.resolve_ref(payload["ui_flow_plan_ref"]))
         self.assertIn("/signin", [item["path"] for item in ui_source_context["route_catalog"]])
         self.assertGreaterEqual(ui_source_context["source_summary"]["codebase_ast_routes_found"], 1)
