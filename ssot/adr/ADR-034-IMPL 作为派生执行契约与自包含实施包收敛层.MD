@@ -448,6 +448,15 @@ ADR-014 仍然有效，并被本 ADR 继续向前推进：
 * 当前任务 touch set、交付物、证据要求
 * coder / tester 不展开就无法稳定执行的前提
 
+对于 `impl-task` / `impl-contract` 这类主执行文档，上述“关键接口、关键数据结构、关键状态边界”不能只停留在一句摘要，而必须以**执行快照**形式显式展开。至少包括：
+
+* `TECH` 的关键状态机 / 主序列 / 集成点
+* `API` 的关键 contract snapshot（输入、输出、错误、幂等、前置条件）
+* `TECH` 的 implementation unit / touch set 对应关系
+* `UI` 存在时，对实现与验收有直接影响的 UI 约束快照
+
+如果这些内容仍然只存在于 sidecar（如 `upstream-design-refs.json`）或上游文档，而主执行文档只留下压缩摘要，那么该 `IMPL` **不算满足 ADR-034 所要求的完整自包含执行契约**。
+
 ### 默认只保留摘要 + ref 的内容
 
 * 长篇历史论证
@@ -461,10 +470,24 @@ ADR-014 仍然有效，并被本 ADR 继续向前推进：
 * 把 `ADR / TECH / UI / TESTSET` 大段全文镜像进 `IMPL`
 * 为了“自包含”而复制整份上游文档
 * 复制后又不维护同步关系，导致 `IMPL` 与上游一起漂移
+* 把执行关键内容挪到 sidecar，只在主执行文档保留一句摘要，再要求 coder / tester 运行期回查
 
 因此：
 
 ## **`IMPL` 必须是 self-contained，而不是 copy-contained。**
+
+进一步说：
+
+## **sidecar 可以存在，但 sidecar 不能承载“主执行文档缺了就无法稳定实施”的关键事实。**
+
+`upstream-design-refs.json`、附属 workstream、审计报告、证据计划等 sidecar 的职责，应限制在：
+
+* 追溯与同步镜像
+* machine-readable 投影
+* 审计、review、gate、重派生比对
+* 供人类 reviewer / checker 交叉核对
+
+它们**不得**成为 coder / tester 获取 `TECH / API / UI / TESTSET` 执行关键内容的主入口。
 
 ## 6.4 可选双视图
 
@@ -476,6 +499,12 @@ ADR-014 仍然有效，并被本 ADR 继续向前推进：
 但无论是否拆分：
 
 ## **完整执行契约视图必须存在，且必须能够单独支撑一次稳定执行。**
+
+这里的“单独支撑一次稳定执行”进一步明确为：
+
+* coder / tester 读取主执行文档后，应能直接开始实施与验证
+* 不应再为了补齐关键状态机、关键接口、关键集成点而回查 sidecar
+* sidecar 可以辅助审计，但不能承担主执行契约缺失的补丁角色
 
 ---
 

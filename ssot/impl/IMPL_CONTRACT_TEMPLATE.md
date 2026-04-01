@@ -34,6 +34,10 @@ self_contained_policy: minimum_sufficient_information_not_upstream_mirror
 
 # <Implementation Task Package Title>
 
+> 本文档本身就是本次 run 的主执行契约。
+> coder / tester 应优先直接消费本文档开工。
+> sidecar、release、bundle brief、handoff summary 只能辅助审计与追溯，不能替代本文档承担 execution contract 角色。
+
 ## Package Semantics
 
 - `package_semantics`: canonical execution package / execution-time single entrypoint
@@ -53,6 +57,40 @@ self_contained_policy: minimum_sufficient_information_not_upstream_mirror
 - testset_ref: `TESTSET-<REF>` or `N/A`
 - title: <upstream feat or tech title>
 - goal: <execution goal>
+
+## Upstream Contract Snapshots
+
+### TECH Contract Snapshot
+
+- <design focus / key implementation rules>
+
+### ARCH Constraint Snapshot
+
+- <layering / ownership / runtime attachment constraints>
+
+### State Model Snapshot
+
+- <critical state transitions>
+
+### Main Sequence Snapshot
+
+- <critical execution sequence>
+
+### Integration Points Snapshot
+
+- <caller / attachment points / compat hooks>
+
+### Implementation Unit Mapping Snapshot
+
+- <module -> responsibility mapping>
+
+### API Contract Snapshot
+
+- <input / output / errors / idempotency / preconditions>
+
+### UI Constraint Snapshot
+
+- <directly execution-relevant UI constraints, or `N/A`>
 
 ## Applicability Assessment
 
@@ -108,3 +146,9 @@ self_contained_policy: minimum_sufficient_information_not_upstream_mirror
 - `TESTSET-<REF>`
 - `ADR-014`
 - `ADR-034`
+
+## Usage Boundary
+
+- `001-005` 这类分阶段上游文档仍然负责定义 authority / truth source
+- 本文档负责把本次执行所需 truth 收敛成单次 execution contract
+- 不得要求 coder / tester 为补齐关键状态机、接口、集成点而回查 sidecar 或 release 文档
