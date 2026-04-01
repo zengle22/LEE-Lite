@@ -35,5 +35,6 @@ forbidden_inputs:
   - unfrozen_test_case_pack
   - ad_hoc_dom_notes_without_testset
 notes:
-  - test_set_ref must resolve to a formal TESTSET, usually emitted by ll-qa-feat-to-testset.
-  - frontend_code_ref and ui_runtime_ref are optional enrichment sources, not replacements for test_set_ref.
+  - test_set_ref must resolve to a formal TESTSET emitted by ll-qa-feat-to-testset. For ADR-035-aligned web execution, the TESTSET should expose functional_areas, logic_dimensions, state_model, coverage_matrix, and traceable test_units.
+  - frontend_code_ref and ui_runtime_ref are optional enrichment sources for web source resolution, not replacements for test_set_ref.
+  - ui_source_spec is optional web-specific source context; when present it remains authoritative for codebase/runtime/prototype hints and does not replace the TESTSET contract.

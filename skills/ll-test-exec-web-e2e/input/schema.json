@@ -1,6 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "test-exec-web-e2e request envelope",
+  "description": "Request envelope for ADR-035-aligned web E2E execution. The request references a formal TESTSET that carries requirement-driven case expansion intent, while optional UI source refs enrich resolution without replacing the TESTSET.",
   "type": "object",
   "properties": {
     "api_version": {
@@ -29,23 +30,28 @@
       "properties": {
         "test_set_ref": {
           "type": "string",
-          "minLength": 1
+          "minLength": 1,
+          "description": "Formal TESTSET ref emitted by ll-qa-feat-to-testset. The resolved TESTSET should expose functional_areas, logic_dimensions, state_model, coverage_matrix, and traceable test_units."
         },
         "test_environment_ref": {
           "type": "string",
-          "minLength": 1
+          "minLength": 1,
+          "description": "TestEnvironmentSpec ref with execution_modality=web_e2e."
         },
         "proposal_ref": {
           "type": "string"
         },
         "frontend_code_ref": {
-          "type": "string"
+          "type": "string",
+          "description": "Optional web source enrichment ref for frontend codebase resolution."
         },
         "ui_runtime_ref": {
-          "type": "string"
+          "type": "string",
+          "description": "Optional web source enrichment ref for runtime pages or deployed UI sources."
         },
         "ui_source_spec": {
           "type": "object",
+          "description": "Optional web-specific UI source context. It can complement the TESTSET, but it does not replace the TESTSET contract.",
           "properties": {
             "codebase_ref": {
               "type": "string"
