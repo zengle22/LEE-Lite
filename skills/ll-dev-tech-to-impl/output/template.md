@@ -27,7 +27,7 @@ tech_ref: TECH-FEAT-TODO
 
 ## Implementation Task
 
-[Summarize the implementation task entry and point to `impl-task.md`.]
+[Summarize the implementation task entry and point to `impl-task.md`. This document is a bundle summary only; the main self-contained execution contract lives in `impl-task.md`.]
 
 ## Integration Plan
 
@@ -44,6 +44,10 @@ tech_ref: TECH-FEAT-TODO
 ## Delivery Handoff
 
 [Describe the canonical handoff into `template.dev.feature_delivery_l2`.]
+
+## Consumption Boundary
+
+[State explicitly that `impl-bundle.md` / release summaries are not the coder/tester execution contract, and that execution should consume `impl-task.md` while using bundle/release docs only for package overview and traceability.]
 
 ## Traceability
 

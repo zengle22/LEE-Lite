@@ -72,6 +72,33 @@ def implementation_units(package: Any) -> list[dict[str, str]]:
     return units
 
 
+def classified_touch_units(package: Any, assessment: dict[str, Any] | None = None) -> list[dict[str, str]]:
+    assessment = assessment or {}
+    touch_units: list[dict[str, str]] = []
+    for unit in implementation_units(package):
+        text = f"{unit['path']} {unit['detail']}".lower()
+        if any(marker in text for marker in ["migration", "cutover", "rollout", "rollback", "fallback", "compat", "迁移", "切换", "回滚", "灰度"]):
+            surface = "migration"
+        elif any(marker in text for marker in ["ui", "frontend", "front-end", "page", "screen", "view", "panel", "home/", "页面", "前端", "交互"]):
+            surface = "frontend"
+        elif assessment.get("frontend_required") and not assessment.get("backend_required"):
+            surface = "frontend"
+        else:
+            surface = "backend"
+        mode = unit["mode"].strip().lower() or "touch"
+        action = {"new": "create", "extend": "modify"}.get(mode, "touch")
+        touch_units.append(
+            {
+                "path": unit["path"],
+                "mode": unit["mode"],
+                "detail": unit["detail"],
+                "surface": surface,
+                "action": action,
+            }
+        )
+    return touch_units
+
+
 def filtered_implementation_rules(package: Any) -> list[str]:
     rules = tech_list(package, "implementation_rules")
     filtered: list[str] = []
@@ -181,6 +208,40 @@ def integration_plan_items(feature: dict[str, Any], assessment: dict[str, Any], 
     if not items:
         items.append("Single-surface execution still preserves one explicit integration checkpoint before smoke review.")
     return unique_strings(items)[:6]
+
+
+def execution_contract_snapshot(feature: dict[str, Any], assessment: dict[str, Any], package: Any) -> dict[str, list[str]]:
+    inputs = ensure_list(feature.get("inputs"))
+    outputs = ensure_list(feature.get("outputs"))
+    main_sequence = tech_list(package, "main_sequence")
+    integration_points = tech_list(package, "integration_points")
+    state_model = tech_list(package, "state_model")
+    interface_contracts = tech_list(package, "interface_contracts")
+    implementation_mapping = [f"{unit['path']} ({unit['mode']}): {unit['detail']}" for unit in implementation_units(package)]
+    ui_entry_exit: list[str] = []
+    if inputs:
+        ui_entry_exit.append("UI entry prerequisites: " + "; ".join(inputs[:3]))
+    if outputs:
+        ui_entry_exit.append("UI exit outcomes: " + "; ".join(outputs[:3]))
+    if not ui_entry_exit and main_sequence:
+        ui_entry_exit.append("UI / flow entry: " + main_sequence[0])
+        if len(main_sequence) > 1:
+            ui_entry_exit.append("UI / flow exit: " + main_sequence[min(len(main_sequence) - 1, 2)])
+    if not ui_entry_exit:
+        ui_entry_exit.append("No explicit UI entry/exit object was selected; execution must follow the frozen main sequence and integration points.")
+    return {
+        "state_model": state_model,
+        "main_sequence": main_sequence,
+        "implementation_units": implementation_mapping,
+        "interface_contracts": interface_contracts,
+        "integration_points": integration_points,
+        "ui_entry_exit": ui_entry_exit,
+        "ui_constraints": (
+            ["Frontend execution is required and must preserve the frozen entry/exit sequence."]
+            if assessment.get("frontend_required")
+            else ["No standalone frontend workstream is required; do not invent UI surface outside declared touch points."]
+        ),
+    }
 
 
 def evidence_rows(

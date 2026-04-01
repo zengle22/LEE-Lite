@@ -14,6 +14,7 @@ from tech_to_impl_derivation import (
     consistency_check,
     deliverable_files,
     evidence_rows,
+    execution_contract_snapshot,
     filtered_implementation_rules,
     frontend_workstream_items,
     implementation_units,
@@ -78,6 +79,10 @@ def build_semantic_drift_check(feature: dict[str, Any], bundle_json: dict[str, A
             str(feature.get("goal") or ""),
             " ".join(ensure_list((bundle_json.get("selected_scope") or {}).get("scope"))),
             " ".join(ensure_list((upstream_design_refs.get("frozen_decisions") or {}).get("implementation_rules"))),
+            " ".join(ensure_list((upstream_design_refs.get("frozen_decisions") or {}).get("state_model"))),
+            " ".join(ensure_list((upstream_design_refs.get("frozen_decisions") or {}).get("main_sequence"))),
+            " ".join(ensure_list((upstream_design_refs.get("frozen_decisions") or {}).get("implementation_unit_mapping"))),
+            " ".join(ensure_list((upstream_design_refs.get("frozen_decisions") or {}).get("interface_contracts"))),
             " ".join(ensure_list((upstream_design_refs.get("frozen_decisions") or {}).get("integration_points"))),
         ]
     ).lower()
@@ -91,6 +96,12 @@ def build_semantic_drift_check(feature: dict[str, Any], bundle_json: dict[str, A
     for label, tokens in token_groups.items():
         if tokens and all(token in generated_text for token in tokens):
             anchor_matches.append(label)
+    allowed_capability_tokens = [
+        [token for token in str(item).replace("_", " ").lower().split() if token]
+        for item in ensure_list(lock.get("allowed_capabilities"))
+    ]
+    if any(tokens and all(token in generated_text for token in tokens) for tokens in allowed_capability_tokens):
+        anchor_matches.append("allowed_capability_signature")
     if str(lock.get("domain_type") or "").strip().lower() == "review_projection_rule":
         review_projection_tokens = ["projection", "ssot"]
         if all(token in generated_text for token in review_projection_tokens):
@@ -175,6 +186,36 @@ def _build_handoff(
         "supporting_artifact_refs": deliverables,
         "created_at": utc_now(),
     }
+
+
+def _normalized_source_refs(
+    refs: dict[str, str | None],
+    feature: dict[str, Any],
+    upstream_source_refs: list[str],
+    *,
+    upstream_run_id: str,
+) -> list[str]:
+    selected_optional_refs = {
+        "ARCH-": str(refs.get("arch_ref") or "").strip() or None,
+        "API-": str(refs.get("api_ref") or "").strip() or None,
+        "UI-": str(feature.get("ui_ref") or "").strip() or None,
+        "TESTSET-": str(feature.get("testset_ref") or "").strip() or None,
+    }
+    normalized: list[str] = []
+    seed_refs = unique_strings(
+        [f"dev.feat-to-tech::{upstream_run_id}", refs["feat_ref"], refs["tech_ref"]]
+        + upstream_source_refs
+        + [value for value in selected_optional_refs.values() if value]
+    )
+    for ref in seed_refs:
+        optional_prefix = next((prefix for prefix in selected_optional_refs if ref.startswith(prefix)), None)
+        if optional_prefix:
+            selected_value = selected_optional_refs[optional_prefix]
+            if selected_value and ref == selected_value:
+                normalized.append(ref)
+            continue
+        normalized.append(ref)
+    return unique_strings(normalized)
 
 
 def _build_bundle_json(
@@ -429,7 +470,7 @@ def build_candidate_package(package: Any, run_id: str) -> dict[str, Any]:
     consistency = consistency_check(assessment)
     checkpoints = acceptance_checkpoints(feature, package, assessment)
     scope = implementation_scope(feature, package)
-    steps = implementation_steps(feature, assessment, package)
+    steps = implementation_steps(feature, assessment, package, checkpoints)
     risks = risk_items(feature, assessment, package)
     deliverables = deliverable_files(assessment)
     smoke_required_inputs = workstream_required_inputs(assessment)
@@ -439,11 +480,24 @@ def build_candidate_package(package: Any, run_id: str) -> dict[str, Any]:
     backend_items = backend_workstream_items(feature, package)
     migration_items = migration_plan_items(feature, package)
 
-    source_refs = unique_strings(
-        [f"dev.feat-to-tech::{package.run_id}", refs["feat_ref"], refs["tech_ref"]]
-        + ensure_list(package.tech_json.get("source_refs"))
+    source_refs = _normalized_source_refs(
+        refs,
+        feature,
+        ensure_list(package.tech_json.get("source_refs")),
+        upstream_run_id=package.run_id,
     )
-    contract_projection = build_contract_projection(package, feature, refs, source_refs, steps, checkpoints, deliverables)
+    contract_projection = build_contract_projection(
+        package,
+        feature,
+        refs,
+        source_refs,
+        assessment,
+        steps,
+        checkpoints,
+        evidence_plan_rows,
+        deliverables,
+        execution_contract_snapshot(feature, assessment, package),
+    )
     upstream_design_refs = _build_upstream_design_refs(package, feature, refs, source_refs, run_id, contract_projection["selected_upstream_refs"])
     handoff = _build_handoff(run_id, refs, assessment, deliverables, [item["ref"] for item in checkpoints])
     bundle_json = _build_bundle_json(run_id, refs, feature, assessment, consistency, upstream_design_refs, handoff, source_refs, steps, scope)

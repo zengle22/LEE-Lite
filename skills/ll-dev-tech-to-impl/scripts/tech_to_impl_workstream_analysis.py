@@ -78,6 +78,56 @@ EXECUTION_RUNNER_AXIS_IDS = {
     "execution-result-feedback",
     "runner-observability-surface",
 }
+FRONTEND_SURFACE_MARKERS = [
+    "/ui/",
+    "\\ui\\",
+    "/frontend/",
+    "\\frontend\\",
+    "frontend",
+    "front-end",
+    "page",
+    "screen",
+    "view",
+    "页面",
+    "前端",
+    "交互",
+]
+BACKEND_SURFACE_MARKERS = [
+    "service",
+    "api",
+    "contract",
+    "schema",
+    "database",
+    "storage",
+    "queue",
+    "event",
+    "message",
+    "gate",
+    "workflow",
+    "runtime",
+    "path",
+    "io",
+    "registry",
+    "handler",
+    "store",
+    "service",
+    "后端",
+    "服务",
+    "接口",
+    "契约",
+]
+MIGRATION_SURFACE_MARKERS = [
+    "migration",
+    "cutover",
+    "rollout",
+    "fallback",
+    "rollback",
+    "compat",
+    "迁移",
+    "切换",
+    "回滚",
+    "灰度",
+]
 
 
 def _string_segments(value: Any) -> list[str]:
@@ -257,27 +307,32 @@ def _assess_general(feature: dict[str, Any], package: Any) -> dict[str, Any]:
     backend_hits = keyword_hits_in_segments(segments, BACKEND_KEYWORDS)
     migration_hits = keyword_hits_in_segments(segments, MIGRATION_KEYWORDS)
     tech_design = package.tech_json.get("tech_design", {}) or {}
+    implementation_units = ensure_list(tech_design.get("implementation_unit_mapping"))
+    integration_points = ensure_list(tech_design.get("integration_points"))
+    exception_items = ensure_list(tech_design.get("exception_and_compensation"))
     tech_surface_text = " ".join(
         ensure_list(tech_design.get("implementation_unit_mapping"))
         + ensure_list(tech_design.get("integration_points"))
         + ensure_list(tech_design.get("interface_contracts"))
     ).lower()
-    tech_migration_text = " ".join(ensure_list(tech_design.get("implementation_unit_mapping"))).lower()
+    tech_migration_text = " ".join(implementation_units + integration_points + exception_items).lower()
     explicit_frontend_surface = any(
         marker in tech_surface_text
-        for marker in ["/ui/", "\\ui\\", "/frontend/", "\\frontend\\", "frontend", "front-end", "page", "screen", "view", "页面", "前端", "交互"]
+        for marker in FRONTEND_SURFACE_MARKERS
     )
+    explicit_backend_surface = any(marker in tech_surface_text for marker in BACKEND_SURFACE_MARKERS)
     explicit_migration_surface = any(
         marker in tech_migration_text
-        for marker in ["migration", "cutover", "rollout", "fallback", "rollback", "compat", "迁移", "切换", "回滚", "灰度"]
+        for marker in MIGRATION_SURFACE_MARKERS
     )
+    has_explicit_unit_mapping = bool(implementation_units)
     frontend_rationale = (
         [f"Detected explicit UI or interaction surface: {', '.join(frontend_hits[:4])}."]
-        if frontend_hits
+        if explicit_frontend_surface
         else ["No explicit UI/page/component implementation surface was detected."]
     )
     backend_rationale: list[str] = []
-    if backend_hits:
+    if explicit_backend_surface or backend_hits:
         backend_rationale.append(f"Detected runtime/service/contract surface: {', '.join(backend_hits[:4])}.")
     if bool(package.tech_json.get("api_required")) and not backend_hits:
         backend_rationale.append("Upstream TECH package already requires API/contract implementation support.")
@@ -287,12 +342,16 @@ def _assess_general(feature: dict[str, Any], package: Any) -> dict[str, Any]:
         backend_rationale.append("No runtime/service/storage/workflow implementation surface was detected.")
     migration_rationale = (
         [f"Detected migration/cutover language: {', '.join(migration_hits[:4])}."]
-        if migration_hits
+        if explicit_migration_surface
         else ["No migration, cutover, rollback, or compat-mode surface was detected."]
     )
-    frontend_required = explicit_frontend_surface or bool(frontend_hits)
-    backend_required = bool(backend_hits) or bool(package.tech_json.get("api_required")) or bool(package.tech_json.get("arch_required"))
-    migration_required = bool(migration_hits)
+    frontend_required = explicit_frontend_surface or (
+        bool(frontend_hits)
+        and has_explicit_unit_mapping
+        and any(marker in " ".join(implementation_units).lower() for marker in FRONTEND_SURFACE_MARKERS)
+    )
+    backend_required = explicit_backend_surface or bool(package.tech_json.get("api_required")) or bool(package.tech_json.get("arch_required"))
+    migration_required = explicit_migration_surface
     axis_id = str(feature.get("axis_id") or feature.get("slice_id") or "").strip().lower()
     if axis_id in {"object-layering", "formalization", "collaboration-loop", "io-governance"} and not frontend_hits:
         frontend_required = False

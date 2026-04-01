@@ -4,6 +4,13 @@ from __future__ import annotations
 from typing import Any
 
 
+def _bullet_block(items: list[str], fallback: str = "- None.") -> str:
+    cleaned = [str(item).strip() for item in items if str(item).strip()]
+    if not cleaned:
+        return fallback
+    return "\n".join(f"- {item}" for item in cleaned)
+
+
 def _build_text_sections(
     feature: dict[str, Any],
     refs: dict[str, str | None],
@@ -30,6 +37,27 @@ def _build_text_sections(
     required_steps = contract_projection["required_steps"]
     suggested_steps = contract_projection["suggested_steps"]
     testset_mapping = contract_projection["testset_mapping"]
+    frozen_decisions = ((bundle_json.get("upstream_design_refs") or {}).get("frozen_decisions") or {}) if isinstance(bundle_json.get("upstream_design_refs"), dict) else {}
+    tech_design_focus = [str(item).strip() for item in frozen_decisions.get("design_focus") or [] if str(item).strip()]
+    tech_implementation_rules = [str(item).strip() for item in frozen_decisions.get("implementation_rules") or [] if str(item).strip()]
+    tech_state_model = [str(item).strip() for item in frozen_decisions.get("state_model") or [] if str(item).strip()]
+    tech_main_sequence = [str(item).strip() for item in frozen_decisions.get("main_sequence") or [] if str(item).strip()]
+    tech_integration_points = [str(item).strip() for item in frozen_decisions.get("integration_points") or [] if str(item).strip()]
+    tech_unit_mapping = [str(item).strip() for item in frozen_decisions.get("implementation_unit_mapping") or [] if str(item).strip()]
+    api_contracts = [str(item).strip() for item in frozen_decisions.get("interface_contracts") or [] if str(item).strip()]
+    ui_snapshot_items = [
+        item
+        for item in [
+            str(upstream_impacts["ui"]["impact"]).strip() if upstream_impacts["ui"].get("impact") else "",
+            (
+                f"Provisional UI input: `{upstream_impacts['ui']['ref']}` must be frozen or revised before final execution."
+                if upstream_impacts["ui"].get("ref")
+                and any(item["ref"] == upstream_impacts["ui"]["ref"] for item in provisional_refs)
+                else ""
+            ),
+        ]
+        if item
+    ]
     bundle_body = "\n\n".join(
         [
             f"# {bundle_json['title']}",
@@ -121,7 +149,23 @@ def _build_text_sections(
                     f"- TESTSET: `{upstream_impacts['testset']['ref'] or 'not present'}` -> {upstream_impacts['testset']['impact']}",
                     f"- provisional_refs: {', '.join(item['ref'] for item in provisional_refs) if provisional_refs else 'none'}",
                 ]
-            ),
+            )
+            + "\n\n### TECH Contract Snapshot\n\n"
+            + _bullet_block(tech_design_focus + tech_implementation_rules[:4])
+            + "\n\n### ARCH Constraint Snapshot\n\n"
+            + _bullet_block([str(upstream_impacts["arch"]["impact"]).strip()] if upstream_impacts["arch"].get("impact") else [])
+            + "\n\n### State Model Snapshot\n\n"
+            + _bullet_block(tech_state_model)
+            + "\n\n### Main Sequence Snapshot\n\n"
+            + _bullet_block(tech_main_sequence)
+            + "\n\n### Integration Points Snapshot\n\n"
+            + _bullet_block(tech_integration_points)
+            + "\n\n### Implementation Unit Mapping Snapshot\n\n"
+            + _bullet_block(tech_unit_mapping)
+            + "\n\n### API Contract Snapshot\n\n"
+            + _bullet_block(api_contracts if refs["api_ref"] else [])
+            + "\n\n### UI Constraint Snapshot\n\n"
+            + _bullet_block(ui_snapshot_items),
             "## 5. 规范性约束\n\n"
             + "### Normative / MUST\n\n"
             + "\n".join(f"- {item}" for item in normative_items)

@@ -71,7 +71,7 @@ def _build_document_test_report(generated: dict[str, Any]) -> dict[str, Any]:
         "canonical_package": {"status": "pass", "summary": "Package semantics are projected as canonical execution package only."},
         "freshness": {"status": "pass", "summary": "Package marked fresh_on_generation at creation time."},
         "discrepancy": {"status": "pass", "summary": "Repo discrepancy policy requires explicit handling before truth changes."},
-        "self_contained_boundary": {"status": "pass", "summary": "Package projects minimum sufficient information, not upstream mirroring."},
+        "self_contained_boundary": {"status": "pass", "summary": "Main execution document inlines minimum sufficient snapshots for direct execution, while sidecars remain audit/sync artifacts only."},
     })
     return report
 
