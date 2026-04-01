@@ -136,6 +136,28 @@ def guess_repo_root_from_input(input_path: Path) -> Path:
     return input_path.parent
 
 
+def infer_source_package_ref_from_record(record: dict[str, Any]) -> str:
+    metadata = record.get("metadata", {}) if isinstance(record.get("metadata"), dict) else {}
+    source_package_ref = str(metadata.get("source_package_ref") or "").strip()
+    if source_package_ref:
+        return source_package_ref
+
+    managed_artifact_ref = str(record.get("managed_artifact_ref") or "").strip()
+    if managed_artifact_ref.startswith("artifacts/"):
+        managed_path = Path(managed_artifact_ref)
+        if managed_path.parent.name:
+            return managed_path.parent.as_posix()
+
+    trace = record.get("trace", {}) if isinstance(record.get("trace"), dict) else {}
+    run_ref = str(trace.get("run_ref") or "").strip()
+    workflow_key = str(trace.get("workflow_key") or "").strip()
+    if run_ref and workflow_key:
+        workflow_slug = workflow_key.split(".")[-1].strip()
+        if workflow_slug:
+            return Path("artifacts") / workflow_slug / run_ref
+    return ""
+
+
 def resolve_input_artifacts_dir(input_value: str | Path, repo_root: Path) -> tuple[Path, dict[str, Any]]:
     candidate_path = Path(str(input_value))
     if candidate_path.exists() and candidate_path.is_dir():
@@ -156,10 +178,10 @@ def resolve_input_artifacts_dir(input_value: str | Path, repo_root: Path) -> tup
     )
     record = resolve_registry_record(repo_root, requested_ref)
     metadata = record.get("metadata", {}) if isinstance(record.get("metadata"), dict) else {}
-    source_package_ref = str(metadata.get("source_package_ref") or "").strip()
+    source_package_ref = infer_source_package_ref_from_record(record)
     if not source_package_ref:
         raise ValueError("formal feat record is missing metadata.source_package_ref")
-    artifacts_dir = canonical_to_path(source_package_ref, repo_root)
+    artifacts_dir = canonical_to_path(str(source_package_ref), repo_root)
     if not artifacts_dir.exists() or not artifacts_dir.is_dir():
         raise FileNotFoundError(f"resolved feat package directory not found: {artifacts_dir}")
     return artifacts_dir.resolve(), {
