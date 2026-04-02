@@ -255,6 +255,19 @@ def keyword_hits_in_segments(segments: list[str], keywords: list[str]) -> list[s
     return hits
 
 
+def marker_present_in_segments(segments: list[str], markers: list[str]) -> bool:
+    for segment in segments:
+        lowered = segment.lower()
+        for marker in markers:
+            if "/" in marker or "\\" in marker:
+                if marker in lowered:
+                    return True
+                continue
+            if _keyword_present(lowered, marker):
+                return True
+    return False
+
+
 def is_review_projection_package(feature: dict[str, Any], package: Any) -> bool:
     lock = package.semantic_lock if isinstance(package.semantic_lock, dict) else {}
     domain_type = str((feature.get("semantic_lock") or lock).get("domain_type") or "").strip().lower()
@@ -313,24 +326,17 @@ def _assess_general(feature: dict[str, Any], package: Any) -> dict[str, Any]:
     implementation_units = ensure_list(tech_design.get("implementation_unit_mapping"))
     integration_points = ensure_list(tech_design.get("integration_points"))
     exception_items = ensure_list(tech_design.get("exception_and_compensation"))
-    tech_surface_text = " ".join(
-        ensure_list(tech_design.get("implementation_unit_mapping"))
-        + ensure_list(tech_design.get("integration_points"))
-        + ensure_list(tech_design.get("interface_contracts"))
-    ).lower()
-    tech_migration_text = " ".join(implementation_units + integration_points + exception_items).lower()
-    explicit_frontend_surface = any(
-        marker in tech_surface_text
-        for marker in FRONTEND_SURFACE_MARKERS
-    )
-    explicit_backend_surface = any(marker in tech_surface_text for marker in BACKEND_SURFACE_MARKERS)
+    interface_contracts = ensure_list(tech_design.get("interface_contracts"))
+    tech_surface_segments = implementation_units + integration_points + interface_contracts
+    migration_segments = implementation_units + integration_points + exception_items
+    explicit_frontend_surface = marker_present_in_segments(tech_surface_segments, FRONTEND_SURFACE_MARKERS)
+    explicit_backend_surface = marker_present_in_segments(tech_surface_segments, BACKEND_SURFACE_MARKERS)
     has_explicit_unit_mapping = bool(implementation_units)
     implementation_unit_text = " ".join(implementation_units).lower()
-    integration_text = " ".join(integration_points).lower()
-    exception_text = " ".join(exception_items).lower()
-    explicit_migration_unit_surface = any(marker in implementation_unit_text for marker in MIGRATION_SURFACE_MARKERS)
-    explicit_migration_integration_surface = any(marker in integration_text for marker in ["migration", "cutover", "rollout", "切换", "迁移", "灰度"])
-    explicit_migration_exception_surface = any(marker in exception_text for marker in ["migration", "cutover", "rollback", "fallback", "回滚", "迁移", "切换"])
+    explicit_frontend_unit_surface = marker_present_in_segments(implementation_units, FRONTEND_SURFACE_MARKERS)
+    explicit_migration_unit_surface = marker_present_in_segments(implementation_units, MIGRATION_SURFACE_MARKERS)
+    explicit_migration_integration_surface = marker_present_in_segments(integration_points, ["migration", "cutover", "rollout", "切换", "迁移", "灰度"])
+    explicit_migration_exception_surface = marker_present_in_segments(exception_items, ["migration", "cutover", "rollback", "fallback", "回滚", "迁移", "切换"])
     explicit_migration_surface = (
         explicit_migration_unit_surface
         or (bool(feature_migration_hits) and has_explicit_unit_mapping)
@@ -355,7 +361,7 @@ def _assess_general(feature: dict[str, Any], package: Any) -> dict[str, Any]:
         if explicit_migration_surface
         else ["No migration, cutover, rollback, or compat-mode surface was detected."]
     )
-    frontend_required = explicit_frontend_surface or (bool(feature_frontend_hits) and has_explicit_unit_mapping)
+    frontend_required = explicit_frontend_surface or bool(feature_frontend_hits)
     backend_required = explicit_backend_surface or bool(package.tech_json.get("api_required")) or bool(package.tech_json.get("arch_required"))
     migration_required = explicit_migration_surface
     axis_id = str(feature.get("axis_id") or feature.get("slice_id") or "").strip().lower()

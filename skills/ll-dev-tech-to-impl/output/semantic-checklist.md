@@ -8,6 +8,7 @@ Review the `feature_impl_candidate_package` against the selected TECH package.
 - Are the frozen state machine, API contracts, UI entry/exit, invariants, and boundaries embedded directly into IMPL instead of left as upstream-only references?
 - Does every acceptance check map to named implementation tasks and evidence expectations?
 - Is `upstream-design-refs.json` explicit enough that downstream execution does not need to guess `TECH / ARCH / API` authority?
+- Does the package expose structured `authority_binding_status` / `authority_gap_register` data so ADR, UI, and TESTSET completeness or controlled gaps are machine-visible rather than prose-only?
 - Are frontend, backend, and migration workstreams emitted only when the applicability assessment justifies them?
 - If migration exists, is it based on explicit implementation surface rather than keyword-only inference?
 - Does the package stay at the implementation-candidate layer instead of drifting into release planning, QA strategy, or code-complete claims?

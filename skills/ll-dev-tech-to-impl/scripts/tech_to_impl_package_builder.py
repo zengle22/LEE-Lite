@@ -4,8 +4,8 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from typing import Any
 
-from tech_to_impl_contract_projection import build_contract_projection
-from tech_to_impl_common import ensure_list, normalize_semantic_lock, unique_strings
+from tech_to_impl_contract_projection import build_contract_projection, resolve_selected_upstream_refs
+from tech_to_impl_common import ensure_list, guess_repo_root_from_input, normalize_semantic_lock, unique_strings
 from tech_to_impl_derivation import (
     acceptance_checkpoints,
     assess_workstreams,
@@ -102,11 +102,20 @@ def build_semantic_drift_check(feature: dict[str, Any], bundle_json: dict[str, A
     ]
     if any(tokens and all(token in generated_text for token in tokens) for tokens in allowed_capability_tokens):
         anchor_matches.append("allowed_capability_signature")
+    implementation_readiness_signature = False
     if str(lock.get("domain_type") or "").strip().lower() == "review_projection_rule":
         review_projection_tokens = ["projection", "ssot"]
         if all(token in generated_text for token in review_projection_tokens):
             anchor_matches.append("review_projection_signature")
-    preserved = not forbidden_hits and len(anchor_matches) >= 1
+    if str(lock.get("domain_type") or "").strip().lower() == "implementation_readiness_rule":
+        selected_scope = bundle_json.get("selected_scope") or {}
+        implementation_steps = bundle_json.get("implementation_steps") or []
+        artifact_refs = bundle_json.get("artifact_refs") or {}
+        downstream_handoff = bundle_json.get("downstream_handoff") or {}
+        implementation_readiness_signature = bool(selected_scope) and bool(implementation_steps) and bool(artifact_refs) and bool(downstream_handoff)
+        if implementation_readiness_signature:
+            anchor_matches.append("implementation_readiness_signature")
+    preserved = not forbidden_hits and (len(anchor_matches) >= 1 or implementation_readiness_signature)
     return {
         "verdict": "pass" if preserved else "reject",
         "semantic_lock_present": True,
@@ -190,7 +199,7 @@ def _build_handoff(
 
 def _normalized_source_refs(
     refs: dict[str, str | None],
-    feature: dict[str, Any],
+    selected_upstream_refs: dict[str, Any],
     upstream_source_refs: list[str],
     *,
     upstream_run_id: str,
@@ -198,13 +207,14 @@ def _normalized_source_refs(
     selected_optional_refs = {
         "ARCH-": str(refs.get("arch_ref") or "").strip() or None,
         "API-": str(refs.get("api_ref") or "").strip() or None,
-        "UI-": str(feature.get("ui_ref") or "").strip() or None,
-        "TESTSET-": str(feature.get("testset_ref") or "").strip() or None,
+        "UI-": str(selected_upstream_refs.get("ui_ref") or "").strip() or None,
+        "TESTSET-": str(selected_upstream_refs.get("testset_ref") or "").strip() or None,
     }
     normalized: list[str] = []
     seed_refs = unique_strings(
         [f"dev.feat-to-tech::{upstream_run_id}", refs["feat_ref"], refs["tech_ref"]]
         + upstream_source_refs
+        + ensure_list(selected_upstream_refs.get("adr_refs"))
         + [value for value in selected_optional_refs.values() if value]
     )
     for ref in seed_refs:
@@ -479,10 +489,12 @@ def build_candidate_package(package: Any, run_id: str) -> dict[str, Any]:
     frontend_items = frontend_workstream_items(feature)
     backend_items = backend_workstream_items(feature, package)
     migration_items = migration_plan_items(feature, package)
+    repo_root = guess_repo_root_from_input(package.artifacts_dir.resolve())
+    selected_upstream_refs = resolve_selected_upstream_refs(feature, refs, ensure_list(package.tech_json.get("source_refs")), repo_root)
 
     source_refs = _normalized_source_refs(
         refs,
-        feature,
+        selected_upstream_refs,
         ensure_list(package.tech_json.get("source_refs")),
         upstream_run_id=package.run_id,
     )

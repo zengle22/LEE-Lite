@@ -31,6 +31,24 @@ def _repo_touch_block(items: list[dict[str, Any]], fallback: str = "- None.") ->
     return "\n".join(lines)
 
 
+def _authority_binding_block(items: list[dict[str, Any]], fallback: str = "- None.") -> str:
+    if not items:
+        return fallback
+    lines: list[str] = []
+    for item in items:
+        refs = [str(value).strip() for value in item.get("refs") or [] if str(value).strip()]
+        ref = str(item.get("ref") or "").strip()
+        expected_ref = str(item.get("expected_ref") or "").strip()
+        ref_text = ", ".join(refs) if refs else (ref or expected_ref or "unspecified")
+        lines.append(
+            f"- `{item['authority']}` status=`{item['status']}` ref=`{ref_text}` "
+            f"| required_for: {item['required_for']} "
+            f"| execution_effect: {item['execution_effect']} "
+            f"| follow_up: {item.get('follow_up_action') or 'none'}"
+        )
+    return "\n".join(lines)
+
+
 def _task_breakdown_block(items: list[dict[str, Any]], fallback: str = "- None.") -> str:
     if not items:
         return fallback
@@ -112,6 +130,8 @@ def _build_text_sections(
     suggested_steps = contract_projection["suggested_steps"]
     testset_mapping = contract_projection["testset_mapping"]
     self_contained_policy = contract_projection["self_contained_policy"]
+    authority_binding_status = contract_projection["authority_binding_status"]
+    authority_gap_register = contract_projection["authority_gap_register"]
     frozen_decisions = ((bundle_json.get("upstream_design_refs") or {}).get("frozen_decisions") or {}) if isinstance(bundle_json.get("upstream_design_refs"), dict) else {}
     tech_design_focus = [str(item).strip() for item in frozen_decisions.get("design_focus") or [] if str(item).strip()]
     tech_implementation_rules = [str(item).strip() for item in frozen_decisions.get("implementation_rules") or [] if str(item).strip()]
@@ -146,7 +166,9 @@ def _build_text_sections(
                     f"- title: {feature.get('title')}",
                     f"- goal: {feature.get('goal')}",
                 ]
-            ),
+            )
+            + "\n\n### Authority Binding Status\n\n"
+            + _authority_binding_block(authority_binding_status),
             "## Package Semantics\n\n"
             + "\n".join(
                 [
@@ -241,10 +263,17 @@ def _build_text_sections(
                     f"- TECH: `{upstream_impacts['tech']['ref']}` -> {'; '.join(upstream_impacts['tech']['impact_items'])}",
                     f"- ARCH: `{upstream_impacts['arch']['ref'] or 'not present'}` -> {upstream_impacts['arch']['impact']}",
                     f"- API: `{upstream_impacts['api']['ref'] or 'not present'}` -> {('; '.join(upstream_impacts['api']['impact_items']) + '; ') if upstream_impacts['api']['impact_items'] else ''}{upstream_impacts['api']['impact']}",
-                    f"- UI: `{upstream_impacts['ui']['ref'] or 'not present'}` -> {upstream_impacts['ui']['impact']}",
-                    f"- TESTSET: `{upstream_impacts['testset']['ref'] or 'not present'}` -> {upstream_impacts['testset']['impact']}",
+                    f"- UI: `{upstream_impacts['ui']['ref'] or 'missing_authority'}` -> {upstream_impacts['ui']['impact']}",
+                    f"- TESTSET: `{upstream_impacts['testset']['ref'] or 'missing_authority'}` -> {upstream_impacts['testset']['impact']}",
                     f"- provisional_refs: {', '.join(item['ref'] for item in provisional_refs) if provisional_refs else 'none'}",
                 ]
+            )
+            + "\n\n### Authority Binding Status\n\n"
+            + _authority_binding_block(authority_binding_status)
+            + (
+                "\n\n### Controlled Authority Gaps\n\n" + _authority_binding_block(authority_gap_register)
+                if authority_gap_register
+                else ""
             )
             + "\n\n### TECH Contract Snapshot\n\n"
             + _bullet_block(tech_design_focus + tech_implementation_rules[:4])
@@ -290,11 +319,11 @@ def _build_text_sections(
             + "\n\n### Handoff Artifacts\n\n"
             + "\n".join(f"- {item}" for item in contract_projection["handoff_artifacts"]),
             "## 8. 验收标准与 TESTSET 映射\n\n"
-            + f"- testset_ref: `{testset_mapping['testset_ref'] or 'not present'}`\n"
+            + f"- testset_ref: `{testset_mapping['testset_ref'] or 'missing_authority'}`\n"
             + f"- mapping_policy: `{testset_mapping['mapping_policy']}`\n"
             + "### Acceptance Trace\n\n"
             + "\n".join(
-                f"- {item['acceptance_ref']}: {item['scenario']} -> {item['expectation']} | mapped_to: `{item['mapped_to']}`"
+                f"- {item['acceptance_ref']}: {item['scenario']} -> {item['expectation']} | mapping_status: `{item.get('mapping_status', 'unspecified')}` | mapped_test_units: `{', '.join(item.get('mapped_test_units') or []) or 'none'}` | mapped_to: `{item['mapped_to']}`"
                 for item in testset_mapping["mappings"]
             )
             + "\n\n### Acceptance-to-Task Mapping\n\n"

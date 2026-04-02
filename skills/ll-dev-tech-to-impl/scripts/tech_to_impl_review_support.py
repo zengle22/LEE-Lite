@@ -271,7 +271,7 @@ def check_bundle_identity(bundle_json: dict[str, Any]) -> list[str]:
 def check_source_refs(bundle_json: dict[str, Any]) -> list[str]:
     errors: list[str] = []
     source_refs = ensure_list(bundle_json.get("source_refs"))
-    for prefix in ["dev.feat-to-tech::", "FEAT-", "TECH-", "EPIC-", "SRC-"]:
+    for prefix in ["dev.feat-to-tech::", "ADR-", "FEAT-", "TECH-", "EPIC-", "SRC-"]:
         if not any(ref.startswith(prefix) for ref in source_refs):
             errors.append(f"impl-bundle.json source_refs must include {prefix}.")
     return errors
@@ -303,6 +303,7 @@ def check_markdown_sections(artifacts_dir: Path) -> list[str]:
     for marker in [
         "### In Scope",
         "### Out of Scope",
+        "### Authority Binding Status",
         "### TECH Contract Snapshot",
         "### ARCH Constraint Snapshot",
         "### State Model Snapshot",
@@ -341,6 +342,8 @@ def check_contract_projection(
         "package_semantics",
         "authority_scope",
         "selected_upstream_refs",
+        "authority_binding_status",
+        "authority_gap_register",
         "provisional_refs",
         "scope_boundary",
         "upstream_impacts",
@@ -375,6 +378,40 @@ def check_contract_projection(
         errors.append("selected_upstream_refs.feat_ref must match impl-bundle.json feat_ref.")
     if str(selected_refs.get("tech_ref") or "") != str(bundle_json.get("tech_ref") or ""):
         errors.append("selected_upstream_refs.tech_ref must match impl-bundle.json tech_ref.")
+    if not ensure_list(selected_refs.get("adr_refs")):
+        errors.append("selected_upstream_refs.adr_refs must be non-empty.")
+    authority_binding_status = bundle_json.get("authority_binding_status")
+    if not isinstance(authority_binding_status, list) or not authority_binding_status:
+        errors.append("impl-bundle.json authority_binding_status must be non-empty.")
+    else:
+        observed_authorities = {str(item.get("authority") or "") for item in authority_binding_status if isinstance(item, dict)}
+        for required_authority in {"ADR", "UI", "TESTSET"}:
+            if required_authority not in observed_authorities:
+                errors.append(f"authority_binding_status must include {required_authority}.")
+                break
+        for item in authority_binding_status:
+            if not isinstance(item, dict):
+                errors.append("Each authority_binding_status item must be an object.")
+                break
+            required_binding_keys = {"authority", "status", "required_for", "execution_effect", "follow_up_action"}
+            if not required_binding_keys.issubset(item.keys()):
+                errors.append("Each authority_binding_status item must include authority, status, required_for, execution_effect, and follow_up_action.")
+                break
+            if str(item.get("status") or "") not in {"bound", "provisional", "missing", "not_selected"}:
+                errors.append("authority_binding_status.status must be one of bound, provisional, missing, or not_selected.")
+                break
+    authority_gap_register = bundle_json.get("authority_gap_register")
+    if not isinstance(authority_gap_register, list):
+        errors.append("impl-bundle.json authority_gap_register must be present as a list.")
+    else:
+        for item in authority_gap_register:
+            if not isinstance(item, dict):
+                errors.append("Each authority_gap_register item must be an object.")
+                break
+            required_gap_keys = {"authority", "status", "required_for", "execution_effect", "follow_up_action"}
+            if not required_gap_keys.issubset(item.keys()):
+                errors.append("Each authority_gap_register item must include authority, status, required_for, execution_effect, and follow_up_action.")
+                break
     if not ensure_list(bundle_json.get("normative_items")):
         errors.append("impl-bundle.json normative_items must be non-empty.")
     if not isinstance(bundle_json.get("informative_items"), list):
@@ -412,6 +449,10 @@ def check_contract_projection(
             if not required_keys.issubset(point.keys()):
                 errors.append("Each repo_touch_points item must include touch_ref, unit_path, surface, mode, detail, repo_paths, primary_repo_path, and placement_status.")
                 break
+            primary_repo_path = str(point.get("primary_repo_path") or "").lower()
+            if any(primary_repo_path.endswith(suffix) for suffix in [".png", ".jpg", ".jpeg", ".gif", ".bmp", ".webp", ".ico", ".md", ".txt", ".out"]):
+                errors.append("repo_touch_points primary_repo_path must not resolve to screenshot/report/non-runtime artifact files.")
+                break
     embedded_execution_contract = bundle_json.get("embedded_execution_contract") or {}
     for key in ["state_machine", "api_contracts", "ui_entry_exit", "invariants", "boundaries", "acceptance_checks"]:
         if key not in embedded_execution_contract:
@@ -445,6 +486,28 @@ def check_contract_projection(
         errors.append("impl-bundle.json testset_mapping.mappings must be non-empty.")
     if str(testset_mapping.get("mapping_policy") or "") != "TESTSET_over_IMPL_when_present":
         errors.append("impl-bundle.json testset_mapping.mapping_policy must be TESTSET_over_IMPL_when_present.")
+    else:
+        for mapping in testset_mapping.get("mappings") or []:
+            required_mapping_keys = {"acceptance_ref", "scenario", "expectation", "mapped_to", "mapped_test_units", "mapping_status"}
+            if not isinstance(mapping, dict) or not required_mapping_keys.issubset(mapping.keys()):
+                errors.append("Each testset_mapping.mappings item must include acceptance_ref, scenario, expectation, mapped_to, mapped_test_units, and mapping_status.")
+                break
+            mapping_status = str(mapping.get("mapping_status") or "")
+            if mapping_status not in {"unit_bound", "package_bound_gap", "missing_authority"}:
+                errors.append("testset_mapping.mappings mapping_status must be unit_bound, package_bound_gap, or missing_authority.")
+                break
+            mapped_test_units = ensure_list(mapping.get("mapped_test_units"))
+            mapped_to = str(mapping.get("mapped_to") or "").strip()
+            if mapping_status == "unit_bound":
+                if not mapped_test_units:
+                    errors.append("unit_bound testset mappings must include concrete mapped_test_units.")
+                    break
+                if any(not item.startswith("TS-") for item in mapped_test_units):
+                    errors.append("unit_bound testset mappings must resolve to TS-* test unit refs.")
+                    break
+                if mapped_to and any(unit_ref not in mapped_to for unit_ref in mapped_test_units):
+                    errors.append("unit_bound testset mappings must expose mapped_test_units in mapped_to.")
+                    break
     if set(ensure_list(bundle_json.get("handoff_artifacts"))) != set(ensure_list(handoff.get("deliverables"))):
         errors.append("impl-bundle.json handoff_artifacts must match handoff deliverables.")
     if bundle_json.get("freshness_status") not in {"fresh_on_generation", "needs_review", "stale"}:

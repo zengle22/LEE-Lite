@@ -54,6 +54,8 @@ required_machine_fields:
   - package_semantics
   - authority_scope
   - selected_upstream_refs
+  - authority_binding_status
+  - authority_gap_register
   - provisional_refs
   - scope_boundary
   - upstream_impacts

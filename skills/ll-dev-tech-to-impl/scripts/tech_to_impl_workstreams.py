@@ -115,7 +115,7 @@ def implementation_steps(
                 "depends_on": ["TASK-001"] + ([steps[-1]["task_id"]] if steps else []),
                 "parallel_group": "migration",
                 "outputs": migration_paths[:4] or ["migration-cutover-plan", "rollback-guardrails"],
-                "acceptance_refs": _acceptance_refs(checkpoints, ["AC-004", "AC-003"]),
+                "acceptance_refs": _acceptance_refs(checkpoints, ["AC-003"]),
                 "work": integration_preview or "Define compat-mode, rollout, rollback, or cutover sequencing needed to land the change safely.",
                 "done_when": "Migration prerequisites, guardrails, fallback actions, and rollback sequencing are explicit enough for downstream execution and are tied to named touch points.",
             }
@@ -129,7 +129,7 @@ def implementation_steps(
             "depends_on": [step["task_id"] for step in steps if step["task_id"] != "TASK-001"],
             "parallel_group": "integration",
             "outputs": ["integration-hooks-wired", "acceptance-evidence", "smoke-gate-ready-inputs"],
-            "acceptance_refs": _acceptance_refs(checkpoints, ["AC-002", "AC-003", "AC-004"]),
+            "acceptance_refs": _acceptance_refs(checkpoints, ["AC-002", "AC-003"]),
             "work": "Wire the concrete sequence, integration hooks, and acceptance evidence into the package handoff. " + (sequence_preview or "Follow the frozen upstream runtime sequence."),
             "done_when": (
                 "The integrated flow preserves the frozen entry/exit sequence, exposes the required evidence for each acceptance check, and can enter template.dev.feature_delivery_l2 without reinterpreting FEAT or TECH boundaries."
@@ -204,16 +204,6 @@ def acceptance_checkpoints(
             checkpoints[2]["expectation"] += f" Integration evidence covers: {'; '.join(integration_points[:2])}."
         if observable_outcomes:
             checkpoints[2]["expectation"] += f" Observable outcomes remain externally visible: {'; '.join(observable_outcomes[:2])}."
-        if migration_required:
-            checkpoints.append(
-                {
-                    "ref": "AC-004",
-                    "scenario": "Migration and compat controls are explicit before execution.",
-                    "expectation": "Rollback, compat-mode, and pending repair handling are explicit enough for downstream execution.",
-                }
-            )
-            if observable_outcomes:
-                checkpoints[-1]["expectation"] += f" Migration outcomes remain externally visible: {'; '.join(observable_outcomes[:2])}."
         return checkpoints
 
     checkpoints: list[dict[str, str]] = []
