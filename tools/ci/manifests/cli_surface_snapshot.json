@@ -832,6 +832,45 @@
           }
         ]
       },
+      "release-hold": {
+        "args": [
+          {
+            "dest": "request",
+            "required": true,
+            "option_strings": [
+              "--request"
+            ]
+          },
+          {
+            "dest": "response_out",
+            "required": true,
+            "option_strings": [
+              "--response-out"
+            ]
+          },
+          {
+            "dest": "evidence_out",
+            "required": false,
+            "option_strings": [
+              "--evidence-out"
+            ]
+          },
+          {
+            "dest": "workspace_root",
+            "required": false,
+            "option_strings": [
+              "--workspace-root"
+            ]
+          },
+          {
+            "dest": "strict",
+            "required": false,
+            "option_strings": [
+              "--strict"
+            ]
+          }
+        ]
+      },
       "close-run": {
         "args": [
           {
@@ -1075,6 +1114,45 @@
   "job": {
     "actions": {
       "claim": {
+        "args": [
+          {
+            "dest": "request",
+            "required": true,
+            "option_strings": [
+              "--request"
+            ]
+          },
+          {
+            "dest": "response_out",
+            "required": true,
+            "option_strings": [
+              "--response-out"
+            ]
+          },
+          {
+            "dest": "evidence_out",
+            "required": false,
+            "option_strings": [
+              "--evidence-out"
+            ]
+          },
+          {
+            "dest": "workspace_root",
+            "required": false,
+            "option_strings": [
+              "--workspace-root"
+            ]
+          },
+          {
+            "dest": "strict",
+            "required": false,
+            "option_strings": [
+              "--strict"
+            ]
+          }
+        ]
+      },
+      "release-hold": {
         "args": [
           {
             "dest": "request",
@@ -1511,6 +1589,45 @@
   },
   "skill": {
     "actions": {
+      "impl-spec-test": {
+        "args": [
+          {
+            "dest": "request",
+            "required": true,
+            "option_strings": [
+              "--request"
+            ]
+          },
+          {
+            "dest": "response_out",
+            "required": true,
+            "option_strings": [
+              "--response-out"
+            ]
+          },
+          {
+            "dest": "evidence_out",
+            "required": false,
+            "option_strings": [
+              "--evidence-out"
+            ]
+          },
+          {
+            "dest": "workspace_root",
+            "required": false,
+            "option_strings": [
+              "--workspace-root"
+            ]
+          },
+          {
+            "dest": "strict",
+            "required": false,
+            "option_strings": [
+              "--strict"
+            ]
+          }
+        ]
+      },
       "test-exec-web-e2e": {
         "args": [
           {

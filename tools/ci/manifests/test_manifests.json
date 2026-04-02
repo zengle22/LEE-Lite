@@ -18,7 +18,8 @@
     "tests/unit/test_cli_runner_runtime.py",
     "tests/unit/test_cli_skill_runner_entry.py",
     "tests/unit/test_cli_runtime_governed_flows.py",
-    "tests/unit/test_cli_skill_test_exec.py"
+    "tests/unit/test_cli_skill_test_exec.py",
+    "tests/unit/test_cli_skill_impl_spec_test.py"
   ],
   "skill_test_map": {
     "ll-product-raw-to-src": ["tests/unit/test_lee_product_raw_to_src.py"],
@@ -27,6 +28,7 @@
     "ll-dev-feat-to-tech": ["tests/unit/test_lee_dev_feat_to_tech.py"],
     "ll-dev-tech-to-impl": ["tests/unit/test_lee_dev_tech_to_impl.py"],
     "ll-qa-feat-to-testset": ["tests/unit/test_lee_qa_feat_to_testset.py"],
+    "ll-qa-impl-spec-test": ["tests/unit/test_cli_skill_impl_spec_test.py"],
     "ll-project-init": ["tests/unit/test_lee_project_init.py"],
     "ll-meta-skill-creator": ["tests/unit/test_ll_meta_skill_creator.py"],
     "ll-execution-loop-job-runner": [
