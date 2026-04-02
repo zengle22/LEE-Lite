@@ -24,6 +24,7 @@ source_refs:
   - ADR-005
   - ADR-006
   - ADR-009
+  - ADR-038
 owner: system-architecture-owner
 tags: [architecture, system-overview, managed-artifact, gateway, registry, audit, gate]
 workflow_key: manual.architecture.overview
@@ -41,6 +42,7 @@ properties:
     - TECH-SRC-001-005
   companion_arch_refs:
     - ARCH-SRC-001-002
+  runtime_abstraction_baseline: ADR-038
   precedence_rule: if this overview conflicts with an ADR, the ADR wins; if it conflicts with a TECH on component implementation detail, the TECH wins
   provisional_slices:
     - external gate decision and materialization remains provisional until ADR-006 is frozen or equivalent rules are frozen into a formal baseline
@@ -53,6 +55,7 @@ properties:
 本文档描述 `SRC-001` 当前对应的系统整体蓝图，回答“系统整体长什么样、组件怎么一起工作、主链数据怎么流动、边界谁说了算”。
 
 - 关键架构决策以 `ADR` 为准。
+- runtime 对象分层、`authority / carrier` 判定与核心术语解释，以 ADR-038 为准。
 - 系统整体蓝图与组件关系以本文为准。
 - 单组件或单能力的实现收口以 `TECH` 为准。
 - workflow skill 如何接 candidate governance、gate 如何接 formal materialization 的补充说明，以 [ARCH-SRC-001-002__governed-skill-candidate-and-gate-materialization-integration.md](E:/ai/LEE-Lite-skill-first/ssot/architecture/ARCH-SRC-001-002__governed-skill-candidate-and-gate-materialization-integration.md) 为准。
@@ -80,6 +83,8 @@ properties:
 ## 当前实现承载形态
 
 `SRC-001` 当前冻结的实现承载形态是 `CLI-first + file-based runtime`。
+
+其中 `Command / Skill / Tool / Agent / Workflow / Task / Session / Artifact / Evidence / Gate` 的抽象解释与落层，统一按 ADR-038 理解。
 
 - `Governed Skill`、`Gateway`、`Policy`、`Registry`、`Auditor`、`External Gate` 优先实现为可组合的 CLI 命令、runtime helper 与文件对象消费者，而不是先建设独立 HTTP service 或前后端平台。
 - 主链状态推进依赖 `job / handoff / gate decision / evidence / materialization object` 等结构化文件对象，以及 execution loop / human gate loop / watcher 对这些对象的消费。

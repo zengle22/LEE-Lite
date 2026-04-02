@@ -4,7 +4,7 @@
 * 日期：2026-03-27
 * 决策者：Le Zeng
 * 适用范围：LEE Lite（LL）v0.x 全部 governed skill、Codex/Claude Code skill 入口、repo CLI/runtime 边界
-* 相关 ADR：ADR-001、ADR-004、ADR-005、ADR-007、ADR-012、ADR-013、ADR-014、ADR-016、ADR-017、ADR-018、ADR-019
+* 相关 ADR：ADR-001、ADR-004、ADR-005、ADR-007、ADR-012、ADR-013、ADR-014、ADR-016、ADR-017、ADR-018、ADR-019、ADR-038
 
 ---
 
@@ -631,19 +631,28 @@ ADR-019 以及后续 operator-facing skill 设计，若写“独立 skill 入口
 
 而不是仅交付 repo CLI façade。
 
+## 9.6 与 ADR-038 的关系
+
+ADR-038 冻结的是项目级 runtime 对象主词表与 `authority / carrier` 判定规则。
+
+ADR-020 则是其中 `Skill / installed adapter / repo CLI carrier` 的专门化边界。
+
+因此，后续若先要判断一个新增能力究竟是 `Command`、`Skill`、`Tool`、`Workflow` 还是 `Task`，必须先引用 ADR-038；只有当 primary abstraction 已确定为 `Skill` 或与 skill 安装直接相关的对象后，才继续按 ADR-020 冻结 canonical bundle、installed adapter 与 CLI carrier 的交付边界。
+
 ---
 
 # 10. 实施规则
 
 本 ADR 生效后，后续新增或修改 skill 时，默认按以下顺序实施：
 
-1. 先冻结 FEAT / TECH / IMPL 中的 canonical skill identity、level 与 boundary；
-2. 在 `skills/l{n}/<skill-name>/` 下生成 canonical governed skill bundle；
-3. 让 skill 通过最小 governance / smoke 校验；
-4. 若需要进入 Codex / Claude Code，则通过 `ll-skill-install` 安装 adapter；
-5. 验证 installed adapter 的 discoverability 与 invokability；
-6. 如需 repo CLI/control plane，作为 skill 的 carrier 或依赖层单独实现；
-7. 不得再以 repo CLI action 单独冒充 skill 交付。
+1. 先按 ADR-038 明确 `primary abstraction`、`secondary abstraction`、`authority`、`carrier` 与 `not equal to` 边界；
+2. 冻结 FEAT / TECH / IMPL 中的 canonical skill identity、level 与 boundary；
+3. 在 `skills/l{n}/<skill-name>/` 下生成 canonical governed skill bundle；
+4. 让 skill 通过最小 governance / smoke 校验；
+5. 若需要进入 Codex / Claude Code，则通过 `ll-skill-install` 安装 adapter；
+6. 验证 installed adapter 的 discoverability 与 invokability；
+7. 如需 repo CLI/control plane，作为 skill 的 carrier 或依赖层单独实现；
+8. 不得再以 repo CLI action 单独冒充 skill 交付。
 
 ---
 
@@ -678,4 +687,3 @@ LL 后续所有“skill”相关设计与实现，正式以本 ADR 为准：
 * installed adapter deprecated / drift / mismatch 的修复责任
 
 这类 lifecycle 规则可在后续 ADR 中单独冻结，但不得影响本 ADR 已确定的对象边界与 authority 关系。
-

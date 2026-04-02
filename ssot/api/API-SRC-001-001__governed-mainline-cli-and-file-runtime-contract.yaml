@@ -40,6 +40,7 @@ source_refs:
   - ADR-008
   - ADR-009
   - ADR-016
+  - ADR-038
 owner: contract-architect
 tags:
   - api
@@ -66,10 +67,12 @@ properties:
     - auditor
   umbrella_contract: true
   contract_role: runtime-baseline
+  abstraction_boundary_baseline: ADR-038
 boundary_statement:
   architecture: 定义系统边界、职责分配、组件拓扑与默认实现承载形态。
   tech: 定义内部实现约束、数据落盘、容错、集成策略与模块拆分。
   api: 定义跨模块、跨角色、跨运行单元的 CLI/file-runtime 契约，不回写内部实现决策。
+  runtime_abstraction_rule: Command、Skill、Tool、Agent、Workflow、Task、Session、Artifact、Evidence、Gate 的定义与 authority/carrier 判定以 ADR-038 为准；本 API 只冻结这些对象在 CLI/file-runtime 层的 contract。
   precedence_rule: 若 API 与 TECH 冲突，跨模块 contract 以 API 为准；若 API 与 ARCH 冲突，系统边界以 ARCH 与 ADR 为准。
 summary: >
   本 API 对象冻结 SRC-001 / EPIC-SRC-001-001 主链的 runtime contract，回答模块之间如何通过
