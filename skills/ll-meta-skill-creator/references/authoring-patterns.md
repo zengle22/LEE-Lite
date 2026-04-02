@@ -2,6 +2,15 @@
 
 Use this reference when the workflow boundary is clear and the scaffold already exists.
 
+## ADR-038 First
+
+Before authoring any new capability, classify it against `E:\ai\LEE-Lite-skill-first\ssot\adr\ADR-038-运行时核心抽象边界与对象分层基线.MD`.
+
+- First decide the primary abstraction: `Command`, `Skill`, `Tool`, `Agent`, `Task`, `Workflow`, `Session`, `Artifact`, `Evidence`, or `Gate`.
+- Then choose the carrier directory or CLI surface.
+- Do not start from a carrier such as `cli/`, `scripts/`, or `artifacts/` and infer the abstraction afterwards.
+- If the capability is only an atomic action or operator entry, do not auto-promote it into a governed workflow skill bundle.
+
 ## Concrete Example
 
 For `src-to-epic`:

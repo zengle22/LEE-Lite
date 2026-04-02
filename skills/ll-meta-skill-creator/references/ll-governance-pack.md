@@ -2,6 +2,14 @@
 
 Every generated workflow skill must be a standard skill shell plus a governance pack.
 
+## ADR-038 Classification Gate
+
+Before generating a new governed workflow skill, classify the requested capability against `E:\ai\LEE-Lite-skill-first\ssot\adr\ADR-038-运行时核心抽象边界与对象分层基线.MD`.
+
+- Only generate a governed workflow skill bundle when the primary abstraction is really `Skill` or `Workflow`.
+- If the request is only a `Command`, `Tool`, `Task`, `Artifact`, or `Gate` carrier addition, do not disguise it as a new skill bundle.
+- Record the chosen primary abstraction and the non-goal boundary in the FEAT or authoring notes before scaffolding files.
+
 ## Layer Model
 
 1. Compatibility layer

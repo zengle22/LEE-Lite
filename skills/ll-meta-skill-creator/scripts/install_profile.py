@@ -3,6 +3,7 @@
 Compatibility wrapper for installing ll-meta-skill-creator.
 
 - `--profile codex` delegates to ll-skill-install so Codex gets a workspace-bound adapter.
+- `--profile claude` delegates to ll-skill-install so Claude Code gets a workspace-bound adapter.
 - `--profile standard` performs a plain copy of the canonical skill for non-adapter use.
 """
 
@@ -17,11 +18,17 @@ from pathlib import Path
 
 
 SKILL_NAME = "ll-meta-skill-creator"
-SUPPORTED_PROFILES = {"standard", "codex"}
+SUPPORTED_PROFILES = {"standard", "codex", "claude"}
 IGNORE_NAMES = shutil.ignore_patterns("__pycache__", "*.pyc", "*.pyo")
 
 
-def default_skills_dir() -> Path:
+def default_skills_dir(profile: str) -> Path:
+    if profile == "claude":
+        claude_home = os.environ.get("CLAUDE_HOME")
+        if claude_home:
+            return Path(claude_home).expanduser() / "skills"
+        return Path.home() / ".claude" / "skills"
+
     codex_home = os.environ.get("CODEX_HOME")
     if codex_home:
         return Path(codex_home).expanduser() / "skills"
@@ -52,7 +59,7 @@ def install_standard(dest_root: Path, replace: bool) -> Path:
     return dest_dir
 
 
-def install_codex(dest_root: Path, replace: bool) -> Path:
+def install_adapter_profile(dest_root: Path, replace: bool, runtime_name: str) -> Path:
     script_path = install_adapter_script()
     if not script_path.exists():
         raise FileNotFoundError(
@@ -80,36 +87,37 @@ def install_codex(dest_root: Path, replace: bool) -> Path:
         raise RuntimeError(detail)
     if result.stdout.strip():
         print(result.stdout.strip())
+    print(f"[OK] Delegated adapter installation for {runtime_name}.")
     return dest_root / SKILL_NAME
 
 
 def main() -> int:
     parser = argparse.ArgumentParser(
-        description="Install ll-meta-skill-creator with a standard copy or Codex adapter profile."
+        description="Install ll-meta-skill-creator with a standard copy or Codex/Claude adapter profile."
     )
     parser.add_argument("--profile", choices=sorted(SUPPORTED_PROFILES), default="standard")
     parser.add_argument(
         "--dest",
-        help="Destination skills root; defaults to $CODEX_HOME/skills or ~/.codex/skills",
+        help="Destination skills root; defaults to ~/.claude/skills for profile=claude, otherwise $CODEX_HOME/skills or ~/.codex/skills",
     )
     parser.add_argument("--replace", action="store_true", help="Replace an existing installed copy")
     args = parser.parse_args()
 
-    dest_root = Path(args.dest).expanduser() if args.dest else default_skills_dir()
+    dest_root = Path(args.dest).expanduser() if args.dest else default_skills_dir(args.profile)
 
     try:
-        if args.profile == "codex":
-            dest_dir = install_codex(dest_root, args.replace)
-        else:
+        if args.profile == "standard":
             dest_dir = install_standard(dest_root, args.replace)
+        elif args.profile == "codex":
+            dest_dir = install_adapter_profile(dest_root, args.replace, "Codex")
+        else:
+            dest_dir = install_adapter_profile(dest_root, args.replace, "Claude Code")
     except Exception as exc:
         print(f"[ERROR] {exc}")
         return 1
 
     print(f"[OK] Installed {SKILL_NAME} to {dest_dir}")
     print(f"[OK] Applied runtime profile: {args.profile}")
-    if args.profile == "codex":
-        print("[OK] Delegated Codex installation to ll-skill-install.")
     return 0
 
 

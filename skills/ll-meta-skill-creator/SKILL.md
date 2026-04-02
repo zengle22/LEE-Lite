@@ -13,6 +13,8 @@ Create governed workflow skills for LEE Lite. Each generated skill must remain a
 
 1. Capture the workflow boundary before writing files.
    - Record the workflow key, input artifact type, output artifact type, authoritative upstream ref, runtime mode, direct entrypoint, and freeze expectations.
+   - Classify the request against `E:\ai\LEE-Lite-skill-first\ssot\adr\ADR-038-运行时核心抽象边界与对象分层基线.MD` first: primary abstraction, secondary abstraction, authority, carrier, and not-equal boundary.
+   - Scaffold a governed workflow skill only when the primary abstraction is really `Skill` or `Workflow`; if the request is mainly `Command`, `Tool`, `Task`, `Gate`, or `Artifact` work, redirect it to the proper carrier or SSOT object instead of generating a new skill bundle.
    - Stop if the request does not define the workflow boundary well enough to write input and output contracts.
 2. Scaffold the governed skill.
    - Run `python scripts/init_lee_workflow_skill.py <skill-name> --path <dir> --input-artifact <type> --output-artifact <type>`.
@@ -35,6 +37,7 @@ Create governed workflow skills for LEE Lite. Each generated skill must remain a
 ## Non-Negotiable Rules
 
 - Keep the skill shell compatible with standard skills. Do not move LL governance fields into YAML frontmatter.
+- Do not use a workflow skill scaffold to smuggle in a `Command`, `Tool`, `Task`, `Gate`, or session residue requirement.
 - Require both input and output contracts. A workflow skill is incomplete if it only templates the output.
 - Split structural validation from semantic validation. Structural checks should be scriptable; semantic checks should be reviewable and evidenced.
 - In LEE Lite, do not point a newly generated workflow back to `lee run` unless the user explicitly asks for a legacy bridge.
@@ -59,6 +62,7 @@ Create governed workflow skills for LEE Lite. Each generated skill must remain a
 
 ## References
 
+- Read `E:\ai\LEE-Lite-skill-first\ssot\adr\ADR-038-运行时核心抽象边界与对象分层基线.MD` first. It is the project-wide runtime abstraction baseline for classifying `Command`, `Skill`, `Tool`, `Agent`, `Task`, `Workflow`, `Session`, `Artifact`, `Evidence`, and `Gate`.
 - Read `references/ll-governance-pack.md` for the required file tree and file responsibilities.
 - Read `references/authoring-patterns.md` when customizing contracts, semantic checklists, or supervisor rules for a concrete workflow such as `src-to-epic`.
 - Read `references/lite-native-guardrails.md` when the target repository should run the skill directly in Codex or Claude Code instead of delegating to `lee run`.
