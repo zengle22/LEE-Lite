@@ -14,6 +14,11 @@ Use this skill when a new repository needs the standard LEE Lite project layout,
 - Primary output: one `project_init_package` under `artifacts/project-init/<run_id>`
 - Side effect: the runtime creates or refreshes managed scaffold files inside the target repository root
 
+## Runtime Boundary Baseline
+
+- Classify this capability under `E:\ai\LEE-Lite-skill-first\ssot\adr\ADR-038-运行时核心抽象边界与对象分层基线.MD`.
+- This skill is a governed `Skill` and `Workflow` for repository initialization. Generated scaffold files and bootstrap reports are artifacts; they do not become runtime task or command authority by themselves.
+
 ## Required Read Order
 
 1. `resources/project-structure-reference.md`

@@ -17,6 +17,11 @@ This is the formal governed skill wrapper for the ADR-035 web execution path. It
 - Web translator and runner: `E:\ai\LEE-Lite-skill-first\cli\lib\test_exec_playwright.py`
 - Web-specific UI source adapters: `frontend_code_ref`, `ui_runtime_ref`, `ui_source_spec`
 
+## Runtime Boundary Baseline
+
+- Interpret this skill via `E:\ai\LEE-Lite-skill-first\ssot\adr\ADR-038-运行时核心抽象边界与对象分层基线.MD`.
+- This bundle is a governed `Skill` wrapper for web E2E execution. Playwright/runtime adapters are carriers; TESTSET, evidence, and result summaries keep their own artifact/evidence semantics under ADR-038.
+
 ## Required Read Order
 
 1. `ll.contract.yaml`

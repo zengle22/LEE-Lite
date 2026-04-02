@@ -7,6 +7,11 @@ description: Governed workflow skill for transforming one frozen FEAT into a UI 
 
 This skill converts one selected frozen FEAT into one governed `ui_spec_package`. The output is not a visual mockup or page code. It is an interface-layer contract that makes user path, page structure, state handling, and UI/TECH boundaries explicit enough for downstream development.
 
+## Runtime Boundary Baseline
+
+- Interpret this skill through `E:\ai\LEE-Lite-skill-first\ssot\adr\ADR-038-运行时核心抽象边界与对象分层基线.MD`.
+- This capability is a governed `Skill` and `Workflow` for `FEAT -> UI Spec`. It does not promote UI artifacts, scripts, or review residue into separate authority objects.
+
 ## Run Protocol
 
 1. Read `ll.contract.yaml`, `input/contract.yaml`, and `output/contract.yaml`.

@@ -16,6 +16,11 @@ This is the formal governed skill wrapper for the ADR-035 requirement-driven tes
 - CLI execution loop: `E:\ai\LEE-Lite-skill-first\cli\lib\test_exec_execution.py`
 - Required working directory: repository root `E:\ai\LEE-Lite-skill-first`
 
+## Runtime Boundary Baseline
+
+- Interpret this skill via `E:\ai\LEE-Lite-skill-first\ssot\adr\ADR-038-运行时核心抽象边界与对象分层基线.MD`.
+- This bundle is a governed `Skill` wrapper for CLI execution. Runtime carrier modules and execution-loop internals remain carriers; they are not separate skill or workflow authorities.
+
 ## Required Read Order
 
 1. `ll.contract.yaml`

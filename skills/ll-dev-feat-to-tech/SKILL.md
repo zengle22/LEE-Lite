@@ -14,6 +14,11 @@ This skill is a lite-native governed workflow between `ll-product-epic-to-feat` 
 - Downstream workflow: `workflow.dev.tech_to_impl`
 - Primary runtime command: `python scripts/feat_to_tech.py run --input <feat-package-dir> --feat-ref <feat-ref> --repo-root <repo-root>`
 
+## Runtime Boundary Baseline
+
+- Classify this capability under `E:\ai\LEE-Lite-skill-first\ssot\adr\ADR-038-运行时核心抽象边界与对象分层基线.MD`.
+- This skill is a governed `Skill` and `Workflow` authority for `FEAT -> TECH` derivation. Its scripts and package files are carriers, not independent runtime authorities.
+
 ## Required Read Order
 
 1. `ll.contract.yaml`

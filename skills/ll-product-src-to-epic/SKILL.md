@@ -14,6 +14,11 @@ This skill is a lite-native governed workflow between `ll-product-raw-to-src` an
 - Downstream workflow: `product.epic-to-feat`
 - Preferred runtime command: `python scripts/src_to_epic.py run --input <src-package-dir> --repo-root <repo-root>`
 
+## Runtime Boundary Baseline
+
+- Interpret this workflow using `E:\ai\LEE-Lite-skill-first\ssot\adr\ADR-038-运行时核心抽象边界与对象分层基线.MD`.
+- This capability is a governed `Skill` and `Workflow` for `SRC -> EPIC` derivation. Generated EPIC packages are artifacts and handoffs, not replacement authorities for session, task, or gate state.
+
 ## Required Read Order
 
 1. `ll.contract.yaml`

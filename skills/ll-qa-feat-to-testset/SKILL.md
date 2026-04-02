@@ -22,6 +22,11 @@ The skill still does not pre-enumerate every runnable case that may later be req
 - Downstream skill target: `skill.qa.test_exec_web_e2e`
 - Primary runtime command: `python scripts/feat_to_testset.py run --input <feat-package-dir> --feat-ref <feat-ref> --repo-root <repo-root>`
 
+## Runtime Boundary Baseline
+
+- Interpret this workflow using `E:\ai\LEE-Lite-skill-first\ssot\adr\ADR-038-运行时核心抽象边界与对象分层基线.MD`.
+- This capability is a governed `Skill` and `Workflow` for `FEAT -> TESTSET` derivation. The emitted TESTSET package is an artifact authority, not a runnable execution session or tool surface.
+
 ## Required Read Order
 
 1. `ll.contract.yaml`

@@ -15,6 +15,11 @@ Use this skill when a raw requirement, ADR, business opportunity, or frozen busi
 - Formal flow boundary: skill emits `candidate + evidence + proposed actions`, then submits an authoritative handoff into gate pending; external gate still owns decision, review, and downstream materialization
 - Upstream authority: raw source only, never an already-frozen SSOT object
 
+## Runtime Boundary Baseline
+
+- Classify this capability under `E:\ai\LEE-Lite-skill-first\ssot\adr\ADR-038-运行时核心抽象边界与对象分层基线.MD`.
+- This skill is a governed `Skill` and `Workflow` for raw-input normalization. Candidate packages, evidence, and handoff files are emitted artifacts, not substitutes for gate or task authority.
+
 ## Required Read Order
 
 1. Read `resources/upstream-workflow-analysis.md` for the migrated stage map.

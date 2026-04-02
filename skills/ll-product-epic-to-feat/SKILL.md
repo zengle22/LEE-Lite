@@ -17,6 +17,11 @@ This skill is a lite-native governed workflow between `ll-product-src-to-epic` a
 - Derived child artifacts expected downstream: `TECH`, `TESTSET`
 - Preferred runtime command: `python scripts/epic_to_feat.py run --input <epic-package-dir> --repo-root <repo-root>`
 
+## Runtime Boundary Baseline
+
+- Interpret this workflow using `E:\ai\LEE-Lite-skill-first\ssot\adr\ADR-038-运行时核心抽象边界与对象分层基线.MD`.
+- This capability is a governed `Skill` and `Workflow` for `EPIC -> FEAT` derivation. Output FEAT bundles are artifacts; they do not replace runtime task, session, or gate authority.
+
 ## Required Read Order
 
 1. `ll.contract.yaml`

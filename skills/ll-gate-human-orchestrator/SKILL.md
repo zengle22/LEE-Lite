@@ -14,6 +14,11 @@ This skill is the governed gate workflow for turning one `gate_ready_package` in
 - Primary runtime command: `python skills/ll-gate-human-orchestrator/scripts/gate_human_orchestrator.py run --input <gate-ready-dir> --repo-root <repo-root>`
 - Real execution surface: `ll gate evaluate`, `ll gate dispatch`, `ll gate materialize`
 
+## Runtime Boundary Baseline
+
+- Classify this gate workflow under `E:\ai\LEE-Lite-skill-first\ssot\adr\ADR-038-运行时核心抽象边界与对象分层基线.MD`.
+- This skill is the governed `Skill` and `Workflow` wrapper for human gate orchestration. The gate runtime commands are carriers; `Gate` remains the state-advance authority.
+
 ## Required Read Order
 
 1. `ll.contract.yaml`

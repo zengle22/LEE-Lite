@@ -15,6 +15,11 @@ This is the canonical governed skill bundle for the Execution Loop Job Runner. I
 - Real execution carrier: `python -m cli.ll loop run-execution --request <request.json> --response-out <response.json>`
 - Real resume carrier: `python -m cli.ll loop resume-execution --request <request.json> --response-out <response.json>`
 
+## Runtime Boundary Baseline
+
+- Interpret this skill via `E:\ai\LEE-Lite-skill-first\ssot\adr\ADR-038-运行时核心抽象边界与对象分层基线.MD`.
+- This bundle is a governed operator-facing `Skill` wrapper over the execution-loop carrier. It does not reclassify loop commands, run traces, or job records into skill authority.
+
 ## Required Read Order
 
 1. `ll.contract.yaml`

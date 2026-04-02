@@ -17,6 +17,11 @@ This skill freezes the task-first `tech2impl` boundary. It does not claim code i
 - Downstream target template: `template.dev.feature_delivery_l2`
 - Primary runtime command: `python scripts/tech_to_impl.py run --input <tech-package-dir> --feat-ref <feat-ref> --tech-ref <tech-ref> --repo-root <repo-root>`
 
+## Runtime Boundary Baseline
+
+- Classify this capability under `E:\ai\LEE-Lite-skill-first\ssot\adr\ADR-038-运行时核心抽象边界与对象分层基线.MD`.
+- This skill is a governed `Skill` and `Workflow` for implementation-package derivation. `impl-task.md` is an emitted artifact, not the runtime `Task` authority itself.
+
 ## Required Read Order
 
 1. `ll.contract.yaml`
