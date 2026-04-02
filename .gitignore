@@ -95,3 +95,8 @@ evidence/*/
 node_modules/
 package-lock.json
 package.json
+
+# Temporary scripts (one-time usage)
+scripts/*.py
+scripts/*.sh
+scripts/*.ps1
