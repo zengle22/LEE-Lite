@@ -1,0 +1,26 @@
+# Impl Spec Test Output
+
+- verdict: {{ verdict }}
+- implementation_readiness: {{ implementation_readiness }}
+- self_contained_readiness: {{ self_contained_readiness }}
+- self_contained_evaluation_mode: {{ self_contained_evaluation_mode }}
+- recommended_next_action: {{ recommended_next_action }}
+- recommended_actor: {{ recommended_actor }}
+- repair_target_artifact: {{ repair_target_artifact }}
+- report_package_ref: {{ report_package_ref }}
+- report_json_ref: {{ report_json_ref }}
+- report_markdown_ref: {{ report_markdown_ref }}
+- semantic_review_ref: {{ semantic_review_ref }}
+- system_views_ref: {{ system_views_ref }}
+- logic_risk_inventory_ref: {{ logic_risk_inventory_ref }}
+- ux_risk_inventory_ref: {{ ux_risk_inventory_ref }}
+- ux_improvement_inventory_ref: {{ ux_improvement_inventory_ref }}
+- journey_simulation_ref: {{ journey_simulation_ref }}
+- state_invariant_check_ref: {{ state_invariant_check_ref }}
+- cross_artifact_trace_ref: {{ cross_artifact_trace_ref }}
+- open_questions_ref: {{ open_questions_ref }}
+- false_negative_challenge_ref: {{ false_negative_challenge_ref }}
+- dimension_reviews_ref: {{ dimension_reviews_ref }}
+- review_coverage_ref: {{ review_coverage_ref }}
+- defects_ref: {{ defects_ref }}
+- gate_subject_ref: {{ gate_subject_ref }}

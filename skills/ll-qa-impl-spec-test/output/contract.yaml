@@ -1,0 +1,73 @@
+artifact_type: impl_spec_test_skill_response
+schema_version: 1.0.0
+derived_from: impl_spec_test_skill_request
+expected_command: skill.impl-spec-test
+required_top_level_fields:
+  - api_version
+  - command
+  - request_id
+  - result_status
+  - status_code
+  - exit_code
+  - message
+  - data
+required_data_fields:
+  - skill_ref
+  - runner_skill_ref
+  - candidate_artifact_ref
+  - candidate_managed_artifact_ref
+  - candidate_receipt_ref
+  - candidate_registry_record_ref
+  - handoff_ref
+  - gate_pending_ref
+  - run_status
+  - verdict
+  - implementation_readiness
+  - self_contained_readiness
+  - self_contained_evaluation_mode
+  - recommended_next_action
+  - recommended_actor
+  - repair_target_artifact
+  - execution_mode
+  - report_package_ref
+  - report_json_ref
+  - report_markdown_ref
+  - semantic_review_ref
+  - system_views_ref
+  - dimension_reviews_ref
+  - review_coverage_ref
+  - defects_ref
+  - gate_subject_ref
+  - intake_result_ref
+  - issue_inventory_ref
+  - counterexample_result_ref
+  - readiness_verdict_ref
+  - repair_suggestions_ref
+  - execution_evidence_ref
+  - supervision_evidence_ref
+allowed_run_statuses:
+  - completed
+  - completed_with_findings
+  - completed_with_blockers
+structural_checks:
+  - response_envelope_complete
+  - response_command_matches_skill
+  - candidate_and_handoff_present
+  - verdict_refs_present
+semantic_gate:
+  required: true
+notes:
+  - "The response envelope is the formal skill output."
+  - "`verdict` is an implementation-readiness verdict, not an external legal gate decision."
+  - "`pass_with_revisions` and `block` must keep coder dispatch closed until downstream review is complete."
+  - "Phase 2 deep-review outputs, when emitted, must include semantic review, system views, logic risk inventory, UX risk inventory, UX improvement inventory, journey simulation, state invariant checks, cross-artifact trace, open questions, dimension reviews, and review coverage surfaces."
+  - "`review_coverage.status` must be one of `sufficient`, `partial`, or `insufficient`."
+phase2_extended_data_fields:
+  - logic_risk_inventory_ref
+  - ux_risk_inventory_ref
+  - ux_improvement_inventory_ref
+  - journey_simulation_ref
+  - state_invariant_check_ref
+  - cross_artifact_trace_ref
+  - open_questions_ref
+  - false_negative_challenge_ref

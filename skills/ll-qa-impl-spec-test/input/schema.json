@@ -1,0 +1,73 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "impl-spec-test request envelope",
+  "type": "object",
+  "required": ["api_version", "command", "request_id", "workspace_root", "actor_ref", "trace", "payload"],
+  "properties": {
+    "api_version": { "const": "v1" },
+    "command": { "const": "skill.impl-spec-test" },
+    "request_id": { "type": "string", "minLength": 1 },
+    "workspace_root": { "type": "string", "minLength": 1 },
+    "actor_ref": { "type": "string", "minLength": 1 },
+    "trace": { "type": "object" },
+    "payload": {
+      "type": "object",
+      "required": ["impl_ref", "impl_package_ref", "feat_ref", "tech_ref"],
+      "properties": {
+        "impl_ref": { "type": "string", "minLength": 1 },
+        "impl_package_ref": { "type": "string", "minLength": 1 },
+        "feat_ref": { "type": "string", "minLength": 1 },
+        "tech_ref": { "type": "string", "minLength": 1 },
+        "arch_ref": { "type": "string" },
+        "api_ref": { "type": "string" },
+        "ui_refs": { "type": "array", "items": { "type": "string" } },
+        "testset_refs": { "type": "array", "items": { "type": "string" } },
+        "source_refs": { "type": "array", "items": { "type": "string" } },
+        "repo_context": {
+          "type": "object",
+          "properties": {
+            "enabled": { "type": "boolean" },
+            "touchable_paths": { "type": "array", "items": { "type": "string" } },
+            "observable_paths": { "type": "array", "items": { "type": "string" } },
+            "migration_notes_ref": { "type": "string" }
+          }
+        },
+        "review_profile": {
+          "type": "object",
+          "properties": {
+            "focus_areas": { "type": "array", "items": { "type": "string" } },
+            "personas": { "type": "array", "items": { "type": "string" } },
+            "counterexample_families": { "type": "array", "items": { "type": "string" } },
+            "coverage_goal": { "enum": ["sufficient", "partial", "deep"] }
+          }
+        },
+        "execution_mode": {
+          "type": "object",
+          "properties": {
+            "mode": { "enum": ["quick_preflight", "deep_spec_testing"] },
+            "require_strong_self_contained": { "type": "boolean" },
+            "allow_upstream_follow": { "type": "boolean" },
+            "simulate_counterexamples": { "type": "boolean" }
+          }
+        },
+        "risk_profile": {
+          "type": "object",
+          "properties": {
+            "domain": { "type": "string" },
+            "strictness": { "type": "string" }
+          }
+        },
+        "proposal_ref": { "type": "string" },
+        "migration_required": { "type": "boolean" },
+        "state_boundary_sensitive": { "type": "boolean" },
+        "cross_surface_chain": { "type": "boolean" },
+        "introduces_new_surface": { "type": "boolean" },
+        "external_gate_candidate": { "type": "boolean" },
+        "false_negative_challenge": { "type": "boolean" },
+        "journey_personas": { "type": "array", "items": { "type": "string" } },
+        "counterexample_families": { "type": "array", "items": { "type": "string" } },
+        "review_focus": { "type": "array", "items": { "type": "string" } }
+      }
+    }
+  }
+}

@@ -1,0 +1,51 @@
+artifact_type: impl_spec_test_skill_request
+schema_version: 1.0.0
+expected_command: skill.impl-spec-test
+required_request_fields:
+  - api_version
+  - command
+  - request_id
+  - workspace_root
+  - actor_ref
+  - trace
+  - payload
+required_payload_fields:
+  - impl_ref
+  - impl_package_ref
+  - feat_ref
+  - tech_ref
+optional_payload_fields:
+  - arch_ref
+  - api_ref
+  - ui_ref
+  - ui_refs
+  - testset_ref
+  - testset_refs
+  - source_refs
+  - repo_context
+  - review_profile
+  - execution_mode
+  - risk_profile
+  - proposal_ref
+  - migration_required
+  - state_boundary_sensitive
+  - cross_surface_chain
+  - introduces_new_surface
+  - external_gate_candidate
+  - false_negative_challenge
+  - journey_personas
+  - counterexample_families
+  - review_focus
+structural_checks:
+  - request_envelope_present
+  - command_matches_skill
+  - payload_fields_present
+semantic_gate:
+  required: true
+notes:
+  - IMPL is the main tested object.
+  - FEAT / TECH / ARCH / API / UI / TESTSET remain authoritative when they are provided.
+  - repo_context may guide touch-set awareness but may not replace upstream truth.
+  - repo_context should preserve touchable_paths, observable_paths, and migration_notes_ref when available.
+  - risk_profile should default to product_impl / high when omitted.
+  - review_profile is an optional deep-review steering object that may list personas, focus areas, or counterexample families, but it never overrides frozen authority or deep-mode trigger rules.

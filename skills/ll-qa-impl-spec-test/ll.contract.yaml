@@ -1,0 +1,144 @@
+skill_id: ll-qa-impl-spec-test
+skill_type: workflow
+version: 1.0.0
+workflow_key: qa.impl-spec-test
+
+authority:
+  canonical_adr: E:\ai\LEE-Lite-skill-first\ssot\adr\ADR-036-IMPL 实施前文档压力测试与 Implementation Spec Testing Skill 基线.MD
+  upstream_skill: ll-dev-tech-to-impl
+  runtime_entry: python -m cli skill impl-spec-test
+  runtime_carrier: E:\ai\LEE-Lite-skill-first\cli\lib\impl_spec_test_runtime.py
+  downstream_workflow: governance.gate-human-orchestrator
+
+roles:
+  executor:
+    required: true
+    evidence_required: true
+    prompt_file: agents/executor.md
+  supervisor:
+    required: true
+    evidence_required: true
+    prompt_file: agents/supervisor.md
+
+runtime:
+  mode: lite_native
+  run_modes:
+    - quick_preflight
+    - deep_spec_testing
+  command: python -m cli skill impl-spec-test --request <request.json> --response-out <response.json>
+  entry_script: python -m cli
+  working_directory: E:\ai\LEE-Lite-skill-first
+  accepted_input_paths:
+    - ssot/impl/<impl>.md
+    - artifacts/tech-to-impl/<run_id>/impl-task.md
+  produced_output_dir: artifacts/active/qa/impl-spec-tests/<slug>
+  required_output_artifacts:
+    - package_manifest_ref
+    - report_json_ref
+    - report_markdown_ref
+    - phase2_review_ref
+    - defects_ref
+    - gate_subject_ref
+    - readiness_verdict_ref
+    - counterexample_result_ref
+    - semantic_review_ref
+    - system_views_ref
+    - dimension_reviews_ref
+    - review_coverage_ref
+    - execution_evidence_ref
+    - supervision_evidence_ref
+    - handoff_ref
+  phase2_extended_output_artifacts:
+    - logic_risk_inventory_ref
+    - ux_risk_inventory_ref
+    - ux_improvement_inventory_ref
+    - journey_simulation_ref
+    - state_invariant_check_ref
+    - cross_artifact_trace_ref
+    - open_questions_ref
+    - false_negative_challenge_ref
+  phase2_extended_output_artifacts:
+    - logic_risk_inventory_ref
+    - ux_risk_inventory_ref
+    - ux_improvement_inventory_ref
+    - journey_simulation_ref
+    - state_invariant_check_ref
+    - cross_artifact_trace_ref
+    - open_questions_ref
+    - false_negative_challenge_ref
+
+input:
+  artifact_type: impl_spec_test_skill_request
+  contract_file: input/contract.yaml
+  schema_file: input/schema.json
+  structural_validation_required: true
+  semantic_validation_required: true
+
+output:
+  artifact_type: impl_spec_test_skill_response
+  contract_file: output/contract.yaml
+  schema_file: output/schema.json
+  template_file: output/template.md
+  structural_validation_required: true
+  semantic_validation_required: true
+
+validation:
+  structural:
+    - "bash scripts/validate_input.sh $INPUT"
+    - "bash scripts/validate_output.sh $OUTPUT"
+    - "bash scripts/collect_evidence.sh $OUTPUT"
+    - "bash scripts/freeze_guard.sh $OUTPUT"
+  semantic:
+    input_checklist: input/semantic-checklist.md
+    output_checklist: output/semantic-checklist.md
+
+evidence:
+  execution_schema: evidence/execution-evidence.schema.json
+  supervision_schema: evidence/supervision-evidence.schema.json
+  report_template: evidence/report.template.md
+
+lifecycle:
+  definition_file: ll.lifecycle.yaml
+  max_revision_rounds: 2
+
+gate:
+  freeze_requires:
+    - input_structural_pass
+    - input_semantic_pass
+    - output_structural_pass
+    - output_semantic_pass
+    - execution_evidence_present
+    - supervision_evidence_present
+    - report_json_present
+    - report_markdown_present
+    - defects_present
+    - semantic_review_present
+    - system_views_present
+    - logic_risk_inventory_present
+    - ux_risk_inventory_present
+    - ux_improvement_inventory_present
+    - journey_simulation_present
+    - state_invariant_check_present
+    - cross_artifact_trace_present
+    - open_questions_present
+    - false_negative_challenge_present
+    - dimension_reviews_present
+    - review_coverage_present
+    - candidate_handoff_present
+    - verdict_package_present
+  phase2_freeze_requires:
+    - logic_risk_inventory_present
+    - ux_risk_inventory_present
+    - ux_improvement_inventory_present
+    - journey_simulation_present
+    - state_invariant_check_present
+    - cross_artifact_trace_present
+    - open_questions_present
+    - false_negative_challenge_present
+  reject_when:
+    - authoritative_input_missing
+    - main_test_object_missing
+    - upstream_truth_rewritten
+    - verdict_binding_missing
+    - response_envelope_inconsistent
+    - required_evidence_missing
