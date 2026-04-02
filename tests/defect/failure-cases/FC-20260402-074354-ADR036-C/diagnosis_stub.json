@@ -1,0 +1,10 @@
+{
+  "artifact_type": "diagnosis_stub",
+  "schema_version": "0.1.0",
+  "status": "stubbed",
+  "error_class": "detection_miss",
+  "root_cause_primary": "definition_weakness",
+  "expected_detector": "human_final_review",
+  "remediation_hint": "Do not include UI as a default downstream artifact in skill/workflow chains unless a concrete FEAT requires UI scope.",
+  "note": "This is an initial capture-time stub, not a final diagnosis report."
+}

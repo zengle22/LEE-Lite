@@ -1,0 +1,34 @@
+{
+  "artifact_type": "repair_context",
+  "schema_version": "0.1.0",
+  "status": "ready_for_manual_repair",
+  "repair_mode": "manual_or_human_directed_ai",
+  "automatic_repair_allowed": false,
+  "repair_goal": "Constrain the chain to the correct non-UI governance scope and mark UI as not_applicable when absent from functional scope.",
+  "problem_focus": "ADR-036 chain treated UI as default formal layer despite skill/workflow scope",
+  "allowed_edit_scope": [
+    "ssot/release/REL-ADR036-IMPLEMENTATION-READINESS-CHAIN__materialization-index.json#ui_artifact_refs",
+    "ssot/impl/IMPL-SRC-ADR036-RAW2SRC-20260402-R9-001__IMPL-主测试对象-intake-与-authority-绑定流.md#ui_status_fields",
+    "ssot/impl/IMPL-SRC-ADR036-RAW2SRC-20260402-R9-002__跨文档一致性与产品行为边界评审流.md#ui_status_fields",
+    "ssot/impl/IMPL-SRC-ADR036-RAW2SRC-20260402-R9-003__失败路径与反例推演流.md#ui_status_fields",
+    "ssot/impl/IMPL-SRC-ADR036-RAW2SRC-20260402-R9-004__实施-readiness-verdict-与修复路由流.md#ui_status_fields",
+    "ssot/impl/IMPL-SRC-ADR036-RAW2SRC-20260402-R9-005__governed-skill-接入与-pilot-验证流.md#ui_status_fields",
+    "skills/ll-product-raw-to-src/scripts/raw_to_src_bridge.py#_project_governance_objects"
+  ],
+  "protected_refs": [
+    "ssot/epic/EPIC-IMPL-IMPLEMENTATION-READINESS__IMPL-实施前文档压力测试与-Implementation-Readiness-统一能力.md#business_goal",
+    "ssot/feat/FEAT-SRC-ADR036-RAW2SRC-20260402-R9-001__IMPL-主测试对象-intake-与-authority-绑定流.md#acceptance_checks",
+    "ssot/tech/TECH-SRC-ADR036-RAW2SRC-20260402-R9-001__IMPL-主测试对象-intake-与-authority-绑定流.md#implementation_rules"
+  ],
+  "do_not_modify": [
+    "ssot/epic/EPIC-IMPL-IMPLEMENTATION-READINESS__IMPL-实施前文档压力测试与-Implementation-Readiness-统一能力.md#business_goal",
+    "ssot/feat/FEAT-SRC-ADR036-RAW2SRC-20260402-R9-001__IMPL-主测试对象-intake-与-authority-绑定流.md#acceptance_checks",
+    "ssot/tech/TECH-SRC-ADR036-RAW2SRC-20260402-R9-001__IMPL-主测试对象-intake-与-authority-绑定流.md#implementation_rules"
+  ],
+  "repair_instructions": [
+    "Only edit the approved scope.",
+    "Do not restructure unaffected sections.",
+    "Keep the fix diff reviewable and minimal.",
+    "Re-run minimum validation after repair."
+  ]
+}

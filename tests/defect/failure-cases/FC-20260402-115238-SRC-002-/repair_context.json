@@ -1,0 +1,27 @@
+{
+  "artifact_type": "repair_context",
+  "schema_version": "0.1.0",
+  "status": "ready_for_manual_repair",
+  "repair_mode": "manual_or_human_directed_ai",
+  "automatic_repair_allowed": false,
+  "repair_goal": "Fix contract schema validation to accept both '1.0.0' and 'v1' api_version formats with clear error messages, accept both 'test_set_ref' and 'test_set_refs' with deprecation warning, improve path resolution to normalize relative paths and provide actionable error messages, add workspace root detection and clear documentation, add playwright dependency validation with setup guidance, improve error message clarity to reveal root causes.",
+  "problem_focus": "SRC-002 E2E test execution workflow failed with multiple skill governance issues",
+  "allowed_edit_scope": [
+    "E:/ai/LEE-Lite-skill-first/skills/l3/ll-test-exec-web-e2e/ll.contract.yaml",
+    "E:/ai/LEE-Lite-skill-first/skills/l3/ll-test-exec-web-e2e/input/schema.json",
+    "E:/ai/LEE-Lite-skill-first/skills/l3/ll-test-exec-web-e2e/scripts/workflow_runtime.py",
+    "E:/ai/LEE-Lite-skill-first/skills/l3/ll-test-exec-web-e2e/agents/executor.md"
+  ],
+  "protected_refs": [
+    "ssot/testset/SRC-002/TESTSET-SRC-002-006__近端训练微调能力-testset-candidate-package.yaml"
+  ],
+  "do_not_modify": [
+    "ssot/testset/SRC-002/TESTSET-SRC-002-006__近端训练微调能力-testset-candidate-package.yaml"
+  ],
+  "repair_instructions": [
+    "Only edit the approved scope.",
+    "Do not restructure unaffected sections.",
+    "Keep the fix diff reviewable and minimal.",
+    "Re-run minimum validation after repair."
+  ]
+}

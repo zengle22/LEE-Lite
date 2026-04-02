@@ -1,0 +1,10 @@
+{
+  "artifact_type": "diagnosis_stub",
+  "schema_version": "0.1.0",
+  "status": "stubbed",
+  "error_class": "structure_error",
+  "root_cause_primary": "definition_weakness",
+  "expected_detector": "schema_validator",
+  "remediation_hint": "Fix skill contract schema and validation to handle version format variations, accept both singular/plural field names with clear deprecation warnings, improve path resolution to handle both relative and absolute paths with clear error messages, document workspace root requirements clearly, add playwright dependency checks with helpful setup instructions, improve error messages to indicate actual root causes.",
+  "note": "This is an initial capture-time stub, not a final diagnosis report."
+}

@@ -1,0 +1,133 @@
+{
+  "artifact_type": "issue_detail_catalog",
+  "schema_version": "0.1.0",
+  "status": "cataloged",
+  "parent_failure_case_id": "FC-20260402-115238-SRC-002-",
+  "skill_id": "ll-test-exec-web-e2e",
+  "run_id": "src002-e2e-req-001",
+  "session_date": "2026-04-02",
+  "src_reference": "SRC-002",
+  "total_issues": 8,
+  "total_retry_attempts": 5,
+  "issues": [
+    {
+      "issue_id": "ISS-001",
+      "title": "api_version mismatch",
+      "severity": "CRITICAL",
+      "category": "contract_schema",
+      "symptom": "Request used \"1.0.0\" but skill expected \"v1\" - caused INVALID_REQUEST error",
+      "root_cause": "The skill contract schema enforces strict version format that does not match common semantic versioning patterns",
+      "affected_component": "E:/ai/LEE-Lite-skill-first/skills/l3/ll-test-exec-web-e2e/ll.contract.yaml",
+      "suggested_fix": "Accept both formats (1.0.0 and v1) with normalization to canonical format; add clear error message showing expected format",
+      "tags": ["schema-validation", "version-format", "api-contract"]
+    },
+    {
+      "issue_id": "ISS-002",
+      "title": "field naming inconsistency",
+      "severity": "CRITICAL",
+      "category": "contract_schema",
+      "symptom": "Request used \"test_set_refs\" (plural) but skill expected \"test_set_ref\" (singular) - caused missing field error",
+      "root_cause": "Schema inconsistency between documentation and implementation; unclear naming conventions",
+      "affected_component": "E:/ai/LEE-Lite-skill-first/skills/l3/ll-test-exec-web-e2e/input/schema.json",
+      "suggested_fix": "Accept both singular and plural forms with deprecation warning for plural; update schema to be more forgiving",
+      "tags": ["schema-validation", "field-naming", "api-contract"]
+    },
+    {
+      "issue_id": "ISS-003",
+      "title": "path resolution issues",
+      "severity": "HIGH",
+      "category": "path_handling",
+      "symptom": "Relative paths not resolved - skill expected absolute paths for test_set_ref and test_environment_ref",
+      "root_cause": "Path resolution logic does not normalize relative paths against repo_root or workspace_root",
+      "affected_component": "E:/ai/LEE-Lite-skill-first/skills/l3/ll-test-exec-web-e2e/scripts/workflow_runtime.py",
+      "suggested_fix": "Add path normalization that resolves relative paths against repo_root; provide clear error showing searched paths",
+      "tags": ["path-resolution", "relative-paths", "workspace-root"]
+    },
+    {
+      "issue_id": "ISS-004",
+      "title": "workspace root confusion",
+      "severity": "HIGH",
+      "category": "workspace_configuration",
+      "symptom": "Skill execution in worktree vs E: drive workspace caused path mismatches",
+      "root_cause": "No clear detection or documentation of which workspace root should be used; git worktrees create different path contexts",
+      "affected_component": "E:/ai/LEE-Lite-skill-first/skills/l3/ll-test-exec-web-e2e/agents/executor.md",
+      "suggested_fix": "Add workspace root detection logic; document expected workspace root in skill README; handle git worktree scenarios",
+      "tags": ["workspace-root", "git-worktree", "path-context"]
+    },
+    {
+      "issue_id": "ISS-005",
+      "title": "Playwright dependency failure",
+      "severity": "MEDIUM",
+      "category": "dependency_management",
+      "symptom": "npm test:e2e script not found - required creating fake npm/playwright scripts",
+      "root_cause": "No dependency validation or setup guidance before attempting test execution",
+      "affected_component": "E:/ai/LEE-Lite-skill-first/skills/l3/ll-test-exec-web-e2e/scripts/workflow_runtime.py",
+      "suggested_fix": "Add pre-flight dependency checks with helpful setup instructions; fail fast with clear guidance if dependencies missing",
+      "tags": ["dependencies", "playwright", "npm", "setup-validation"]
+    },
+    {
+      "issue_id": "ISS-006",
+      "title": "coverage unavailable",
+      "severity": "MEDIUM",
+      "category": "simulation_mode",
+      "symptom": "E2E execution completed but coverage data unavailable (simulation mode)",
+      "root_cause": "Simulation mode bypasses actual test execution but does not produce coverage artifacts that downstream expects",
+      "affected_component": "E:/ai/LEE-Lite-skill-first/skills/l3/ll-test-exec-web-e2e/ll.contract.yaml",
+      "suggested_fix": "When in simulation mode, produce coverage_report.json with simulated flag; document coverage limitations",
+      "tags": ["simulation-mode", "coverage-reporting", "test-execution"]
+    },
+    {
+      "issue_id": "ISS-007",
+      "title": "multiple retry attempts",
+      "severity": "MEDIUM",
+      "category": "error_handling",
+      "symptom": "Required 5+ iterations to get skill execution working",
+      "root_cause": "Errors discovered sequentially rather than in a single validation pass; each fix revealed a new error",
+      "affected_component": "E:/ai/LEE-Lite-skill-first/skills/l3/ll-test-exec-web-e2e/scripts/workflow_runtime.py",
+      "suggested_fix": "Implement comprehensive pre-validation that collects ALL errors before failing; return complete error list",
+      "tags": ["error-handling", "validation", "developer-experience"]
+    },
+    {
+      "issue_id": "ISS-008",
+      "title": "error message gaps",
+      "severity": "LOW",
+      "category": "error_handling",
+      "symptom": "Some error messages did not clearly indicate root cause (e.g., yaml file not found for path issues)",
+      "root_cause": "Error messages report symptoms rather than root causes; missing context about what was searched and where",
+      "affected_component": "E:/ai/LEE-Lite-skill-first/skills/l3/ll-test-exec-web-e2e/scripts/workflow_runtime.py",
+      "suggested_fix": "Improve error messages to include context, searched paths, and suggestions; show what was expected vs what was found",
+      "tags": ["error-messages", "developer-experience", "debugging"]
+    }
+  ],
+  "batch_remediation_tags": [
+    "skill-governance",
+    "ll-test-exec-web-e2e",
+    "path-resolution",
+    "error-handling",
+    "contract-schema",
+    "dependency-validation",
+    "simulation-mode",
+    "e2e-testing"
+  ],
+  "remediation_priority_order": [
+    "ISS-001",
+    "ISS-002",
+    "ISS-003",
+    "ISS-004",
+    "ISS-005",
+    "ISS-006",
+    "ISS-007",
+    "ISS-008"
+  ],
+  "estimated_remediation_effort": {
+    "ISS-001": "1-2 hours",
+    "ISS-002": "1-2 hours",
+    "ISS-003": "2-4 hours",
+    "ISS-004": "2-4 hours",
+    "ISS-005": "1-2 hours",
+    "ISS-006": "1-2 hours",
+    "ISS-007": "2-4 hours",
+    "ISS-008": "2-4 hours",
+    "total": "12-24 hours"
+  }
+}

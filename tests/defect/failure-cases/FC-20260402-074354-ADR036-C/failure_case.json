@@ -1,0 +1,28 @@
+{
+  "artifact_type": "failure_case",
+  "schema_version": "0.1.0",
+  "status": "open",
+  "failure_id": "FC-20260402-074354-ADR036-C",
+  "skill_id": "governance.adr036-chain-materialization",
+  "sku": "ssot_materialization_chain",
+  "run_id": "ADR036-20260402-GFC-002",
+  "artifact_id": "ADR036-CHAIN-UI-SCOPE-CLARITY",
+  "failure_scope": "field_cluster",
+  "detected_stage": "human_final_review",
+  "detected_by": "codex",
+  "severity": "high",
+  "triage_level": "P1",
+  "symptom_summary": "ADR-036 chain treated UI as default formal layer despite skill/workflow scope",
+  "problem_description": "In ADR-036 materialization, UI was implied as an independent SSOT layer even though the chain is a skill/workflow requirement. The run over-expanded by executing feat-to-ui as a default downstream leg, the release index retained UI artifact references that may mislead consumers, and IMPL documents inherited `UI missing_authority` status where `not_applicable` is the correct interpretation.",
+  "failed_artifact_ref": "ssot/release/REL-ADR036-IMPLEMENTATION-READINESS-CHAIN__materialization-index.json",
+  "upstream_refs": [
+    "ssot/epic/EPIC-IMPL-IMPLEMENTATION-READINESS__IMPL-实施前文档压力测试与-Implementation-Readiness-统一能力.md",
+    "ssot/feat/FEAT-SRC-ADR036-RAW2SRC-20260402-R9-001__IMPL-主测试对象-intake-与-authority-绑定流.md",
+    "ssot/tech/TECH-SRC-ADR036-RAW2SRC-20260402-R9-001__IMPL-主测试对象-intake-与-authority-绑定流.md",
+    "ssot/impl/IMPL-SRC-ADR036-RAW2SRC-20260402-R9-001__IMPL-主测试对象-intake-与-authority-绑定流.md"
+  ],
+  "evidence_refs": [
+    "E:\\ai\\LEE-Lite-skill-first\\ssot\\release\\REL-ADR036-IMPLEMENTATION-READINESS-CHAIN__materialization-index.json",
+    "E:\\ai\\LEE-Lite-skill-first\\artifacts\\reports\\governance\\failure-cases\\FC-20260402-073135-ADR036-C\\failure_case.json"
+  ]
+}
