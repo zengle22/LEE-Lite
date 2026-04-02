@@ -106,8 +106,9 @@ def discover_testset_binding(repo_root: Path, feat_ref: str) -> dict[str, Any] |
         if not isinstance(payload, dict):
             continue
         parent_id = str(payload.get("parent_id") or "").strip()
+        payload_feat_ref = str(payload.get("feat_ref") or "").strip()
         feature_ids = _string_list((payload.get("traceability") or {}).get("feature_ids"))
-        if parent_id != target and target not in feature_ids:
+        if parent_id != target and payload_feat_ref != target and target not in feature_ids:
             continue
         ref = str(payload.get("id") or candidate.stem).strip()
         if not ref:
@@ -128,6 +129,8 @@ def discover_testset_binding(repo_root: Path, feat_ref: str) -> dict[str, Any] |
         is_authoritative = not provisional_reasons and status in {"active", "accepted", "frozen"}
         score = 0
         if parent_id == target:
+            score += 4
+        if payload_feat_ref == target:
             score += 4
         if target in feature_ids:
             score += 2
@@ -154,12 +157,50 @@ def discover_testset_binding(repo_root: Path, feat_ref: str) -> dict[str, Any] |
     return matches[0][1]
 
 
+def discover_ui_binding(repo_root: Path, feat_ref: str) -> dict[str, Any] | None:
+    ui_root = repo_root / "ssot" / "ui"
+    if not ui_root.exists():
+        return None
+
+    matches: list[tuple[int, dict[str, Any]]] = []
+    target = feat_ref.strip()
+    for candidate in sorted(ui_root.rglob("*.md")):
+        frontmatter, _ = parse_markdown_frontmatter(candidate.read_text(encoding="utf-8"))
+        if not isinstance(frontmatter, dict):
+            continue
+        payload_feat_ref = str(frontmatter.get("feat_ref") or "").strip()
+        payload_ui_ref = str(frontmatter.get("ui_ref") or frontmatter.get("id") or "").strip()
+        if payload_feat_ref != target or not payload_ui_ref:
+            continue
+        status = str(frontmatter.get("status") or "").strip().lower()
+        score = 4 if status in {"accepted", "active", "frozen"} else 1
+        matches.append(
+            (
+                score,
+                {
+                    "ref": payload_ui_ref,
+                    "path": candidate,
+                    "status": status,
+                    "is_authoritative": status in {"accepted", "active", "frozen"},
+                },
+            )
+        )
+    if not matches:
+        return None
+    matches.sort(key=lambda item: (-item[0], str(item[1]["path"])))
+    return matches[0][1]
+
+
 def enrich_feature_execution_metadata(repo_root: Path, feature: dict[str, Any]) -> dict[str, Any]:
     enriched = dict(feature)
     feat_ref = str(enriched.get("feat_ref") or "").strip()
     if not feat_ref:
         return enriched
 
+    ui_binding = discover_ui_binding(repo_root, feat_ref)
+    if ui_binding and not str(enriched.get("ui_ref") or "").strip():
+        enriched["ui_ref"] = ui_binding["ref"]
+        enriched["source_refs"] = unique_strings(ensure_list(enriched.get("source_refs")) + [ui_binding["ref"]])
     testset_binding = discover_testset_binding(repo_root, feat_ref)
     if testset_binding and not str(enriched.get("testset_ref") or "").strip():
         enriched["testset_ref"] = testset_binding["ref"]

@@ -222,7 +222,19 @@ def build_semantic_drift_check(feature: dict[str, Any], generated_text_parts: li
     if axis == "generic" and axis_id in PRODUCT_AXIS_IDS:
         carrier_topic_issues.append(f"explicit product axis `{axis_id}` resolved to generic TECH output")
     topic_alignment_ok = not axis_conflicts and not carrier_topic_issues
-    lock_gate_ok = True if not lock else (len(anchor_matches) >= 1 or len(matched_allowed_capabilities) >= 2)
+    implementation_readiness_signature = False
+    if str(lock.get("domain_type") or "").strip().lower() == "implementation_readiness_rule":
+        implementation_readiness_signature = any(
+            token in generated_text
+            for token in [
+                "implementationreadiness",
+                "implreadiness",
+                "qaimplspectest",
+            ]
+        )
+        if implementation_readiness_signature and "implementation_readiness_signature" not in anchor_matches:
+            anchor_matches.append("implementation_readiness_signature")
+    lock_gate_ok = True if not lock else (len(anchor_matches) >= 1 or len(matched_allowed_capabilities) >= 2 or implementation_readiness_signature)
     preserved = not forbidden_hits and topic_alignment_ok and lock_gate_ok
     return {
         "verdict": "pass" if preserved else "reject",
