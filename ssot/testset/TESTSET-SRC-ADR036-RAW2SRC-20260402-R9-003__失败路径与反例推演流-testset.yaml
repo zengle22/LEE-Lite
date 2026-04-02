@@ -1,0 +1,451 @@
+id: TESTSET-SRC-ADR036-RAW2SRC-20260402-R9-003
+ssot_type: TESTSET
+workflow_key: qa.feat-to-testset
+template_id: template.qa.test_set_production
+template_workflow_key: workflow.qa.test_set_production_l3
+test_set_id: TS-SRC-ADR036-RAW2SRC-20260402-R9-003
+feat_ref: FEAT-SRC-ADR036-RAW2SRC-20260402-R9-003
+epic_ref: EPIC-IMPL-IMPLEMENTATION-READINESS
+src_ref: SRC-ADR036-RAW2SRC-20260402-R9
+title: 失败路径与反例推演流 Test Set
+description: 失败路径与反例推演流 governed QA candidate package
+derived_slug: u5931-u8d25-u8def-u5f84-u4e0e-u53cd-u4f8b-u63a8-u6f14-u6d41
+coverage_scope:
+- 非法输入、部分失败、恢复动作、迁移兼容、counterexample family coverage。
+- 冻结 失败路径与反例推演流 这一独立产品行为切片，并把它保持在产品层边界内。
+- 该切片继承 failure_path_simulation、counterexample_coverage 的统一约束，但不把 capability axis
+  直接下沉成实现任务。
+- 对外交付 counterexample coverage result，供下游能力直接继承。
+- 完成态：高风险维度至少命中一个反例场景，且恢复动作或阻断理由明确。
+recommended_coverage_scope_name:
+- 失败路径与反例推演流 coverage
+feature_owned_code_paths: []
+coverage_goal: {}
+branch_families: []
+expansion_hints: []
+qualification_expectation: ''
+functional_areas:
+- key: u5931-u8d25-u8def-u5f84-u4e0e-u53cd-u4f8b-u63a8-u6f14-u6d41
+  kind: functional_surface
+  description: 失败路径与反例推演流 的功能覆盖主链。
+  related_entities:
+  - feat-src-adr036-raw2src-20260402-r9-003
+  related_commands:
+  - feature.execute
+  acceptance_refs: []
+  case_families: []
+- key: u5931-u8d25-u8def-u5f84-u4e0e-u53cd-u4f8b-u63a8-u6f14-u6d41-feat-src-adr036-raw2src-20260402-r9-003-ac-01
+  kind: boundary_conditions
+  description: 失败路径与反例推演流 happy path reaches the declared completed state
+  related_entities:
+  - feat-src-adr036-raw2src-20260402-r9-003
+  - FEAT-SRC-ADR036-RAW2SRC-20260402-R9-003
+  - 失败路径与反例推演流
+  related_commands:
+  - feature.execute
+  - 用户或系统沿着 failure-path simulation summary 完成该切片要求的关键步骤
+  acceptance_refs:
+  - FEAT-SRC-ADR036-RAW2SRC-20260402-R9-003-AC-01
+  case_families:
+  - boundary_conditions
+- key: u5931-u8d25-u8def-u5f84-u4e0e-u53cd-u4f8b-u63a8-u6f14-u6d41-feat-src-adr036-raw2src-20260402-r9-003-ac-02
+  kind: boundary_conditions
+  description: 失败路径与反例推演流 keeps its declared product boundary
+  related_entities:
+  - feat-src-adr036-raw2src-20260402-r9-003
+  - FEAT-SRC-ADR036-RAW2SRC-20260402-R9-003
+  - 失败路径与反例推演流
+  related_commands:
+  - feature.execute
+  - 该 FEAT 的业务边界被审查
+  acceptance_refs:
+  - FEAT-SRC-ADR036-RAW2SRC-20260402-R9-003-AC-02
+  case_families:
+  - boundary_conditions
+- key: u5931-u8d25-u8def-u5f84-u4e0e-u53cd-u4f8b-u63a8-u6f14-u6d41-feat-src-adr036-raw2src-20260402-r9-003-ac-03
+  kind: boundary_conditions
+  description: 失败路径与反例推演流 hands downstream one authoritative product deliverable
+  related_entities:
+  - feat-src-adr036-raw2src-20260402-r9-003
+  - FEAT-SRC-ADR036-RAW2SRC-20260402-R9-003
+  - 失败路径与反例推演流
+  related_commands:
+  - feature.execute
+  - 失败路径与反例推演流 被作为 authoritative 输入消费
+  acceptance_refs:
+  - FEAT-SRC-ADR036-RAW2SRC-20260402-R9-003-AC-03
+  case_families:
+  - boundary_conditions
+logic_dimensions:
+  universal:
+  - happy_path
+  - boundary_conditions
+  - invalid_input
+  stateful:
+  - valid_transition
+  - invalid_transition
+  control_surface:
+  - authorized_action
+  - rejected_action
+  - read_only_guard
+state_model:
+  entities: &id001
+  - entity: feature_flow
+    functional_area_key: u5931-u8d25-u8def-u5f84-u4e0e-u53cd-u4f8b-u63a8-u6f14-u6d41
+    states:
+    - ready
+    - blocked
+    - active
+    - failed
+    valid_transitions:
+    - - ready
+      - active
+    - - ready
+      - blocked
+    - - blocked
+      - ready
+    - - active
+      - failed
+    guarded_actions:
+    - command: feature.execute
+      allowed_in:
+      - ready
+      - blocked
+      rejected_in:
+      - failed
+coverage_matrix:
+  acceptances:
+  - acceptance_ref: FEAT-SRC-ADR036-RAW2SRC-20260402-R9-003-AC-01
+    acceptance_scenario: 失败路径与反例推演流 happy path reaches the declared completed state
+    functional_area_keys:
+    - u5931-u8d25-u8def-u5f84-u4e0e-u53cd-u4f8b-u63a8-u6f14-u6d41-feat-src-adr036-raw2src-20260402-r9-003-ac-01
+    unit_refs:
+    - TS-SRC-ADR036-RAW2SRC-20260402-R9-003-U01
+    case_families:
+    - negative_path
+    coverage_status: covered
+  - acceptance_ref: FEAT-SRC-ADR036-RAW2SRC-20260402-R9-003-AC-02
+    acceptance_scenario: 失败路径与反例推演流 keeps its declared product boundary
+    functional_area_keys:
+    - u5931-u8d25-u8def-u5f84-u4e0e-u53cd-u4f8b-u63a8-u6f14-u6d41-feat-src-adr036-raw2src-20260402-r9-003-ac-02
+    unit_refs:
+    - TS-SRC-ADR036-RAW2SRC-20260402-R9-003-U02
+    case_families:
+    - boundary_conditions
+    coverage_status: covered
+  - acceptance_ref: FEAT-SRC-ADR036-RAW2SRC-20260402-R9-003-AC-03
+    acceptance_scenario: 失败路径与反例推演流 hands downstream one authoritative product deliverable
+    functional_area_keys:
+    - u5931-u8d25-u8def-u5f84-u4e0e-u53cd-u4f8b-u63a8-u6f14-u6d41-feat-src-adr036-raw2src-20260402-r9-003-ac-03
+    unit_refs:
+    - TS-SRC-ADR036-RAW2SRC-20260402-R9-003-U03
+    case_families:
+    - boundary_conditions
+    coverage_status: covered
+  functional_areas:
+  - key: u5931-u8d25-u8def-u5f84-u4e0e-u53cd-u4f8b-u63a8-u6f14-u6d41
+    kind: functional_surface
+    description: 失败路径与反例推演流 的功能覆盖主链。
+    acceptance_refs: []
+    unit_refs: []
+    case_families: []
+  - key: u5931-u8d25-u8def-u5f84-u4e0e-u53cd-u4f8b-u63a8-u6f14-u6d41-feat-src-adr036-raw2src-20260402-r9-003-ac-01
+    kind: boundary_conditions
+    description: 失败路径与反例推演流 happy path reaches the declared completed state
+    acceptance_refs:
+    - FEAT-SRC-ADR036-RAW2SRC-20260402-R9-003-AC-01
+    unit_refs:
+    - TS-SRC-ADR036-RAW2SRC-20260402-R9-003-U01
+    case_families:
+    - boundary_conditions
+    - negative_path
+  - key: u5931-u8d25-u8def-u5f84-u4e0e-u53cd-u4f8b-u63a8-u6f14-u6d41-feat-src-adr036-raw2src-20260402-r9-003-ac-02
+    kind: boundary_conditions
+    description: 失败路径与反例推演流 keeps its declared product boundary
+    acceptance_refs:
+    - FEAT-SRC-ADR036-RAW2SRC-20260402-R9-003-AC-02
+    unit_refs:
+    - TS-SRC-ADR036-RAW2SRC-20260402-R9-003-U02
+    case_families:
+    - boundary_conditions
+  - key: u5931-u8d25-u8def-u5f84-u4e0e-u53cd-u4f8b-u63a8-u6f14-u6d41-feat-src-adr036-raw2src-20260402-r9-003-ac-03
+    kind: boundary_conditions
+    description: 失败路径与反例推演流 hands downstream one authoritative product deliverable
+    acceptance_refs:
+    - FEAT-SRC-ADR036-RAW2SRC-20260402-R9-003-AC-03
+    unit_refs:
+    - TS-SRC-ADR036-RAW2SRC-20260402-R9-003-U03
+    case_families:
+    - boundary_conditions
+  risks: []
+  state_entities: *id001
+risk_focus:
+- 要求 every test unit 都能回链到 FEAT acceptance、governing ADR 与 expected downstream evidence。
+preconditions:
+- selected FEAT 及其上游 source refs 可被稳定解析。
+environment_assumptions:
+- 需要可解析 selected FEAT 所依赖的集成环境与上游 artifact lineage。
+- 需要能读取并追踪 FEAT、EPIC、SRC 与 governing ADR 引用。
+- 需要保留 TESTSET candidate、review 与 handoff 所要求的最小审计链。
+required_environment_inputs:
+  environment:
+  - 可运行 selected FEAT 的集成环境
+  - 可解析 source_refs 的受治理 workspace 上下文
+  data:
+  - 覆盖 FEAT acceptance checks 所需的最小测试数据或 fixtures
+  - 可重建 analysis/strategy trace 的输入样本
+  services:
+  - selected FEAT 所依赖的集成服务或协作 consumer
+  access:
+  - 读取 FEAT candidate / freeze lineage 所需权限
+  - 执行 QA evidence 采集与落盘所需权限
+  feature_flags:
+  - selected FEAT 涉及的 gated rollout、cutover 或 guarded branch 开关
+  ui_or_integration_context:
+  - 驱动 FEAT acceptance checks 的 CLI 命令、接口调用或 integration context
+test_layers: &id002
+- integration
+test_units:
+- unit_ref: TS-SRC-ADR036-RAW2SRC-20260402-R9-003-U01
+  title: 失败路径与反例推演流 happy path reaches the declared completed state
+  priority: P0
+  input_preconditions:
+  - 失败路径与反例推演流 对应的业务场景已经被触发
+  trigger_action: 用户或系统沿着 failure-path simulation summary 完成该切片要求的关键步骤
+  observation_points:
+  - 高风险维度至少命中一个反例场景，且恢复动作或阻断理由明确。
+  - 记录与主对象、handoff、gate subject 对应的可观察结果。
+  pass_conditions:
+  - 高风险维度至少命中一个反例场景，且恢复动作或阻断理由明确。
+  - 输出与 selected FEAT 保持单一边界，不引入并行真相。
+  fail_conditions:
+  - 缺少 acceptance 对应 evidence。
+  - 观测结果与 FEAT acceptance 或主对象边界不一致。
+  required_evidence:
+  - FEAT-SRC-ADR036-RAW2SRC-20260402-R9-003-AC-01 对应的执行结果证据
+  - 失败时的最小可审计上下文
+  suggested_layers: *id002
+  supporting_refs:
+  - FEAT-SRC-ADR036-RAW2SRC-20260402-R9-003
+  - 失败路径与反例推演流
+  - failure-path simulation summary
+  - completed_state
+  acceptance_ref: FEAT-SRC-ADR036-RAW2SRC-20260402-R9-003-AC-01
+  functional_area_key: u5931-u8d25-u8def-u5f84-u4e0e-u53cd-u4f8b-u63a8-u6f14-u6d41-feat-src-adr036-raw2src-20260402-r9-003-ac-01
+  functional_area_keys:
+  - u5931-u8d25-u8def-u5f84-u4e0e-u53cd-u4f8b-u63a8-u6f14-u6d41-feat-src-adr036-raw2src-20260402-r9-003-ac-01
+  case_family: boundary_conditions
+  logic_dimensions:
+    universal:
+    - happy_path
+    - boundary_conditions
+    - invalid_input
+    stateful:
+    - valid_transition
+    - invalid_transition
+    - boundary_transition
+    control_surface:
+    - authorized_action
+    - rejected_action
+    - read_only_guard
+  acceptance_refs:
+  - FEAT-SRC-ADR036-RAW2SRC-20260402-R9-003-AC-01
+  risk_refs:
+  - RISK-01
+  boundary_checks:
+  - 缺少 acceptance 对应 evidence。
+  - 观测结果与 FEAT acceptance 或主对象边界不一致。
+- unit_ref: TS-SRC-ADR036-RAW2SRC-20260402-R9-003-U02
+  title: 失败路径与反例推演流 keeps its declared product boundary
+  priority: P0
+  input_preconditions:
+  - 相邻 FEAT 或下游实现尝试把额外能力并入当前切片
+  trigger_action: 该 FEAT 的业务边界被审查
+  observation_points:
+  - 该 FEAT 只覆盖“非法输入、部分失败、恢复动作、迁移兼容、counterexample family coverage。”及其直接完成结果，不吸收相邻产品切片、实现任务或测试执行细节。
+  - 记录与主对象、handoff、gate subject 对应的可观察结果。
+  pass_conditions:
+  - 该 FEAT 只覆盖“非法输入、部分失败、恢复动作、迁移兼容、counterexample family coverage。”及其直接完成结果，不吸收相邻产品切片、实现任务或测试执行细节。
+  - 输出与 selected FEAT 保持单一边界，不引入并行真相。
+  fail_conditions:
+  - 缺少 acceptance 对应 evidence。
+  - 观测结果与 FEAT acceptance 或主对象边界不一致。
+  required_evidence:
+  - FEAT-SRC-ADR036-RAW2SRC-20260402-R9-003-AC-02 对应的执行结果证据
+  - 失败时的最小可审计上下文
+  suggested_layers: *id002
+  supporting_refs:
+  - FEAT-SRC-ADR036-RAW2SRC-20260402-R9-003
+  - 失败路径与反例推演流
+  - scope boundary
+  - 非法输入、部分失败、恢复动作、迁移兼容、counterexample family coverage。
+  acceptance_ref: FEAT-SRC-ADR036-RAW2SRC-20260402-R9-003-AC-02
+  functional_area_key: u5931-u8d25-u8def-u5f84-u4e0e-u53cd-u4f8b-u63a8-u6f14-u6d41-feat-src-adr036-raw2src-20260402-r9-003-ac-02
+  functional_area_keys:
+  - u5931-u8d25-u8def-u5f84-u4e0e-u53cd-u4f8b-u63a8-u6f14-u6d41-feat-src-adr036-raw2src-20260402-r9-003-ac-02
+  case_family: boundary_conditions
+  logic_dimensions:
+    universal:
+    - happy_path
+    - boundary_conditions
+    - invalid_input
+    stateful:
+    - valid_transition
+    - invalid_transition
+    - boundary_transition
+    control_surface:
+    - authorized_action
+    - rejected_action
+    - read_only_guard
+  acceptance_refs:
+  - FEAT-SRC-ADR036-RAW2SRC-20260402-R9-003-AC-02
+  risk_refs:
+  - RISK-01
+  boundary_checks:
+  - 缺少 acceptance 对应 evidence。
+  - 观测结果与 FEAT acceptance 或主对象边界不一致。
+- unit_ref: TS-SRC-ADR036-RAW2SRC-20260402-R9-003-U03
+  title: 失败路径与反例推演流 hands downstream one authoritative product deliverable
+  priority: P0
+  input_preconditions:
+  - 下游 TECH 或 TESTSET 需要继承该 FEAT 的产品语义
+  trigger_action: 失败路径与反例推演流 被作为 authoritative 输入消费
+  observation_points:
+  - 下游必须围绕 counterexample coverage result 继承该 FEAT 的产品语义，而不是重新猜测完成条件、补写边界或改写验收口径。
+  - 记录与主对象、handoff、gate subject 对应的可观察结果。
+  pass_conditions:
+  - 下游必须围绕 counterexample coverage result 继承该 FEAT 的产品语义，而不是重新猜测完成条件、补写边界或改写验收口径。
+  - 输出与 selected FEAT 保持单一边界，不引入并行真相。
+  fail_conditions:
+  - 缺少 acceptance 对应 evidence。
+  - 观测结果与 FEAT acceptance 或主对象边界不一致。
+  required_evidence:
+  - FEAT-SRC-ADR036-RAW2SRC-20260402-R9-003-AC-03 对应的执行结果证据
+  - 失败时的最小可审计上下文
+  suggested_layers: *id002
+  supporting_refs:
+  - FEAT-SRC-ADR036-RAW2SRC-20260402-R9-003
+  - 失败路径与反例推演流
+  - counterexample coverage result
+  - downstream inheritance
+  acceptance_ref: FEAT-SRC-ADR036-RAW2SRC-20260402-R9-003-AC-03
+  functional_area_key: u5931-u8d25-u8def-u5f84-u4e0e-u53cd-u4f8b-u63a8-u6f14-u6d41-feat-src-adr036-raw2src-20260402-r9-003-ac-03
+  functional_area_keys:
+  - u5931-u8d25-u8def-u5f84-u4e0e-u53cd-u4f8b-u63a8-u6f14-u6d41-feat-src-adr036-raw2src-20260402-r9-003-ac-03
+  case_family: boundary_conditions
+  logic_dimensions:
+    universal:
+    - happy_path
+    - boundary_conditions
+    - invalid_input
+    stateful:
+    - valid_transition
+    - invalid_transition
+    - boundary_transition
+    control_surface:
+    - authorized_action
+    - rejected_action
+    - read_only_guard
+  acceptance_refs:
+  - FEAT-SRC-ADR036-RAW2SRC-20260402-R9-003-AC-03
+  risk_refs:
+  - RISK-01
+  boundary_checks:
+  - 缺少 acceptance 对应 evidence。
+  - 观测结果与 FEAT acceptance 或主对象边界不一致。
+coverage_exclusions:
+- 不覆盖 selected FEAT 之外的相邻 FEAT 语义。
+- 不把本 TESTSET 扩展为 TASK、TECH 或 runner-level 实现细节。
+pass_criteria:
+- 每条 acceptance check 都有至少一个可执行测试单元映射。
+- TESTSET 不越界覆盖相邻 FEAT 或新需求。
+- candidate package 在外置 approval 前保持 machine-readable traceability 与 gate subject
+  identity。
+evidence_required:
+- analysis 与 strategy 形成过程的 derivation trace evidence
+- supervisor 对 TESTSET 与 traceability 的 review evidence
+- candidate package 的 machine-readable gate subject records
+acceptance_traceability:
+- acceptance_ref: FEAT-SRC-ADR036-RAW2SRC-20260402-R9-003-AC-01
+  acceptance_scenario: 失败路径与反例推演流 happy path reaches the declared completed state
+  given: 失败路径与反例推演流 对应的业务场景已经被触发
+  when: 用户或系统沿着 failure-path simulation summary 完成该切片要求的关键步骤
+  then: 高风险维度至少命中一个反例场景，且恢复动作或阻断理由明确。
+  unit_refs:
+  - TS-SRC-ADR036-RAW2SRC-20260402-R9-003-U01
+  functional_area_keys:
+  - u5931-u8d25-u8def-u5f84-u4e0e-u53cd-u4f8b-u63a8-u6f14-u6d41-feat-src-adr036-raw2src-20260402-r9-003-ac-01
+  case_family: negative_path
+  risk_refs:
+  - RISK-01
+  coverage_status: covered
+  coverage_notes: Acceptance is explicitly mapped to executable minimum coverage units.
+- acceptance_ref: FEAT-SRC-ADR036-RAW2SRC-20260402-R9-003-AC-02
+  acceptance_scenario: 失败路径与反例推演流 keeps its declared product boundary
+  given: 相邻 FEAT 或下游实现尝试把额外能力并入当前切片
+  when: 该 FEAT 的业务边界被审查
+  then: 该 FEAT 只覆盖“非法输入、部分失败、恢复动作、迁移兼容、counterexample family coverage。”及其直接完成结果，不吸收相邻产品切片、实现任务或测试执行细节。
+  unit_refs:
+  - TS-SRC-ADR036-RAW2SRC-20260402-R9-003-U02
+  functional_area_keys:
+  - u5931-u8d25-u8def-u5f84-u4e0e-u53cd-u4f8b-u63a8-u6f14-u6d41-feat-src-adr036-raw2src-20260402-r9-003-ac-02
+  case_family: boundary_conditions
+  risk_refs:
+  - RISK-01
+  coverage_status: covered
+  coverage_notes: Acceptance is explicitly mapped to executable minimum coverage units.
+- acceptance_ref: FEAT-SRC-ADR036-RAW2SRC-20260402-R9-003-AC-03
+  acceptance_scenario: 失败路径与反例推演流 hands downstream one authoritative product deliverable
+  given: 下游 TECH 或 TESTSET 需要继承该 FEAT 的产品语义
+  when: 失败路径与反例推演流 被作为 authoritative 输入消费
+  then: 下游必须围绕 counterexample coverage result 继承该 FEAT 的产品语义，而不是重新猜测完成条件、补写边界或改写验收口径。
+  unit_refs:
+  - TS-SRC-ADR036-RAW2SRC-20260402-R9-003-U03
+  functional_area_keys:
+  - u5931-u8d25-u8def-u5f84-u4e0e-u53cd-u4f8b-u63a8-u6f14-u6d41-feat-src-adr036-raw2src-20260402-r9-003-ac-03
+  case_family: boundary_conditions
+  risk_refs:
+  - RISK-01
+  coverage_status: covered
+  coverage_notes: Acceptance is explicitly mapped to executable minimum coverage units.
+source_refs:
+- product.epic-to-feat::adr036-src2epic-20260402-r4
+- FEAT-SRC-ADR036-RAW2SRC-20260402-R9-003
+- EPIC-IMPL-IMPLEMENTATION-READINESS
+- SRC-ADR036-RAW2SRC-20260402-R9
+- product.raw-to-src::adr036-raw2src-20260402-r9
+- ADR-036
+- ADR-014
+- ADR-033
+- ADR-034
+- ADR-035
+- product.src-to-epic::adr036-raw2src-20260402-r10
+governing_adrs:
+- ADR-036
+- ADR-014
+- ADR-033
+- ADR-034
+- ADR-035
+semantic_lock:
+  domain_type: implementation_readiness_rule
+  one_sentence_truth: 仅在 IMPL 进入 implementation start 前，对 IMPL 及其联动 authority 做实施前文档压力测试，并输出
+    implementation-readiness verdict；该 workflow 只升级冲突，不重写上游 truth。
+  primary_object: qa.impl-spec-test
+  lifecycle_stage: pre_implementation_gate
+  allowed_capabilities:
+  - impl_readiness_testing
+  - cross_artifact_conflict_detection
+  - counterexample_simulation
+  - score_to_verdict_decision_support
+  - repair_target_routing
+  forbidden_capabilities:
+  - new_business_truth_authoring
+  - new_design_truth_authoring
+  - external_gate_replacement
+  - code_quality_execution_testing
+  - second_layer_tech_design
+  inheritance_rule: IMPL is the main tested object; upstream authority remains authoritative
+    when conflicts exist.
+status: approved
+formalized_from: artifacts/feat-to-testset/adr036-src2epic-20260402-r4--feat-src-adr036-raw2src-20260402-r9-003/test-set.yaml
+gate_decision_ref: artifacts/active/gates/decisions/adr036-chain-manual-approval-20260402.json
