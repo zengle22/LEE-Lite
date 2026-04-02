@@ -1,0 +1,83 @@
+skill_id: ll-governance-failure-capture
+skill_type: workflow
+version: 0.1.0
+workflow_key: governance.failure-capture
+
+authority:
+  governing_adrs:
+    - "E:\\ai\\LEE-Lite-skill-first\\ssot\\adr\\ADR-037-Skill 质量控制采用双环治理与失败资产化工程流程.MD"
+    - "E:\\ai\\LEE-Lite-skill-first\\ssot\\adr\\ADR-020-标准 Skill 实现、Adapter 安装与 CLI 边界基线.MD"
+  default_output_root: tests/defect
+  package_conventions:
+    p0_p1: tests/defect/failure-cases/<failure-id>/
+    p2: tests/defect/issue-log/<issue-id>/
+  runtime_entry: python scripts/workflow_runtime.py run --input <artifact> --repo-root <repo-root>
+
+roles:
+  executor:
+    required: true
+    evidence_required: true
+    prompt_file: agents/executor.md
+  supervisor:
+    required: true
+    evidence_required: true
+    prompt_file: agents/supervisor.md
+
+runtime:
+  mode: lite_native
+  command: python scripts/workflow_runtime.py run --input <artifact> --repo-root <repo-root>
+  entry_script: scripts/workflow_runtime.py
+  produced_output_dir: tests/defect
+  required_output_artifacts:
+    - capture_manifest.json
+    - diagnosis_stub.json
+    - repair_context.json
+    - failure_case.json or issue_log.json
+
+input:
+  artifact_type: failure_capture_request
+  contract_file: input/contract.yaml
+  schema_file: input/schema.json
+  structural_validation_required: true
+  semantic_validation_required: true
+
+output:
+  artifact_type: failure_capture_package
+  contract_file: output/contract.yaml
+  schema_file: output/schema.json
+  template_file: output/template.md
+  structural_validation_required: true
+  semantic_validation_required: true
+
+validation:
+  structural:
+    - "python scripts/workflow_runtime.py validate-input --input $INPUT"
+    - "python scripts/workflow_runtime.py run --input $INPUT --repo-root $REPO_ROOT --allow-update"
+    - "python scripts/workflow_runtime.py validate-output --artifacts-dir $OUTPUT"
+    - "python scripts/workflow_runtime.py validate-package-readiness --artifacts-dir $OUTPUT"
+  semantic:
+    input_checklist: input/semantic-checklist.md
+    output_checklist: output/semantic-checklist.md
+
+evidence:
+  execution_schema: evidence/execution-evidence.schema.json
+  supervision_schema: evidence/supervision-evidence.schema.json
+  report_template: evidence/report.template.md
+
+lifecycle:
+  definition_file: ll.lifecycle.yaml
+  max_revision_rounds: 2
+
+gate:
+  freeze_requires:
+    - input_structural_pass
+    - input_semantic_pass
+    - output_structural_pass
+    - output_semantic_pass
+    - execution_evidence_present
+    - supervision_evidence_present
+  reject_when:
+    - missing_capture_fields
+    - package_scope_too_broad
+    - package_missing_required_files
+    - automatic_repair_attempted

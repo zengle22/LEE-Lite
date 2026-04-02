@@ -1,0 +1,23 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "failure_case",
+  "type": "object",
+  "required": [
+    "artifact_type",
+    "failure_id",
+    "skill_id",
+    "sku",
+    "run_id",
+    "artifact_id",
+    "failure_scope",
+    "triage_level",
+    "symptom_summary"
+  ],
+  "properties": {
+    "artifact_type": {
+      "type": "string",
+      "const": "failure_case"
+    }
+  },
+  "additionalProperties": true
+}

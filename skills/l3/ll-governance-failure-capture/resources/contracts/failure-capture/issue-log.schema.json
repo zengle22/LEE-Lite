@@ -1,0 +1,22 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "issue_log",
+  "type": "object",
+  "required": [
+    "artifact_type",
+    "issue_id",
+    "skill_id",
+    "sku",
+    "run_id",
+    "artifact_id",
+    "triage_level",
+    "symptom_summary"
+  ],
+  "properties": {
+    "artifact_type": {
+      "type": "string",
+      "const": "issue_log"
+    }
+  },
+  "additionalProperties": true
+}

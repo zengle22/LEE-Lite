@@ -1,0 +1,47 @@
+artifact_type: failure_capture_request
+schema_version: 0.1.0
+accepted_states:
+  - reported
+  - triaged
+required_fields:
+  - artifact_type
+  - schema_version
+  - status
+  - skill_id
+  - sku
+  - run_id
+  - artifact_id
+  - failure_scope
+  - detected_stage
+  - detected_by
+  - severity
+  - triage_level
+  - symptom_summary
+  - problem_description
+  - failed_artifact_ref
+  - repair_goal
+required_refs:
+  - failed_artifact_ref
+  - upstream_refs
+optional_fields:
+  - evidence_refs
+  - error_class
+  - root_cause_primary
+  - expected_detector
+  - remediation_hint
+  - suggested_edit_scope
+  - do_not_modify
+  - output_root
+  - repo_root
+structural_checks:
+  - schema
+  - triage
+  - failure_scope
+  - ref_shape
+forbidden_states:
+  - draft
+forbidden_content:
+  - full artifact replacement instructions
+  - unrestricted refactor requests
+notes:
+  - The request is for capture only. It must not ask this workflow to auto-repair the artifact.

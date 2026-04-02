@@ -1,0 +1,164 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "failure_capture_request",
+  "type": "object",
+  "required": [
+    "artifact_type",
+    "schema_version",
+    "status",
+    "skill_id",
+    "sku",
+    "run_id",
+    "artifact_id",
+    "failure_scope",
+    "detected_stage",
+    "detected_by",
+    "severity",
+    "triage_level",
+    "symptom_summary",
+    "problem_description",
+    "failed_artifact_ref",
+    "upstream_refs",
+    "repair_goal"
+  ],
+  "properties": {
+    "artifact_type": {
+      "type": "string",
+      "const": "failure_capture_request"
+    },
+    "schema_version": {
+      "type": "string",
+      "const": "0.1.0"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "reported",
+        "triaged"
+      ]
+    },
+    "skill_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "sku": {
+      "type": "string",
+      "minLength": 1
+    },
+    "run_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "artifact_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "failure_scope": {
+      "type": "string",
+      "enum": [
+        "run",
+        "artifact",
+        "field_cluster"
+      ]
+    },
+    "detected_stage": {
+      "type": "string",
+      "minLength": 1
+    },
+    "detected_by": {
+      "type": "string",
+      "minLength": 1
+    },
+    "severity": {
+      "type": "string",
+      "minLength": 1
+    },
+    "triage_level": {
+      "type": "string",
+      "enum": [
+        "P0",
+        "P1",
+        "P2"
+      ]
+    },
+    "symptom_summary": {
+      "type": "string",
+      "minLength": 1
+    },
+    "problem_description": {
+      "type": "string",
+      "minLength": 1
+    },
+    "failed_artifact_ref": {
+      "type": "string",
+      "minLength": 1
+    },
+    "upstream_refs": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "evidence_refs": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "error_class": {
+      "type": "string"
+    },
+    "root_cause_primary": {
+      "type": "string",
+      "enum": [
+        "definition_weakness",
+        "input_contamination",
+        "generation_freedom",
+        "detection_weakness",
+        "repair_fault"
+      ]
+    },
+    "expected_detector": {
+      "type": "string",
+      "enum": [
+        "schema_validator",
+        "relation_validator",
+        "semantic_review",
+        "document_test",
+        "impl_spec_testing",
+        "human_final_review"
+      ]
+    },
+    "remediation_hint": {
+      "type": "string"
+    },
+    "suggested_edit_scope": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "do_not_modify": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "repair_goal": {
+      "type": "string",
+      "minLength": 1
+    },
+    "output_root": {
+      "type": "string"
+    },
+    "repo_root": {
+      "type": "string"
+    }
+  },
+  "additionalProperties": false
+}

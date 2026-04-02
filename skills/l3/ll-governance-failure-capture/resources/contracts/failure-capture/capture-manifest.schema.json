@@ -1,0 +1,40 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "capture_manifest",
+  "type": "object",
+  "required": [
+    "artifact_type",
+    "package_kind",
+    "package_id",
+    "triage_level",
+    "files"
+  ],
+  "properties": {
+    "artifact_type": {
+      "type": "string",
+      "const": "failure_capture_package"
+    },
+    "package_kind": {
+      "type": "string",
+      "enum": [
+        "failure_case",
+        "issue_log"
+      ]
+    },
+    "package_id": {
+      "type": "string"
+    },
+    "triage_level": {
+      "type": "string",
+      "enum": [
+        "P0",
+        "P1",
+        "P2"
+      ]
+    },
+    "files": {
+      "type": "object"
+    }
+  },
+  "additionalProperties": true
+}

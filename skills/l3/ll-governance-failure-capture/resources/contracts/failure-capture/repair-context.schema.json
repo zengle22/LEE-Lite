@@ -1,0 +1,23 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "repair_context",
+  "type": "object",
+  "required": [
+    "artifact_type",
+    "repair_mode",
+    "automatic_repair_allowed",
+    "repair_goal",
+    "allowed_edit_scope"
+  ],
+  "properties": {
+    "artifact_type": {
+      "type": "string",
+      "const": "repair_context"
+    },
+    "automatic_repair_allowed": {
+      "type": "boolean",
+      "const": false
+    }
+  },
+  "additionalProperties": true
+}

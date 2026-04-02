@@ -1,0 +1,42 @@
+{
+  "artifact_type": "failure_capture_request",
+  "schema_version": "0.1.0",
+  "status": "triaged",
+  "skill_id": "ll-test-exec-web-e2e",
+  "sku": "e2e_test_executor",
+  "run_id": "src002-e2e-req-001",
+  "artifact_id": "SRC-002-E2E-EXEC-001",
+  "failure_scope": "run",
+  "detected_stage": "e2e_test_execution",
+  "detected_by": "workflow.executor",
+  "severity": "high",
+  "triage_level": "P1",
+  "symptom_summary": "SRC-002 E2E test execution workflow failed with multiple skill governance issues",
+  "problem_description": "During SRC-002 (训练计划生成与微调闭环) E2E test execution using ll-test-exec-web-e2e skill, 8 distinct workflow issues were encountered requiring 5+ retry iterations. Issues include: (1) api_version mismatch - request used '1.0.0' but skill expected 'v1' causing INVALID_REQUEST error, (2) field naming inconsistency - request used 'test_set_refs' (plural) but skill expected 'test_set_ref' (singular) causing missing field error, (3) path resolution issues - relative paths not resolved, skill expected absolute paths for test_set_ref and test_environment_ref, (4) workspace root confusion - skill execution in worktree vs E: drive workspace caused path mismatches, (5) Playwright dependency failure - npm test:e2e script not found requiring creation of fake npm/playwright scripts, (6) coverage unavailable - E2E execution completed but coverage data unavailable due to simulation mode, (7) multiple retry attempts - required 5+ iterations to get skill execution working, (8) error message gaps - some error messages didn't clearly indicate root cause (e.g., 'yaml file not found' for path issues).",
+  "failed_artifact_ref": "ssot/testset/SRC-002/TESTSET-SRC-002-006__近端训练微调能力-testset-candidate-package.yaml",
+  "upstream_refs": [
+    "ssot/src/SRC-002__智能训练计划生成模块 -2-0-mvp-最小闭环重构.md",
+    "E:/ai/LEE-Lite-skill-first/skills/l3/ll-test-exec-web-e2e/ll.contract.yaml",
+    "C:/Users/shado/AppData/Local/Temp/vibe-kanban/worktrees/2c3e-ll-product-epic/ai-marathon-coach-v2/.workflow/runs/"
+  ],
+  "evidence_refs": [
+    "C:/Users/shado/AppData/Local/Temp/vibe-kanban/worktrees/2c3e-ll-product-epic/ai-marathon-coach-v2/ssot/testset/SRC-002/TESTSET-SRC-002-006__近端训练微调能力-testset-candidate-package.yaml",
+    "C:/Users/shado/AppData/Local/Temp/vibe-kanban/worktrees/2c3e-ll-product-epic/ai-marathon-coach-v2/artifacts/test-execution/SRC-002/"
+  ],
+  "error_class": "structure_error",
+  "root_cause_primary": "definition_weakness",
+  "expected_detector": "schema_validator",
+  "remediation_hint": "Fix skill contract schema and validation to handle version format variations, accept both singular/plural field names with clear deprecation warnings, improve path resolution to handle both relative and absolute paths with clear error messages, document workspace root requirements clearly, add playwright dependency checks with helpful setup instructions, improve error messages to indicate actual root causes.",
+  "suggested_edit_scope": [
+    "E:/ai/LEE-Lite-skill-first/skills/l3/ll-test-exec-web-e2e/ll.contract.yaml",
+    "E:/ai/LEE-Lite-skill-first/skills/l3/ll-test-exec-web-e2e/input/schema.json",
+    "E:/ai/LEE-Lite-skill-first/skills/l3/ll-test-exec-web-e2e/scripts/workflow_runtime.py",
+    "E:/ai/LEE-Lite-skill-first/skills/l3/ll-test-exec-web-e2e/agents/executor.md"
+  ],
+  "do_not_modify": [
+    "ssot/testset/SRC-002/TESTSET-SRC-002-006__近端训练微调能力-testset-candidate-package.yaml"
+  ],
+  "repair_goal": "Fix contract schema validation to accept both '1.0.0' and 'v1' api_version formats with clear error messages, accept both 'test_set_ref' and 'test_set_refs' with deprecation warning, improve path resolution to normalize relative paths and provide actionable error messages, add workspace root detection and clear documentation, add playwright dependency validation with setup guidance, improve error message clarity to reveal root causes.",
+  "output_root": "E:/ai/LEE-Lite-skill-first/tests/defect",
+  "repo_root": "E:/ai/LEE-Lite-skill-first"
+}

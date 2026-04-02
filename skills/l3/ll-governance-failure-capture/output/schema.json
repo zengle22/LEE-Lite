@@ -1,0 +1,177 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "failure_capture_package_manifest",
+  "type": "object",
+  "required": [
+    "artifact_type",
+    "schema_version",
+    "status",
+    "workflow_key",
+    "package_kind",
+    "package_id",
+    "triage_level",
+    "skill_id",
+    "sku",
+    "run_id",
+    "artifact_id",
+    "failure_scope",
+    "package_dir_ref",
+    "request_ref",
+    "source_refs",
+    "files"
+  ],
+  "properties": {
+    "artifact_type": {
+      "type": "string",
+      "const": "failure_capture_package"
+    },
+    "schema_version": {
+      "type": "string",
+      "const": "0.1.0"
+    },
+    "status": {
+      "type": "string",
+      "const": "captured"
+    },
+    "workflow_key": {
+      "type": "string",
+      "const": "governance.failure-capture"
+    },
+    "package_kind": {
+      "type": "string",
+      "enum": [
+        "failure_case",
+        "issue_log"
+      ]
+    },
+    "package_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "triage_level": {
+      "type": "string",
+      "enum": [
+        "P0",
+        "P1",
+        "P2"
+      ]
+    },
+    "skill_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "sku": {
+      "type": "string",
+      "minLength": 1
+    },
+    "run_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "artifact_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "failure_scope": {
+      "type": "string",
+      "enum": [
+        "run",
+        "artifact",
+        "field_cluster"
+      ]
+    },
+    "package_dir_ref": {
+      "type": "string",
+      "minLength": 1
+    },
+    "request_ref": {
+      "type": "string",
+      "minLength": 1
+    },
+    "source_refs": {
+      "type": "array",
+      "minItems": 2,
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "evidence_refs": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "files": {
+      "type": "object",
+      "required": [
+        "capture_manifest_ref",
+        "diagnosis_stub_ref",
+        "repair_context_ref"
+      ],
+      "properties": {
+        "capture_manifest_ref": {
+          "type": "string",
+          "minLength": 1
+        },
+        "diagnosis_stub_ref": {
+          "type": "string",
+          "minLength": 1
+        },
+        "repair_context_ref": {
+          "type": "string",
+          "minLength": 1
+        },
+        "failure_case_ref": {
+          "type": "string",
+          "minLength": 1
+        },
+        "issue_log_ref": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "package_kind": {
+            "const": "failure_case"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "files": {
+            "required": [
+              "failure_case_ref"
+            ]
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "package_kind": {
+            "const": "issue_log"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "files": {
+            "required": [
+              "issue_log_ref"
+            ]
+          }
+        }
+      }
+    }
+  ],
+  "additionalProperties": false
+}

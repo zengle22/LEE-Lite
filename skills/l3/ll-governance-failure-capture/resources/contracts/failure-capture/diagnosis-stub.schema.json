@@ -1,0 +1,19 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "diagnosis_stub",
+  "type": "object",
+  "required": [
+    "artifact_type",
+    "error_class",
+    "root_cause_primary",
+    "expected_detector",
+    "remediation_hint"
+  ],
+  "properties": {
+    "artifact_type": {
+      "type": "string",
+      "const": "diagnosis_stub"
+    }
+  },
+  "additionalProperties": true
+}

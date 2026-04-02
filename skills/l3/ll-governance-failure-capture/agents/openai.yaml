@@ -1,0 +1,4 @@
+interface:
+  display_name: "LL Governance Failure Capture"
+  short_description: "Capture failures into governed packages"
+  default_prompt: "Use $ll-governance-failure-capture to capture a detected problem into a governed failure_case or issue_log package without repairing the artifact."

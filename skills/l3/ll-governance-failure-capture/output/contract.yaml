@@ -1,0 +1,42 @@
+artifact_type: failure_capture_package
+schema_version: 0.1.0
+package_kinds:
+  - failure_case
+  - issue_log
+default_output_root: tests/defect
+package_dir_conventions:
+  - tests/defect/failure-cases/<failure-id>/
+  - tests/defect/issue-log/<issue-id>/
+required_manifest_fields:
+  - artifact_type
+  - schema_version
+  - status
+  - workflow_key
+  - package_kind
+  - package_id
+  - triage_level
+  - package_dir_ref
+  - source_refs
+  - files
+required_files:
+  - capture_manifest.json
+  - diagnosis_stub.json
+  - repair_context.json
+conditional_files:
+  p0_p1:
+    - failure_case.json
+  p2:
+    - issue_log.json
+structural_checks:
+  - schema
+  - package-layout
+  - file-presence
+  - triage-route
+semantic_gate:
+  required: true
+forbidden_content:
+  - auto-repair output
+  - unrestricted edit instructions
+  - large copied upstream prose
+notes:
+  - The package is a freeze point for later hotfix and governance. It is not the hotfix itself.
