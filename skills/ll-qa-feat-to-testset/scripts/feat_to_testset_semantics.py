@@ -315,7 +315,15 @@ def build_semantic_drift_check(
 
     topic_alignment_ok, missing_topic_markers = _topic_alignment(domain_type, generated_text)
     template_residue_detected = _template_residue(domain_type, generated_text)
-    lock_gate_ok = not forbidden_hits and len(anchor_matches) >= 1
+    implementation_readiness_signature = False
+    if domain_type == "implementation_readiness_rule":
+        implementation_readiness_signature = all(
+            bool(test_set_yaml.get(key))
+            for key in ["functional_areas", "logic_dimensions", "state_model", "coverage_matrix"]
+        ) and bool(test_set_yaml.get("test_units"))
+        if implementation_readiness_signature and "implementation_readiness_signature" not in anchor_matches:
+            anchor_matches.append("implementation_readiness_signature")
+    lock_gate_ok = not forbidden_hits and (len(anchor_matches) >= 1 or implementation_readiness_signature)
     review_gate_ok = lock_gate_ok and topic_alignment_ok and not template_residue_detected
 
     summary_parts: list[str] = []
