@@ -49,6 +49,8 @@ class TechToImplContractProjectionTests(TechToImplWorkflowHarness):
             self.assertFalse(impl_bundle["package_semantics"]["domain_truth_source"])
             self.assertEqual(impl_bundle["selected_upstream_refs"]["feat_ref"], feature["feat_ref"])
             self.assertEqual(impl_bundle["selected_upstream_refs"]["tech_ref"], bundle["tech_ref"])
+            self.assertTrue(impl_bundle["authority_binding_status"])
+            self.assertIsInstance(impl_bundle["authority_gap_register"], list)
             self.assertEqual(impl_bundle["conflict_policy"]["repo_discrepancy_policy"], "explicit_discrepancy_handling_required")
             self.assertEqual(impl_bundle["freshness_status"], "fresh_on_generation")
             self.assertTrue(impl_bundle["rederive_triggers"])
@@ -80,6 +82,7 @@ class TechToImplContractProjectionTests(TechToImplWorkflowHarness):
             self.assertIn("## 10. 风险与注意事项", impl_task)
             self.assertIn("### In Scope", impl_task)
             self.assertIn("### Out of Scope", impl_task)
+            self.assertIn("### Authority Binding Status", impl_task)
             self.assertIn("### TECH Contract Snapshot", impl_task)
             self.assertIn("### ARCH Constraint Snapshot", impl_task)
             self.assertIn("### State Model Snapshot", impl_task)
@@ -147,8 +150,11 @@ class TechToImplContractProjectionTests(TechToImplWorkflowHarness):
             self.assertTrue(impl_bundle["suggested_steps"])
             self.assertEqual(impl_bundle["testset_mapping"]["testset_ref"], "TESTSET-SRC-009-002")
             self.assertEqual(impl_bundle["testset_mapping"]["mappings"][0]["mapped_to"], "TESTSET-SRC-009-002")
+            self.assertEqual(impl_bundle["testset_mapping"]["mappings"][0]["mapping_status"], "package_bound_gap")
+            self.assertEqual(impl_bundle["testset_mapping"]["mappings"][0]["mapped_test_units"], [])
             self.assertIn("UI-SRC-009-002", impl_task)
             self.assertIn("TESTSET-SRC-009-002", impl_task)
+            self.assertTrue(any(item["status"] == "provisional" for item in impl_bundle["authority_binding_status"]))
 
             validate = self.run_cmd("validate-output", "--artifacts-dir", str(artifacts_dir))
             self.assertEqual(validate.returncode, 0, validate.stderr)
@@ -223,3 +229,110 @@ class TechToImplContractProjectionTests(TechToImplWorkflowHarness):
             )
             self.assertNotEqual(result.returncode, 0)
             self.assertIn("follow_up_action", result.stdout)
+
+    def test_run_discovers_ui_and_testset_authorities_from_ssot(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            repo_root = Path(temp_dir)
+            feature = self._feature("FEAT-SRC-009-006")
+            ui_dir = repo_root / "ssot" / "ui" / "SRC-009"
+            ui_dir.mkdir(parents=True, exist_ok=True)
+            (ui_dir / "UI-FEAT-SRC-009-006__ui-spec-bundle.md").write_text(
+                "---\nid: UI-FEAT-SRC-009-006\nssot_type: UI\nui_ref: UI-FEAT-SRC-009-006\nfeat_ref: FEAT-SRC-009-006\nstatus: accepted\n---\n\n# UI\n",
+                encoding="utf-8",
+            )
+            testset_dir = repo_root / "ssot" / "testset"
+            testset_dir.mkdir(parents=True, exist_ok=True)
+            (testset_dir / "TESTSET-SRC-009-006__candidate.yaml").write_text(
+                "\n".join(
+                    [
+                        "id: TESTSET-SRC-009-006",
+                        "ssot_type: TESTSET",
+                        "test_set_id: TS-SRC-009-006",
+                        "feat_ref: FEAT-SRC-009-006",
+                        "status: accepted",
+                        "acceptance_traceability:",
+                        "  - acceptance_ref: FEAT-SRC-009-006-AC-01",
+                        "    unit_refs:",
+                        "      - TS-SRC-009-006-U01",
+                        "  - acceptance_ref: FEAT-SRC-009-006-AC-02",
+                        "    unit_refs:",
+                        "      - TS-SRC-009-006-U02",
+                        "  - acceptance_ref: FEAT-SRC-009-006-AC-03",
+                        "    unit_refs:",
+                        "      - TS-SRC-009-006-U03",
+                    ]
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+            bundle = self.make_bundle_json(feature, run_id="tech-impl-authority-discovery", arch_required=True, api_required=False)
+            input_dir = self.make_tech_package(repo_root, "tech-impl-authority-discovery", bundle)
+
+            artifacts_dir = self.run_impl_flow(repo_root, input_dir, feature["feat_ref"], bundle["tech_ref"])
+            impl_bundle = json.loads((artifacts_dir / "impl-bundle.json").read_text(encoding="utf-8"))
+            impl_task = (artifacts_dir / "impl-task.md").read_text(encoding="utf-8")
+
+            self.assertIn("ADR-034", impl_bundle["selected_upstream_refs"]["adr_refs"])
+            self.assertEqual(impl_bundle["selected_upstream_refs"]["ui_ref"], "UI-FEAT-SRC-009-006")
+            self.assertEqual(impl_bundle["selected_upstream_refs"]["testset_ref"], "TESTSET-SRC-009-006")
+            self.assertIn("UI-FEAT-SRC-009-006", impl_bundle["source_refs"])
+            self.assertIn("TESTSET-SRC-009-006", impl_bundle["source_refs"])
+            self.assertIn("ADR-034", impl_bundle["source_refs"])
+            self.assertIn("UI-FEAT-SRC-009-006", impl_task)
+            self.assertIn("TESTSET-SRC-009-006", impl_task)
+            self.assertEqual(impl_bundle["testset_mapping"]["mappings"][0]["mapping_status"], "unit_bound")
+            self.assertEqual(impl_bundle["testset_mapping"]["mappings"][0]["mapped_test_units"], ["TS-SRC-009-006-U01"])
+            self.assertEqual(impl_bundle["testset_mapping"]["mappings"][0]["mapped_to"], "TS-SRC-009-006-U01")
+            self.assertFalse(impl_bundle["authority_gap_register"])
+            self.assertTrue(all(item["status"] in {"bound", "not_selected"} for item in impl_bundle["authority_binding_status"]))
+
+            validate = self.run_cmd("validate-output", "--artifacts-dir", str(artifacts_dir))
+            self.assertEqual(validate.returncode, 0, validate.stderr)
+
+    def test_run_repo_touch_points_fail_closed_when_only_non_runtime_matches_exist(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            repo_root = Path(temp_dir)
+            feature = self._feature("FEAT-SRC-009-007")
+            (repo_root / "src" / "fe").mkdir(parents=True, exist_ok=True)
+            (repo_root / "src" / "be").mkdir(parents=True, exist_ok=True)
+            (repo_root / "src" / "fe" / "debug-profile-initial.png").write_text("fake", encoding="utf-8")
+            (repo_root / "src" / "be" / "BUG-FIX-SUMMARY-RUNNER-PROFILE.md").write_text("fake", encoding="utf-8")
+            bundle = self.make_bundle_json(feature, run_id="tech-impl-touch-filter", arch_required=True, api_required=True)
+            bundle["tech_design"]["implementation_unit_mapping"] = [
+                "`home/profile_task_card_renderer` (`new`): 首页任务卡与补全入口渲染。",
+                "`profile/profile_extension_form_units` (`new`): 扩展画像 patch 字段编组与校验。",
+                "`profile/profile_extension_patch_service` (`new`): 执行 SaveExtendedProfilePatch 增量保存。",
+                "`profile/profile_completion_updater` (`new`): 计算 completion percent 和 next_task_cards。",
+            ]
+            input_dir = self.make_tech_package(repo_root, "tech-impl-touch-filter", bundle)
+
+            artifacts_dir = self.run_impl_flow(repo_root, input_dir, feature["feat_ref"], bundle["tech_ref"])
+            impl_bundle = json.loads((artifacts_dir / "impl-bundle.json").read_text(encoding="utf-8"))
+            primary_paths = [item["primary_repo_path"] for item in impl_bundle["repo_touch_points"]]
+
+            self.assertFalse(any(path.endswith(".png") for path in primary_paths))
+            self.assertFalse(any(path.endswith(".md") for path in primary_paths))
+
+            validate = self.run_cmd("validate-output", "--artifacts-dir", str(artifacts_dir))
+            self.assertEqual(validate.returncode, 0, validate.stderr)
+
+    def test_run_emits_structured_missing_authority_status_when_ui_and_testset_absent(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            repo_root = Path(temp_dir)
+            feature = self._feature("FEAT-SRC-009-008")
+            bundle = self.make_bundle_json(feature, run_id="tech-impl-missing-authority", arch_required=False, api_required=False)
+            input_dir = self.make_tech_package(repo_root, "tech-impl-missing-authority", bundle)
+
+            artifacts_dir = self.run_impl_flow(repo_root, input_dir, feature["feat_ref"], bundle["tech_ref"])
+            impl_bundle = json.loads((artifacts_dir / "impl-bundle.json").read_text(encoding="utf-8"))
+            impl_task = (artifacts_dir / "impl-task.md").read_text(encoding="utf-8")
+
+            gap_status = {item["authority"]: item["status"] for item in impl_bundle["authority_gap_register"]}
+            self.assertEqual(gap_status["UI"], "missing")
+            self.assertEqual(gap_status["TESTSET"], "missing")
+            self.assertIn("### Authority Binding Status", impl_task)
+            self.assertIn("### Controlled Authority Gaps", impl_task)
+            self.assertIn("missing_authority", impl_task)
+
+            validate = self.run_cmd("validate-output", "--artifacts-dir", str(artifacts_dir))
+            self.assertEqual(validate.returncode, 0, validate.stderr)

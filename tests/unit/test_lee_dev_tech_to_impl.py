@@ -326,6 +326,8 @@ class TechToImplWorkflowTests(TechToImplWorkflowHarness):
             self.assertFalse(impl_bundle["workstream_assessment"]["frontend_required"])
             self.assertTrue(impl_bundle["workstream_assessment"]["backend_required"])
             self.assertTrue(impl_bundle["workstream_assessment"]["migration_required"])
+            self.assertEqual([item["acceptance_ref"] for item in impl_bundle["testset_mapping"]["mappings"]], ["AC-001", "AC-002", "AC-003"])
+            self.assertFalse(any(item["mapping_status"] == "package_bound_gap" for item in impl_bundle["testset_mapping"]["mappings"]))
 
     def test_formal_publication_feature_does_not_false_positive_frontend_or_migration(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:

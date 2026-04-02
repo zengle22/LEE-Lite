@@ -127,3 +127,46 @@ class FeatToTechExecutionMetadataTests(FeatToTechWorkflowHarness):
 
             validate = self.run_cmd("validate-output", "--artifacts-dir", str(artifacts_dir))
             self.assertEqual(validate.returncode, 0, validate.stderr)
+
+    def test_selected_feat_discovers_accepted_ui_binding(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            repo_root = Path(temp_dir)
+            feature = {
+                "feat_ref": "FEAT-SRC-001-102",
+                "title": "UI authority auto-binding",
+                "goal": "让 TECH 包在 FEAT 未显式携带 ui_ref 时自动发现 accepted UI authority。",
+                "scope": ["输出技术设计包。", "自动发现同 feat 的 UI 物料。"],
+                "constraints": ["不得静默丢失 UI authority。", "不得伪造不存在的 UI ref。"],
+                "dependencies": ["depends on frozen FEAT metadata"],
+                "acceptance_checks": [
+                    {"scenario": "accepted ui discovered", "then": "selected_feat keeps the discovered ui_ref"},
+                    {"scenario": "traceability preserved", "then": "discovered ui_ref becomes visible in source refs"},
+                    {"scenario": "ui authority preserved downstream", "then": "ui_ref survives into downstream TECH metadata"},
+                ],
+                "source_refs": ["FEAT-SRC-001-102", "EPIC-SRC-001-001", "SRC-001"],
+            }
+            ui_dir = repo_root / "ssot" / "ui" / "SRC-001"
+            ui_dir.mkdir(parents=True, exist_ok=True)
+            ui_doc = """---
+id: UI-FEAT-SRC-001-102
+ssot_type: UI
+ui_ref: UI-FEAT-SRC-001-102
+feat_ref: FEAT-SRC-001-102
+status: accepted
+---
+
+# UI Spec Bundle for FEAT-SRC-001-102
+"""
+            (ui_dir / "UI-FEAT-SRC-001-102__ui-spec-bundle.md").write_text(ui_doc, encoding="utf-8")
+
+            bundle = self.make_bundle_json(feature, run_id="feat-tech-ui-binding")
+            input_dir = self.make_feat_package(repo_root, "feat-tech-ui-binding", bundle)
+
+            artifacts_dir = self.run_tech_flow(repo_root, input_dir, feature["feat_ref"], "tech-ui-binding")
+            design = json.loads((artifacts_dir / "tech-design-bundle.json").read_text(encoding="utf-8"))
+
+            self.assertEqual(design["selected_feat"]["ui_ref"], "UI-FEAT-SRC-001-102")
+            self.assertIn("UI-FEAT-SRC-001-102", design["source_refs"])
+
+            validate = self.run_cmd("validate-output", "--artifacts-dir", str(artifacts_dir))
+            self.assertEqual(validate.returncode, 0, validate.stderr)
