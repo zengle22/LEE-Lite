@@ -21,10 +21,14 @@
     "upstream_impacts",
     "normative_items",
     "informative_items",
+    "repo_touch_points",
+    "embedded_execution_contract",
     "change_controls",
     "required_steps",
     "suggested_steps",
+    "implementation_task_breakdown",
     "acceptance_trace",
+    "acceptance_to_task_mapping",
     "testset_mapping",
     "handoff_artifacts",
     "conflict_policy",
@@ -146,6 +150,47 @@
     },
     "normative_items": { "type": "array", "minItems": 1, "items": { "type": "string" } },
     "informative_items": { "type": "array", "items": { "type": "string" } },
+    "repo_touch_points": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": ["touch_ref", "unit_path", "surface", "mode", "detail", "repo_paths", "primary_repo_path", "placement_status"],
+        "properties": {
+          "touch_ref": { "type": "string" },
+          "unit_path": { "type": "string" },
+          "surface": { "type": "string", "enum": ["frontend", "backend", "shared"] },
+          "mode": { "type": "string" },
+          "detail": { "type": "string" },
+          "repo_paths": { "type": "array", "minItems": 1, "items": { "type": "string" } },
+          "primary_repo_path": { "type": "string" },
+          "placement_status": { "type": "string", "enum": ["existing_match", "proposed_new_module"] }
+        },
+        "additionalProperties": true
+      }
+    },
+    "embedded_execution_contract": {
+      "type": "object",
+      "required": ["state_machine", "api_contracts", "ui_entry_exit", "invariants", "boundaries", "acceptance_checks"],
+      "properties": {
+        "state_machine": { "type": "array", "items": { "type": "string" } },
+        "api_contracts": { "type": "array", "items": { "type": "string" } },
+        "ui_entry_exit": {
+          "type": "object",
+          "required": ["entry", "success_exit", "failure_exit"],
+          "properties": {
+            "entry": { "type": "array", "items": { "type": "string" } },
+            "success_exit": { "type": "array", "items": { "type": "string" } },
+            "failure_exit": { "type": "array", "items": { "type": "string" } }
+          },
+          "additionalProperties": true
+        },
+        "invariants": { "type": "array", "minItems": 1, "items": { "type": "string" } },
+        "boundaries": { "type": "array", "minItems": 1, "items": { "type": "string" } },
+        "acceptance_checks": { "type": "array", "minItems": 1, "items": { "type": "object" } }
+      },
+      "additionalProperties": true
+    },
     "change_controls": {
       "type": "object",
       "required": ["touch_set", "allowed_changes", "forbidden_changes"],
@@ -182,7 +227,43 @@
         "additionalProperties": true
       }
     },
+    "implementation_task_breakdown": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": ["step_id", "title", "objective", "inputs", "touch_points", "outputs", "depends_on", "parallelizable_with", "acceptance_refs", "done_when"],
+        "properties": {
+          "step_id": { "type": "string" },
+          "title": { "type": "string" },
+          "objective": { "type": "string" },
+          "inputs": { "type": "array", "items": { "type": "string" } },
+          "touch_points": { "type": "array", "items": { "type": "string" } },
+          "outputs": { "type": "array", "items": { "type": "string" } },
+          "depends_on": { "type": "array", "items": { "type": "string" } },
+          "parallelizable_with": { "type": "array", "items": { "type": "string" } },
+          "acceptance_refs": { "type": "array", "items": { "type": "string" } },
+          "done_when": { "type": "string" }
+        },
+        "additionalProperties": true
+      }
+    },
     "acceptance_trace": { "type": "array", "minItems": 1, "items": { "type": "object" } },
+    "acceptance_to_task_mapping": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": ["acceptance_ref", "scenario", "implemented_by", "evidence_expectation"],
+        "properties": {
+          "acceptance_ref": { "type": "string" },
+          "scenario": { "type": "string" },
+          "implemented_by": { "type": "array", "items": { "type": "string" } },
+          "evidence_expectation": { "type": "string" }
+        },
+        "additionalProperties": true
+      }
+    },
     "testset_mapping": {
       "type": "object",
       "required": ["testset_ref", "mapping_policy", "mappings"],

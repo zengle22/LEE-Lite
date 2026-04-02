@@ -1306,6 +1306,7 @@ class CliRuntimeTest(unittest.TestCase):
         package_dir = self.workspace / "artifacts" / "tech-to-impl" / run_id
         package_dir.mkdir(parents=True, exist_ok=True)
         (package_dir / "impl-bundle.md").write_text("# IMPL Bundle\n", encoding="utf-8")
+        (package_dir / "impl-task.md").write_text("# IMPL Task\n\nStrong self-contained execution contract.\n", encoding="utf-8")
         write_json(
             package_dir / "impl-bundle.json",
             {
@@ -1349,6 +1350,7 @@ class CliRuntimeTest(unittest.TestCase):
         self.assertEqual(materialize_payload["data"]["formal_ref"], f"formal.impl.{run_id}")
         formal_impl_path = self.workspace / "ssot" / "impl" / "IMPL-SRC-001-301__mainline-collaboration-impl-bundle.md"
         self.assertTrue(formal_impl_path.exists())
+        self.assertIn("Strong self-contained execution contract.", formal_impl_path.read_text(encoding="utf-8"))
 
     def test_rollout_readiness_core_and_guarded(self) -> None:
         request = self.build_request(

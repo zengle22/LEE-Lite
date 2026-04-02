@@ -59,10 +59,14 @@ required_machine_fields:
   - upstream_impacts
   - normative_items
   - informative_items
+  - repo_touch_points
+  - embedded_execution_contract
   - change_controls
   - required_steps
   - suggested_steps
+  - implementation_task_breakdown
   - acceptance_trace
+  - acceptance_to_task_mapping
   - testset_mapping
   - handoff_artifacts
   - conflict_policy
@@ -94,4 +98,5 @@ notes:
   - Frontend, backend, and migration workstreams are conditional and must follow explicit applicability assessment.
   - The package is the canonical execution package and execution-time single entrypoint for `template.dev.feature_delivery_l2`, not final code-delivery proof.
   - `impl-task.md` must be independently actionable as a full execution contract, not just a brief that depends on sidecar files to recover scope, test mapping, or change controls.
+  - `impl-bundle.md` / published IMPL markdown must expose the same execution-critical facts needed for a reader to understand touch set, task order, embedded contracts, and acceptance mapping without reopening upstream refs.
 

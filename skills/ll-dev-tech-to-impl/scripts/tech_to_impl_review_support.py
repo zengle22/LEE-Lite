@@ -41,6 +41,7 @@ REQUIRED_BUNDLE_HEADINGS = [
     "Evidence Plan",
     "Smoke Gate Subject",
     "Delivery Handoff",
+    "Consumption Boundary",
     "Traceability",
 ]
 REQUIRED_IMPL_TASK_HEADINGS = [
@@ -282,8 +283,19 @@ def check_markdown_sections(artifacts_dir: Path) -> list[str]:
     for heading in REQUIRED_BUNDLE_HEADINGS:
         if f"## {heading}" not in bundle_body:
             errors.append(f"impl-bundle.md is missing section: {heading}")
+    for marker in [
+        "### Concrete Touch Set",
+        "### Repo-Aware Placement",
+        "### Embedded Frozen Contracts",
+        "### Ordered Task Breakdown",
+        "### Acceptance-to-Task Mapping",
+    ]:
+        if marker not in bundle_body:
+            errors.append(f"impl-bundle.md is missing marker: {marker}")
     if "execution input of SSOT" in bundle_body or "execution-entry truth" in bundle_body:
         errors.append("impl-bundle.md must use canonical execution package wording instead of truth/SSOT wording.")
+    if "bundle summary only" in bundle_body.lower():
+        errors.append("impl-bundle.md must not describe itself as summary-only.")
     _, impl_task_body = parse_markdown_frontmatter((artifacts_dir / "impl-task.md").read_text(encoding="utf-8"))
     for heading in REQUIRED_IMPL_TASK_HEADINGS:
         if heading not in impl_task_body:
@@ -299,14 +311,19 @@ def check_markdown_sections(artifacts_dir: Path) -> list[str]:
         "### Implementation Unit Mapping Snapshot",
         "### API Contract Snapshot",
         "### UI Constraint Snapshot",
+        "### Embedded Execution Contract",
         "### Normative / MUST",
         "### Informative / Context Only",
         "### Touch Set / Module Plan",
+        "### Repo Touch Points",
         "### Allowed",
         "### Forbidden",
+        "### Execution Boundary",
         "### Acceptance Trace",
+        "### Acceptance-to-Task Mapping",
         "### Required",
         "### Suggested",
+        "### Ordered Task Breakdown",
     ]:
         if marker not in impl_task_body:
             errors.append(f"impl-task.md is missing marker: {marker}")
@@ -340,6 +357,10 @@ def check_contract_projection(
         "rederive_triggers",
         "self_contained_policy",
         "repo_discrepancy_status",
+        "repo_touch_points",
+        "embedded_execution_contract",
+        "implementation_task_breakdown",
+        "acceptance_to_task_mapping",
     ]
     for field in required_fields:
         if field not in bundle_json:
@@ -379,6 +400,46 @@ def check_contract_projection(
             errors.append(f"impl-bundle.json change_controls.{key} must be non-empty.")
     if not ensure_list(bundle_json.get("acceptance_trace")):
         errors.append("impl-bundle.json acceptance_trace must be non-empty.")
+    repo_touch_points = bundle_json.get("repo_touch_points")
+    if not isinstance(repo_touch_points, list) or not repo_touch_points:
+        errors.append("impl-bundle.json repo_touch_points must be non-empty.")
+    else:
+        for point in repo_touch_points:
+            if not isinstance(point, dict):
+                errors.append("Each repo_touch_points item must be an object.")
+                break
+            required_keys = {"touch_ref", "unit_path", "surface", "mode", "detail", "repo_paths", "primary_repo_path", "placement_status"}
+            if not required_keys.issubset(point.keys()):
+                errors.append("Each repo_touch_points item must include touch_ref, unit_path, surface, mode, detail, repo_paths, primary_repo_path, and placement_status.")
+                break
+    embedded_execution_contract = bundle_json.get("embedded_execution_contract") or {}
+    for key in ["state_machine", "api_contracts", "ui_entry_exit", "invariants", "boundaries", "acceptance_checks"]:
+        if key not in embedded_execution_contract:
+            errors.append(f"impl-bundle.json embedded_execution_contract must include {key}.")
+    ui_entry_exit = embedded_execution_contract.get("ui_entry_exit") or {}
+    for key in ["entry", "success_exit", "failure_exit"]:
+        if not isinstance(ui_entry_exit.get(key), list):
+            errors.append(f"impl-bundle.json embedded_execution_contract.ui_entry_exit.{key} must be present as a list.")
+    task_breakdown = bundle_json.get("implementation_task_breakdown")
+    if not isinstance(task_breakdown, list) or not task_breakdown:
+        errors.append("impl-bundle.json implementation_task_breakdown must be non-empty.")
+    else:
+        for task in task_breakdown:
+            if not isinstance(task, dict):
+                errors.append("Each implementation_task_breakdown item must be an object.")
+                break
+            required_task_keys = {"step_id", "title", "objective", "inputs", "touch_points", "outputs", "depends_on", "parallelizable_with", "acceptance_refs", "done_when"}
+            if not required_task_keys.issubset(task.keys()):
+                errors.append("Each implementation_task_breakdown item must include step_id, title, objective, inputs, touch_points, outputs, depends_on, parallelizable_with, acceptance_refs, and done_when.")
+                break
+    acceptance_to_task_mapping = bundle_json.get("acceptance_to_task_mapping")
+    if not isinstance(acceptance_to_task_mapping, list) or not acceptance_to_task_mapping:
+        errors.append("impl-bundle.json acceptance_to_task_mapping must be non-empty.")
+    else:
+        for mapping in acceptance_to_task_mapping:
+            if not isinstance(mapping, dict) or not all(key in mapping for key in ["acceptance_ref", "scenario", "implemented_by", "evidence_expectation"]):
+                errors.append("Each acceptance_to_task_mapping item must include acceptance_ref, scenario, implemented_by, and evidence_expectation.")
+                break
     testset_mapping = bundle_json.get("testset_mapping") or {}
     if not isinstance(testset_mapping.get("mappings"), list) or not testset_mapping.get("mappings"):
         errors.append("impl-bundle.json testset_mapping.mappings must be non-empty.")
@@ -390,6 +451,13 @@ def check_contract_projection(
         errors.append("impl-bundle.json freshness_status is invalid.")
     if not ensure_list(bundle_json.get("rederive_triggers")):
         errors.append("impl-bundle.json rederive_triggers must be non-empty.")
+    self_contained_policy = bundle_json.get("self_contained_policy") or {}
+    if str(self_contained_policy.get("principle") or "") != "strong_self_contained_execution_contract":
+        errors.append("impl-bundle.json self_contained_policy.principle must be strong_self_contained_execution_contract.")
+    if not ensure_list(self_contained_policy.get("expand")):
+        errors.append("impl-bundle.json self_contained_policy.expand must be non-empty.")
+    if "summary_only_execution_contract" not in ensure_list(self_contained_policy.get("forbidden")):
+        errors.append("impl-bundle.json self_contained_policy.forbidden must include summary_only_execution_contract.")
     if str((bundle_json.get("conflict_policy") or {}).get("repo_discrepancy_policy") or "") != "explicit_discrepancy_handling_required":
         errors.append("impl-bundle.json conflict_policy must require explicit discrepancy handling.")
     provisional_refs = bundle_json.get("provisional_refs")
@@ -400,6 +468,11 @@ def check_contract_projection(
             if not isinstance(item, dict) or not all(str(item.get(key) or "").strip() for key in ["ref", "status", "impact_scope", "follow_up_action"]):
                 errors.append("Each provisional_refs item must include ref, status, impact_scope, and follow_up_action.")
                 break
+    self_contained_policy = bundle_json.get("self_contained_policy") or {}
+    if str(self_contained_policy.get("principle") or "") != "strong_self_contained_execution_contract":
+        errors.append("impl-bundle.json self_contained_policy.principle must be strong_self_contained_execution_contract.")
+    if "repo_touch_points" not in ensure_list(self_contained_policy.get("expand")):
+        errors.append("impl-bundle.json self_contained_policy.expand must include repo_touch_points.")
     if "rows" not in evidence_plan:
         errors.append("dev-evidence-plan.json must retain rows for acceptance mapping completeness.")
     for key in ["workflow_key", "run_id", "tested_at", "test_outcome", "defect_counts", "recommended_next_action", "recommended_actor", "sections"]:

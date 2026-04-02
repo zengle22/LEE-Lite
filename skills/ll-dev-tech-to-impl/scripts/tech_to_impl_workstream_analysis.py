@@ -303,9 +303,12 @@ def _assess_execution_runner(feature: dict[str, Any], package: Any) -> dict[str,
 
 def _assess_general(feature: dict[str, Any], package: Any) -> dict[str, Any]:
     segments = implementation_surface_segments(feature, package)
+    feature_only_segments = feature_segments(feature)
     frontend_hits = keyword_hits_in_segments(segments, FRONTEND_KEYWORDS)
     backend_hits = keyword_hits_in_segments(segments, BACKEND_KEYWORDS)
     migration_hits = keyword_hits_in_segments(segments, MIGRATION_KEYWORDS)
+    feature_frontend_hits = keyword_hits_in_segments(feature_only_segments, FRONTEND_KEYWORDS)
+    feature_migration_hits = keyword_hits_in_segments(feature_only_segments, MIGRATION_KEYWORDS)
     tech_design = package.tech_json.get("tech_design", {}) or {}
     implementation_units = ensure_list(tech_design.get("implementation_unit_mapping"))
     integration_points = ensure_list(tech_design.get("integration_points"))
@@ -321,14 +324,21 @@ def _assess_general(feature: dict[str, Any], package: Any) -> dict[str, Any]:
         for marker in FRONTEND_SURFACE_MARKERS
     )
     explicit_backend_surface = any(marker in tech_surface_text for marker in BACKEND_SURFACE_MARKERS)
-    explicit_migration_surface = any(
-        marker in tech_migration_text
-        for marker in MIGRATION_SURFACE_MARKERS
-    )
     has_explicit_unit_mapping = bool(implementation_units)
+    implementation_unit_text = " ".join(implementation_units).lower()
+    integration_text = " ".join(integration_points).lower()
+    exception_text = " ".join(exception_items).lower()
+    explicit_migration_unit_surface = any(marker in implementation_unit_text for marker in MIGRATION_SURFACE_MARKERS)
+    explicit_migration_integration_surface = any(marker in integration_text for marker in ["migration", "cutover", "rollout", "切换", "迁移", "灰度"])
+    explicit_migration_exception_surface = any(marker in exception_text for marker in ["migration", "cutover", "rollback", "fallback", "回滚", "迁移", "切换"])
+    explicit_migration_surface = (
+        explicit_migration_unit_surface
+        or (bool(feature_migration_hits) and has_explicit_unit_mapping)
+        or (bool(feature_migration_hits) and (explicit_migration_integration_surface or explicit_migration_exception_surface))
+    )
     frontend_rationale = (
-        [f"Detected explicit UI or interaction surface: {', '.join(frontend_hits[:4])}."]
-        if explicit_frontend_surface
+        [f"Detected explicit UI or interaction surface: {', '.join((feature_frontend_hits or frontend_hits)[:4])}."]
+        if (explicit_frontend_surface or feature_frontend_hits)
         else ["No explicit UI/page/component implementation surface was detected."]
     )
     backend_rationale: list[str] = []
@@ -341,15 +351,11 @@ def _assess_general(feature: dict[str, Any], package: Any) -> dict[str, Any]:
     if not backend_rationale:
         backend_rationale.append("No runtime/service/storage/workflow implementation surface was detected.")
     migration_rationale = (
-        [f"Detected migration/cutover language: {', '.join(migration_hits[:4])}."]
+        [f"Detected migration/cutover language: {', '.join((feature_migration_hits or migration_hits)[:4])}."]
         if explicit_migration_surface
         else ["No migration, cutover, rollback, or compat-mode surface was detected."]
     )
-    frontend_required = explicit_frontend_surface or (
-        bool(frontend_hits)
-        and has_explicit_unit_mapping
-        and any(marker in " ".join(implementation_units).lower() for marker in FRONTEND_SURFACE_MARKERS)
-    )
+    frontend_required = explicit_frontend_surface or (bool(feature_frontend_hits) and has_explicit_unit_mapping)
     backend_required = explicit_backend_surface or bool(package.tech_json.get("api_required")) or bool(package.tech_json.get("arch_required"))
     migration_required = explicit_migration_surface
     axis_id = str(feature.get("axis_id") or feature.get("slice_id") or "").strip().lower()

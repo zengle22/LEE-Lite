@@ -73,6 +73,10 @@ def read_candidate_snapshot(workspace_root: Path, source_path: Path, candidate: 
         if sibling_json.exists():
             json_path = sibling_json
     candidate_json = load_json(json_path) if json_path and json_path.exists() else {}
+    if str(candidate_json.get("artifact_type") or "").strip() == "feature_impl_candidate_package":
+        impl_task_path = source_path.parent / "impl-task.md"
+        if impl_task_path.exists():
+            markdown_path = impl_task_path
     markdown_text = read_text(markdown_path) if markdown_path.exists() else ""
     frontmatter, body = parse_frontmatter(markdown_text)
     title = (

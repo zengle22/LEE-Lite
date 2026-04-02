@@ -27,7 +27,7 @@ tech_ref: TECH-FEAT-TODO
 
 ## Implementation Task
 
-[Summarize the implementation task entry and point to `impl-task.md`. This document is a bundle summary only; the main self-contained execution contract lives in `impl-task.md`.]
+[Embed the execution-critical summary directly here: concrete touch set, repo-aware placement, embedded contracts, ordered tasks, and acceptance mapping. `impl-task.md` may expand this package, but `impl-bundle.md` must still be self-contained enough for downstream execution intake and review.]
 
 ## Integration Plan
 
@@ -47,7 +47,7 @@ tech_ref: TECH-FEAT-TODO
 
 ## Consumption Boundary
 
-[State explicitly that `impl-bundle.md` / release summaries are not the coder/tester execution contract, and that execution should consume `impl-task.md` while using bundle/release docs only for package overview and traceability.]
+[State explicitly that release summaries are not the coder/tester execution contract. `impl-bundle.md` and `impl-task.md` together form the strong self-contained implementation package, and neither may omit execution-critical facts by pushing them into upstream refs only.]
 
 ## Traceability
 

@@ -11,6 +11,76 @@ def _bullet_block(items: list[str], fallback: str = "- None.") -> str:
     return "\n".join(f"- {item}" for item in cleaned)
 
 
+def _repo_touch_block(items: list[dict[str, Any]], fallback: str = "- None.") -> str:
+    if not items:
+        return fallback
+    lines: list[str] = []
+    for item in items:
+        primary = str(item.get("primary_repo_path") or "").strip()
+        surface = str(item.get("surface") or "").strip()
+        mode = str(item.get("mode") or "").strip()
+        placement = str(item.get("placement_status") or "").strip()
+        unit_path = str(item.get("unit_path") or "").strip()
+        detail = str(item.get("detail") or "").strip()
+        repo_paths = [str(path).strip() for path in item.get("repo_paths") or [] if str(path).strip()]
+        nearby = [path for path in repo_paths if path != primary]
+        extra = f"; nearby matches: {', '.join(nearby)}" if nearby else ""
+        lines.append(
+            f"- `{primary}` [{surface} | {mode} | {placement}] <- `{unit_path}`: {detail}{extra}"
+        )
+    return "\n".join(lines)
+
+
+def _task_breakdown_block(items: list[dict[str, Any]], fallback: str = "- None.") -> str:
+    if not items:
+        return fallback
+    lines: list[str] = []
+    for item in items:
+        depends_on = ", ".join(str(value).strip() for value in item.get("depends_on") or [] if str(value).strip()) or "none"
+        parallel = ", ".join(str(value).strip() for value in item.get("parallelizable_with") or [] if str(value).strip()) or "none"
+        touch_points = ", ".join(str(value).strip() for value in item.get("touch_points") or [] if str(value).strip()) or "none"
+        outputs = ", ".join(str(value).strip() for value in item.get("outputs") or [] if str(value).strip()) or "none"
+        acceptance = ", ".join(str(value).strip() for value in item.get("acceptance_refs") or [] if str(value).strip()) or "none"
+        lines.append(
+            f"- {item['step_id']} {item['title']} | depends_on: {depends_on} | parallel: {parallel} | "
+            f"touch_points: {touch_points} | outputs: {outputs} | acceptance: {acceptance} | done_when: {item['done_when']}"
+        )
+    return "\n".join(lines)
+
+
+def _acceptance_task_mapping_block(items: list[dict[str, Any]], fallback: str = "- None.") -> str:
+    if not items:
+        return fallback
+    lines: list[str] = []
+    for item in items:
+        implemented_by = ", ".join(str(value).strip() for value in item.get("implemented_by") or [] if str(value).strip()) or "none"
+        lines.append(
+            f"- {item['acceptance_ref']}: {item['scenario']} | implemented_by: {implemented_by} | evidence: {item['evidence_expectation']}"
+        )
+    return "\n".join(lines)
+
+
+def _embedded_contract_block(payload: dict[str, Any]) -> str:
+    state_machine = _bullet_block([str(item).strip() for item in payload.get("state_machine") or [] if str(item).strip()])
+    api_contracts = _bullet_block([str(item).strip() for item in payload.get("api_contracts") or [] if str(item).strip()])
+    entry = _bullet_block([str(item).strip() for item in (payload.get("ui_entry_exit") or {}).get("entry") or [] if str(item).strip()])
+    success_exit = _bullet_block([str(item).strip() for item in (payload.get("ui_entry_exit") or {}).get("success_exit") or [] if str(item).strip()])
+    failure_exit = _bullet_block([str(item).strip() for item in (payload.get("ui_entry_exit") or {}).get("failure_exit") or [] if str(item).strip()])
+    invariants = _bullet_block([str(item).strip() for item in payload.get("invariants") or [] if str(item).strip()])
+    boundaries = _bullet_block([str(item).strip() for item in payload.get("boundaries") or [] if str(item).strip()])
+    return "\n\n".join(
+        [
+            "#### State Machine\n\n" + state_machine,
+            "#### API Contracts\n\n" + api_contracts,
+            "#### UI Entry\n\n" + entry,
+            "#### UI Success Exit\n\n" + success_exit,
+            "#### UI Failure Exit\n\n" + failure_exit,
+            "#### Invariants\n\n" + invariants,
+            "#### Boundary Guardrails\n\n" + boundaries,
+        ]
+    )
+
+
 def _build_text_sections(
     feature: dict[str, Any],
     refs: dict[str, str | None],
@@ -34,9 +104,14 @@ def _build_text_sections(
     normative_items = contract_projection["normative_items"]
     informative_items = contract_projection["informative_items"]
     change_controls = contract_projection["change_controls"]
+    repo_touch_points = contract_projection["repo_touch_points"]
+    embedded_execution_contract = contract_projection["embedded_execution_contract"]
+    implementation_task_breakdown = contract_projection["implementation_task_breakdown"]
+    acceptance_to_task_mapping = contract_projection["acceptance_to_task_mapping"]
     required_steps = contract_projection["required_steps"]
     suggested_steps = contract_projection["suggested_steps"]
     testset_mapping = contract_projection["testset_mapping"]
+    self_contained_policy = contract_projection["self_contained_policy"]
     frozen_decisions = ((bundle_json.get("upstream_design_refs") or {}).get("frozen_decisions") or {}) if isinstance(bundle_json.get("upstream_design_refs"), dict) else {}
     tech_design_focus = [str(item).strip() for item in frozen_decisions.get("design_focus") or [] if str(item).strip()]
     tech_implementation_rules = [str(item).strip() for item in frozen_decisions.get("implementation_rules") or [] if str(item).strip()]
@@ -80,7 +155,8 @@ def _build_text_sections(
                     f"- freshness_status: `{bundle_json['freshness_status']}`",
                     f"- provisional_refs: {len(provisional_refs)}",
                     f"- repo_discrepancy_status: `{bundle_json['repo_discrepancy_status']['status']}`",
-                    "- self-contained policy: minimum sufficient information, not upstream mirroring.",
+                    f"- self-contained policy: `{self_contained_policy['principle']}`.",
+                    f"- execution-critical expansions: {', '.join(self_contained_policy['expand'])}.",
                 ]
             ),
             "## Applicability Assessment\n\n"
@@ -94,9 +170,20 @@ def _build_text_sections(
                     *[f"  - {item}" for item in assessment["rationale"]["migration"]],
                 ]
             ),
-            "## Implementation Task\n\n" + "\n".join([f"- {index}. {step['title']}: {step['done_when']}" for index, step in enumerate(steps, start=1)]),
+            "## Implementation Task\n\n"
+            + "### Concrete Touch Set\n\n"
+            + _bullet_block(change_controls["touch_set"])
+            + "\n\n### Repo-Aware Placement\n\n"
+            + _repo_touch_block(repo_touch_points)
+            + "\n\n### Embedded Frozen Contracts\n\n"
+            + _embedded_contract_block(embedded_execution_contract)
+            + "\n\n### Ordered Task Breakdown\n\n"
+            + _task_breakdown_block(implementation_task_breakdown),
             "## Integration Plan\n\n" + "\n".join(f"- {item}" for item in integration_items),
-            "## Evidence Plan\n\n" + "\n".join(f"- {row['acceptance_ref']}: {', '.join(row['evidence_types'])}" for row in evidence_plan_rows),
+            "## Evidence Plan\n\n"
+            + "\n".join(f"- {row['acceptance_ref']}: {', '.join(row['evidence_types'])}" for row in evidence_plan_rows)
+            + "\n\n### Acceptance-to-Task Mapping\n\n"
+            + _acceptance_task_mapping_block(acceptance_to_task_mapping),
             "## Smoke Gate Subject\n\n- See `smoke-gate-subject.json` for the current `status`, `decision`, and `ready_for_execution` state.",
             "## Delivery Handoff\n\n"
             + "\n".join(
@@ -104,6 +191,15 @@ def _build_text_sections(
                     f"- target_template_id: `template.dev.feature_delivery_l2`",
                     f"- primary_artifact_ref: `{handoff['primary_artifact_ref']}`",
                     f"- phase_inputs: {', '.join([name for name, items in (handoff.get('phase_inputs') or {}).items() if items])}",
+                ]
+            ),
+            "## Consumption Boundary\n\n"
+            + "\n".join(
+                [
+                    "- Release summaries and execution evidence are downstream artifacts, not the coder/tester execution contract.",
+                    "- `impl-bundle.md` must remain self-contained enough for intake review and execution planning.",
+                    "- `impl-task.md` expands the same package but may not become the only place where execution-critical facts live.",
+                    f"- bundle/task shared execution-critical domains: {', '.join(self_contained_policy['expand'])}.",
                 ]
             ),
             "## Traceability\n\n" + "\n".join(f"- {item}" for item in source_refs),
@@ -128,7 +224,7 @@ def _build_text_sections(
             + "\n".join(
                 [
                     f"- 覆盖目标: {feature.get('goal')}",
-                    f"- 完成标准: {len(required_steps)} 个 required steps、{len(testset_mapping['mappings'])} 条 acceptance mappings 与 handoff artifacts 全部齐备。",
+                    f"- 完成标准: {len(required_steps)} 个 required steps、{len(implementation_task_breakdown)} 条 ordered tasks、{len(testset_mapping['mappings'])} 条 acceptance mappings 与 handoff artifacts 全部齐备。",
                     "- 完成条件: coder/tester 可直接消费本契约，不必运行期沿链补捞关键约束。",
                 ]
             ),
@@ -165,7 +261,9 @@ def _build_text_sections(
             + "\n\n### API Contract Snapshot\n\n"
             + _bullet_block(api_contracts if refs["api_ref"] else [])
             + "\n\n### UI Constraint Snapshot\n\n"
-            + _bullet_block(ui_snapshot_items),
+            + _bullet_block(ui_snapshot_items)
+            + "\n\n### Embedded Execution Contract\n\n"
+            + _embedded_contract_block(embedded_execution_contract),
             "## 5. 规范性约束\n\n"
             + "### Normative / MUST\n\n"
             + "\n".join(f"- {item}" for item in normative_items)
@@ -174,6 +272,8 @@ def _build_text_sections(
             "## 6. 实施要求\n\n"
             + "### Touch Set / Module Plan\n\n"
             + "\n".join(f"- {item}" for item in change_controls["touch_set"])
+            + "\n\n### Repo Touch Points\n\n"
+            + _repo_touch_block(repo_touch_points)
             + "\n\n### Allowed\n\n"
             + "\n".join(f"- {item}" for item in change_controls["allowed_changes"])
             + "\n\n### Forbidden\n\n"
@@ -196,14 +296,18 @@ def _build_text_sections(
             + "\n".join(
                 f"- {item['acceptance_ref']}: {item['scenario']} -> {item['expectation']} | mapped_to: `{item['mapped_to']}`"
                 for item in testset_mapping["mappings"]
-            ),
+            )
+            + "\n\n### Acceptance-to-Task Mapping\n\n"
+            + _acceptance_task_mapping_block(acceptance_to_task_mapping),
             "## 9. 执行顺序建议\n\n"
             + "### Required\n\n"
             + "\n".join(
                 f"- {index}. {step['title']}: {step['done_when']}" for index, step in enumerate(required_steps, start=1)
             )
             + "\n\n### Suggested\n\n"
-            + ("\n".join(f"- {step['title']}: {step['reason']}" for step in suggested_steps) if suggested_steps else "- None."),
+            + ("\n".join(f"- {step['title']}: {step['reason']}" for step in suggested_steps) if suggested_steps else "- None.")
+            + "\n\n### Ordered Task Breakdown\n\n"
+            + _task_breakdown_block(implementation_task_breakdown),
             "## 10. 风险与注意事项\n\n"
             + "\n".join(f"- {item}" for item in risks)
             + "\n"

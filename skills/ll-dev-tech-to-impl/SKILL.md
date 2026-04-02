@@ -5,7 +5,7 @@ description: Governed LL workflow skill for transforming one frozen TECH package
 
 # LL Dev TECH to IMPL
 
-This skill freezes the task-first `tech2impl` boundary. It does not claim code is finished. It derives one governed `feature_impl_candidate_package` that packages the implementation task entry for the canonical Dev Feature Delivery L2 chain.
+This skill freezes the task-first `tech2impl` boundary. It does not claim code is finished. It derives one governed `feature_impl_candidate_package` that packages a strong self-contained implementation contract for the canonical Dev Feature Delivery L2 chain.
 
 ## Canonical Authority
 
@@ -34,12 +34,13 @@ This skill freezes the task-first `tech2impl` boundary. It does not claim code i
 3. Resolve the authoritative selected FEAT and its frozen `TECH / ARCH / API` references from the upstream TECH package.
 4. Run `python scripts/tech_to_impl.py executor-run --input <tech-package-dir> --feat-ref <feat-ref> --tech-ref <tech-ref>` to generate the governed implementation task package.
 5. Always produce `impl-task.md`, `upstream-design-refs.json`, `integration-plan.md`, `dev-evidence-plan.json`, and `smoke-gate-subject.json`.
-6. Emit frontend, backend, and migration workstreams only when the applicability assessment justifies them.
-7. Record execution evidence, then hand the package to the supervisor.
-8. Run `python scripts/tech_to_impl.py supervisor-review --artifacts-dir <impl-package-dir>` before marking the package execution-ready.
-9. Freeze only after the supervisor records a semantic pass and `python scripts/tech_to_impl.py freeze-guard --artifacts-dir <impl-package-dir>` returns success.
-10. Emit a handoff that preserves `feat_ref`, `impl_ref`, `tech_ref`, and optional `arch_ref / api_ref`, with the canonical `template.dev.feature_delivery_l2` target.
-11. When external gate returns `revise` or `retry`, rerun `run`, `executor-run`, or `supervisor-review` with `--revision-request <revision-request.json>` so the regenerated implementation package preserves normalized revision context and evidence.
+6. Make the IMPL package strong self-contained: embed repo-aware touch set, ordered task breakdown, execution-critical API/state/UI constraints, and acceptance-to-task mapping instead of pushing those facts into upstream refs only.
+7. Emit frontend, backend, and migration workstreams only when the applicability assessment justifies them.
+8. Record execution evidence, then hand the package to the supervisor.
+9. Run `python scripts/tech_to_impl.py supervisor-review --artifacts-dir <impl-package-dir>` before marking the package execution-ready.
+10. Freeze only after the supervisor records a semantic pass and `python scripts/tech_to_impl.py freeze-guard --artifacts-dir <impl-package-dir>` returns success.
+11. Emit a handoff that preserves `feat_ref`, `impl_ref`, `tech_ref`, and optional `arch_ref / api_ref`, with the canonical `template.dev.feature_delivery_l2` target.
+12. When external gate returns `revise` or `retry`, rerun `run`, `executor-run`, or `supervisor-review` with `--revision-request <revision-request.json>` so the regenerated implementation package preserves normalized revision context and evidence.
 
 ## Workflow Boundary
 
@@ -56,3 +57,4 @@ This skill freezes the task-first `tech2impl` boundary. It does not claim code i
 - Do not emit frontend, backend, or migration workstreams mechanically; applicability must be explicit.
 - Do not allow a package with no frontend or backend execution surface to pass readiness.
 - Do not let the executor self-approve semantic validity or mark execution-ready without supervisor evidence.
+- Do not ship summary-only IMPL output that omits concrete touch set, ordered tasks, or embedded execution contracts.
