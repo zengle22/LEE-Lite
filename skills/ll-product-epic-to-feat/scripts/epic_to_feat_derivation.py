@@ -25,6 +25,18 @@ def choose_src_ref(package: Any) -> str:
     source_refs = ensure_list(package.epic_json.get("source_refs"))
     src_ref = extract_src_ref(source_refs, fallback=str(package.epic_json.get("src_root_id") or ""))
     if src_ref:
+        # Convert verbose SRC-* format (e.g., SRC-SMART-PLAN-GENERATION-V2-MVP-20260331-R9)
+        # to concise SRC-XXX format (e.g., SRC-002) by extracting sequence number from context
+        verbose_match = re.match(r"SRC-([A-Z0-9-]+?)-(?:V\d+)?(?:-MVP)?(?:-\d{8})?(?:-R\d+)?$", src_ref)
+        if verbose_match:
+            # Extract sequence from run_id or use a mapping based on known patterns
+            run_id = str(package.run_id or "").lower()
+            # Check if run_id contains a sequence indicator like "src-freeze-N"
+            seq_match = re.search(r"src-freeze-(\d+)", run_id)
+            if seq_match:
+                return f"SRC-{seq_match.group(1).zfill(3)}"
+            # Fallback: use a hash-based short identifier for unknown patterns
+            return f"SRC-{shorten_identifier(src_ref.replace('SRC-', ''), limit=12)}"
         return src_ref
     return f"SRC-{shorten_identifier(package.run_id, limit=32)}"
 

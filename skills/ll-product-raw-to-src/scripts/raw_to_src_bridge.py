@@ -83,6 +83,32 @@ TRAINING_PLAN_PROJECTION_OBJECTS = {
     "plan_lifecycle",
 }
 
+DOWNSTREAM_LAYER_TOKENS = ("epic", "feat", "task")
+DOWNSTREAM_LAYER_GUARD_PHRASES = (
+    "继承边界",
+    "治理边界",
+    "统一边界",
+    "同题",
+    "不扩展到 epic",
+    "不扩展到 feat",
+    "不扩展到 task",
+    "不展开实现设计",
+    "不在本层展开",
+    "不在此层展开",
+)
+DOWNSTREAM_LAYER_DRIFT_MARKERS = (
+    "拆分",
+    "分解",
+    "实现设计",
+    "实现细节",
+    "任务拆分",
+    "任务分解",
+    "代码实现",
+    "落到 epic",
+    "落到 feat",
+    "落到 task",
+)
+
 
 def _find_nested(payload: Any, *paths: str) -> Any:
     for path in paths:
@@ -436,10 +462,13 @@ def _derive_governance_objects(document: dict[str, Any], constraints: list[str])
         ("materialization", "candidate package 与 formal object 分层"),
         ("artifact io gateway", "Artifact IO Gateway"),
         ("path policy", "Path Policy"),
+        ("路径策略", "Path Policy"),
+        ("路径治理", "Path Policy"),
+        ("artifact path", "Path Policy"),
         ("placement", "artifact 落点与放置规则"),
         ("manifest", "manifest 合同与产物声明"),
-        ("路径", "路径与目录治理"),
-        ("目录", "目录与 artifact 边界"),
+        ("目录治理", "目录与 artifact 边界"),
+        ("目录边界", "目录与 artifact 边界"),
         ("artifact", "artifact 输入输出边界"),
         ("io gateway", "Artifact IO Gateway"),
     ]
@@ -903,8 +932,20 @@ def _append_training_plan_density_findings(candidate: dict[str, Any], findings: 
                 "severity": "P1",
                 "type": "risk_gate_naming_collision",
                 "description": "risk_gate_result is used as both object name and enum field name; rename the enum field or object field to avoid downstream ambiguity.",
-            }
-        )
+                }
+            )
+
+
+def _problem_statement_mentions_downstream_layer_drift(problem_statement: str) -> bool:
+    text = problem_statement.strip()
+    if not text:
+        return False
+    lowered = text.lower()
+    if not any(token in lowered for token in DOWNSTREAM_LAYER_TOKENS):
+        return False
+    if any(phrase in lowered for phrase in DOWNSTREAM_LAYER_GUARD_PHRASES):
+        return False
+    return any(marker in text for marker in DOWNSTREAM_LAYER_DRIFT_MARKERS)
 
 
 def _execution_runner_semantic_lock() -> dict[str, Any]:
@@ -959,9 +1000,13 @@ def synthesize_adr_bridge_candidate(candidate: dict[str, Any], document: dict[st
         _derive_trigger_scenarios(governance_objects),
     )
     working["business_drivers"] = _replace_generic_list(working["business_drivers"], drivers + _compose_business_drivers(governance_objects, consequences, downstream_requirements))
-    working["key_constraints"] = _replace_generic_list(
-        working["key_constraints"],
-        constraints + [f"正式文件读写必须围绕 {'、'.join(governance_objects[:2])} 的统一边界建模，不得在下游恢复自由路径写入。"] + downstream_requirements,
+    working["key_constraints"] = _append_missing(
+        _replace_generic_list(working["key_constraints"], constraints),
+        [
+            f"正式文件读写必须围绕 {'、'.join(governance_objects[:2])} 的统一边界建模，不得在下游恢复自由路径写入。",
+            *downstream_requirements,
+            "下游继承约束必须显式声明主测试对象优先级、authority non-override、score-to-verdict 绑定、repair_target_artifact 与 counterexample coverage。",
+        ],
     )
     working["in_scope"] = _derive_in_scope(governance_objects)
     working["out_of_scope"] = _replace_generic_list(working["out_of_scope"], non_goals)
@@ -992,7 +1037,7 @@ def semantic_review(candidate: dict[str, Any], duplicate_path: Any, document: di
     findings: list[dict[str, Any]] = []
     if duplicate_path is not None:
         findings.append({"severity": "P1", "type": "duplicate_title", "description": f"Duplicate SRC title already exists at {duplicate_path}"})
-    if re.search(r"\b(epic|feat|task)\b", candidate["problem_statement"], flags=re.IGNORECASE):
+    if _problem_statement_mentions_downstream_layer_drift(candidate["problem_statement"]):
         findings.append({"severity": "P1", "type": "layer_boundary", "description": "Problem statement drifts into downstream artifact layers."})
     semantic_lock = candidate.get("semantic_lock") or {}
     if semantic_lock:

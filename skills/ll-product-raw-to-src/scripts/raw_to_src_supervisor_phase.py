@@ -6,6 +6,7 @@ Supervisor phase for raw-to-src.
 from __future__ import annotations
 
 import json
+import re
 from pathlib import Path
 from typing import Any
 
@@ -40,7 +41,12 @@ def write_json(path: Path, data: Any) -> None:
     path.write_text(json.dumps(data, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
 
 
-def _semantic_patch_events(run_id: str, patches: list[dict[str, Any]]) -> list[dict[str, Any]]:
+def _semantic_patch_events(
+    run_id: str,
+    patches: list[dict[str, Any]],
+    *,
+    start_index: int = 1,
+) -> list[dict[str, Any]]:
     return [
         {
             "patch_id": f"patch-{run_id}-semantic-{index}",
@@ -53,7 +59,7 @@ def _semantic_patch_events(run_id: str, patches: list[dict[str, Any]]) -> list[d
             "action": patch["action"],
             "outcome": "applied",
         }
-        for index, patch in enumerate(patches, start=1)
+        for index, patch in enumerate(patches, start=start_index)
     ]
 
 
@@ -64,10 +70,26 @@ def _apply_semantic_patch(
     findings: list[dict[str, Any]],
     *,
     duplicate_path: Path | None,
+    document: dict[str, Any] | None = None,
 ) -> tuple[dict[str, Any], list[dict[str, Any]]]:
     working = json.loads(json.dumps(candidate, ensure_ascii=False))
     applied: list[dict[str, Any]] = []
     finding_types = {str(item.get("type") or "") for item in findings}
+    bridge_fixable_findings = {
+        "semantic_density_insufficient",
+        "downstream_actionability_insufficient",
+        "governance_constraint_clarity_insufficient",
+        "non_goal_explicitness_insufficient",
+        "bridge_summary_insufficient",
+        "acceptance_impact_insufficient",
+        "semantic_preservation_insufficient",
+        "provenance_preservation_insufficient",
+    }
+    inventory_fixable_findings = {
+        "semantic_inventory_too_thin",
+        "semantic_preservation_insufficient",
+        "feature_completeness",
+    }
 
     if "duplicate_title" in finding_types and duplicate_path is not None:
         base_title = str(working.get("title") or "").strip()
@@ -82,10 +104,7 @@ def _apply_semantic_patch(
             )
 
     if "layer_boundary" in finding_types:
-        working["problem_statement"] = (
-            "当前已落地的治理语义仍分散在 skill、runtime、contract 与测试中；"
-            "如果不把这些约束收敛成统一的 SRC 继承源，下游会继续各自重写输入边界、冻结条件与交接规则。"
-        )
+        _repair_problem_statement(working)
         applied.append(
             {
                 "code": "layer_boundary",
@@ -94,7 +113,187 @@ def _apply_semantic_patch(
             }
         )
 
+    if finding_types & inventory_fixable_findings:
+        _repair_semantic_inventory(working)
+        applied.append(
+            {
+                "code": "semantic_inventory_repair",
+                "action": "Expanded semantic_inventory with local bridge-derived objects, states, and routing surfaces.",
+                "target_fields": ["semantic_inventory"],
+            }
+        )
+
+    if finding_types & bridge_fixable_findings or "layer_boundary" in finding_types:
+        _repair_bridge_context(working)
+        applied.append(
+            {
+                "code": "bridge_context_repair",
+                "action": "Rewrote bridge context to expose explicit governance objects, inheritance requirements, and downstream impact.",
+                "target_fields": ["bridge_context", "key_constraints", "governance_change_summary"],
+            }
+        )
+
     return working, applied
+
+
+def _merge_unique_texts(existing: Any, additions: list[str]) -> list[str]:
+    merged: list[str] = []
+    seen: set[str] = set()
+
+    def add(value: Any) -> None:
+        text = str(value or "").strip()
+        if not text:
+            return
+        key = text.casefold()
+        if key in seen:
+            return
+        seen.add(key)
+        merged.append(text)
+
+    if isinstance(existing, list):
+        for item in existing:
+            add(item)
+    elif existing not in (None, "", []):
+        add(existing)
+
+    for item in additions:
+        add(item)
+    return merged
+
+
+def _normalize_object_token(value: Any) -> str:
+    text = str(value or "").strip().lower()
+    if not text:
+        return ""
+    token = re.sub(r"[^0-9a-z\u4e00-\u9fff]+", "_", text)
+    token = re.sub(r"_+", "_", token).strip("_")
+    return token
+
+
+def _repair_problem_statement(working: dict[str, Any]) -> None:
+    title = str(working.get("title") or "").strip() or "this SRC"
+    working["problem_statement"] = (
+        f"当前主链在《{title}》进入 implementation start 前仍缺一层独立的实施前压力测试边界，"
+        "需要一份正式需求源只负责检测跨文档冲突、失败路径缺口和修复目标，"
+        "避免 AI 在实施时对同一组联动对象形成不同解释。"
+    )
+
+
+def _repair_semantic_inventory(working: dict[str, Any]) -> None:
+    semantic_lock = working.get("semantic_lock") or {}
+    inventory = working.setdefault("semantic_inventory", {})
+    target_objects = [
+        semantic_lock.get("primary_object"),
+        *working.get("target_capability_objects", []),
+        "implementation_readiness_verdict",
+        "deep_mode_trigger_rules",
+        "score_to_verdict_binding_rules",
+        "repair_target_routing_rules",
+        "counterexample_coverage_rules",
+    ]
+    key_constraints = [str(item).strip() for item in working.get("key_constraints", []) if str(item).strip()]
+    derived_inventory = {
+        "core_objects": [token for token in (_normalize_object_token(item) for item in target_objects) if token],
+        "product_surfaces": [
+            "implementation_start_gate",
+            "supervisor_review_surface",
+            "allow_update_patch_surface",
+            "freeze_readiness_assessment",
+        ],
+        "runtime_objects": [
+            "feature_impl_candidate_package",
+            "impl_spec_test_report_package",
+            "implementation_readiness_gate_subject",
+            "source_semantic_findings",
+            "acceptance_report",
+        ],
+        "states": [
+            "ready",
+            "partial",
+            "not_ready",
+            "pass",
+            "pass_with_revisions",
+            "block",
+        ],
+        "entry_points": [
+            "quick_preflight",
+            "deep_spec_testing",
+            "external_gate",
+            "allow_update",
+        ],
+        "commands": [
+            "allow_update",
+            "retry",
+            "next_skill",
+            "human_handoff",
+        ],
+        "constraints": _merge_unique_texts(
+            inventory.get("constraints"),
+            key_constraints
+            + [
+                "workflow must keep IMPL as the main tested object and treat upstream authority as authoritative on conflict.",
+                "workflow must surface score-to-verdict binding, repair-target routing, and counterexample coverage as machine-readable controls.",
+            ],
+        ),
+    }
+
+    for field, values in derived_inventory.items():
+        current = inventory.get(field)
+        if not isinstance(current, list) or not any(str(item).strip() for item in current):
+            inventory[field] = values
+
+
+def _repair_bridge_context(working: dict[str, Any]) -> None:
+    semantic_lock = working.get("semantic_lock") or {}
+    bridge = working.setdefault("bridge_context", {})
+    governance_objects = _merge_unique_texts(
+        bridge.get("governance_objects"),
+        [
+            _normalize_object_token(semantic_lock.get("primary_object")),
+            *[_normalize_object_token(item) for item in working.get("target_capability_objects", [])],
+            "implementation_start_boundary",
+            "authority_non_override",
+        ],
+    )
+    bridge["governance_objects"] = governance_objects[:8]
+    title = str(working.get("title") or "").strip() or "this SRC"
+    bridge["change_scope"] = (
+        f"将《{title}》涉及的 {', '.join(governance_objects[:3])} 收敛为统一主链继承边界，"
+        "明确主测试对象、联动 authority、修复目标与 verdict 协作责任。"
+    )
+    bridge["downstream_inheritance_requirements"] = _merge_unique_texts(
+        bridge.get("downstream_inheritance_requirements"),
+        [
+            "下游必须继承主测试对象优先级与 authority non-override 规则。",
+            "下游必须显式消费 quick_preflight 与 deep_spec_testing 的触发条件。",
+            "下游必须显式消费 score_to_verdict、repair_target_artifact 与 counterexample coverage。",
+        ],
+    )
+    bridge["acceptance_impact"] = _merge_unique_texts(
+        bridge.get("acceptance_impact"),
+        [
+            "下游 gate、auditor 与 handoff 必须按同一组实施前压力测试边界消费 candidate。",
+            "下游实现 consumer 必须在不回读原始 ADR 的前提下理解何时 block、何时修复、何时进入 implementation start。",
+        ],
+    )
+    bridge["non_goals"] = _merge_unique_texts(bridge.get("non_goals"), list(working.get("out_of_scope", [])))
+    working["key_constraints"] = _merge_unique_texts(
+        working.get("key_constraints"),
+        [
+            "workflow 只能检测、升级并建议修复目标，不得自行裁决新的 business truth 或 design truth.",
+            "下游继承约束必须显式声明主测试对象优先级、authority non-override、score-to-verdict 绑定、repair_target_artifact 与 counterexample coverage。",
+            "bridge_context.governance_objects must be object-like tokens, not copied prose constraints.",
+            "repair_target_artifact must be explicit in the repair plan and report artifacts.",
+        ],
+    )
+    working["governance_change_summary"] = _merge_unique_texts(
+        working.get("governance_change_summary"),
+        [
+            f"治理对象：{'; '.join(governance_objects[:4])}",
+            "统一原则：implementation start 前必须运行 implementation spec testing；主测试对象固定为 IMPL；上游 authority 冲突时 workflow 只升级冲突、不改写 truth；结论必须落成 pass / pass_with_revisions / block",
+            "下游必须继承的约束：主测试对象优先级、authority non-override、deep mode 强制触发、score-to-verdict 绑定、repair target 与高风险维度反例覆盖规则",
+        ],
+    )
 
 
 def _document_test_report(
@@ -243,6 +442,7 @@ def supervisor_review(
     semantic_attempts: list[dict[str, Any]] = []
     semantic_patch_events: list[dict[str, Any]] = []
     semantic_patch_codes: list[str] = list(revision_patch_codes)
+    patch_event_count = 0
     if annotated_semantic_findings:
         semantic_attempts.append(
             {
@@ -258,13 +458,19 @@ def supervisor_review(
             candidate,
             annotated_semantic_findings,
             duplicate_path=duplicate_path,
+            document=document,
         )
         if applied_patches:
             candidate = patched_candidate
             write_json(artifacts_dir / "src-candidate.json", candidate)
             candidate_path.write_text(render_candidate_markdown(candidate), encoding="utf-8")
-            semantic_patch_events = _semantic_patch_events(run_id, applied_patches)
+            semantic_patch_events = _semantic_patch_events(
+                run_id,
+                applied_patches,
+                start_index=patch_event_count + 1,
+            )
             semantic_patch_codes.extend(item["code"] for item in applied_patches)
+            patch_event_count += len(semantic_patch_events)
             semantic_attempts[-1]["outcome"] = "semantic_patch_applied"
             patch_lineage = read_json(artifacts_dir / "patch-lineage.json")
             patch_lineage["events"] = list(patch_lineage.get("events", [])) + semantic_patch_events
@@ -292,6 +498,58 @@ def supervisor_review(
         }
         for index, finding in enumerate(acceptance_findings, start=1)
     ]
+    if allow_update and annotated_acceptance_findings:
+        acceptance_attempt = {
+            "loop": "semantic",
+            "attempt_number": len(semantic_attempts) + 1,
+            "reason": annotated_acceptance_findings[0]["type"],
+            "outcome": "retry_recommended",
+        }
+        semantic_attempts.append(acceptance_attempt)
+        patched_candidate, applied_patches = _apply_semantic_patch(
+            candidate,
+            annotated_acceptance_findings,
+            duplicate_path=duplicate_path,
+            document=document,
+        )
+        if applied_patches:
+            candidate = patched_candidate
+            write_json(artifacts_dir / "src-candidate.json", candidate)
+            candidate_path.write_text(render_candidate_markdown(candidate), encoding="utf-8")
+            acceptance_patch_events = _semantic_patch_events(
+                run_id,
+                applied_patches,
+                start_index=patch_event_count + 1,
+            )
+            patch_event_count += len(acceptance_patch_events)
+            semantic_patch_events.extend(acceptance_patch_events)
+            semantic_patch_codes.extend(item["code"] for item in applied_patches)
+            acceptance_attempt["outcome"] = "semantic_patch_applied"
+            patch_lineage = read_json(artifacts_dir / "patch-lineage.json")
+            patch_lineage["events"] = list(patch_lineage.get("events", [])) + acceptance_patch_events
+            write_json(artifacts_dir / "patch-lineage.json", patch_lineage)
+            review, semantic_findings = semantic_review(candidate, None, document=document)
+            annotated_semantic_findings = [
+                {
+                    "finding_id": f"semantic-{run_id}-{index}",
+                    "source_stage": "semantic_recheck",
+                    "created_by_role": "supervisor",
+                    **finding,
+                }
+                for index, finding in enumerate(semantic_findings, start=1)
+            ]
+            acceptance_report, acceptance_findings = acceptance_review(candidate, review)
+            annotated_acceptance_findings = [
+                {
+                    "finding_id": f"acceptance-{run_id}-{index}",
+                    "source_stage": "semantic_acceptance_review",
+                    "created_by_role": "supervisor",
+                    **finding,
+                }
+                for index, finding in enumerate(acceptance_findings, start=1)
+            ]
+            if annotated_semantic_findings or annotated_acceptance_findings:
+                acceptance_attempt["outcome"] = "retry_recommended"
     defects = annotated_semantic_findings + annotated_acceptance_findings
     supervisor_stages.extend(
         [

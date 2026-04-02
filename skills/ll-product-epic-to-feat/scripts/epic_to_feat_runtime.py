@@ -5,6 +5,7 @@ Lite-native runtime support for epic-to-feat.
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
@@ -171,6 +172,13 @@ def build_semantic_drift_check(package: Any, feats: list[dict[str, Any]]) -> dic
             "summary": "No semantic_lock present.",
         }
 
+    def normalized_tokens(value: Any, *, drop_generic: bool = False) -> list[str]:
+        text = str(value or "").strip().lower()
+        tokens = [item for item in re.split(r"[^a-z0-9\u4e00-\u9fff]+", text) if item]
+        if drop_generic:
+            tokens = [item for item in tokens if item not in {"rule", "policy", "mode"}]
+        return tokens
+
     generated_text = " ".join(
         [
             str(package.epic_json.get("title") or ""),
@@ -183,9 +191,9 @@ def build_semantic_drift_check(package: Any, feats: list[dict[str, Any]]) -> dic
     forbidden_hits = [item for item in lock.get("forbidden_capabilities", []) if str(item).strip().lower() in generated_text]
     anchor_matches: list[str] = []
     token_groups = {
-        "domain_type": [str(lock.get("domain_type") or "").replace("_", " ").lower()],
-        "primary_object": [token for token in str(lock.get("primary_object") or "").replace("_", " ").lower().split() if token],
-        "lifecycle_stage": [token for token in str(lock.get("lifecycle_stage") or "").replace("_", " ").lower().split() if token],
+        "domain_type": normalized_tokens(lock.get("domain_type"), drop_generic=True),
+        "primary_object": normalized_tokens(lock.get("primary_object")),
+        "lifecycle_stage": normalized_tokens(lock.get("lifecycle_stage")),
     }
     for label, tokens in token_groups.items():
         if tokens and all(token in generated_text for token in tokens):
@@ -195,7 +203,17 @@ def build_semantic_drift_check(package: Any, feats: list[dict[str, Any]]) -> dic
         if all(token in generated_text for token in review_projection_tokens):
             anchor_matches.append("review_projection_signature")
     domain_type = str(lock.get("domain_type") or "").strip().lower()
-    if domain_type == "execution_runner_rule":
+    if domain_type == "implementation_readiness_rule":
+        readiness_signatures = [
+            ("implementation_readiness_signature", ["implementation", "readiness"]),
+            ("impl_spec_testing_signature", ["impl", "spec", "testing"]),
+            ("pre_implementation_gate_signature", ["pre", "implementation", "gate"]),
+        ]
+        for label, tokens in readiness_signatures:
+            if all(token in generated_text for token in tokens):
+                anchor_matches.append(label)
+        preserved = not forbidden_hits and "implementation_readiness_signature" in anchor_matches
+    elif domain_type == "execution_runner_rule":
         runner_signatures = [
             ("runner_ready_queue_signature", ["ready", "job", "runner"]),
             ("approve_next_skill_signature", ["approve", "next", "skill"]),
@@ -204,7 +222,7 @@ def build_semantic_drift_check(package: Any, feats: list[dict[str, Any]]) -> dic
             if all(token in generated_text for token in tokens):
                 anchor_matches.append(label)
         preserved = not forbidden_hits and "runner_ready_queue_signature" in anchor_matches and "approve_next_skill_signature" in anchor_matches
-    else:
+    elif domain_type != "implementation_readiness_rule":
         preserved = not forbidden_hits and len(anchor_matches) >= 1
     return {
         "verdict": "pass" if preserved else "reject",
