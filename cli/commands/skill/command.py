@@ -5,17 +5,31 @@ from __future__ import annotations
 from argparse import Namespace
 
 from cli.lib.errors import ensure
+from cli.lib.failure_capture_skill import run_failure_capture
 from cli.lib.gate_human_orchestrator_skill import run_gate_human_orchestrator
+from cli.lib.impl_spec_test_runtime import execute_impl_spec_test_skill
 from cli.lib.protocol import CommandContext, run_with_protocol
 from cli.lib.test_exec_runtime import execute_test_exec_skill
 
 
 def _skill_handler(ctx: CommandContext):
     ensure(
-        ctx.action in {"test-exec-web-e2e", "test-exec-cli", "gate-human-orchestrator"},
+        ctx.action in {"impl-spec-test", "test-exec-web-e2e", "test-exec-cli", "gate-human-orchestrator", "failure-capture"},
         "INVALID_REQUEST",
         "unsupported skill action",
     )
+    if ctx.action == "failure-capture":
+        result = run_failure_capture(
+            workspace_root=ctx.workspace_root,
+            trace=ctx.trace,
+            request_id=ctx.request["request_id"],
+            payload=ctx.payload,
+        )
+        evidence_refs = _collect_refs(result)
+        return "OK", "governed failure capture package emitted", {
+            "canonical_path": result["canonical_path"],
+            **result,
+        }, [], evidence_refs
     if ctx.action == "gate-human-orchestrator":
         result = run_gate_human_orchestrator(
             workspace_root=ctx.workspace_root,
@@ -31,6 +45,21 @@ def _skill_handler(ctx: CommandContext):
             **result,
         }, [], evidence_refs
     payload = ctx.payload
+    if ctx.action == "impl-spec-test":
+        for field in ("impl_ref", "impl_package_ref", "feat_ref", "tech_ref"):
+            ensure(field in payload, "INVALID_REQUEST", f"missing skill field: {field}")
+        result = execute_impl_spec_test_skill(
+            workspace_root=ctx.workspace_root,
+            trace=ctx.trace,
+            request_id=ctx.request["request_id"],
+            payload=payload,
+        )
+        excluded = {"skill_ref", "runner_skill_ref", "trace_ref"}
+        evidence_refs = [value for key, value in result.items() if key.endswith("_ref") and key not in excluded]
+        return "OK", "governed impl spec test candidate emitted", {
+            "canonical_path": result["handoff_ref"],
+            **result,
+        }, [], evidence_refs
     for field in ("test_set_ref", "test_environment_ref"):
         ensure(field in payload, "INVALID_REQUEST", f"missing skill field: {field}")
     result = execute_test_exec_skill(
