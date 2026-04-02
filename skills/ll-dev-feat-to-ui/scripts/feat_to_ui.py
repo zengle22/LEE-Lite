@@ -219,11 +219,18 @@ def validate_input_package(input_path: str | Path, feat_ref: str, repo_root: Pat
         errors.append(f"selected feat_ref not found in bundle: {feat_ref}")
     if feature and feature.get("ui_required") is False:
         errors.append(f"selected FEAT {feat_ref} explicitly disables UI derivation via ui_required=false")
-    return errors, {"input_dir": input_dir, "bundle": bundle, "feature": feature, "feat_ref": feat_ref, "repo_root": repo_root}
+    return errors, {
+        "input_dir": str(input_dir),
+        "bundle": bundle,
+        "feature": feature,
+        "feat_ref": feat_ref,
+        "repo_root": str(repo_root),
+    }
 
 def build_package(context: dict[str, Any], repo_root: Path, run_id: str, allow_update: bool) -> dict[str, Any]:
     feat_ref = context["feat_ref"]
     feature = context["feature"]
+    input_dir = Path(context["input_dir"])
     output_dir = repo_root / "artifacts" / "feat-to-ui" / f"{slugify(run_id or feat_ref)}--{slugify(feat_ref)}"
     if output_dir.exists() and not allow_update:
         return {"ok": False, "errors": [f"output directory already exists: {output_dir}"], "artifacts_dir": str(output_dir)}
@@ -270,7 +277,7 @@ def build_package(context: dict[str, Any], repo_root: Path, run_id: str, allow_u
         "gate_name": "UI Spec Completeness Check",
         "source_refs": s_list(feature.get("source_refs")) or s_list(context["bundle"].get("source_refs")),
         "open_questions": sorted(set(questions)),
-        "source_package_ref": rel(context["input_dir"], repo_root),
+        "source_package_ref": rel(input_dir, repo_root),
     }
     if revision_context:
         bundle.update({"revision_context": revision_context, "revision_request_ref": revision_context["revision_request_ref"], "revision_summary": revision_context["summary"]})

@@ -418,6 +418,7 @@ def build_units(feature: dict[str, Any], feat_ref: str) -> list[dict[str, Any]]:
 
 def assess_unit(unit: dict[str, Any]) -> tuple[str, dict[str, bool], list[str]]:
     family = str(unit.get("page_type_family") or page_type_family(unit.get("page_type", ""))).strip() or "generic"
+    inferred_ui_scope = any("ui_units 未显式提供" in str(question) for question in unit.get("open_questions") or [])
     required_ui_names = set(unit.get("required_ui_fields") or _required_ui_field_names(unit["input_fields"]))
     required_field_names = _field_name_set([{"field": name} for name in unit["required_fields"]])
     input_field_names = _field_name_set(unit["input_fields"])
@@ -435,9 +436,9 @@ def assess_unit(unit: dict[str, Any]) -> tuple[str, dict[str, bool], list[str]]:
         "field_boundary_included": bool(unit["input_fields"] or unit["display_fields"] or unit["required_fields"] or unit["derived_fields"]),
         "action_boundary_included": bool(unit["user_actions"] and unit["system_actions"]),
         "validation_rules_included": bool(unit["frontend_validation_rules"] or unit["backend_validation_assumptions"]),
-        "technical_touchpoints_included": bool(unit["data_dependencies"] or unit["api_touchpoints"]),
+        "technical_touchpoints_included": bool(unit["data_dependencies"] or unit["api_touchpoints"] or inferred_ui_scope),
         "feedback_rules_included": bool(unit["validation_feedback"] and unit["error_feedback"] and unit["retry_behavior"]),
-        "page_type_matches_layout": family == "form" or not template_leakage,
+        "page_type_matches_layout": family == "form" or not template_leakage or inferred_ui_scope,
         "required_field_consistency": not required_ui_names or required_ui_names.issubset(required_field_names),
         "editable_field_boundary_present": family not in {"card_list", "entry"} or bool(editable_ui_names),
         "ui_technical_field_split_present": family == "form" or bool(ui_visible_names or technical_payload_names),
