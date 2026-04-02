@@ -1,4 +1,4 @@
 interface:
   display_name: "LL Skill Install"
   short_description: "Install workspace-bound LL adapters"
-  default_prompt: "Use $ll-skill-install to install a canonical workflow skill into Codex as a workspace-bound adapter."
+  default_prompt: "Use $ll-skill-install to install a canonical workflow skill into Codex or Claude Code as a workspace-bound adapter."

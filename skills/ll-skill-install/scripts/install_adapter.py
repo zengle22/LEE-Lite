@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Install a canonical workflow skill into Codex as a workspace-bound adapter.
+Install a canonical workflow skill into Codex or Claude Code as a workspace-bound adapter.
 """
 
 from __future__ import annotations
@@ -19,9 +19,16 @@ import yaml
 IGNORE_NAMES = shutil.ignore_patterns("__pycache__", "*.pyc", "*.pyo")
 ADAPTER_MANIFEST_NAME = ".codex-adapter-manifest.json"
 CLI_LAUNCHER_NAME = "invoke_canonical_cli.py"
+SUPPORTED_RUNTIMES = {"codex", "claude"}
 
 
-def default_skills_dir() -> Path:
+def default_skills_dir(runtime: str = "codex") -> Path:
+    if runtime == "claude":
+        claude_home = os.environ.get("CLAUDE_HOME")
+        if claude_home:
+            return Path(claude_home).expanduser() / "skills"
+        return Path.home() / ".claude" / "skills"
+
     codex_home = os.environ.get("CODEX_HOME")
     if codex_home:
         return Path(codex_home).expanduser() / "skills"
@@ -342,7 +349,7 @@ def adapter_body(
                 "",
                 "## Adapter Boundary",
                 "",
-                "- Purpose: expose the canonical skill through an installed workspace-bound entry in Codex.",
+                "- Purpose: expose the canonical skill through an installed workspace-bound runtime entry.",
                 "- Source of truth: the canonical skill directory in the current workspace.",
                 "- Out of scope: maintaining a divergent installed copy by hand.",
                 "",
@@ -425,10 +432,19 @@ def install_adapter(
 
 def main() -> int:
     parser = argparse.ArgumentParser(
-        description="Install a canonical workflow skill into Codex as a workspace-bound adapter."
+        description="Install a canonical workflow skill into Codex or Claude Code as a workspace-bound adapter."
     )
     parser.add_argument("--source", required=True, help="Canonical source skill directory")
-    parser.add_argument("--dest-root", help="Destination skills root, defaults to $CODEX_HOME/skills")
+    parser.add_argument(
+        "--runtime",
+        choices=sorted(SUPPORTED_RUNTIMES),
+        default="codex",
+        help="Target runtime. Defaults to codex.",
+    )
+    parser.add_argument(
+        "--dest-root",
+        help="Destination skills root, defaults to ~/.claude/skills for runtime=claude, otherwise $CODEX_HOME/skills or ~/.codex/skills",
+    )
     parser.add_argument(
         "--workspace-root",
         help="Workspace root to reference in the generated adapter; inferred from the source path by default",
@@ -437,7 +453,7 @@ def main() -> int:
     args = parser.parse_args()
 
     source_skill_dir = Path(args.source).expanduser()
-    dest_root = Path(args.dest_root).expanduser() if args.dest_root else default_skills_dir()
+    dest_root = Path(args.dest_root).expanduser() if args.dest_root else default_skills_dir(args.runtime)
     workspace_root = Path(args.workspace_root).expanduser() if args.workspace_root else None
 
     try:
