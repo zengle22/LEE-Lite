@@ -1,0 +1,67 @@
+{
+  "id": "REL-ADR036-IMPLEMENTATION-READINESS-CHAIN",
+  "title": "ADR-036 Implementation Readiness Chain Materialization Index",
+  "status": "approved",
+  "gate_decision_ref": "artifacts/active/gates/decisions/adr036-chain-manual-approval-20260402.json",
+  "source_chain": {
+    "src": "artifacts/raw-to-src/adr036-raw2src-20260402-r9",
+    "epic": "artifacts/src-to-epic/adr036-raw2src-20260402-r10",
+    "feat": "artifacts/epic-to-feat/adr036-src2epic-20260402-r4"
+  },
+  "formal_refs": {
+    "epic": "ssot/epic/EPIC-IMPL-IMPLEMENTATION-READINESS__IMPL-实施前文档压力测试与-Implementation-Readiness-统一能力.md",
+    "feats": [
+      "ssot/feat/FEAT-SRC-ADR036-RAW2SRC-20260402-R9-001__IMPL-主测试对象-intake-与-authority-绑定流.md",
+      "ssot/feat/FEAT-SRC-ADR036-RAW2SRC-20260402-R9-002__跨文档一致性与产品行为边界评审流.md",
+      "ssot/feat/FEAT-SRC-ADR036-RAW2SRC-20260402-R9-003__失败路径与反例推演流.md",
+      "ssot/feat/FEAT-SRC-ADR036-RAW2SRC-20260402-R9-004__实施-readiness-verdict-与修复路由流.md",
+      "ssot/feat/FEAT-SRC-ADR036-RAW2SRC-20260402-R9-005__governed-skill-接入与-pilot-验证流.md"
+    ],
+    "architecture": [
+      "ssot/architecture/ARCH-SRC-ADR036-RAW2SRC-20260402-R9-001__IMPL-主测试对象-intake-与-authority-绑定流.md",
+      "ssot/architecture/ARCH-SRC-ADR036-RAW2SRC-20260402-R9-002__跨文档一致性与产品行为边界评审流.md",
+      "ssot/architecture/ARCH-SRC-ADR036-RAW2SRC-20260402-R9-003__失败路径与反例推演流.md",
+      "ssot/architecture/ARCH-SRC-ADR036-RAW2SRC-20260402-R9-004__实施-readiness-verdict-与修复路由流.md",
+      "ssot/architecture/ARCH-SRC-ADR036-RAW2SRC-20260402-R9-005__governed-skill-接入与-pilot-验证流.md"
+    ],
+    "api": [
+      "ssot/api/API-SRC-ADR036-RAW2SRC-20260402-R9-001__IMPL-主测试对象-intake-与-authority-绑定流.md",
+      "ssot/api/API-SRC-ADR036-RAW2SRC-20260402-R9-002__跨文档一致性与产品行为边界评审流.md",
+      "ssot/api/API-SRC-ADR036-RAW2SRC-20260402-R9-003__失败路径与反例推演流.md",
+      "ssot/api/API-SRC-ADR036-RAW2SRC-20260402-R9-004__实施-readiness-verdict-与修复路由流.md",
+      "ssot/api/API-SRC-ADR036-RAW2SRC-20260402-R9-005__governed-skill-接入与-pilot-验证流.md"
+    ],
+    "tech": [
+      "ssot/tech/TECH-SRC-ADR036-RAW2SRC-20260402-R9-001__IMPL-主测试对象-intake-与-authority-绑定流.md",
+      "ssot/tech/TECH-SRC-ADR036-RAW2SRC-20260402-R9-002__跨文档一致性与产品行为边界评审流.md",
+      "ssot/tech/TECH-SRC-ADR036-RAW2SRC-20260402-R9-003__失败路径与反例推演流.md",
+      "ssot/tech/TECH-SRC-ADR036-RAW2SRC-20260402-R9-004__实施-readiness-verdict-与修复路由流.md",
+      "ssot/tech/TECH-SRC-ADR036-RAW2SRC-20260402-R9-005__governed-skill-接入与-pilot-验证流.md"
+    ],
+    "testset": [
+      "ssot/testset/TESTSET-SRC-ADR036-RAW2SRC-20260402-R9-001__IMPL-主测试对象-intake-与-authority-绑定流-testset.yaml",
+      "ssot/testset/TESTSET-SRC-ADR036-RAW2SRC-20260402-R9-002__跨文档一致性与产品行为边界评审流-testset.yaml",
+      "ssot/testset/TESTSET-SRC-ADR036-RAW2SRC-20260402-R9-003__失败路径与反例推演流-testset.yaml",
+      "ssot/testset/TESTSET-SRC-ADR036-RAW2SRC-20260402-R9-004__实施-readiness-verdict-与修复路由流-testset.yaml",
+      "ssot/testset/TESTSET-SRC-ADR036-RAW2SRC-20260402-R9-005__governed-skill-接入与-pilot-验证流-testset.yaml"
+    ],
+    "impl": [
+      "ssot/impl/IMPL-SRC-ADR036-RAW2SRC-20260402-R9-001__IMPL-主测试对象-intake-与-authority-绑定流.md",
+      "ssot/impl/IMPL-SRC-ADR036-RAW2SRC-20260402-R9-002__跨文档一致性与产品行为边界评审流.md",
+      "ssot/impl/IMPL-SRC-ADR036-RAW2SRC-20260402-R9-003__失败路径与反例推演流.md",
+      "ssot/impl/IMPL-SRC-ADR036-RAW2SRC-20260402-R9-004__实施-readiness-verdict-与修复路由流.md",
+      "ssot/impl/IMPL-SRC-ADR036-RAW2SRC-20260402-R9-005__governed-skill-接入与-pilot-验证流.md"
+    ]
+  },
+  "ui_artifact_refs": [
+    "artifacts/feat-to-ui/adr036-feat001-ui-r4--feat-src-adr036-raw2src-20260402-r9-001/ui-spec-bundle.md",
+    "artifacts/feat-to-ui/adr036-feat002-ui-r1--feat-src-adr036-raw2src-20260402-r9-002/ui-spec-bundle.md",
+    "artifacts/feat-to-ui/adr036-feat003-ui-r1--feat-src-adr036-raw2src-20260402-r9-003/ui-spec-bundle.md",
+    "artifacts/feat-to-ui/adr036-feat004-ui-r1--feat-src-adr036-raw2src-20260402-r9-004/ui-spec-bundle.md",
+    "artifacts/feat-to-ui/adr036-feat005-ui-r1--feat-src-adr036-raw2src-20260402-r9-005/ui-spec-bundle.md"
+  ],
+  "notes": [
+    "UI spec remains approved as governed artifact packages under ADR-021; no standalone ssot/ui namespace was materialized.",
+    "IMPL packages were materialized from the approved tech-to-impl outputs; their embedded authority-gap notes remain unchanged."
+  ]
+}
