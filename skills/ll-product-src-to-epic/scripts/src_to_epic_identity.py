@@ -82,8 +82,15 @@ def is_execution_runner_package(package: Any) -> bool:
     return str(semantic_lock(package).get("domain_type") or "").strip().lower() == "execution_runner_rule"
 
 
+def is_implementation_readiness_package(package: Any) -> bool:
+    lock = semantic_lock(package)
+    domain_type = str(lock.get("domain_type") or "").strip().lower()
+    primary_object = str(lock.get("primary_object") or "").strip().lower()
+    return domain_type == "implementation_readiness_rule" or primary_object == "qa.impl-spec-test"
+
+
 def is_governance_bridge_package(package: Any) -> bool:
-    if is_review_projection_package(package) or is_execution_runner_package(package):
+    if is_review_projection_package(package) or is_execution_runner_package(package) or is_implementation_readiness_package(package):
         return False
     source_kind = str(package.src_candidate.get("source_kind") or "")
     title = str(package.src_candidate.get("title") or "")

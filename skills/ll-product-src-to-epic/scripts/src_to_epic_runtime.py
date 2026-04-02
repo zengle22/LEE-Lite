@@ -8,6 +8,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
+import re
 import sys
 from typing import Any
 
@@ -169,6 +170,13 @@ def build_semantic_drift_check(
             "summary": "No semantic_lock present.",
         }
 
+    def normalized_tokens(value: Any, *, drop_generic: bool = False) -> list[str]:
+        text = str(value or "").strip().lower()
+        tokens = [item for item in re.split(r"[^a-z0-9\u4e00-\u9fff]+", text) if item]
+        if drop_generic:
+            tokens = [item for item in tokens if item not in {"rule", "policy", "mode"}]
+        return tokens
+
     generated_text = " ".join(
         [
             epic_title,
@@ -181,9 +189,9 @@ def build_semantic_drift_check(
     forbidden_hits = [item for item in lock.get("forbidden_capabilities", []) if str(item).strip().lower() in generated_text]
     anchor_matches: list[str] = []
     token_groups = {
-        "domain_type": [str(lock.get("domain_type") or "").replace("_", " ").lower()],
-        "primary_object": [token for token in str(lock.get("primary_object") or "").replace("_", " ").lower().split() if token],
-        "lifecycle_stage": [token for token in str(lock.get("lifecycle_stage") or "").replace("_", " ").lower().split() if token],
+        "domain_type": normalized_tokens(lock.get("domain_type"), drop_generic=True),
+        "primary_object": normalized_tokens(lock.get("primary_object")),
+        "lifecycle_stage": normalized_tokens(lock.get("lifecycle_stage")),
     }
     for label, tokens in token_groups.items():
         if tokens and all(token in generated_text for token in tokens):

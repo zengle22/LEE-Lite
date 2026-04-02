@@ -1,6 +1,14 @@
 from typing import Any
 
-from src_to_epic_identity import choose_src_root_id, is_review_projection_package, is_execution_runner_package, is_governance_bridge_package, uses_adr005_prerequisite, operator_surface_names
+from src_to_epic_identity import (
+    choose_src_root_id,
+    is_review_projection_package,
+    is_execution_runner_package,
+    is_governance_bridge_package,
+    is_implementation_readiness_package,
+    uses_adr005_prerequisite,
+    operator_surface_names,
+)
 from src_to_epic_common import shorten_identifier, ensure_list, unique_strings, summarize_text
 
 
@@ -9,6 +17,8 @@ def derive_epic_title(package: Any) -> str:
         return "Gate 审核投影视图与 SSOT 回写统一能力"
     if is_execution_runner_package(package):
         return "Gate 审批后自动推进 Execution Runner 统一能力"
+    if is_implementation_readiness_package(package):
+        return "IMPL 实施前文档压力测试与 Implementation Readiness 统一能力"
     if is_governance_bridge_package(package):
         return "主链正式交接与治理闭环统一能力"
     title = str(package.src_candidate.get("title") or package.run_id).strip()
@@ -46,6 +56,13 @@ def derive_business_goal(
             "本 EPIC 的核心不是把 approve 改写成 formal publication，而是把 gate 批准后的自动推进运行时冻结成连续产品行为。"
             f"下游 FEAT 需要围绕 {slice_names} 这些切片定义 approve 后的 ready job、runner 消费、next-skill dispatch 和 execution result 回写。"
         )
+    if is_implementation_readiness_package(package):
+        slice_names = "、".join(str(item.get("name") or "") for item in (product_behavior_slices or [])[:4])
+        return (
+            "本 EPIC 的核心不是新增第二层技术设计，也不是直接执行代码或测试，"
+            "而是把 implementation start 前的文档压力测试冻结成连续产品能力。"
+            f"下游 FEAT 需要围绕 {slice_names} 这些切片定义 intake、跨文档评审、失败路径推演和 readiness verdict。"
+        )
     if is_governance_bridge_package(package):
         slice_names = "、".join(str(item.get("name") or "") for item in (product_behavior_slices or [])[:5])
         return (
@@ -77,6 +94,13 @@ def derive_business_value_problem(package: Any) -> list[str]:
             problem_statement or "dispatch 已能产出 materialized-job，但系统仍缺少正式 consumer 去自动消费 artifacts/jobs/ready 并推进到下一个 skill。",
             business_drivers[0] if business_drivers else "需要把 gate approve 与下一 skill 自动推进重新绑回同一条运行时链，而不是让 approve 停在 formal publication 或人工接力。",
             f"关键触发场景：{trigger_scenarios[0]}" if trigger_scenarios else "关键触发场景：当 gate approve 之后需要自动推进到下一个 governed skill 时。",
+        ]
+        return unique_strings([item for item in items if item])
+    if is_implementation_readiness_package(package):
+        items = [
+            problem_statement or "当前 IMPL 在 implementation start 前仍缺独立的实施前文档压力测试能力，AI 容易在歧义输入下实现出另一套系统。",
+            business_drivers[0] if business_drivers else "需要把 implementation readiness 从零散 review 提升成正式产品能力，让 gate、reviewer 和 implementation consumer 稳定消费。",
+            f"关键触发场景：{trigger_scenarios[0]}" if trigger_scenarios else "关键触发场景：当 feature_impl_candidate_package 已生成并准备进入 implementation start 时。",
         ]
         return unique_strings([item for item in items if item])
     if is_governance_bridge_package(package):
@@ -112,6 +136,12 @@ def derive_product_positioning(
             "该 EPIC 位于 gate 后自动推进运行时层，承接上游 bridge SRC，"
             "对下定义一条从 approve 后 ready job 生成、runner 自动取件、next-skill dispatch 到 execution result 回写的完整产品线。"
             f"它对外呈现的是 {slice_names} 这些可交付的自动推进产品流；{axis_names} 只作为这些产品流共享的 cross-cutting constraints 存在。"
+        )
+    if is_implementation_readiness_package(package):
+        return (
+            "该 EPIC 位于 implementation start 前的 readiness 产品能力层，承接上游 implementation-readiness SRC，"
+            "对下定义一条从 IMPL intake、跨文档一致性评审、失败路径推演到 readiness verdict 与修复路由的完整产品线。"
+            f"它对外呈现的是 {slice_names} 这些可交付的 readiness 产品流；{axis_names} 只作为这些产品流共享的 cross-cutting constraints 存在。"
         )
     if is_governance_bridge_package(package):
         return (
@@ -150,6 +180,16 @@ def derive_actors_and_roles(package: Any, rollout_requirement: dict[str, Any] | 
         if operator_surface_names(package, "monitor_surface"):
             actors.append({"role": "workflow / orchestration operator", "responsibility": "通过 runner observability surface 观察 ready backlog、running、failed、deadletters 与 waiting-human 状态。"})
         return actors
+    if is_implementation_readiness_package(package):
+        actors.extend(
+            [
+                {"role": "implementation reviewer", "responsibility": "在 implementation start 前消费 readiness report 并判断是否允许继续。"},
+                {"role": "AI coder / tester", "responsibility": "消费主测试对象、authority、修复目标和 verdict，而不是自行补出新的 truth。"},
+                {"role": "workflow / orchestration 设计者", "responsibility": "保持 readiness 流程与 implementation start、external gate、downstream consumer 的职责边界。"},
+                {"role": "upstream artifact owner", "responsibility": "根据 repair_target_artifact 接收修订任务并更新 FEAT / TECH / ARCH / API / UI / TESTSET / IMPL。"},
+            ]
+        )
+        return actors
     if is_governance_bridge_package(package):
         actors.extend(
             [
@@ -179,6 +219,14 @@ def derive_upstream_downstream(package: Any, rollout_requirement: dict[str, Any]
             [
                 "上游输入形态：关于 gate approve 后自动推进缺口的 bridge SRC，而不是 formal publication/admission 产品线定义。",
                 "下游消费形态：ready job emission、runner intake、next-skill dispatch、execution result feedback 等自动推进 FEAT 切片。",
+            ]
+        )
+        return lines
+    if is_implementation_readiness_package(package):
+        lines.extend(
+            [
+                "上游输入形态：关于 implementation start 前 readiness 压力测试的 bridge SRC，而不是具体代码实现或 TECH 方案本体。",
+                "下游消费形态：IMPL intake、cross-artifact consistency、counterexample simulation、readiness verdict 与 repair routing 等 FEAT 切片。",
             ]
         )
         return lines
@@ -219,6 +267,17 @@ def derive_scope(
             axis_names = "、".join(axis["name"] for axis in capability_axes[:8])
             return (
                 ["统一上位产品能力：形成一条 gate approve 后自动推进到下一 skill 的运行时产品线。"]
+                + slice_scope
+                + [f"Cross-cutting capability constraints：{axis_names}；这些能力轴只作为约束附着在上述产品行为切片上。"]
+            )
+        if is_implementation_readiness_package(package):
+            slice_scope = [
+                f"产品行为切片：{item['name']}，对业务方交付 {str(item.get('business_deliverable') or item.get('product_surface') or item['name']).rstrip('。.')}。"
+                for item in (product_behavior_slices or [])[:6]
+            ]
+            axis_names = "、".join(axis["name"] for axis in capability_axes[:6])
+            return (
+                ["统一上位产品能力：形成一条 implementation start 前可被多方稳定消费的 readiness 产品线。"]
                 + slice_scope
                 + [f"Cross-cutting capability constraints：{axis_names}；这些能力轴只作为约束附着在上述产品行为切片上。"]
             )
@@ -272,6 +331,15 @@ def derive_non_goals(package: Any, rollout_requirement: dict[str, Any] | None = 
             ]
         )
         return unique_strings(normalized)[:8]
+    if is_implementation_readiness_package(package):
+        normalized.extend(
+            [
+                "本 EPIC 不新增第二层技术设计 truth，也不替代 FEAT / TECH / ARCH / API / UI / TESTSET / IMPL 的权威边界。",
+                "本 EPIC 不直接执行代码、跑真实测试或替代 external gate 的最终审批职责。",
+                "本 EPIC 不把 implementation readiness 降级为纯文档 lint 或格式检查器。",
+            ]
+        )
+        return unique_strings(normalized)[:8]
     if rollout_requirement and rollout_requirement.get("required"):
         normalized.extend(
             [
@@ -301,6 +369,14 @@ def derive_success_metrics(package: Any, capability_axes: list[dict[str, str]], 
             "至少一条 gate approve -> ready execution job -> runner claim -> next skill invocation 的真实链路可被验证。",
             "ready queue、runner ownership、next-skill dispatch 与 execution outcome 的职责边界不再依赖人工接力。",
             "失败、重试和回流仍保持 execution 语义，而不是在 approve 之后丢失运行时状态。",
+        ]
+    if is_implementation_readiness_package(package):
+        slice_names = "、".join(str(item["name"]) for item in (product_behavior_slices or [])[:4])
+        return [
+            f"下游 FEAT 能完整覆盖 {slice_names} 这些 readiness 产品切片，而不是把能力塌缩成单一 review 步骤。",
+            "至少一条 IMPL intake -> cross-artifact consistency review -> counterexample simulation -> readiness verdict -> repair routing 的链路可被验证。",
+            "主测试对象、authority non-override、deep mode 触发、score-to-verdict 与 repair_target_artifact 在下游 FEAT 层不再歧义。",
+            "implementation consumer 可在不回读 ADR 的前提下理解能否开工、哪里要修、以及修复责任落点。",
         ]
     if is_governance_bridge_package(package):
         slice_names = "、".join(str(item["name"]) for item in (product_behavior_slices or [])[:5])
@@ -344,6 +420,12 @@ def derive_decomposition_rules(package: Any, capability_axes: list[dict[str, str
         rules.append("任何 FEAT 都不得把 approve 后链路重写成 formal publication、admission 或人工第三会话接力。")
         rules.append("下游 FEAT 必须保持 artifacts/jobs/ready、runner claim 和 next-skill invocation 之间的单一路径。")
         rules.append("失败、重试和回流必须保持 execution 语义，不得在 FEAT 层改写为 publish-only 状态。")
+        return unique_strings(rules)[:8]
+    if is_implementation_readiness_package(package):
+        rules.append("FEAT 的 primary decomposition unit 是 IMPL intake、cross-artifact consistency review、counterexample simulation、readiness verdict / repair routing 这些产品行为切片。")
+        rules.append("任何 FEAT 都不得把 implementation readiness 重写成第二层技术设计、代码实现计划或纯文档 lint。")
+        rules.append("下游 FEAT 必须保持主测试对象优先级、authority non-override、deep mode 触发和 score-to-verdict 绑定的单一路径。")
+        rules.append("repair_target_artifact 与 missing_information 必须留在产品级输出，而不是推迟到 TECH 层再补定义。")
         return unique_strings(rules)[:8]
     rules.append("保留 business skill、handoff runtime、external gate 的职责分层，不得在 FEAT 层重新混层。")
     if is_governance_bridge_package(package):
