@@ -20,6 +20,7 @@ REQUIRED_INPUT_FILES = [
     "tech-design-bundle.md",
     "tech-design-bundle.json",
     "tech-spec.md",
+    "integration-context.json",
     "tech-review-report.json",
     "tech-acceptance-report.json",
     "tech-defect-list.json",
@@ -204,6 +205,11 @@ class TechPackage:
     def selected_feat(self) -> dict[str, Any]:
         selected = self.tech_json.get("selected_feat") or {}
         return selected if isinstance(selected, dict) else {}
+
+    @property
+    def integration_context(self) -> dict[str, Any]:
+        payload = self.tech_json.get("integration_context") or {}
+        return payload if isinstance(payload, dict) else {}
 
 
 def load_tech_package(artifacts_dir: Path) -> TechPackage:

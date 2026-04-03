@@ -43,6 +43,14 @@ class TechToImplWorkflowHarness(unittest.TestCase):
     def make_tech_package(self, root: Path, run_id: str, bundle_json: dict[str, object]) -> Path:
         package_dir = root / "artifacts" / "feat-to-tech" / run_id
         package_dir.mkdir(parents=True, exist_ok=True)
+        integration_context = _default_integration_context(bundle_json)
+        bundle_json = {
+            **bundle_json,
+            "integration_context": integration_context,
+            "need_assessment": bundle_json.get("need_assessment") or _default_need_assessment(bundle_json),
+            "integration_sufficiency_check": bundle_json.get("integration_sufficiency_check") or _default_integration_sufficiency_check(),
+            "downstream_handoff": bundle_json.get("downstream_handoff") or _default_downstream_handoff(bundle_json),
+        }
         frontmatter = {
             "artifact_type": "tech_design_package",
             "workflow_key": "dev.feat-to-tech",
@@ -79,6 +87,10 @@ class TechToImplWorkflowHarness(unittest.TestCase):
             encoding="utf-8",
         )
         (package_dir / "tech-spec.md").write_text("# TECH\n\ntech spec\n", encoding="utf-8")
+        (package_dir / "integration-context.json").write_text(
+            json.dumps(integration_context, ensure_ascii=False, indent=2) + "\n",
+            encoding="utf-8",
+        )
         if bundle_json.get("arch_required"):
             (package_dir / "arch-design.md").write_text("# ARCH\n\narch\n", encoding="utf-8")
         if bundle_json.get("api_required"):
@@ -95,6 +107,12 @@ class TechToImplWorkflowHarness(unittest.TestCase):
                 "tech_ref": bundle_json["tech_ref"],
                 "arch_ref": bundle_json.get("arch_ref"),
                 "api_ref": bundle_json.get("api_ref"),
+                "integration_context_ref": "integration-context.json",
+                "canonical_owner_refs": ["tech-design-bundle.json#/tech_design/technical_glossary_and_canonical_ownership"],
+                "state_machine_ref": "tech-design-bundle.json#/tech_design/state_machine",
+                "nfr_constraints_ref": "tech-design-bundle.json#/tech_design/non_functional_requirements",
+                "migration_constraints_ref": "tech-design-bundle.json#/tech_design/migration_constraints",
+                "algorithm_constraint_refs": ["tech-design-bundle.json#/tech_design/algorithm_constraints"],
             },
             "execution-evidence.json": {"run_id": run_id, "decision": "pass"},
             "supervision-evidence.json": {"run_id": run_id, "decision": "pass"},
@@ -138,6 +156,8 @@ class TechToImplWorkflowHarness(unittest.TestCase):
             "api_required": api_required,
             "source_refs": source_refs,
             "selected_feat": feature,
+            "need_assessment": _default_need_assessment({"arch_required": arch_required, "api_required": api_required}),
+            "integration_sufficiency_check": _default_integration_sufficiency_check(),
             "tech_design": {
                 "design_focus": list(feature["scope"])[:3],
                 "implementation_rules": [
@@ -169,6 +189,117 @@ class TechToImplWorkflowHarness(unittest.TestCase):
                     "authoritative handoff 已提交但 pending visibility build fail：标记 visibility_pending 并要求补写 receipt。",
                     "decision return consumed 但 re-entry directive write fail：返回 reentry_pending，等待 runtime repair。",
                 ],
+                "non_functional_requirements": [
+                    "Maintain stable handoff lineage.",
+                    "Preserve execution-ready evidence semantics.",
+                ],
+                "state_machine": [
+                    "handoff_prepared -> handoff_submitted -> gate_pending_visible -> decision_returned",
+                ],
+                "algorithm_constraints": [
+                    "Decision routing stays deterministic for identical input refs.",
+                ],
+                "io_matrix_and_side_effects": [
+                    "submit handoff -> authoritative handoff + gate pending visibility",
+                ],
+                "technical_glossary_and_canonical_ownership": [
+                    "authoritative handoff: runtime-owned canonical submission object",
+                ],
+                "migration_constraints": [
+                    "compat mode may observe but may not redefine authoritative handoff semantics",
+                ],
             },
             "design_consistency_check": {"passed": True, "checks": [], "issues": []},
+            "downstream_handoff": _default_downstream_handoff(
+                {
+                    "feat_ref": feat_ref,
+                    "tech_ref": tech_ref,
+                    "arch_ref": arch_ref,
+                    "api_ref": api_ref,
+                }
+            ),
         }
+
+
+def _default_integration_context(bundle_json: dict[str, object]) -> dict[str, object]:
+    feat_ref = str(bundle_json.get("feat_ref") or "FEAT-UNKNOWN").strip()
+    tech_ref = str(bundle_json.get("tech_ref") or "TECH-UNKNOWN").strip()
+    source_refs = bundle_json.get("source_refs") or [feat_ref, tech_ref, "EPIC-SRC-001-001", "SRC-001"]
+    return {
+        "artifact_type": "integration_context",
+        "schema_version": "1.0.0",
+        "context_ref": "integration-context.json",
+        "workflow_inventory": [
+            f"workflow.dev.feat_to_tech produced {tech_ref}",
+            "workflow.dev.tech_to_impl consumes frozen TECH outputs",
+        ],
+        "module_boundaries": [
+            "ll-dev-tech-to-impl owns implementation planning artifacts.",
+            "Upstream ll-dev-feat-to-tech remains canonical for design truth.",
+        ],
+        "legacy_fields_states_interfaces": [
+            "TECH bundle refs, review artifacts, and freeze gate remain required inputs.",
+        ],
+        "canonical_ownership": [
+            "TECH package owns design truth.",
+            "IMPL package owns execution planning only.",
+        ],
+        "compatibility_constraints": [
+            "IMPL must not re-derive state machine, algorithm, or canonical owner semantics.",
+        ],
+        "migration_modes": [
+            "extend",
+        ],
+        "legacy_invariants": [
+            "Approved TECH freeze gate is required before implementation planning.",
+        ],
+        "gate_audit_evidence": [
+            "Execution evidence and supervision evidence must remain present.",
+        ],
+        "source_refs": list(source_refs),
+    }
+
+
+def _default_need_assessment(bundle_json: dict[str, object]) -> dict[str, object]:
+    arch_required = bool(bundle_json.get("arch_required"))
+    api_required = bool(bundle_json.get("api_required"))
+    return {
+        "arch_required": arch_required,
+        "api_required": api_required,
+        "integration_context_sufficient": True,
+        "stateful_design_present": True,
+        "arch_rationale": ["ARCH artifact required by test fixture." if arch_required else "ARCH artifact not required by test fixture."],
+        "api_rationale": ["API artifact required by test fixture." if api_required else "API artifact not required by test fixture."],
+        "integration_context_rationale": ["Fixture integration context is sufficient for input validation."],
+        "stateful_design_rationale": ["Fixture TECH package includes explicit stateful design fields."],
+    }
+
+
+def _default_integration_sufficiency_check() -> dict[str, object]:
+    return {
+        "passed": True,
+        "checks": [{"name": "fixture_context", "passed": True, "detail": "test fixture provides integration context"}],
+        "issues": [],
+        "summary": "integration_context sufficient",
+    }
+
+
+def _default_downstream_handoff(bundle_json: dict[str, object]) -> dict[str, object]:
+    return {
+        "handoff_id": f"handoff-{bundle_json.get('tech_ref', 'tech')}-to-tech-impl",
+        "from_skill": "ll-dev-feat-to-tech",
+        "source_run_id": str(bundle_json.get("workflow_run_id") or "fixture-run"),
+        "target_workflow": "workflow.dev.tech_to_impl",
+        "feat_ref": str(bundle_json.get("feat_ref") or ""),
+        "tech_ref": str(bundle_json.get("tech_ref") or ""),
+        "arch_ref": bundle_json.get("arch_ref"),
+        "api_ref": bundle_json.get("api_ref"),
+        "primary_artifact_ref": "tech-design-bundle.md",
+        "supporting_artifact_refs": ["tech-design-bundle.json", "tech-spec.md", "integration-context.json"],
+        "integration_context_ref": "integration-context.json",
+        "canonical_owner_refs": ["tech-design-bundle.json#/tech_design/technical_glossary_and_canonical_ownership"],
+        "state_machine_ref": "tech-design-bundle.json#/tech_design/state_machine",
+        "nfr_constraints_ref": "tech-design-bundle.json#/tech_design/non_functional_requirements",
+        "migration_constraints_ref": "tech-design-bundle.json#/tech_design/migration_constraints",
+        "algorithm_constraint_refs": ["tech-design-bundle.json#/tech_design/algorithm_constraints"],
+    }

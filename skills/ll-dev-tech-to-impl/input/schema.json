@@ -11,6 +11,9 @@
     "feat_ref",
     "tech_ref",
     "selected_feat",
+    "need_assessment",
+    "integration_sufficiency_check",
+    "downstream_handoff",
     "source_refs"
   ],
   "properties": {
@@ -42,6 +45,35 @@
     },
     "api_ref": {
       "type": ["string", "null"]
+    },
+    "integration_context": {
+      "type": "object"
+    },
+    "need_assessment": {
+      "type": "object"
+    },
+    "integration_sufficiency_check": {
+      "type": "object"
+    },
+    "downstream_handoff": {
+      "type": "object",
+      "required": [
+        "integration_context_ref",
+        "canonical_owner_refs",
+        "state_machine_ref",
+        "nfr_constraints_ref",
+        "migration_constraints_ref",
+        "algorithm_constraint_refs"
+      ],
+      "properties": {
+        "integration_context_ref": { "type": "string" },
+        "canonical_owner_refs": { "type": "array", "items": { "type": "string" } },
+        "state_machine_ref": { "type": "string" },
+        "nfr_constraints_ref": { "type": "string" },
+        "migration_constraints_ref": { "type": "string" },
+        "algorithm_constraint_refs": { "type": "array", "items": { "type": "string" } }
+      },
+      "additionalProperties": true
     },
     "selected_feat": {
       "type": "object",

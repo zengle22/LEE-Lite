@@ -78,6 +78,8 @@ def check_bundle_identity(bundle: dict[str, Any]) -> list[str]:
         errors.append(
             f"Upstream workflow must be dev.feat-to-tech, got: {str(bundle.get('workflow_key') or '<missing>')}"
         )
+    if not isinstance(bundle.get("integration_sufficiency_check"), dict):
+        errors.append("tech_design_package must include integration_sufficiency_check.")
     return errors
 
 
@@ -135,13 +137,29 @@ def check_optional_refs(bundle: dict[str, Any], package: Any) -> list[str]:
     if bool(bundle.get("api_required")):
         if not package.api_ref:
             errors.append("api_required is true but api_ref is missing.")
+    need_assessment = bundle.get("need_assessment") or {}
+    if need_assessment.get("integration_context_sufficient") is not True:
+        errors.append("need_assessment.integration_context_sufficient must be true for tech-to-impl input.")
+    if need_assessment.get("stateful_design_present") is not True:
+        errors.append("need_assessment.stateful_design_present must be true for tech-to-impl input.")
     return errors
 
 
 def check_handoff_lineage(package: Any) -> list[str]:
+    errors: list[str] = []
     if str(package.handoff.get("target_workflow") or "") != "workflow.dev.tech_to_impl":
-        return ["handoff-to-tech-impl.json must preserve workflow.dev.tech_to_impl lineage."]
-    return []
+        errors.append("handoff-to-tech-impl.json must preserve workflow.dev.tech_to_impl lineage.")
+    for field in [
+        "integration_context_ref",
+        "canonical_owner_refs",
+        "state_machine_ref",
+        "nfr_constraints_ref",
+        "migration_constraints_ref",
+        "algorithm_constraint_refs",
+    ]:
+        if package.handoff.get(field) in (None, "", []):
+            errors.append(f"handoff-to-tech-impl.json must include {field}.")
+    return errors
 
 
 def check_adr007_family_markers(

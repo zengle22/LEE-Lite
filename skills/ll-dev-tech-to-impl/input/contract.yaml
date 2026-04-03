@@ -9,6 +9,7 @@ required_runtime_artifacts:
   - tech-design-bundle.md
   - tech-design-bundle.json
   - tech-spec.md
+  - integration-context.json
   - tech-review-report.json
   - tech-acceptance-report.json
   - tech-defect-list.json
@@ -25,6 +26,9 @@ required_fields:
   - feat_ref
   - tech_ref
   - selected_feat
+  - need_assessment
+  - integration_sufficiency_check
+  - downstream_handoff
   - source_refs
 required_selected_feat_fields:
   - feat_ref
@@ -41,6 +45,7 @@ structural_checks:
   - tech_freeze_gate_is_pass
   - selected_feat_ref_present
   - selected_tech_ref_present
+  - downstream_handoff_complete
   - upstream_feat_lineage_present
   - evidence_presence
 semantic_gate:
@@ -66,6 +71,7 @@ forbidden_inputs:
 notes:
   - The selected TECH package must already be independently acceptable at the TECH layer before implementation planning begins.
   - `feat_ref` and `tech_ref` selection are both mandatory because IMPL now derives from frozen TECH authority, not raw FEAT notes.
-  - Upstream TECH lineage must preserve FEAT, EPIC, and SRC references, with optional ARCH/API refs when present.
+  - `downstream_handoff` must preserve the frozen integration_context, canonical ownership, state machine, NFR, migration, and algorithm refs needed for IMPL planning.
+  - IMPL must consume those refs directly and must not reinterpret them as a second design pass.
   - Provisional upstream inputs are allowed only through an explicit exception path with follow-up freeze or revision handling.
 
