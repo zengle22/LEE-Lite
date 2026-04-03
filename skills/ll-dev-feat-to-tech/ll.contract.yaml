@@ -1,6 +1,6 @@
 skill_id: ll-dev-feat-to-tech
 skill_type: workflow
-version: 0.2.0
+version: 0.3.0
 workflow_key: dev.feat-to-tech
 
 authority:
@@ -49,6 +49,10 @@ input:
   schema_file: input/schema.json
   structural_validation_required: true
   semantic_validation_required: true
+  required_context_objects:
+    - feat_ref
+    - integration_context
+  integration_context_required: true
 
 output:
   artifact_type: tech_design_package
@@ -57,6 +61,24 @@ output:
   template_file: output/template.md
   structural_validation_required: true
   semantic_validation_required: true
+  frozen_tech_sections:
+    - implementation_carrier_view
+    - internal_interface_contracts
+    - main_sequence
+    - exception_and_compensation
+    - integration_points
+    - minimal_code_skeleton
+    - internal_state_machine
+    - key_algorithm_and_decision_logic
+    - io_matrix_and_side_effects
+    - technical_glossary_and_canonical_ownership
+  downstream_handoff_refs:
+    - integration_context_ref
+    - canonical_owner_refs
+    - state_machine_ref
+    - nfr_constraints_ref
+    - migration_constraints_ref
+    - algorithm_constraint_refs
 
 validation:
   structural:
@@ -148,6 +170,7 @@ gate:
     - document_test_report_present
     - execution_evidence_present
     - supervision_evidence_present
+    - integration_sufficiency_check_present
   reject_when:
     - upstream_package_not_freeze_ready
     - selected_feat_ref_missing
@@ -156,3 +179,4 @@ gate:
     - optional_artifact_assessment_mismatch
     - cross_artifact_consistency_failed
     - required_evidence_missing
+    - integration_context_missing

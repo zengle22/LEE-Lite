@@ -1,10 +1,15 @@
 artifact_type: tech_design_package
 schema_version: 1.0.0
+authoritative_upstream_skill: ll-dev-feat-to-tech
+accepted_statuses:
+  - accepted
+  - frozen
 required_runtime_artifacts:
   - package-manifest.json
   - tech-design-bundle.md
   - tech-design-bundle.json
   - tech-spec.md
+  - integration-context.json
   - tech-review-report.json
   - tech-acceptance-report.json
   - tech-defect-list.json
@@ -12,43 +17,75 @@ required_runtime_artifacts:
   - handoff-to-tech-impl.json
   - execution-evidence.json
   - supervision-evidence.json
-required_source_refs:
-  - "product.epic-to-feat::<run_id>"
-  - "FEAT-*"
-  - "EPIC-*"
-  - "SRC-*"
-required_output_objects:
-  - TECH
-conditional_output_objects:
-  - ARCH
-  - API
-required_sections:
-  - Selected FEAT
-  - Need Assessment
-  - TECH Design
-  - Optional ARCH
-  - Optional API
-  - Cross-Artifact Consistency
-  - Downstream Handoff
-  - Traceability
+required_fields:
+  - artifact_type
+  - workflow_key
+  - workflow_run_id
+  - status
+  - schema_version
+  - feat_ref
+  - tech_ref
+  - selected_feat
+  - source_refs
+  - need_assessment
+  - integration_sufficiency_check
+  - downstream_handoff
+required_selected_feat_fields:
+  - feat_ref
+  - title
+  - goal
+  - scope
+  - constraints
+required_selector_fields:
+  - feat_ref
+  - tech_ref
+  - integration_context
+required_tech_sections:
+  - implementation_carrier_view
+  - state_machine
+  - module_plan
+  - algorithm_constraints
+  - implementation_unit_mapping
+  - interface_contracts
+  - main_sequence
+  - exception_and_compensation
+  - integration_points
+  - minimal_code_skeleton
+  - io_matrix_and_side_effects
+  - technical_glossary_and_canonical_ownership
+  - migration_constraints
 structural_checks:
-  - schema
-  - trace
-  - tech_presence
-  - optional_outputs_match_assessment
+  - required_artifact_presence
+  - upstream_workflow_is_dev.feat-to-tech
+  - tech_freeze_gate_is_pass
+  - selected_feat_ref_present
+  - selected_tech_ref_present
+  - upstream_feat_lineage_present
+  - evidence_presence
+  - integration_sufficiency_presence
   - downstream_handoff_presence
-  - consistency_check_presence
 semantic_gate:
   required: true
-forbidden_content:
-  - task-level implementation sequencing
-  - unstated new requirements
-  - duplicated ARCH material inside API sections
-  - duplicated API contract detail inside ARCH sections
+controlled_exceptions:
+  provisional_inputs_allowed: true
+  required_markers:
+    - provisional_ref
+    - impact_scope
+    - follow_up_action
+  rules:
+    - provisional inputs must stay explicitly marked and must not be treated as final truth
+    - repo context is execution context only and must not silently override upstream truth
+    - upstream ref changes must trigger freshness review or re-derive before reuse
+forbidden_statuses:
+  - revised
+  - rejected
+forbidden_inputs:
+  - raw_requirement
+  - feat_freeze_package
+  - direct_task_list
+  - shadow_tech_doc
 notes:
-  - TECH is mandatory for every run.
-  - TECH is the only formal technical design artifact and must be implementation-ready.
-  - ARCH and API must be emitted only when the need assessment says they are required.
-  - The package must carry a final cross-artifact consistency result before freeze.
-  - Optional ARCH/API sections inside the bundle should remain reference summaries, while full content lives in the standalone `arch-design.md` and `api-contract.md` artifacts.
-  - selected_feat should preserve downstream execution metadata when present, including `ui_ref`, `testset_ref`, and structured `provisional_refs`, so `tech-to-impl` does not have to recover them from freeform prose.
+  - The selected TECH package must already be independently acceptable at the TECH layer before implementation planning begins.
+  - `feat_ref` and `tech_ref` selection are both mandatory because IMPL derives from frozen TECH authority, not raw FEAT notes.
+  - `integration_context` is mandatory because formal TECH design must freeze existing-system integration facts, canonical ownership, and migration constraints.
+  - The 10-block TECH structure is represented by the runtime headings in `tech-design-bundle.md`; the contract names are the SSOT for semantic review.

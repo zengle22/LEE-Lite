@@ -18,6 +18,7 @@ api_required: false
 - title:
 - epic_freeze_ref:
 - src_root_id:
+- integration_context_ref:
 
 ## Need Assessment
 
@@ -25,14 +26,68 @@ api_required: false
 - arch_rationale:
 - api_required:
 - api_rationale:
+- integration_context_sufficient:
+- integration_context_rationale:
+- stateful_design_present:
+- stateful_design_rationale:
 
 ## TECH Design
 
-[Summarize the formal technical design: scope, frozen rules, and concrete implementation-ready detail.]
+The `TECH` block is the only mandatory formal technical design object. The sections below are the ten required semantic blocks for the target contract.
+
+### 1. Implementation Unit Mapping
+
+[Map each capability to package/module/file, and say whether the unit is new, extended, wrapped, or replaced.]
+
+### 2. Internal Interface Contracts
+
+[Specify input, output, errors, key fields, idempotency, and preconditions for each core interface.]
+
+### 3. Main Sequence
+
+[Describe the happy path and the order in which the runtime executes.]
+
+### 4. Exception and Compensation
+
+[Describe failure points, retry/abort rules, compensation, and retention/audit behavior.]
+
+### 5. Integration Points and Compatibility
+
+[Describe the current-system attach points, compatibility mode, migration assumptions, and legacy invariants.]
+
+### 6. Minimal Code Skeleton
+
+[Provide one happy-path pseudocode block and one failure-path pseudocode block.]
+
+```python
+def happy_path() -> None:
+    ...
+```
+
+```python
+def failure_path() -> None:
+    ...
+```
+
+### 7. Internal State Machine / Lifecycle
+
+[Freeze the core states, transitions, guards, and state-to-field mapping.]
+
+### 8. Key Algorithms / Decision Logic
+
+[Describe selection logic, ordering, normalization, and any deterministic decision rules.]
+
+### 9. Input/Output Matrix / Side Effects
+
+[List inputs, outputs, writes, external effects, evidence materialization points, and idempotency/reentrancy behavior.]
+
+### 10. Technical Glossary / Canonical Ownership
+
+[Freeze the technical noun set, business-to-technical mappings, and canonical owners for fields, states, objects, and events.]
 
 ### Implementation Carrier View
 
-[Describe the concrete runtime carriers, module boundaries, and technical placement without repeating ARCH boundary rationale.]
+[Summarize the concrete runtime carriers, module boundaries, and technical placement without repeating ARCH boundary rationale.]
 
 ```text
 [Module A] --> [Module B]
@@ -78,16 +133,6 @@ Producer -> Runtime : Example flow
 
 [Provide one happy-path pseudocode block and one failure-path pseudocode block.]
 
-```python
-def happy_path() -> None:
-    ...
-```
-
-```python
-def failure_path() -> None:
-    ...
-```
-
 ## Optional ARCH
 
 [If emitted, record only `arch_ref`, a few summary topics, and the pointer to `arch-design.md`. Do not duplicate ARCH body content here. If not required, say why explicitly.]
@@ -109,6 +154,12 @@ def failure_path() -> None:
 - tech_ref:
 - arch_ref:
 - api_ref:
+- integration_context_ref:
+- canonical_owner_refs:
+- state_machine_ref:
+- nfr_constraints_ref:
+- migration_constraints_ref:
+- algorithm_constraint_refs:
 
 ## Traceability
 

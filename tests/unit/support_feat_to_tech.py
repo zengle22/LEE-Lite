@@ -39,8 +39,11 @@ class FeatToTechWorkflowHarness(unittest.TestCase):
         package_dir.mkdir(parents=True, exist_ok=True)
         frontmatter = _frontmatter_for(run_id, bundle_json)
         markdown = _bundle_markdown(frontmatter, bundle_json)
+        integration_context = _default_integration_context(bundle_json)
+        bundle_json = {**bundle_json, "integration_context": integration_context}
         _write_json(package_dir / "feat-freeze-bundle.json", bundle_json)
         (package_dir / "feat-freeze-bundle.md").write_text("\n".join(markdown) + "\n", encoding="utf-8")
+        _write_json(package_dir / "integration-context.json", integration_context)
         for name, payload in _companion_payloads(run_id, bundle_json).items():
             _write_json(package_dir / name, payload)
         return package_dir
@@ -154,6 +157,49 @@ def _companion_payloads(run_id: str, bundle_json: dict[str, object]) -> dict[str
         },
         "execution-evidence.json": {"run_id": run_id, "decision": "pass"},
         "supervision-evidence.json": {"run_id": run_id, "decision": "pass"},
+    }
+
+
+def _default_integration_context(bundle_json: dict[str, object]) -> dict[str, object]:
+    features = bundle_json.get("features") or []
+    feature = features[0] if isinstance(features, list) and features else {}
+    if not isinstance(feature, dict):
+        feature = {}
+    feature_title = str(feature.get("title") or bundle_json.get("title") or "feat").strip()
+    feat_ref = str(feature.get("feat_ref") or (bundle_json.get("feat_refs") or ["FEAT-UNKNOWN"])[0]).strip()
+    source_refs = bundle_json.get("source_refs") or [feat_ref, "EPIC-SRC-001-001", "SRC-001"]
+    return {
+        "artifact_type": "integration_context",
+        "schema_version": "1.0.0",
+        "context_ref": "integration-context.json",
+        "workflow_inventory": [
+            f"workflow.dev.feat_to_tech consumes {feat_ref}",
+            f"workflow.dev.tech_to_impl receives TECH derived from {feature_title}",
+        ],
+        "module_boundaries": [
+            "skills/ll-dev-feat-to-tech owns technical design derivation.",
+            "skills/ll-dev-tech-to-impl owns implementation planning only.",
+        ],
+        "legacy_fields_states_interfaces": [
+            f"{feature_title} inherits existing FEAT freeze fields and review artifacts.",
+        ],
+        "canonical_ownership": [
+            "FEAT freeze package owns product intent.",
+            "TECH design package owns implementation truth and integration decisions.",
+        ],
+        "compatibility_constraints": [
+            "Downstream implementation must consume frozen handoff refs instead of re-deriving design facts.",
+        ],
+        "migration_modes": [
+            "extend",
+        ],
+        "legacy_invariants": [
+            "Existing FEAT freeze governance artifacts remain authoritative upstream inputs.",
+        ],
+        "gate_audit_evidence": [
+            "Review report, acceptance report, and freeze gate artifacts remain required.",
+        ],
+        "source_refs": list(source_refs),
     }
 
 

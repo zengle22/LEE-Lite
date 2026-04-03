@@ -173,6 +173,7 @@ def write_executor_outputs(output_dir: Path, repo_root: Path, package: Any, gene
         api_path.unlink()
 
     dump_json(output_dir / "tech-design-bundle.json", generated.json_payload)
+    dump_json(output_dir / "integration-context.json", generated.json_payload["integration_context"])
     dump_json(output_dir / "tech-review-report.json", generated.review_report)
     dump_json(output_dir / "tech-acceptance-report.json", generated.acceptance_report)
     dump_json(output_dir / "tech-defect-list.json", generated.defect_list)
@@ -188,6 +189,7 @@ def write_executor_outputs(output_dir: Path, repo_root: Path, package: Any, gene
             "feat_ref": generated.json_payload["feat_ref"],
             "primary_artifact_ref": str(output_dir / "tech-design-bundle.md"),
             "tech_spec_ref": str(output_dir / "tech-spec.md"),
+            "integration_context_ref": str(output_dir / "integration-context.json"),
             "result_summary_ref": str(output_dir / "tech-freeze-gate.json"),
             "review_report_ref": str(output_dir / "tech-review-report.json"),
             "acceptance_report_ref": str(output_dir / "tech-acceptance-report.json"),
@@ -213,6 +215,7 @@ def write_executor_outputs(output_dir: Path, repo_root: Path, package: Any, gene
         str(output_dir / "tech-design-bundle.md"),
         str(output_dir / "tech-design-bundle.json"),
         str(output_dir / "tech-spec.md"),
+        str(output_dir / "integration-context.json"),
     ]
     if generated.arch_frontmatter:
         outputs.append(str(output_dir / "arch-design.md"))
@@ -234,6 +237,8 @@ def write_executor_outputs(output_dir: Path, repo_root: Path, package: Any, gene
                 "tech_present": True,
                 "arch_required": generated.json_payload["arch_required"],
                 "api_required": generated.json_payload["api_required"],
+                "integration_sufficiency_passed": generated.json_payload["integration_sufficiency_check"]["passed"],
+                "stateful_design_present": generated.json_payload["need_assessment"]["stateful_design_present"],
                 "design_consistency_passed": generated.json_payload["design_consistency_check"]["passed"],
                 "cli_executor_commit_ref": str(cli_commit["response_path"]),
                 "cli_executor_receipt_ref": cli_commit["response"]["data"].get("receipt_ref", ""),
@@ -312,6 +317,8 @@ def build_gate_result(generated: Any, supervision_evidence: dict[str, Any]) -> d
         "supervision_evidence_present": True,
         "tech_present": True,
         "optional_outputs_match_assessment": True,
+        "integration_sufficiency_passed": generated.json_payload["integration_sufficiency_check"]["passed"],
+        "stateful_design_present": generated.json_payload["need_assessment"]["stateful_design_present"],
         "cross_artifact_consistency_passed": consistency["passed"],
         "downstream_handoff_present": True,
         "semantic_lock_preserved": semantic_gate.get("semantic_lock_preserved", True),

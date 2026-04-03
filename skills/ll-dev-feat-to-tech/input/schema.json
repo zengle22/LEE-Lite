@@ -34,6 +34,9 @@
           "title": {
             "type": "string"
           },
+          "goal": {
+            "type": "string"
+          },
           "scope": {
             "type": "array",
             "items": {
@@ -51,6 +54,12 @@
             "items": {
               "type": "object"
             }
+          },
+          "source_refs": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
           }
         },
         "additionalProperties": true
@@ -62,6 +71,68 @@
       "items": {
         "type": "string"
       }
+    },
+    "integration_context": {
+      "type": "object",
+      "required": [
+        "workflow_inventory",
+        "module_boundaries",
+        "legacy_fields_states_interfaces",
+        "canonical_ownership",
+        "compatibility_constraints",
+        "migration_modes",
+        "legacy_invariants",
+        "gate_audit_evidence",
+        "source_refs"
+      ],
+      "properties": {
+        "workflow_inventory": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "type": "string" }
+        },
+        "module_boundaries": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "type": "string" }
+        },
+        "legacy_fields_states_interfaces": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "type": "string" }
+        },
+        "canonical_ownership": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "type": "string" }
+        },
+        "compatibility_constraints": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "type": "string" }
+        },
+        "migration_modes": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "type": "string" }
+        },
+        "legacy_invariants": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "type": "string" }
+        },
+        "gate_audit_evidence": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "type": "string" }
+        },
+        "source_refs": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "type": "string" }
+        }
+      },
+      "additionalProperties": true
     }
   },
   "additionalProperties": true

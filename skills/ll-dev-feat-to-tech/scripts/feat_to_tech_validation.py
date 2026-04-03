@@ -17,6 +17,7 @@ REQUIRED_OUTPUT_FILES = [
     "tech-design-bundle.md",
     "tech-design-bundle.json",
     "tech-spec.md",
+    "integration-context.json",
     "tech-review-report.json",
     "tech-acceptance-report.json",
     "tech-defect-list.json",
@@ -40,6 +41,7 @@ REQUIRED_MARKDOWN_HEADINGS = [
 REQUIRED_TECH_SUBHEADINGS = [
     "### Implementation Carrier View",
     "### State Model",
+    "### State Machine",
     "### Module Plan",
     "### Implementation Strategy",
     "### Implementation Unit Mapping",
@@ -47,6 +49,10 @@ REQUIRED_TECH_SUBHEADINGS = [
     "### Main Sequence",
     "### Exception and Compensation",
     "### Integration Points",
+    "### Algorithm Constraints",
+    "### Input / Output Matrix and Side Effects",
+    "### Technical Glossary and Canonical Ownership",
+    "### Migration Constraints",
     "### Minimal Code Skeleton",
 ]
 PRODUCT_AXIS_IDS = {
@@ -132,6 +138,7 @@ def recompute_semantic_gate(bundle_json: dict[str, Any], artifacts_dir: Path) ->
         " ".join(ensure_list(tech_design.get("non_functional_requirements"))),
         " ".join(ensure_list(tech_design.get("implementation_architecture"))),
         " ".join(ensure_list(tech_design.get("state_model"))),
+        " ".join(ensure_list(tech_design.get("state_machine"))),
         " ".join(ensure_list(tech_design.get("module_plan"))),
         " ".join(ensure_list(tech_design.get("implementation_strategy"))),
         " ".join(ensure_list(tech_design.get("implementation_unit_mapping"))),
@@ -139,6 +146,10 @@ def recompute_semantic_gate(bundle_json: dict[str, Any], artifacts_dir: Path) ->
         " ".join(ensure_list(tech_design.get("main_sequence"))),
         " ".join(ensure_list(tech_design.get("exception_and_compensation"))),
         " ".join(ensure_list(tech_design.get("integration_points"))),
+        " ".join(ensure_list(tech_design.get("algorithm_constraints"))),
+        " ".join(ensure_list(tech_design.get("io_matrix_and_side_effects"))),
+        " ".join(ensure_list(tech_design.get("technical_glossary_and_canonical_ownership"))),
+        " ".join(ensure_list(tech_design.get("migration_constraints"))),
         " ".join(ensure_list(tech_design.get("minimal_code_skeleton"))),
         json.dumps(tech_design.get("implementation_carrier_view") or {}, ensure_ascii=False),
         _markdown_body(artifacts_dir / "tech-spec.md"),
@@ -197,11 +208,13 @@ def validate_artifact_refs(errors, bundle_json):
     artifact_refs = bundle_json.get("artifact_refs") or {}
     if artifact_refs.get("tech_spec") != "tech-spec.md":
         errors.append("artifact_refs.tech_spec must point to tech-spec.md.")
-    unexpected = [key for key in artifact_refs if key not in {"tech_spec", "arch_spec", "api_spec"}]
+    unexpected = [key for key in artifact_refs if key not in {"tech_spec", "integration_context", "arch_spec", "api_spec"}]
     if unexpected:
         errors.append(
-            "artifact_refs may only contain tech_spec/arch_spec/api_spec; unexpected keys: " + ", ".join(sorted(unexpected))
+            "artifact_refs may only contain tech_spec/integration_context/arch_spec/api_spec; unexpected keys: " + ", ".join(sorted(unexpected))
         )
+    if artifact_refs.get("integration_context") != "integration-context.json":
+        errors.append("artifact_refs.integration_context must point to integration-context.json.")
 
 
 def validate_optional_outputs(errors, artifacts_dir, arch_required, api_required):
@@ -224,12 +237,23 @@ def validate_optional_outputs(errors, artifacts_dir, arch_required, api_required
 
 def validate_consistency_sections(errors, artifacts_dir, bundle_json):
     consistency = bundle_json.get("design_consistency_check")
+    integration_sufficiency = bundle_json.get("integration_sufficiency_check")
     if not isinstance(consistency, dict):
         errors.append("tech-design-bundle.json must include design_consistency_check.")
     else:
         required_keys = {"passed", "structural_passed", "semantic_passed", "checks", "issues", "minor_open_items"}
         if not required_keys.issubset(set(consistency.keys())):
             errors.append("design_consistency_check must include passed/structural_passed/semantic_passed/checks/issues/minor_open_items.")
+    if not isinstance(integration_sufficiency, dict):
+        errors.append("tech-design-bundle.json must include integration_sufficiency_check.")
+    else:
+        required_keys = {"passed", "checks", "issues", "summary"}
+        if not required_keys.issubset(set(integration_sufficiency.keys())):
+            errors.append("integration_sufficiency_check must include passed/checks/issues/summary.")
+    need_assessment = bundle_json.get("need_assessment") or {}
+    for field in ["integration_context_sufficient", "stateful_design_present"]:
+        if field not in need_assessment:
+            errors.append(f"need_assessment must include {field}.")
     semantic_drift_check = load_json(artifacts_dir / "semantic-drift-check.json")
     recomputed_gate = _recompute_semantic_gate(bundle_json, artifacts_dir)
     if bundle_json.get("semantic_lock") and semantic_drift_check.get("semantic_lock_preserved") is not True:
@@ -267,12 +291,19 @@ def validate_consistency_sections(errors, artifacts_dir, bundle_json):
             errors.append(f"tech-design-bundle.md is missing TECH subsection: {subheading.replace('### ', '')}")
     if markdown_body.count("```text") < 2:
         errors.append("tech-design-bundle.md must include at least two ASCII diagrams for architecture and flow.")
+    tech_design = bundle_json.get("tech_design") or {}
+    for key in ["state_machine", "algorithm_constraints", "io_matrix_and_side_effects", "technical_glossary_and_canonical_ownership", "migration_constraints"]:
+        if not ensure_list(tech_design.get(key)):
+            errors.append(f"tech_design.{key} must be non-empty.")
 
 
 def validate_handoff(errors, artifacts_dir):
     handoff = load_json(artifacts_dir / "handoff-to-tech-impl.json")
     if handoff.get("target_workflow") != DOWNSTREAM_WORKFLOW:
         errors.append(f"handoff-to-tech-impl.json must target {DOWNSTREAM_WORKFLOW}.")
+    for key in ["integration_context_ref", "canonical_owner_refs", "state_machine_ref", "nfr_constraints_ref", "migration_constraints_ref", "algorithm_constraint_refs"]:
+        if handoff.get(key) in (None, "", []):
+            errors.append(f"handoff-to-tech-impl.json must include {key}.")
 
 
 def validate_adr007_adoption(errors, bundle_json):

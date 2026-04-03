@@ -22,12 +22,12 @@ def display_list(values: list[str]) -> str:
     return ", ".join(items) if items else "None"
 
 
-def build_markdown_body(json_payload, feature, refs, assessment, focus, rules, nfrs, implementation_arch, runtime_view, states, modules, strategy, unit_mapping, contracts, sequence_steps, main_flow_diagram, exception_rules, integrations, skeleton, api_specs, consistency, traceability):
+def build_markdown_body(json_payload, feature, refs, assessment, focus, rules, nfrs, implementation_arch, runtime_view, states, state_machine, modules, strategy, unit_mapping, contracts, sequence_steps, main_flow_diagram, exception_rules, integrations, algorithm_constraints, io_matrix, glossary, migration_constraints, skeleton, api_specs, consistency, traceability):
     return "\n\n".join(
         [
             build_selected_feat_section(feature, refs),
             build_need_assessment_section(assessment),
-            build_tech_design_section(focus, rules, nfrs, implementation_arch, runtime_view, states, modules, strategy, unit_mapping, contracts, sequence_steps, main_flow_diagram, exception_rules, integrations, skeleton),
+            build_tech_design_section(focus, rules, nfrs, implementation_arch, runtime_view, states, state_machine, modules, strategy, unit_mapping, contracts, sequence_steps, main_flow_diagram, exception_rules, integrations, algorithm_constraints, io_matrix, glossary, migration_constraints, skeleton),
             build_optional_arch_section(feature, refs, assessment),
             build_optional_api_section(feature, refs, assessment, api_specs),
             build_consistency_section(consistency),
@@ -60,16 +60,21 @@ def build_need_assessment_section(assessment):
         *[f"  - {item}" for item in assessment["arch_rationale"]],
         f"- api_required: {assessment['api_required']}",
         *[f"  - {item}" for item in assessment["api_rationale"]],
+        f"- integration_context_sufficient: {assessment['integration_context_sufficient']}",
+        *[f"  - {item}" for item in assessment["integration_context_rationale"]],
+        f"- stateful_design_present: {assessment['stateful_design_present']}",
+        *[f"  - {item}" for item in assessment["stateful_design_rationale"]],
     ])
 
 
-def build_tech_design_section(focus, rules, nfrs, implementation_arch, runtime_view, states, modules, strategy, unit_mapping, contracts, sequence_steps, main_flow_diagram, exception_rules, integrations, skeleton):
+def build_tech_design_section(focus, rules, nfrs, implementation_arch, runtime_view, states, state_machine, modules, strategy, unit_mapping, contracts, sequence_steps, main_flow_diagram, exception_rules, integrations, algorithm_constraints, io_matrix, glossary, migration_constraints, skeleton):
     return "## TECH Design\n\n" + "\n".join([
         "- Design focus:", *[f"  - {item}" for item in focus],
         "- Implementation rules:", *[f"  - {item}" for item in rules],
         "- Non-functional requirements:", *[f"  - {item}" for item in nfrs],
         "", "### Implementation Carrier View", *[f"- {item}" for item in implementation_arch], "",
         runtime_view, "", "### State Model", *[f"- {item}" for item in states], "",
+        "### State Machine", *[f"- {item}" for item in state_machine], "",
         "### Module Plan", *[f"- {item}" for item in modules], "",
         "### Implementation Strategy", *[f"- {item}" for item in strategy], "",
         "### Implementation Unit Mapping", *[f"- {item}" for item in unit_mapping], "",
@@ -77,6 +82,10 @@ def build_tech_design_section(focus, rules, nfrs, implementation_arch, runtime_v
         "### Main Sequence", *[f"- {item}" for item in sequence_steps], "",
         main_flow_diagram, "", "### Exception and Compensation", *[f"- {item}" for item in exception_rules], "",
         "### Integration Points", *[f"- {item}" for item in integrations], "",
+        "### Algorithm Constraints", *[f"- {item}" for item in algorithm_constraints], "",
+        "### Input / Output Matrix and Side Effects", *[f"- {item}" for item in io_matrix], "",
+        "### Technical Glossary and Canonical Ownership", *[f"- {item}" for item in glossary], "",
+        "### Migration Constraints", *[f"- {item}" for item in migration_constraints], "",
         "### Minimal Code Skeleton", "- Happy path:", skeleton["happy_path"], "", "- Failure path:", skeleton["failure_path"],
     ])
 
@@ -117,6 +126,11 @@ def build_handoff_section(refs, assessment):
         f"- tech_ref: `{refs['tech_ref']}`",
         f"- arch_ref: `{refs['arch_ref']}`" if assessment["arch_required"] else "- arch_ref: not emitted",
         f"- api_ref: `{refs['api_ref']}`" if assessment["api_required"] else "- api_ref: not emitted",
+        "- integration_context_ref: `integration-context.json`",
+        "- state_machine_ref: `tech-design-bundle.json#/tech_design/state_machine`",
+        "- canonical_owner_refs: `tech-design-bundle.json#/tech_design/technical_glossary_and_canonical_ownership`",
+        "- migration_constraints_ref: `tech-design-bundle.json#/tech_design/migration_constraints`",
+        "- algorithm_constraint_refs: `tech-design-bundle.json#/tech_design/algorithm_constraints`",
     ])
 
 
@@ -127,7 +141,7 @@ def build_traceability_section(traceability):
     )
 
 
-def build_tech_docs(refs, source_refs, feature, focus, rules, nfrs, implementation_arch, runtime_view, states, modules, strategy, unit_mapping, contracts, sequence_steps, main_flow_diagram, exception_rules, integrations, skeleton, traceability, json_payload):
+def build_tech_docs(refs, source_refs, feature, focus, rules, nfrs, implementation_arch, runtime_view, states, state_machine, modules, strategy, unit_mapping, contracts, sequence_steps, main_flow_diagram, exception_rules, integrations, algorithm_constraints, io_matrix, glossary, migration_constraints, skeleton, traceability, json_payload):
     frontmatter = {
         "artifact_type": "TECH",
         "status": json_payload["status"],
@@ -145,6 +159,7 @@ def build_tech_docs(refs, source_refs, feature, focus, rules, nfrs, implementati
             "## Non-Functional Requirements\n\n" + "\n".join(f"- {item}" for item in nfrs),
             "## Implementation Carrier View\n\n" + "\n".join(f"- {item}" for item in implementation_arch) + "\n\n" + runtime_view,
             "## State Model\n\n" + "\n".join(f"- {item}" for item in states),
+            "## State Machine\n\n" + "\n".join(f"- {item}" for item in state_machine),
             "## Module Plan\n\n" + "\n".join(f"- {item}" for item in modules),
             "## Implementation Strategy\n\n" + "\n".join(f"- {item}" for item in strategy),
             "## Implementation Unit Mapping\n\n" + "\n".join(f"- {item}" for item in unit_mapping),
@@ -152,6 +167,10 @@ def build_tech_docs(refs, source_refs, feature, focus, rules, nfrs, implementati
             "## Main Sequence\n\n" + "\n".join(f"- {item}" for item in sequence_steps) + "\n\n" + main_flow_diagram,
             "## Exception and Compensation\n\n" + "\n".join(f"- {item}" for item in exception_rules),
             "## Integration Points\n\n" + "\n".join(f"- {item}" for item in integrations),
+            "## Algorithm Constraints\n\n" + "\n".join(f"- {item}" for item in algorithm_constraints),
+            "## Input / Output Matrix and Side Effects\n\n" + "\n".join(f"- {item}" for item in io_matrix),
+            "## Technical Glossary and Canonical Ownership\n\n" + "\n".join(f"- {item}" for item in glossary),
+            "## Migration Constraints\n\n" + "\n".join(f"- {item}" for item in migration_constraints),
             "## Minimal Code Skeleton\n\n- Happy path:\n\n" + skeleton["happy_path"] + "\n\n- Failure path:\n\n" + skeleton["failure_path"],
             "## Traceability\n\n" + "\n".join(f"- {item['design_section']}: {', '.join(item['source_refs'])}" for item in traceability),
         ]

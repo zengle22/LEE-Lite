@@ -8,6 +8,7 @@ required_runtime_artifacts:
   - package-manifest.json
   - feat-freeze-bundle.md
   - feat-freeze-bundle.json
+  - integration-context.json
   - feat-review-report.json
   - feat-acceptance-report.json
   - feat-defect-list.json
@@ -35,12 +36,24 @@ required_feature_fields:
   - source_refs
 required_selector_fields:
   - feat_ref
+required_integration_context_fields:
+  - workflow_inventory
+  - module_boundaries
+  - legacy_fields_states_interfaces
+  - canonical_ownership
+  - compatibility_constraints
+  - migration_modes
+  - legacy_invariants
+  - gate_audit_evidence
+  - source_refs
 structural_checks:
   - required_artifact_presence
   - upstream_workflow_is_product.epic-to-feat
   - feat_freeze_gate_is_pass
   - selected_feat_ref_present
   - evidence_presence
+  - integration_context_presence
+  - integration_context_structure
 semantic_gate:
   required: true
 forbidden_statuses:
@@ -54,3 +67,4 @@ forbidden_inputs:
 notes:
   - The selected FEAT must already be independently acceptable at the FEAT layer before design expansion begins.
   - `feat_ref` selection is mandatory because a feat_freeze_package may contain multiple FEATs.
+  - `integration_context` is mandatory as a runtime artifact because formal tech design must freeze existing-system integration facts instead of inferring them later.

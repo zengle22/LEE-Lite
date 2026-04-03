@@ -11,8 +11,13 @@
     "tech_ref",
     "arch_required",
     "api_required",
+    "need_assessment",
+    "integration_sufficiency_check",
     "design_consistency_check",
-    "artifact_refs"
+    "artifact_refs",
+    "selected_feat",
+    "tech_design",
+    "downstream_handoff"
   ],
   "properties": {
     "artifact_type": {
@@ -50,6 +55,103 @@
     "api_ref": {
       "type": ["string", "null"]
     },
+    "integration_context": {
+      "type": "object",
+      "required": [
+        "workflow_inventory",
+        "module_boundaries",
+        "legacy_fields_states_interfaces",
+        "canonical_ownership",
+        "compatibility_constraints",
+        "migration_modes",
+        "legacy_invariants",
+        "gate_audit_evidence",
+        "source_refs"
+      ],
+      "properties": {
+        "workflow_inventory": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "type": "string" }
+        },
+        "module_boundaries": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "type": "string" }
+        },
+        "legacy_fields_states_interfaces": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "type": "string" }
+        },
+        "canonical_ownership": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "type": "string" }
+        },
+        "compatibility_constraints": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "type": "string" }
+        },
+        "migration_modes": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "type": "string" }
+        },
+        "legacy_invariants": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "type": "string" }
+        },
+        "gate_audit_evidence": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "type": "string" }
+        },
+        "source_refs": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "type": "string" }
+        }
+      },
+      "additionalProperties": true
+    },
+    "need_assessment": {
+      "type": "object",
+      "required": [
+        "arch_required",
+        "api_required",
+        "integration_context_sufficient",
+        "stateful_design_present",
+        "arch_rationale",
+        "api_rationale",
+        "integration_context_rationale",
+        "stateful_design_rationale"
+      ],
+      "properties": {
+        "arch_required": { "type": "boolean" },
+        "api_required": { "type": "boolean" },
+        "integration_context_sufficient": { "type": "boolean" },
+        "stateful_design_present": { "type": "boolean" },
+        "arch_rationale": { "type": "array", "items": { "type": "string" } },
+        "api_rationale": { "type": "array", "items": { "type": "string" } },
+        "integration_context_rationale": { "type": "array", "items": { "type": "string" } },
+        "stateful_design_rationale": { "type": "array", "items": { "type": "string" } }
+      },
+      "additionalProperties": true
+    },
+    "integration_sufficiency_check": {
+      "type": "object",
+      "required": ["passed", "checks", "issues", "summary"],
+      "properties": {
+        "passed": { "type": "boolean" },
+        "checks": { "type": "array", "items": { "type": "object" } },
+        "issues": { "type": "array", "items": { "type": "string" } },
+        "summary": { "type": "string" }
+      },
+      "additionalProperties": true
+    },
     "selected_feat": {
       "type": "object",
       "properties": {
@@ -77,6 +179,50 @@
             ]
           }
         }
+      },
+      "additionalProperties": true
+    },
+    "tech_design": {
+      "type": "object",
+      "required": [
+        "implementation_carrier_view",
+        "state_model",
+        "module_plan",
+        "implementation_strategy",
+        "implementation_unit_mapping",
+        "interface_contracts",
+        "main_sequence",
+        "exception_and_compensation",
+        "integration_points",
+        "minimal_code_skeleton",
+        "io_matrix_and_side_effects",
+        "technical_glossary_and_canonical_ownership"
+      ],
+      "properties": {
+        "implementation_carrier_view": { "type": "object" },
+        "state_model": { "type": "array", "items": { "type": "string" } },
+        "module_plan": { "type": "array", "items": { "type": "string" } },
+        "implementation_strategy": { "type": "array", "items": { "type": "string" } },
+        "implementation_unit_mapping": { "type": "array", "items": { "type": "string" } },
+        "interface_contracts": { "type": "array", "items": { "type": "string" } },
+        "main_sequence": { "type": "array", "items": { "type": "string" } },
+        "exception_and_compensation": { "type": "array", "items": { "type": "string" } },
+        "integration_points": { "type": "array", "items": { "type": "string" } },
+        "minimal_code_skeleton": {
+          "type": "object",
+          "properties": {
+            "happy_path": { "type": "string" },
+            "failure_path": { "type": "string" }
+          },
+          "additionalProperties": true
+        },
+        "io_matrix_and_side_effects": { "type": "array", "items": { "type": "string" } },
+        "technical_glossary_and_canonical_ownership": { "type": "array", "items": { "type": "string" } },
+        "implementation_architecture": { "type": "array", "items": { "type": "string" } },
+        "state_machine": { "type": "array", "items": { "type": "string" } },
+        "algorithm_constraints": { "type": "array", "items": { "type": "string" } },
+        "migration_constraints": { "type": "array", "items": { "type": "string" } },
+        "flow_diagram": { "type": "string" }
       },
       "additionalProperties": true
     },
@@ -114,11 +260,61 @@
       },
       "additionalProperties": true
     },
+    "downstream_handoff": {
+      "type": "object",
+      "required": [
+        "handoff_id",
+        "from_skill",
+        "source_run_id",
+        "target_workflow",
+        "feat_ref",
+        "tech_ref",
+        "primary_artifact_ref",
+        "supporting_artifact_refs",
+        "integration_context_ref",
+        "canonical_owner_refs",
+        "state_machine_ref",
+        "nfr_constraints_ref",
+        "migration_constraints_ref",
+        "algorithm_constraint_refs"
+      ],
+      "properties": {
+        "handoff_id": { "type": "string" },
+        "from_skill": { "type": "string" },
+        "source_run_id": { "type": "string" },
+        "target_workflow": { "type": "string" },
+        "feat_ref": { "type": "string" },
+        "tech_ref": { "type": "string" },
+        "arch_ref": { "type": ["string", "null"] },
+        "api_ref": { "type": ["string", "null"] },
+        "primary_artifact_ref": { "type": "string" },
+        "supporting_artifact_refs": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "integration_context_ref": { "type": "string" },
+        "canonical_owner_refs": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "state_machine_ref": { "type": "string" },
+        "nfr_constraints_ref": { "type": "string" },
+        "migration_constraints_ref": { "type": "string" },
+        "algorithm_constraint_refs": {
+          "type": "array",
+          "items": { "type": "string" }
+        }
+      },
+      "additionalProperties": true
+    },
     "artifact_refs": {
       "type": "object",
-      "required": ["tech_spec"],
+      "required": ["tech_spec", "integration_context"],
       "properties": {
         "tech_spec": {
+          "type": "string"
+        },
+        "integration_context": {
           "type": "string"
         },
         "arch_spec": {

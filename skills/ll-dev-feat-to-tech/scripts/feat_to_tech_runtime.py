@@ -26,14 +26,11 @@ from feat_to_tech_cli_integration import (
     update_supervisor_outputs,
     write_executor_outputs,
 )
-from feat_to_tech_common import (
-    derive_semantic_lock,
-    dump_json,
-    ensure_list,
+from feat_to_tech_common import derive_semantic_lock, dump_json, ensure_list, load_json
+from feat_to_tech_input_support import (
     find_feature,
     guess_repo_root_from_input,
     load_feat_package,
-    load_json,
     resolve_input_artifacts_dir,
     validate_input_package,
 )

@@ -31,20 +31,20 @@ This skill is a lite-native governed workflow between `ll-product-epic-to-feat` 
 
 ## Execution Protocol
 
-1. Accept only a freeze-ready `feat_freeze_package` emitted by `ll-product-epic-to-feat`, plus an explicit `feat_ref`.
+1. Accept only a freeze-ready `feat_freeze_package` emitted by `ll-product-epic-to-feat`, plus an explicit `feat_ref`, plus an explicit `integration_context`.
 2. Validate the package structurally before drafting or editing any design output.
-3. Resolve the authoritative FEAT context from `feat-freeze-bundle.md`, `feat-freeze-bundle.json`, inherited `source_refs`, and the upstream acceptance evidence.
+3. Resolve the authoritative FEAT context from `feat-freeze-bundle.md`, `feat-freeze-bundle.json`, inherited `source_refs`, the upstream acceptance evidence, and the frozen `integration_context`.
 4. Run `python scripts/feat_to_tech.py executor-run --input <feat-package-dir> --feat-ref <feat-ref>` to generate the governed design package.
 5. Always produce `TECH`; produce `ARCH` only when the FEAT is architecture-impacting; produce `API` only when a cross-boundary contract exists.
 6. Record execution evidence, then hand the package to the supervisor.
 7. Run `python scripts/feat_to_tech.py supervisor-review --artifacts-dir <tech-package-dir>` before freeze.
 8. Freeze only after the supervisor records a semantic pass and `python scripts/feat_to_tech.py freeze-guard --artifacts-dir <tech-package-dir>` returns success.
-9. Emit a downstream handoff that preserves `feat_ref`, `tech_ref`, optional `arch_ref` / `api_ref`, and the `workflow.dev.tech_to_impl` target.
+9. Emit a downstream handoff that preserves `feat_ref`, `tech_ref`, optional `arch_ref` / `api_ref`, and the full integration and ownership refs needed by `workflow.dev.tech_to_impl`.
 10. When external gate returns `revise` or `retry`, rerun `run`, `executor-run`, or `supervisor-review` with `--revision-request <revision-request.json>` so the regenerated design package preserves normalized revision context and evidence.
 
 ## Workflow Boundary
 
-- Input: one `feat_freeze_package` plus one selected `feat_ref`
+- Input: one `feat_freeze_package` plus one selected `feat_ref` plus `integration_context`
 - Output: one `tech_design_package` containing a mandatory `TECH` design object and optional `ARCH` / `API` design companions
 - Out of scope: direct implementation planning, TASK authoring, TESTSET authoring, or bypassing the governed FEAT to TECH boundary
 
@@ -55,3 +55,5 @@ This skill is a lite-native governed workflow between `ll-product-epic-to-feat` 
 - Do not let `ARCH`, `TECH`, and `API` restate the same material. `ARCH` owns system placement and boundaries, `TECH` owns implementation design, `API` owns external contracts.
 - Do not bypass the final cross-artifact consistency check before freeze.
 - Do not let the executor self-approve semantic validity.
+- Do not freeze unless `integration_context_sufficient` and `stateful_design_present` are explicitly recorded.
+- Do not let `TECH` omit internal state machine, key algorithm, input/output side effects, or canonical ownership facts that downstream implementation must inherit.

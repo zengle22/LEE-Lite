@@ -10,7 +10,7 @@ import json
 import sys
 from pathlib import Path
 
-from feat_to_tech_common import validate_input_package
+from feat_to_tech_input_support import validate_input_package
 from feat_to_tech_runtime import (
     collect_evidence_report,
     executor_run,
