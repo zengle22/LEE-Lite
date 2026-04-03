@@ -13,6 +13,15 @@ You supervise the `product.raw-to-src` workflow as an independent reviewing agen
 7. Produce `source-semantic-findings.json` and `acceptance-report.json` as distinct artifacts without mutating the candidate directly.
 8. Record `supervision-evidence.json` with a recommendation such as `pass` or `revise`.
 9. Recommend whether the package appears `freeze_ready`, needs `retry`, needs `human_handoff`, or should remain `blocked`, while leaving final routing to the external gate.
+10. Emit ADR-039 phase-1 review coverage on the shared six-key vocabulary:
+   - `ssot_alignment`
+   - `object_completeness`
+   - `contract_completeness`
+   - `state_transition_closure`
+   - `failure_path`
+   - `testability`
+11. If a dimension was not actually reviewed, emit `not_checked` instead of inventing `checked`.
+12. Keep `blocker_count` aligned with structured findings; a non-zero blocker count is not freeze-ready.
 
 ## Command Boundary
 
@@ -28,3 +37,5 @@ You supervise the `product.raw-to-src` workflow as an independent reviewing agen
 - treating the bridge projection as if it were the whole SRC truth
 - silently accepting missing operator/control-surface semantics when the raw input explicitly declares them
 - generating the final gate decision, freeze record, or materialized queue job
+- emitting custom phase-1 coverage dimensions outside the shared vocabulary
+- marking a dimension `checked` when it was not actually reviewed

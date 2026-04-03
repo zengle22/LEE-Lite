@@ -10,10 +10,10 @@ import re
 from pathlib import Path
 from typing import Any
 
-from cli.lib.workflow_document_test import build_document_test_report, build_fixability_section
 from raw_to_src_bridge import acceptance_review, semantic_review
 from raw_to_src_common import WORKFLOW_KEY, find_duplicate_src, render_candidate_markdown
 from raw_to_src_gate_integration import create_gate_ready_package, submit_gate_pending
+from raw_to_src_review_phase1 import build_raw_to_src_document_test_report, validate_review_phase1_fields
 from raw_to_src_records import (
     SEMANTIC_BUDGET,
     STRUCTURAL_BUDGET,
@@ -296,90 +296,6 @@ def _repair_bridge_context(working: dict[str, Any]) -> None:
     )
 
 
-def _document_test_report(
-    *,
-    artifacts_dir: Path,
-    run_id: str,
-    candidate: dict[str, Any],
-    structural_report: dict[str, Any],
-    defects: list[dict[str, Any]],
-    acceptance_report: dict[str, Any],
-    review: dict[str, Any],
-    action: str,
-    revision_request_ref: str,
-) -> dict[str, Any]:
-    structural_issues = list(structural_report.get("issues", []))
-    defect_labels = [str(item.get("type") or item.get("title") or "unknown") for item in defects]
-    structural_labels = [str(item.get("type") or item.get("code") or "structural_issue") for item in structural_issues]
-    ready_for_gate_review = action == "next_skill"
-    revision_context = candidate.get("revision_context") if isinstance(candidate.get("revision_context"), dict) else {}
-
-    recommended_actor = {
-        "next_skill": "external_gate_review",
-        "retry": "executor_local_patch",
-        "human_handoff": "supervisor_handoff",
-        "blocked": "human_owner_decision",
-    }.get(action, "external_gate_review")
-    if action == "retry":
-        fixability = build_fixability_section(
-            recommended_next_action=action,
-            recommended_actor=recommended_actor,
-            mechanical_fixable=len(structural_labels),
-            local_semantic_fixable=len(defect_labels),
-        )
-    elif action == "human_handoff":
-        fixability = build_fixability_section(
-            recommended_next_action=action,
-            recommended_actor=recommended_actor,
-            human_judgement_required=max(1, len(defect_labels)),
-        )
-    elif action == "blocked":
-        fixability = build_fixability_section(
-            recommended_next_action=action,
-            recommended_actor=recommended_actor,
-            human_judgement_required=max(1, len(defect_labels) + len(structural_labels)),
-        )
-    else:
-        fixability = build_fixability_section(
-            recommended_next_action="submit_to_external_gate",
-            recommended_actor=recommended_actor,
-        )
-
-    return build_document_test_report(
-        workflow_key=WORKFLOW_KEY,
-        run_id=run_id,
-        tested_at=str(acceptance_report.get("created_at") or ""),
-        defect_list=structural_issues + defects,
-        revision_request_ref=revision_request_ref,
-        structural={
-            "package_integrity": bool(structural_report.get("input_valid")) and bool(structural_report.get("intake_valid")),
-            "traceability_integrity": bool(candidate.get("source_refs")) and bool(candidate.get("source_provenance_map")),
-            "blocking": bool(structural_issues),
-        },
-        logic_consistency={
-            "checked_topics": ["problem_statement", "key_constraints", "scope_boundary", "acceptance_alignment"],
-            "conflicts_found": defect_labels,
-            "severity": "blocking" if defect_labels else "none",
-            "blocking": bool(defect_labels),
-        },
-        downstream_readiness={
-            "downstream_target": "product.src-to-epic",
-            "consumption_contract_ref": "skills/ll-product-raw-to-src/ll.contract.yaml#validation.document_test.downstream_consumption_contract",
-            "ready_for_gate_review": ready_for_gate_review,
-            "blocking_gaps": structural_labels + defect_labels,
-            "missing_contracts": [],
-            "assumption_leaks": list(acceptance_report.get("acceptance_findings", [])),
-        },
-        semantic_drift={
-            "revision_context_present": bool(revision_request_ref or revision_context),
-            "drift_detected": False,
-            "drift_items": [],
-            "semantic_lock_preserved": True,
-        },
-        fixability=fixability,
-    )
-
-
 def supervisor_review(
     artifacts_dir: Path,
     repo_root: Path,
@@ -630,17 +546,41 @@ def supervisor_review(
     write_json(artifacts_dir / "defect-list.json", defects)
     budget_report = build_retry_budget_report(run_id, structural_report["structural_attempts"], semantic_attempts)
     write_json(artifacts_dir / "retry-budget-report.json", budget_report)
-    document_test_report = _document_test_report(
-        artifacts_dir=artifacts_dir,
+    document_test_report = build_raw_to_src_document_test_report(
         run_id=run_id,
         candidate=candidate,
         structural_report=structural_report,
         defects=defects,
         acceptance_report=acceptance_report,
-        review=review,
         action=action,
         revision_request_ref=revision_request_ref,
     )
+    review_phase1_errors = validate_review_phase1_fields(document_test_report)
+    if review_phase1_errors and action == "next_skill":
+        status = "blocked"
+        action = "blocked"
+        target_skill = "human.review.raw-to-src"
+        queue_path = "artifacts/jobs/failed/"
+        stage_state = "review_phase1_blocked"
+        document_test_report = build_raw_to_src_document_test_report(
+            run_id=run_id,
+            candidate=candidate,
+            structural_report=structural_report,
+            defects=defects,
+            acceptance_report=acceptance_report,
+            action=action,
+            revision_request_ref=revision_request_ref,
+        )
+        review_phase1_errors = validate_review_phase1_fields(document_test_report)
+        supervisor_stages.append(
+            stage(
+                "review_phase1_gate",
+                "failed",
+                "ADR-039 phase-1 review coverage blocked downstream handoff.",
+                "supervisor",
+                issues_found=review_phase1_errors,
+            )
+        )
     document_test_report_path = artifacts_dir / "document-test-report.json"
     write_json(document_test_report_path, document_test_report)
 

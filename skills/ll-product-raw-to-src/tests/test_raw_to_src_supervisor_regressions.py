@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import sys
 from pathlib import Path
 
@@ -9,6 +10,7 @@ if str(SCRIPTS_DIR) not in sys.path:
     sys.path.insert(0, str(SCRIPTS_DIR))
 
 from raw_to_src_runtime import run_workflow
+from raw_to_src_runtime_support import validate_output_package
 from raw_to_src_supervisor_phase import _apply_semantic_patch
 
 
@@ -141,3 +143,87 @@ def test_run_workflow_allow_update_repairs_acceptance_only_bridge_gap(tmp_path: 
 
     assert result["status"] == "freeze_ready"
 
+    document_test_report = json.loads((Path(result["artifacts_dir"]) / "document-test-report.json").read_text(encoding="utf-8"))
+    assert document_test_report["coverage"] == {
+        "ssot_alignment": "checked",
+        "object_completeness": "checked",
+        "contract_completeness": "checked",
+        "state_transition_closure": "partial",
+        "failure_path": "partial",
+        "testability": "partial",
+    }
+    assert document_test_report["required_checks"] == [
+        "ssot_alignment",
+        "object_completeness",
+        "contract_completeness",
+        "state_transition_closure",
+        "failure_path",
+        "testability",
+    ]
+    assert document_test_report["blocker_count"] == 0
+
+
+def test_validate_output_package_rejects_phase1_not_checked(tmp_path: Path) -> None:
+    input_path = _write_adr_input(tmp_path, "ADR-090 Phase1 Not Checked Rejection")
+
+    result = run_workflow(
+        input_path=input_path,
+        repo_root=tmp_path,
+        run_id="adr090-phase1-not-checked-r1",
+        allow_update=True,
+    )
+
+    artifacts_dir = Path(result["artifacts_dir"])
+    document_test_report_path = artifacts_dir / "document-test-report.json"
+    document_test_report = json.loads(document_test_report_path.read_text(encoding="utf-8"))
+    document_test_report["coverage"]["failure_path"] = "not_checked"
+    document_test_report_path.write_text(json.dumps(document_test_report, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+
+    errors, package_result = validate_output_package(artifacts_dir)
+
+    assert not package_result["valid"]
+    assert any("coverage marks required dimension as not_checked: failure_path" in error for error in errors)
+
+
+def test_validate_output_package_rejects_missing_phase1_coverage(tmp_path: Path) -> None:
+    input_path = _write_adr_input(tmp_path, "ADR-090 Missing Phase1 Coverage")
+
+    result = run_workflow(
+        input_path=input_path,
+        repo_root=tmp_path,
+        run_id="adr090-phase1-missing-coverage-r1",
+        allow_update=True,
+    )
+
+    artifacts_dir = Path(result["artifacts_dir"])
+    document_test_report_path = artifacts_dir / "document-test-report.json"
+    document_test_report = json.loads(document_test_report_path.read_text(encoding="utf-8"))
+    document_test_report.pop("coverage", None)
+    document_test_report_path.write_text(json.dumps(document_test_report, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+
+    errors, package_result = validate_output_package(artifacts_dir)
+
+    assert not package_result["valid"]
+    assert any("missing review phase-1 coverage object" in error for error in errors)
+
+
+def test_validate_output_package_rejects_positive_phase1_blocker_count(tmp_path: Path) -> None:
+    input_path = _write_adr_input(tmp_path, "ADR-090 Positive Phase1 Blocker Count")
+
+    result = run_workflow(
+        input_path=input_path,
+        repo_root=tmp_path,
+        run_id="adr090-phase1-blocker-count-r1",
+        allow_update=True,
+    )
+
+    artifacts_dir = Path(result["artifacts_dir"])
+    document_test_report_path = artifacts_dir / "document-test-report.json"
+    document_test_report = json.loads(document_test_report_path.read_text(encoding="utf-8"))
+    document_test_report["blocker_count"] = 1
+    document_test_report_path.write_text(json.dumps(document_test_report, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+
+    errors, package_result = validate_output_package(artifacts_dir)
+
+    assert not package_result["valid"]
+    assert any("blocker_count must be 0 for freeze-ready handoff" in error for error in errors)
