@@ -158,3 +158,26 @@ gate:
     - missing_feat_refs
     - missing_downstream_handoff
     - required_evidence_missing
+
+review_phase1:
+  artifact_family: src_or_feat
+  risk_profiles:
+    - default
+  coverage_dimensions:
+    - ssot_alignment
+    - object_completeness
+    - contract_completeness
+    - state_transition_closure
+    - failure_path
+    - testability
+  required_checks:
+    - ssot_alignment
+    - object_completeness
+    - contract_completeness
+    - state_transition_closure
+    - failure_path
+    - testability
+  gate_block_conditions:
+    - missing_coverage
+    - required_check_not_checked
+    - blocker_count_gt_zero
