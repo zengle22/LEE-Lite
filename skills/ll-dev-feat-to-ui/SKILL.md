@@ -1,56 +1,22 @@
----
 name: ll-dev-feat-to-ui
-description: Governed workflow skill for transforming one frozen FEAT into a UI Spec package that freezes user path, ASCII structure, state model, and UI/TECH boundary before implementation.
+description: Deprecated workflow skill. Direct FEAT-to-UI derivation is disabled; use ll-dev-feat-to-proto and ll-dev-proto-to-ui instead.
 ---
 
-# LL Dev FEAT to UI
+# LL Dev FEAT to UI Deprecated
 
-This skill converts one selected frozen FEAT into one governed `ui_spec_package`. The output is not a visual mockup or page code. It is an interface-layer contract that makes user path, page structure, state handling, and UI/TECH boundaries explicit enough for downstream development.
+This skill is deprecated and disabled after ADR-040.
+Do not use it for new runtime invocations.
 
-## Runtime Boundary Baseline
+## Replacement
 
-- Interpret this skill through `E:\ai\LEE-Lite-skill-first\ssot\adr\ADR-038-运行时核心抽象边界与对象分层基线.MD`.
-- This capability is a governed `Skill` and `Workflow` for `FEAT -> UI Spec`. It does not promote UI artifacts, scripts, or review residue into separate authority objects.
+- Interpret this skill through `E:\ai\LEE-Lite-skill-first\ssot\adr\ADR-040-FEAT-to-UI 拆分为 Prototype Freeze 与 UI Spec 派生双阶段基线.MD`.
+- Replacement path is:
+  - `ll-dev-feat-to-proto`
+  - human review and prototype freeze
+  - `ll-dev-proto-to-ui`
 
-## Run Protocol
+## Status
 
-1. Read `ll.contract.yaml`, `input/contract.yaml`, and `output/contract.yaml`.
-2. Accept only a governed `feat_freeze_package` plus an explicit `feat_ref`.
-3. Run `python scripts/feat_to_ui.py run --input <feat-package-dir> --feat-ref <feat-ref> --repo-root <repo-root>`.
-4. Convert FEAT semantics into UI unit scope, user path, ASCII wireframe, state model, and technical boundaries.
-5. Always emit a `UI Spec Completeness Check` result with `pass | conditional_pass | fail`.
-6. Only treat the package as ready when `python scripts/feat_to_ui.py freeze-guard --artifacts-dir <ui-package-dir>` succeeds.
-7. When external gate returns `revise` or `retry`, rerun `run`, `executor-run`, or `supervisor-review` with `--revision-request <revision-request.json>` so the rebuilt UI package preserves normalized revision context and evidence.
-
-
-## Role Split
-
-- Executor responsibilities live in `agents/executor.md`.
-- Supervisor responsibilities live in `agents/supervisor.md`.
-- The executor must not issue the final semantic pass on its own output.
-
-## Important Scope Rule
-
-- This workflow stops at `FEAT -> UI Spec`.
-- It does not include later体验优化、验收、编码或测试执行流程。
-- UI Spec is the interface-layer SSOT, not a visual design draft and not a code design package.
-
-## Files To Read
-
-1. `ll.contract.yaml`
-2. `input/contract.yaml`
-3. `output/contract.yaml`
-4. `agents/executor.md`
-5. `agents/supervisor.md`
-6. `input/semantic-checklist.md` and `output/semantic-checklist.md`
-
-## Default Scripts
-
-- `scripts/validate_input.sh`
-- `scripts/validate_output.sh`
-- `scripts/collect_evidence.sh`
-- `scripts/freeze_guard.sh`
-
-## Current Rollout Note
-
-This repository now includes a runnable governed `feat-to-ui` skill, but FEAT mainline dispatch is not auto-wired by default yet. The current FEAT contract does not reliably carry an explicit `ui_required` signal for every FEAT, so automatic dispatch would force UI derivation onto backend-only capabilities.
+- New dispatch no longer targets this skill.
+- Direct CLI invocation returns a deprecation error.
+- `execution.return` no longer routes back into this workflow.

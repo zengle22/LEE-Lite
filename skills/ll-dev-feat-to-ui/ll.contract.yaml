@@ -1,10 +1,10 @@
 skill_id: ll-dev-feat-to-ui
 skill_type: workflow
-version: 0.2.0
+version: 0.3.0
 workflow_key: dev.feat-to-ui
 
 authority:
-  canonical_adr: ssot/adr/ADR-021-FEAT-to-UI Lite-Native Skill UI Spec 冻结基线.MD
+  canonical_adr: ssot/adr/ADR-040-FEAT-to-UI 拆分为 Prototype Freeze 与 UI Spec 派生双阶段基线.MD
   upstream_skill: ll-product-epic-to-feat
 
 roles:
@@ -19,14 +19,16 @@ roles:
 
 runtime:
   mode: lite_native
-  command: python scripts/feat_to_ui.py run --input <feat-package-dir> --feat-ref <feat-ref> --repo-root <repo-root>
-  entry_script: scripts/feat_to_ui.py
+  command: disabled
+  entry_script: scripts/feat_to_ui_route.py
   accepted_input_paths:
     - artifacts/epic-to-feat/<run_id>
     - direct feat_freeze_package directory path
+    - formal.feat.<run_id> admission ref
   produced_output_dir: artifacts/feat-to-ui/<run_id>--<feat_ref>
   required_output_artifacts:
     - package-manifest.json
+    - ui-derivation-route.json
     - ui-spec-bundle.md
     - ui-spec-bundle.json
     - ui-spec-completeness-report.json
@@ -54,11 +56,11 @@ output:
 
 validation:
   structural:
-    - "python scripts/feat_to_ui.py validate-input --input $INPUT --feat-ref $FEAT_REF"
-    - "python scripts/feat_to_ui.py run --input $INPUT --feat-ref $FEAT_REF --repo-root $REPO_ROOT --allow-update"
-    - "python scripts/feat_to_ui.py validate-output --artifacts-dir $OUTPUT"
-    - "python scripts/feat_to_ui.py validate-package-readiness --artifacts-dir $OUTPUT"
-    - "python scripts/feat_to_ui.py freeze-guard --artifacts-dir $OUTPUT"
+    - "python scripts/feat_to_ui_route.py validate-input --input $INPUT --feat-ref $FEAT_REF"
+    - "python scripts/feat_to_ui_route.py run --input $INPUT --feat-ref $FEAT_REF --repo-root $REPO_ROOT --allow-update"
+    - "python scripts/feat_to_ui_route.py validate-output --artifacts-dir $OUTPUT"
+    - "python scripts/feat_to_ui_route.py validate-package-readiness --artifacts-dir $OUTPUT"
+    - "python scripts/feat_to_ui_route.py freeze-guard --artifacts-dir $OUTPUT"
 
   semantic:
     input_checklist: input/semantic-checklist.md
@@ -144,6 +146,7 @@ gate:
     - execution_evidence_present
     - supervision_evidence_present
   reject_when:
+    - workflow_deprecated_and_disabled
     - upstream_package_not_freeze_ready
     - selected_feat_ref_missing
     - explicit_ui_derivation_disabled

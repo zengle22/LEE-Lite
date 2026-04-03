@@ -1,4 +1,4 @@
 interface:
-  display_name: "LL Dev Feat To Ui"
-  short_description: "Governed skill for LL Dev Feat To Ui"
-  default_prompt: "Use $ll-dev-feat-to-ui to run the governed ll-dev-feat-to-ui workflow."
+  display_name: "LL Dev Feat To UI (Deprecated)"
+  short_description: "Deprecated skill. Use LL Dev Feat To Proto and LL Dev Proto To UI instead."
+  default_prompt: "Do not use $ll-dev-feat-to-ui for new work. Use $ll-dev-feat-to-proto and then $ll-dev-proto-to-ui."

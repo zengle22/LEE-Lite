@@ -2,6 +2,7 @@ artifact_type: ui_spec_package
 schema_version: 1.0.0
 required_runtime_artifacts:
   - package-manifest.json
+  - ui-derivation-route.json
   - ui-spec-bundle.md
   - ui-spec-bundle.json
   - ui-flow-map.md

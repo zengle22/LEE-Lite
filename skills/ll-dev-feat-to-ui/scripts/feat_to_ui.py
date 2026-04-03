@@ -12,6 +12,7 @@ WORKSPACE_ROOT = Path(__file__).resolve().parents[3]
 if str(WORKSPACE_ROOT) not in sys.path:
     sys.path.insert(0, str(WORKSPACE_ROOT))
 
+from cli.lib.feat_input_resolver import resolve_feat_input_artifacts_dir
 from cli.lib.registry_store import bind_record
 from cli.lib.workflow_revision import load_revision_request, materialize_revision_request, normalize_revision_context
 from feat_to_ui_document_test import build_document_test, validate_document_test
@@ -198,9 +199,10 @@ def _update_document_test_report(
     return document_test_report
 
 def validate_input_package(input_path: str | Path, feat_ref: str, repo_root: Path) -> tuple[list[str], dict[str, Any]]:
-    input_dir = Path(input_path).resolve()
-    if not input_dir.exists() or not input_dir.is_dir():
-        return [f"input path is not a directory: {input_dir}"], {}
+    try:
+        input_dir, input_resolution = resolve_feat_input_artifacts_dir(input_path, repo_root, consumer_ref="dev.feat-to-ui")
+    except Exception as exc:
+        return [str(exc)], {}
     errors = [f"missing required input artifact: {name}" for name in INPUT_FILES if not (input_dir / name).exists()]
     if errors:
         return errors, {}
@@ -221,6 +223,7 @@ def validate_input_package(input_path: str | Path, feat_ref: str, repo_root: Pat
         errors.append(f"selected FEAT {feat_ref} explicitly disables UI derivation via ui_required=false")
     return errors, {
         "input_dir": str(input_dir),
+        "input_mode": input_resolution.get("input_mode", "package_dir"),
         "bundle": bundle,
         "feature": feature,
         "feat_ref": feat_ref,
@@ -723,6 +726,19 @@ def build_parser() -> argparse.ArgumentParser:
 def main() -> int:
     parser = build_parser()
     args = parser.parse_args()
-    return args.func(args)
+    print(
+        json.dumps(
+            {
+                "ok": False,
+                "deprecated": True,
+                "errors": [
+                    "ll-dev-feat-to-ui is deprecated and disabled; use ll-dev-feat-to-proto first, then ll-dev-proto-to-ui after human-reviewed prototype freeze"
+                ],
+                "command": args.command,
+            },
+            ensure_ascii=False,
+        )
+    )
+    return 1
 if __name__ == "__main__":
     sys.exit(main())
