@@ -1,10 +1,10 @@
-# ADR-013：FEAT-to-TECH Lite-Native Skill 设计派生冻结基线
+# ADR-013：FEAT-to-TECH Lite-Native Skill 设计派生冻结基线（边界补强与集成上下文冻结修订）
 
 * 状态：Accepted
-* 日期：2026-03-25
+* 日期：2026-04-03
 * 决策者：Le Zeng
-* 适用范围：`ll-dev-feat-to-tech` skill、`dev.feat-to-tech` lite-native runtime、`tech_design_package`
-* 相关 ADR：ADR-008、ADR-009、ADR-011、ADR-012
+* 适用范围：`ll-dev-feat-to-tech` skill、`dev.feat-to-tech` lite-native runtime、`tech_design_package`、`workflow.dev.tech_to_impl`
+* 相关 ADR：ADR-008、ADR-009、ADR-011、ADR-012、ADR-014、ADR-034、ADR-038
 
 ---
 
@@ -16,93 +16,106 @@ LL 当前主链已经明确了上游派生路径：
 * `FEAT` 是产品语义层的直接冻结对象
 * `TECH`、`TASK`、`TESTSET` 在 ADR-008 中已经被定义为 FEAT 的直接派生对象
 
-但在 FEAT 到设计层对象的这一段，过去一直存在三个常见漂移：
-
-* 有人把 `TECH` 当成唯一设计对象，导致 `ARCH` 和 `API` 只能以零散文档或临时说明附会进去；
-* 有人想把 `ARCH`、`TECH`、`API` 拆成三个独立 workflow，结果上下文被切断、三份设计互相打架；
-* 有人又把三者全部一股脑生成，最后文档边界重叠，出现“每份都讲了一遍系统、实现、接口”的混层。
-
-同时还存在第四类漂移：
-
-* 有人把 FEAT 直接写成实现蓝图，或者把 `TECH` 直接当成开发开工文档，结果能力边界、治理规则、实现落点、挂接策略全部混在一层，导致 FEAT 失去产品语义定位，TECH 也失去类型边界。
-
-为了解决这个问题，当前仓库已经实现了一个可运行的 lite-native governed skill：
+在 FEAT 到设计层对象的这一段，仓库已经落地了一条可运行的 lite-native governed skill：
 
 * canonical skill：`skills/ll-dev-feat-to-tech/`
 * runtime entry：`skills/ll-dev-feat-to-tech/scripts/feat_to_tech.py`
 * workflow key：`dev.feat-to-tech`
 
-该 skill 已经把 FEAT 向设计层派生收敛为：
+ADR-013 的既有主张继续成立：
 
-## **单 FEAT 选择、`TECH` 必出、`ARCH/API` 条件派生、最终统一 freeze 的一条治理链。**
+* 一次运行只针对单个 `FEAT`
+* 输出仍为一个 `tech_design_package`
+* `TECH` 是唯一正式技术设计对象
+* `ARCH`、`API` 仍为条件派生对象
+* 三者仍由同一个 workflow 统一派生
+* freeze 前仍必须执行一致性检查
+* 下游 handoff 仍指向 `workflow.dev.tech_to_impl`
+* `IMPL` 不得承担第二层技术设计
 
-本 ADR 的作用，是把这条已经落地的实现冻结为正式 SSOT。
+本次修订不推翻这条主链，只补足它目前还不够硬的部分：让 `TECH` 真正成为足以交付给下游实施的 governed truth，而不是一份仍然需要 `IMPL` 在实施期补设计的半成品说明文。
 
 ---
 
 # 2. 问题陈述
 
-当前需要冻结的，不是“理论上 design workflow 应该怎样”，而是以下几个已被实现的问题边界：
+当前需要补强的，不是主链方向，而是正式设计边界还存在以下四类缺口。
 
-## 2.1 输入到底是整个 FEAT 包，还是单个 FEAT
+## 2.1 对象责任已定义，但还没有完全变成强结构约束
 
-`feat_freeze_package` 往往包含多个 FEAT。
+ADR-013 已说明：
 
-如果不要求显式 `feat_ref`：
+* `ARCH` 负责模块边界、职责分配、关键拓扑、数据/控制流放置
+* `TECH` 负责实现方向、实现单元映射、挂接点、异常与补偿、非功能要求等
+* `API` 负责 request/response/event/handoff 契约与 schema surface
 
-* runtime 不知道该为哪一个 FEAT 出设计；
-* 一次 run 会混写多个设计对象；
-* 下游 `tech_to_impl` 无法把 handoff 精确挂到单个能力边界上。
+但这些仍主要是说明性责任边界，还没有完全升级为：
 
-## 2.2 `ARCH`、`TECH`、`API` 是不是平级必出
+* 强模板约束
+* 强 gate 约束
+* 强 handoff 约束
 
-如果三者都强制生成：
+因此运行时产物层仍容易出现：
 
-* 中小 FEAT 会产生大量空洞设计；
-* `ARCH`/`API` 容易沦为无意义模板文；
-* review 成本上升，真正需要的判断被噪音淹没。
+* `ARCH` 偏空泛
+* `TECH` 混入过多架构或 API 重复内容
+* `API` 退化成接口清单或补充说明
 
-如果只保留 `TECH`：
+## 2.2 只从 FEAT 派生设计对象，信息边界不足
 
-* 系统边界决策会被塞回 TECH；
-* 对外契约会被塞回 TECH；
-* 下游实现与协作界面失去独立对象。
+当前正式输入边界是：
 
-## 2.3 三个设计对象的边界如何不重叠
+* `feat_freeze_package`
+* `feat_ref`
 
-如果不冻结对象责任：
+这足以支持“从单 FEAT 派生一个设计对象”，但不足以支持“面向现有系统落地的正式技术设计”。
 
-* `ARCH` 会讲一遍实现方案；
-* `TECH` 会讲一遍系统分层；
-* `API` 又会重复一遍边界与 contract 语义；
-* 最终任何一个对象改动都会牵扯全部文档。
+正式技术设计除了回答“新能力怎么做”，还必须回答：
 
-## 2.4 下游 handoff 应该交给谁
+* 如何接入现有 workflow / loop / skill / CLI
+* 旧模块如何扩展、替换或旁路
+* 哪些旧字段、旧状态、旧接口需要兼容
+* 新旧 canonical owner 如何划分
+* migration / fallback / shadow mode 如何处理
 
-设计层 workflow 不是终点，真正的下游是实现层。
+这些事实并不天然完整存在于 FEAT 本体。
 
-因此需要明确：
+## 2.3 若关键技术事实不前置冻结，`IMPL` 会被迫影子化 `TECH`
 
-* 输出 package 的正式主对象是谁；
-* handoff 到哪个 workflow；
-* 下游是否还需要重新判断是否存在 `ARCH/API`。
+ADR-013 已经要求 `TECH` 至少冻结六块内容：
 
-## 2.5 FEAT、TECH、IMPL 是否被混成同一层
+* 实现单元映射
+* 接口契约
+* 主时序 / 调用序列
+* 异常与补偿策略
+* 与现有系统的挂接点
+* 最小代码骨架 / 伪代码
 
-如果 FEAT 与技术文档不分层：
+但从实际落地看，还存在若干高风险事实没有被提升为正式 SSOT：
 
-* FEAT 会被写成代码拆分说明，失去能力与验收边界的冻结价值；
-* `TECH` 如果不承担正式技术设计，就会被不断下沉到 `IMPL` 中，最后失去 SSOT 地位；
-* `IMPL` 如果继续承担第二层技术设计，就会在实施阶段偷偷改写上游边界；
-* 开发无法判断什么是冻结设计，什么只是实施安排；
-* review 也无法判断当前阶段到底该审“技术决策”，还是该审“执行计划”。
+* 内部状态机 / 生命周期设计
+* 关键算法 / 判定逻辑
+* 输入输出矩阵 / side effects
+* 技术名词表 / canonical ownership
+* 兼容与迁移约束
 
-因此需要在本 ADR 中补上：
+如果这些继续缺失，则 `IMPL` 虽然名义上不是第二层技术设计，实际上仍会在实施时临场补设计。
 
-* FEAT 的正式定位；
-* `TECH` 与 `IMPL` 的正式边界；
-* 哪些技术设计内容必须留在 `TECH`；
-* 哪些执行组织内容只能进入 `IMPL`。
+## 2.4 仅有 `design_consistency_check`，不足以阻止集成语义上的猜测冻结
+
+当前强制 gate 是 `design_consistency_check`。它能检查：
+
+* `ARCH`、`TECH`、`API` 是否一致
+* optional artifact 是否与 assessment 一致
+* 设计对象之间是否存在重叠或遗漏
+
+但它还不能回答：
+
+* 现有输入是否足够支撑面向当前系统的正式技术设计
+* 是否已有足够的 legacy boundary / ownership / migration 信息
+* 是否还在用猜测补系统挂接方案
+
+因此需要在 consistency 之外，再补一层集成充分性检查。
 
 ---
 
@@ -110,26 +123,29 @@ LL 当前主链已经明确了上游派生路径：
 
 ## 3.1 决策摘要
 
-LL 正式采用：
+LL 继续采用：
 
 ## **一个单 FEAT、lite-native、TECH-first 的 `ll-dev-feat-to-tech` governed skill**
 
 作为 FEAT 到设计层对象的标准派生路径。
 
-并冻结以下原则：
+本次修订在不改变主框架的前提下，正式补强四点：
 
-1. 输入固定为：
-   * 一个 `feat_freeze_package`
-   * 一个强制选择的 `feat_ref`
-2. 输出固定为：
-   * 一个 `tech_design_package`
-3. `TECH` 是每次运行的必选主产物。
-4. `ARCH` 仅在 FEAT 具有 architecture-impacting 特征时生成。
-5. `API` 仅在 FEAT 存在明确跨边界契约面时生成。
-6. `ARCH`、`TECH`、`API` 由同一个 workflow 统一生成，而不是拆成三个独立 workflow。
-7. freeze 前必须有一个显式 `design_consistency_check`，用于检查三者是否一致且不重叠。
-8. 下游正式 handoff 固定为：
-   * `workflow.dev.tech_to_impl`
+1. 将 `ARCH / TECH / API` 的边界从说明性责任边界升级为可校验的结构性边界。
+2. 将 `feat-to-tech` 的正式输入从 `feat_freeze_package + feat_ref` 升级为 `feat_freeze_package + feat_ref + integration_context`。
+3. 将正式 `TECH` 的最小强制结构从六块升级为十块。
+4. 将集成充分性、状态机显式性、兼容迁移约束和 canonical ownership 纳入正式 gate 与 handoff。
+
+以下既有原则保持不变：
+
+1. 一次运行只允许选择一个 `feat_ref`。
+2. 输出仍固定为一个 `tech_design_package`。
+3. `TECH` 仍是每次运行的必选主产物。
+4. `ARCH`、`API` 仍是条件派生对象。
+5. `ARCH`、`TECH`、`API` 仍由同一个 workflow 统一生成。
+6. freeze 前仍必须执行 `design_consistency_check`。
+7. 下游正式 handoff 仍固定为 `workflow.dev.tech_to_impl`。
+8. `IMPL` 仍不得承担第二层技术设计。
 
 ---
 
@@ -149,7 +165,7 @@ LL 正式采用：
 
 ### 本仓库 implementation authority
 
-本地真正可运行、可验证、可 freeze 的 authority 由以下文件共同构成：
+当前本地真正可运行、可验证、可 freeze 的 authority 由以下文件共同构成：
 
 * `skills/ll-dev-feat-to-tech/SKILL.md`
 * `skills/ll-dev-feat-to-tech/ll.contract.yaml`
@@ -161,20 +177,26 @@ LL 正式采用：
 * `skills/ll-dev-feat-to-tech/scripts/feat_to_tech_runtime.py`
 * `skills/ll-dev-feat-to-tech/scripts/feat_to_tech_cli_integration.py`
 
-因此，本 ADR 明确：
+本次修订进一步明确：
 
-## **本地 runtime + contract + role split 是 `dev.feat-to-tech` 的第一真相。**
+## **当前 runtime 仍是现状 authority，但在 `integration_context`、扩展 need assessment、`integration_sufficiency_check`、十块 `TECH` 结构和 handoff 扩展字段这些新增点上，以本 ADR 为升级目标真相。**
+
+也就是说：
+
+* 已实现部分继续以本地 runtime 为第一真相
+* 本修订新增的治理要求，成为下一轮实现必须收敛到的正式 SSOT
 
 ---
 
 ## 3.3 正式输入边界
 
-`ll-dev-feat-to-tech` 只接受：
+`ll-dev-feat-to-tech` 的正式输入升级为：
 
 * 一个 freeze-ready 的 `feat_freeze_package`
 * 一个显式 `feat_ref`
+* 一个正式 `integration_context`
 
-正式输入最小集为：
+正式输入最小集至少应覆盖：
 
 * `package-manifest.json`
 * `feat-freeze-bundle.md`
@@ -186,6 +208,7 @@ LL 正式采用：
 * `handoff-to-feat-downstreams.json`
 * `execution-evidence.json`
 * `supervision-evidence.json`
+* `integration_context` 的结构化输入或其可追踪引用
 
 同时必须满足：
 
@@ -203,9 +226,33 @@ LL 正式采用：
   * `acceptance_checks`
   * `source_refs`
 
-这意味着：
+### 3.3.1 `integration_context` 的正式定位
 
-## **`feat-to-tech` 不是“从任意 FEAT markdown 写技术方案”，而是“只消费已治理、已冻结的 FEAT 包中的一个正式 FEAT”。**
+`integration_context` 是 FEAT 派生设计层时必须显式消费的上下文对象，用于冻结“该能力如何挂接到现有系统”的技术事实。
+
+它不是可选背景材料，而是正式设计输入的一部分。
+
+### 3.3.2 `integration_context` 至少应包含
+
+* 现有相关 workflow / loop / skill / CLI 清单
+* 现有模块与目录边界
+* 相关旧字段 / 旧状态 / 旧接口定义
+* canonical ownership 现状
+* 兼容约束与历史行为约束
+* 迁移模式假设：`replace / extend / shadow / bridge`
+* 不允许改动的 legacy invariants
+* 需要沿用的 gate / audit / repair / evidence 语义
+* 相关 `source_refs / arch_refs / tech_refs / api_refs`
+
+### 3.3.3 正式含义
+
+`feat-to-tech` 不再是：
+
+## **“从单个 FEAT 文本推出一份技术方案”。**
+
+而是：
+
+## **“从已冻结 FEAT + 明确集成上下文，派生一个可接入现有系统的正式设计包”。**
 
 ---
 
@@ -213,7 +260,7 @@ LL 正式采用：
 
 一次运行只允许选择一个 FEAT。
 
-正式规则：
+正式规则保持不变：
 
 * `feat_ref` 是强制输入，不允许默认选第一个
 * 每次 run 只允许输出一个主 `TECH`
@@ -232,11 +279,11 @@ LL 正式采用：
 
 ## 3.5 正式输出边界
 
-该 skill 的唯一正式输出为：
+该 skill 的唯一正式输出仍为：
 
 ## **一个 `tech_design_package`**
 
-最小运行时 package 包含：
+最小运行时 package 继续包含：
 
 * `package-manifest.json`
 * `tech-design-bundle.md`
@@ -255,19 +302,27 @@ LL 正式采用：
 * `arch-design.md`
 * `api-contract.md`
 
-推荐输出目录：
+推荐输出目录保持：
 
 * `artifacts/feat-to-tech/<run_id>--<feat_ref>/`
 
-其中正式主对象不是散文件集合，而是：
+本次修订新增要求：
 
-## **一个带 need assessment、traceability、consistency check、handoff 的受治理 design package。**
+* `integration_context` 必须在 package 内以结构化字段或受治理 supporting artifact 的方式被保留并可引用
+* 下游 handoff 必须能引用该集成上下文冻结结果
+* `tech-design-bundle.json` 必须携带扩展后的 need assessment、gate 结果和引用字段
+
+因此，正式主对象仍不是散文件集合，而是：
+
+## **一个带 need assessment、integration sufficiency、traceability、consistency check、handoff 的受治理 design package。**
 
 ---
 
-## 3.6 设计对象责任边界
+## 3.6 设计对象责任边界升级为强模板约束
 
-本 ADR 正式冻结三类对象的责任：
+本 ADR 正式冻结：
+
+## **`ARCH / TECH / API` 的边界不仅是说明性责任边界，也是必须通过模板与 gate 校验落实的结构性边界。**
 
 在此之前，先冻结一个前提：
 
@@ -280,6 +335,7 @@ FEAT 只负责冻结：
 * 约束是什么
 * 验收标准是什么
 * 该能力从哪些上游事实派生而来
+* 业务名词表、业务态和完成态语义
 
 FEAT 不负责直接给出：
 
@@ -289,63 +345,57 @@ FEAT 不负责直接给出：
 * 异常补偿细节
 * 旧系统挂接步骤
 * 伪代码级实现骨架
+* 内部状态机与技术 canonical ownership
 
-这些内容如果存在，应进入 FEAT 的技术派生层，而不是回写到 FEAT 本体。
+### 3.6.1 `ARCH`
 
-### `ARCH`
+`ARCH` 只能回答：
 
-只负责：
+* 模块边界如何划分
+* 职责如何分配
+* 关键调用拓扑如何组织
+* 数据 / 控制流放在哪里
+* 哪些边界需要调整或保持
+* 哪些系统级取舍是本设计必须冻结的
 
-* 模块边界
-* 职责分配
-* 关键调用拓扑
-* 数据 / 控制流放置
-* 架构取舍与边界决策
-
-不负责：
+`ARCH` 不得退化为：
 
 * 详细实现步骤
-* 全量接口字段 schema
-* task 级交付拆分
+* API 字段级 schema 文档
+* task 排期或工单拆分
+* 伪代码说明文
 
-### `TECH`
+### 3.6.2 `TECH`
 
-只负责：
+`TECH` 只能回答：
 
-* 能力的技术定义与实现方向
-* runtime carrier
-* 内部约束
-* 关键实现路径的原则性展开
-* 实现单元映射
-* 核心接口契约
-* 主时序 / 调用序列
-* 异常与补偿策略
-* 与现有系统的挂接点
-* 最小代码骨架 / 伪代码
-* 非功能要求
-* 下游 `tech_to_impl` 所必须继承的技术约束
+* 能力如何在当前 runtime / codebase / workflow 中落地
+* 内部实现单元如何映射
+* 主调用序列是什么
+* 关键失败模式如何处理
+* 与现有系统具体怎么挂接
+* 哪些技术事实是下游实施必须继承的
 
-不负责：
+`TECH` 不得退化为：
 
-* 系统级边界总图
-* 对外 API 全量契约细节
-* task 级排期
+* 只讲抽象意图，不给实现落点
+* 只给 TODO / checklist / task order
+* 把关键状态机、关键算法、关键 side effects 推给 `IMPL` 再决定
 
-### `API`
+### 3.6.3 `API`
 
-只负责：
+`API` 只能回答：
 
-* request / response / event / handoff contract
-* schema surface
-* 兼容性与版本策略
-* error / verdict / decision 契约
-* consumer / provider 约束
+* 请求 / 响应 / 事件 / 消息 / handoff 的 schema 是什么
+* 错误结构与 verdict 契约是什么
+* consumer / provider 的行为约束是什么
+* 幂等、兼容、版本语义是什么
 
-不负责：
+`API` 不得退化为：
 
-* 大段架构说明
-* 内部实现步骤
-* 宏观系统分层设计
+* 解释整套系统架构
+* 解释内部实现路径
+* 复写 `TECH` 中的内部调用组织
 
 因此：
 
@@ -353,204 +403,255 @@ FEAT 不负责直接给出：
 
 ---
 
-## 3.6.1 `TECH` 是唯一正式技术设计
+## 3.7 `TECH` 是唯一正式技术设计，且强制结构由六块升级为十块
 
-本 ADR 进一步正式冻结：
+本 ADR 继续正式冻结：
 
 ## **在 FEAT 派生链上，`TECH` 是唯一正式技术设计对象；`IMPL` 不是第二层技术设计。**
 
-`TECH` 回答：
-
-* 这个能力切面是什么
-* 边界在哪里
-* 哪些规则不能变
-* 内部与外部对象如何协同
-* 核心实现路径怎么设计
-* 下游研发实施必须遵守哪些技术事实
-
-这就是当前 `ll-dev-feat-to-tech` 的主产物定位。
-
-换句话说：
-
-## **当前 `feat-to-tech` 输出的 `TECH`，就是正式技术设计本体，而不是等待 `IMPL` 再补一版“第二层设计”。**
-
----
-
-## 3.6.2 `TECH` 的六块强制内容
-
-凡是足以 handoff 到下游实施的正式 `TECH` 文档，必须至少补齐以下六块内容。
-
-这六块内容不是建议项，而是正式技术设计的最小结构基线。
+本次修订将正式 `TECH` 的最小结构从六块升级为十块。凡是足以 handoff 到下游实施的正式 `TECH`，必须至少补齐以下内容。
 
 ### 1. 实现单元映射
 
 必须写清：
 
-* 对应哪个 `package / module / file`
-* 是新建还是扩展已有模块
-* 模块之间谁依赖谁
+* `package / module / file` 落点
+* 新建 / 扩展 / 替换 / 包装 哪一种方式
 * 关键能力分别落到哪些实现单元
 
-禁止只写组件名或抽象对象名，而不给代码落点。
+### 2. 内部接口契约
 
-### 2. 接口契约
-
-每个核心组件至少写清：
+必须写清：
 
 * 输入结构
 * 输出结构
 * 错误结构
-* 关键字段
-* 是否幂等
-* 调用前置条件
-
-禁止只写“required outputs”“decision exists”之类概念级表述，而不给结构约束。
-
-当存在对外或跨边界契约时：
-
-* `API` 继续负责正式 request / response / event schema；
-* `TECH` 负责说明这些契约在实现路径中的使用方式，而不是重复整份外部 schema。
+* 幂等性
+* 前置条件
+* 关键字段与语义约束
 
 ### 3. 主时序 / 调用序列
 
-必须明确主要 happy path 的调用顺序，包括但不限于：
+必须写清：
 
-* 请求归一化
-* 前置校验
-* 依赖检查
-* 主处理执行
-* 回执或结果构建
-* staging / evidence / materialization 等副作用落点
-* 返回路径
-
-如果没有调用序列，开发只能自行猜测，设计边界会立刻发散。
+* happy path
+* 主处理顺序
+* 关键副作用发生点
+* 返回与回执路径
 
 ### 4. 异常与补偿策略
 
-必须明确关键失败点上的处理语义，例如：
+必须写清：
 
-* 前序步骤成功、后序步骤失败时如何补偿
-* 是否允许 partial success
-* 哪些失败可降级，哪些失败必须中止
-* receipt / dispatch / retention / closure 等环节失败时如何记录与恢复
-
-`risks`、`fallback`、`forbidden shortcuts` 不能替代可执行的失败处理策略。
+* 关键失败点
+* 中止 / 降级 / 重试 / partial success 规则
+* 补偿与恢复语义
+* evidence / audit / retention 行为
 
 ### 5. 与现有系统的挂接点
 
-必须回答：
+必须写清：
 
 * 谁调用该能力
-* 先接入哪些旧 skill / CLI / loop
-* compatibility mode 在哪里开启
-* file handoff / gate / repair / audit findings 分别在哪个步骤发生
-* 新能力是新 workflow、新阶段，还是现有主链中的扩展点
-
-如果没有挂接点说明，文档就只是“新世界定义”，无法落到当前系统。
+* 在哪条旧链路中接入
+* 哪些旧模块保留、扩展或旁路
+* compatibility / bridge / fallback 在哪里发生
 
 ### 6. 最小代码骨架 / 伪代码
 
-至少提供：
+必须写清：
 
 * 模块清单
 * 核心接口样例
-* 一条 happy path 伪代码
-* 一条 failure path 伪代码
+* 至少一条 happy path
+* 至少一条 failure path
 
-没有这一层，开发仍然需要重新发明实现组织方式。
+### 7. 内部状态机 / 生命周期设计
 
-因此，本 ADR 正式规定：
+必须写清：
 
-## **这六块内容属于正式 `TECH` 的强制结构，不强行塞回 FEAT，也不允许继续下沉到 `IMPL` 中重写一版。**
+* 核心状态
+* 合法迁移
+* 关键守卫条件
+* 中间态 / 异常态
+* 状态与字段之间的映射关系
+
+### 8. 关键算法 / 判定逻辑
+
+必须写清：
+
+* 关键 decision rule
+* 排序 / 聚合 / 归一化 / eligibility / 选择逻辑
+* 是否 deterministic
+* 允许的近似范围或策略约束
+
+### 9. 输入输出矩阵 / Side Effects 表
+
+必须写清：
+
+* 每个核心动作的输入
+* 输出
+* 写入对象
+* 外部副作用
+* evidence materialization 点
+* 幂等 / 重入语义
+
+### 10. 技术名词表 / Canonical Ownership 表
+
+必须写清：
+
+* 核心技术名词
+* 名词与业务名词的映射
+* 字段 / 状态 / 对象 / event 的 canonical owner
+* 禁止双真相源的约束
+
+### 3.7.1 修订后的正式含义
+
+只有同时满足以上十块内容的 `TECH`，才可被视为：
+
+## **足以 handoff 到下游实施的正式技术设计对象。**
 
 ---
 
-## 3.7 `TECH` 必出，`ARCH/API` 条件生成
+## 3.8 状态机、关键算法、I/O、名词表进入正式 SSOT 管理
 
-本 ADR 正式规定：
+以下内容不再允许作为临时说明、review 意见或 `IMPL` 实施期补充存在，而必须成为正式 SSOT 组成部分：
+
+* 状态机 / 生命周期定义
+* 关键算法 / 判定逻辑
+* 输入输出结构与副作用表
+* 技术名词表
+* canonical ownership 定义
+* 非功能约束
+* 兼容与迁移规则
+
+这些内容并非全部归入同一文档，而应按对象边界冻结：
+
+### FEAT
+
+* 业务目标
+* 业务验收标准
+* 业务名词表
+* 业务态 / 完成态语义
+* 范围与约束
+
+### ARCH
+
+* 模块边界
+* 职责边界
+* 系统级状态跨边界关系
+* 关键流向和结构取舍
+
+### API
+
+* 外部输入输出结构
+* 跨边界 schema
+* consumer / provider 契约
+* error / event / version 语义
+
+### TECH
+
+* 内部状态机实现映射
+* 关键算法
+* side effects
+* canonical ownership
+* NFR 落点
+* 集成挂接规则
+
+---
+
+## 3.9 `TECH` 必出，`ARCH/API` 条件生成，Need Assessment 扩展为四项判断
+
+本 ADR 继续规定：
 
 * `TECH` 必须在每次运行中生成
-* `ARCH` 是否生成，取决于 architecture-impacting need assessment
-* `API` 是否生成，取决于 boundary-contract need assessment
+* `ARCH` 是否生成，取决于 architecture-impacting assessment
+* `API` 是否生成，取决于 boundary-contract assessment
 
-### `ARCH` 触发条件
+在此基础上，need assessment 从两项扩展为四项正式判断：
 
-至少包括以下类型：
+* `arch_required`
+* `api_required`
+* `integration_context_sufficient`
+* `stateful_design_present`
 
-* FEAT 涉及模块边界变化
-* FEAT 涉及职责重分配
-* FEAT 涉及跨模块调用拓扑调整
-* FEAT 涉及 IO/path/topology/registry/gate placement 等系统放置问题
-* FEAT source refs 已显式引用 `ARCH-*`
+### 3.9.1 含义
 
-### `API` 触发条件
+* `integration_context_sufficient = false`
+  表示当前输入不足以产出可落地的正式技术设计
 
-至少包括以下类型：
+* `stateful_design_present = false`
+  表示当前设计尚未把关键状态机 / 生命周期事实显式冻结
 
-* FEAT 显式包含 contract / proposal / decision / handoff / queue 等边界对象
-* FEAT 需要 consumer/provider 协作约束
-* FEAT 需要 request/response/event/message 语义
-* FEAT 的输出本身就是对外或跨边界 exchange object
+### 3.9.2 正式要求
 
-如果不满足，则必须显式输出：
+package 必须记录：
 
-* `arch_required = false`
-* `api_required = false`
-
-而不是生成空洞对象。
-
----
-
-## 3.8 Need Assessment 的正式地位
-
-need assessment 不是实现细节，而是正式 package 内容的一部分。
-
-正式要求：
-
-* package 必须记录 `arch_required`
-* package 必须记录 `api_required`
-* package 必须记录每个判断的 rationale
-* optional artifact 的存在与否必须与该判断一致
+* 四项判断本身
+* 每项判断的 rationale
+* optional artifact 与这些判断之间的对应关系
 
 这意味着：
 
-## **`ARCH/API` 的存在性本身，就是一个需要被 freeze、review 和 handoff 的治理决策。**
+## **`ARCH/API` 的存在性、集成上下文是否充分、状态设计是否显式，都是需要被 freeze、review 和 handoff 的治理决策。**
 
 ---
 
-## 3.9 一致性检查是强制 gate
+## 3.10 Gate 语义补强：新增 `integration_sufficiency_check`
 
-本 workflow 必须在 freeze 前执行：
+本 workflow 仍必须在 freeze 前执行：
 
 ## **`design_consistency_check`**
 
 它至少要回答：
 
 * `TECH` 是否存在并可下游实现
-* 当 `ARCH` 存在时，它是否真的覆盖了系统边界问题
-* 当 `API` 存在时，它是否真的覆盖了契约问题
+* 当 `ARCH` 存在时，它是否真的覆盖系统边界问题
+* 当 `API` 存在时，它是否真的覆盖契约问题
 * `ARCH`、`TECH`、`API` 是否互相引用一致
 * 是否出现边界重叠或遗漏
 
-如果 consistency check 未通过，则：
+在此之外，新增一个强制前置检查：
 
-* package 不得 freeze-ready
-* 必须进入 revise
+## **`integration_sufficiency_check`**
+
+它至少要回答：
+
+* 当前输入是否已足够支撑“面向现有系统的正式技术设计”
+* 是否已有足够的旧系统边界信息
+* 是否已有足够的 canonical ownership 信息
+* 是否已有足够的兼容 / migration 信息
+* 是否存在关键 legacy dependency 未显式冻结
+
+### 3.10.1 未通过时
+
+若 `integration_sufficiency_check` 未通过：
+
+* 不得进入 freeze-ready
+* 不得用猜测补足挂接设计
+* 必须补齐 `integration_context` 后重新派生
+
+因此本次修订的正式 gate 语义是：
+
+## **先判断“是否足够了解现有系统”，再判断“设计对象之间是否一致且不重叠”。**
 
 ---
 
-## 3.10 review / acceptance / freeze 语义
+## 3.11 review / acceptance / freeze 语义
 
-该 skill 采用与其他 governed workflow 一致的双角色模型：
+该 skill 继续采用与其他 governed workflow 一致的双角色模型：
 
 ### executor
 
 负责：
 
 * 解析 selected FEAT
-* 进行 need assessment
+* 解析并消费 `integration_context`
+* 进行四项 need assessment
 * 生成 `TECH`
 * 视情况生成 `ARCH` / `API`
+* 执行 `integration_sufficiency_check`
+* 执行 `design_consistency_check`
 * 生成 review / acceptance / handoff 所需初始产物
 * 记录 execution evidence
 
@@ -560,6 +661,8 @@ need assessment 不是实现细节，而是正式 package 内容的一部分。
 
 * 审核设计对象是否保持正确层级
 * 审核 optional artifact 是否与 need assessment 一致
+* 审核 `integration_context` 是否足够支撑现有系统挂接设计
+* 审核 `stateful_design_present` 是否可信
 * 审核 consistency check 是否可信
 * 形成 supervision evidence
 * 决定 `pass / revise / reject`
@@ -574,20 +677,21 @@ freeze-ready 至少要求：
 * supervision_evidence_present
 * `TECH` present
 * optional outputs match assessment
-* cross-artifact consistency passed
+* `integration_sufficiency_check.passed = true`
+* `design_consistency_check.passed = true`
 * downstream handoff present
 
 因此：
 
-## **`feat-to-tech` 不是 executor 写完 `tech-spec.md` 就结束，而是一条带 supervisor 和 freeze gate 的正式治理链。**
+## **`feat-to-tech` 不是 executor 写完 `tech-spec.md` 就结束，而是一条带 integration gate、supervisor 和 freeze gate 的正式治理链。**
 
 ---
 
-## 3.11 下游 handoff 的正式定义
+## 3.12 下游 handoff 的正式定义
 
 `handoff-to-tech-impl.json` 是正式路由对象，不是普通说明文件。
 
-它至少必须保留：
+它继续至少必须保留：
 
 * `feat_ref`
 * `tech_ref`
@@ -597,28 +701,41 @@ freeze-ready 至少要求：
 * `primary_artifact_ref`
 * `supporting_artifact_refs`
 
-下游固定为：
+本次修订新增以下字段：
+
+* `integration_context_ref`
+* `canonical_owner_refs`
+* `state_machine_ref`
+* `nfr_constraints_ref`
+* `migration_constraints_ref`
+* `algorithm_constraint_refs`
+
+下游继续固定为：
 
 * `workflow.dev.tech_to_impl`
 
 正式解释为：
 
-## **`tech_to_impl` 不需要再重新判断该 FEAT 是否需要 `ARCH/API`，也不需要再补一版第二层技术设计，而应直接消费 design package 中已经冻结的技术结论。**
+## **`tech_to_impl` 不需要再重新判断该 FEAT 是否需要 `ARCH/API`，也不需要再补一版第二层技术设计，而应直接消费 design package 中已经冻结的技术真相包。**
 
-当前下游 runtime 名称即使暂时保留 `tech_to_impl`，其语义也必须被解释为：
-
-## **`IMPL` 研发实施任务 workflow，而不是继续生产新一层 `TECH` 的 workflow。**
-
-`tech_to_impl` 的正式责任应是：
+`tech_to_impl` 的正式责任仍是：
 
 * 组织研发实施步骤
 * 编排代码改动顺序
 * 管理 blocked / risk / delivery / acceptance
-* 将 `ARCH/API/TECH` 的既有结论转化为执行任务，而不是重写其边界
+* 将 `ARCH/API/TECH` 的既有结论转化为执行任务
+
+`tech_to_impl` 不得：
+
+* 重新定义核心状态机
+* 重新发明关键算法
+* 重新解释系统挂接语义
+* 改写 canonical owner
+* 把 compatibility / migration / shadow mode 留到实施期临时决定
 
 ---
 
-## 3.12 不允许的退化
+## 3.13 不允许的退化
 
 以下做法被本 ADR 明确禁止：
 
@@ -629,63 +746,71 @@ freeze-ready 至少要求：
 5. 让 `TECH` 退化成 TASK 排序、实现 TODO 或工单拆分。
 6. 让 `API` 在没有契约面的 FEAT 上作为空模板输出。
 7. 让 `ARCH` 在没有边界变化的 FEAT 上作为空模板输出。
-8. 跳过 supervisor 和 consistency gate，直接宣称 design freeze 完成。
+8. 跳过 supervisor、`integration_sufficiency_check` 或 `design_consistency_check`，直接宣称 design freeze 完成。
 9. 把 FEAT 直接写成 package / file / 伪代码级实现说明。
 10. 让 `IMPL` 继续承担第二层技术设计，在实施阶段偷偷改写 `TECH` 的边界、职责或失败策略。
 11. 把本应冻结在 `TECH` 中的实现单元映射、接口契约、主时序、补偿策略、挂接点、伪代码，推迟到 `IMPL` 再决定。
+12. 仅凭 FEAT 文本和通用上下文，推测旧系统挂接方案并直接 freeze。
+13. 未显式给出 canonical ownership，就让多个模块隐式共享状态 / 字段真相源。
+14. 未显式定义关键状态机，就在 `TECH` 中只写“完成后进入某状态”之类自然语言描述。
+15. 未显式定义关键算法 / 判定逻辑，就把关键 decision 留给 `IMPL` 或 coder agent 自行发挥。
+16. 把兼容 / migration / bridge / shadow mode 留到实施阶段临时决定。
+17. 把领域或技术名词表只保留在 prose 中，而不进入正式设计对象。
+18. `TECH` 只给抽象方案，不给输入输出矩阵与副作用表。
+19. `handoff-to-tech-impl.json` 不携带 `integration_context` 与关键约束引用，导致下游重新猜测系统接入方式。
 
 ---
 
 # 4. 设计后果
 
-采用本 ADR 后，将得到以下结果：
+采用本修订后，将得到以下结果。
 
-## 4.1 设计层派生对象边界更稳定
+## 4.1 `TECH` 更接近真正的唯一正式技术设计
 
-`ARCH`、`TECH`、`API` 的职责被写死，后续实现和评审不需要再靠口头解释。
+`TECH` 不再只是实现导向说明文，而是一个真正足以冻结：
 
-## 4.2 workflow 更短，但不失治理
+* 实现单元
+* 状态机
+* 关键算法
+* 输入输出
+* side effects
+* 挂接点
+* 兼容约束
+* canonical ownership
 
-没有把设计层拆成过碎的 3 条链，但仍然保留了：
+的主对象。
 
-* need assessment
-* 双角色 review
-* freeze gate
-* downstream handoff
+## 4.2 `IMPL` 更难影子化 `TECH`
 
-## 4.3 下游 `tech_to_impl` 接口更清晰
+由于状态机、关键算法、I/O、副作用、canonical owner、挂接点都已冻结，下游实施空间会收缩到执行组织层，而不是继续补设计。
 
-`tech_to_impl` 只需消费一个 package，不再自己重做：
+## 4.3 面向旧系统集成的设计可显式审查
 
-* 是否需要 architecture companion
-* 是否需要 API companion
-* 设计对象之间是否一致
+“如何与现有系统集成”不再藏在 executor 的默认理解里，而是变成：
 
-同时，`tech_to_impl` 也必须清楚自己不承担的范围：
-
-* 不再重新拆组件职责
-* 不再重新定义对象模型
-* 不再重新决定 fail-closed / fail-open / boundary ownership
-* 不再影子化 `TECH`
+* 正式输入
+* 正式判断
+* 正式 gate
+* 正式 review 对象
 
 ## 4.4 代价
 
 代价是：
 
-* package 结构比单文件技术方案更重
-* need assessment 与 consistency check 成为强制环节
-* optional artifact 的存在性也要被纳入 review
-* `TECH` 需要写到足够可实施，不能再把关键设计空洞地留给 `IMPL` 二次发明
+* `feat-to-tech` 输入会更重
+* design package 的结构会更完整
+* need assessment 与 gate 会更严格
+* 某些以往能边实施边补的内容必须前置显式化
 
-但这些复杂度属于：
+但这些成本属于：
 
-## **为了让设计层对象真正成为 governed truth 所必须显式化的成本。**
+## **为了让 `TECH` 真正成为 governed truth，而不是半成品设计说明所必须承担的复杂度。**
 
 ---
 
-# 5. 事实来源
+# 5. 事实来源与实现对齐要求
 
-本 ADR 依据以下已落地文件逆向冻结：
+本 ADR 仍依据以下已落地文件冻结现状边界，并以此作为升级改造的第一批实现落点：
 
 * `skills/ll-dev-feat-to-tech/SKILL.md`
 * `skills/ll-dev-feat-to-tech/ll.contract.yaml`
@@ -694,39 +819,46 @@ freeze-ready 至少要求：
 * `skills/ll-dev-feat-to-tech/output/contract.yaml`
 * `skills/ll-dev-feat-to-tech/output/schema.json`
 * `skills/ll-dev-feat-to-tech/output/template.md`
-* `skills/ll-dev-feat-to-tech/resources/upstream-workflow-analysis.md`
 * `skills/ll-dev-feat-to-tech/agents/executor.md`
 * `skills/ll-dev-feat-to-tech/agents/supervisor.md`
-* `skills/ll-dev-feat-to-tech/scripts/feat_to_tech.py`
 * `skills/ll-dev-feat-to-tech/scripts/feat_to_tech_common.py`
 * `skills/ll-dev-feat-to-tech/scripts/feat_to_tech_derivation.py`
+* `skills/ll-dev-feat-to-tech/scripts/feat_to_tech_documents.py`
+* `skills/ll-dev-feat-to-tech/scripts/feat_to_tech_package_builder.py`
 * `skills/ll-dev-feat-to-tech/scripts/feat_to_tech_runtime.py`
 * `skills/ll-dev-feat-to-tech/scripts/feat_to_tech_cli_integration.py`
+* `skills/ll-dev-tech-to-impl/input/contract.yaml`
+* `skills/ll-dev-tech-to-impl/input/schema.json`
+* `skills/ll-dev-tech-to-impl/scripts/tech_to_impl_validation.py`
 
-它是一份：
+它不再只是：
 
 ## **implementation-derived SSOT**
 
-而不是脱离现有实现另写的一份理想流程图。
+也是：
+
+## **下一轮 `feat-to-tech` / `tech-to-impl` runtime 对齐到新治理边界的升级基线。**
 
 ---
 
 # 6. 结论
 
-LL 现在正式拥有一条稳定的设计层派生主链：
+LL 现在正式拥有一条补强后的设计层派生主链：
 
 ```text
-feat_freeze_package + feat_ref
+feat_freeze_package + feat_ref + integration_context
   -> need assessment
+  -> integration_sufficiency_check
   -> TECH mandatory
   -> ARCH optional
   -> API optional
-  -> cross-artifact consistency check
+  -> design_consistency_check
   -> freeze-ready tech_design_package
+  -> handoff-to-tech-impl with integration/state/owner/algorithm refs
   -> workflow.dev.tech_to_impl
   -> IMPL task package
 ```
 
 本 ADR 冻结其核心语义：
 
-## **FEAT 到设计层的正确收敛方式，不是把 `ARCH` / `TECH` / `API` 拆碎，也不是把 `IMPL` 变成第二层技术设计，而是在单 FEAT 边界内先冻结唯一正式 `TECH`（按需附带 `ARCH/API`），再由下游 `IMPL` 仅负责研发实施组织与交付。**
+## **FEAT 到设计层的正确收敛方式，不是把 `ARCH / TECH / API` 拆碎，也不是把 `IMPL` 变成第二层技术设计，而是在单 FEAT 边界内先用 `FEAT + integration_context` 冻结唯一正式 `TECH`（按需附带 `ARCH/API`），再由下游 `IMPL` 仅负责研发实施组织与交付。**
