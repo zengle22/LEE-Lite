@@ -153,9 +153,13 @@ class CliRuntimeFeatToUiTest(unittest.TestCase):
             sys.path.insert(0, scripts_dir)
             inserted = True
         try:
-            import feat_to_ui  # type: ignore
+            import feat_to_ui_route  # type: ignore
 
-            patch_target = patch.object(feat_to_ui, "run_workflow", return_value={"ok": True, "artifacts_dir": str(package_dir)})
+            patch_target = patch.object(
+                feat_to_ui_route,
+                "run_workflow",
+                return_value={"ok": True, "artifacts_dir": str(package_dir)},
+            )
             with patch_target as mocked_run:
                 result = invoke_execution_return_job(
                     self.workspace,

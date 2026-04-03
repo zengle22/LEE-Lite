@@ -998,12 +998,97 @@ class CliRuntimeTest(unittest.TestCase):
         dispatch_response = self.response_path("gate-dispatch-epic-feat.response.json")
         self.assertEqual(self.run_cli("gate", "dispatch", "--request", str(dispatch_req), "--response-out", str(dispatch_response)), 0)
         dispatch_payload = read_json(dispatch_response)
-        self.assertEqual(len(dispatch_payload["data"]["materialized_job_refs"]), 2)
+        self.assertEqual(len(dispatch_payload["data"]["materialized_job_refs"]), 3)
         for job_ref in dispatch_payload["data"]["materialized_job_refs"]:
             job = read_json(self.workspace / job_ref)
             self.assertEqual(job["job_type"], "next_skill")
             self.assertEqual(job["feat_ref"], "FEAT-SRC-001-301")
-            self.assertTrue(job["target_skill"] in {"workflow.dev.feat_to_tech", "workflow.qa.feat_to_testset"})
+            self.assertTrue(
+                job["target_skill"]
+                in {"workflow.dev.feat_to_tech", "workflow.dev.feat_to_ui", "workflow.qa.feat_to_testset"}
+            )
+
+    def test_gate_dispatch_routes_high_complexity_feat_to_proto(self) -> None:
+        run_id = "epic-feat-ui-proto-run"
+        package_dir = self.workspace / "artifacts" / "epic-to-feat" / run_id
+        package_dir.mkdir(parents=True, exist_ok=True)
+        (package_dir / "feat-freeze-bundle.md").write_text("# FEAT Bundle\n", encoding="utf-8")
+        write_json(
+            package_dir / "feat-freeze-bundle.json",
+            {
+                "artifact_type": "feat_freeze_package",
+                "workflow_key": "product.epic-to-feat",
+                "workflow_run_id": run_id,
+                "title": "Governed FEAT Bundle",
+                "status": "accepted",
+                "schema_version": "1.0.0",
+                "epic_freeze_ref": "EPIC-SRC-001-001",
+                "src_root_id": "SRC-001",
+                "source_refs": ["product.epic-to-feat::epic-feat-ui-proto-run", "EPIC-SRC-001-001", "SRC-001"],
+                "features": [
+                    {
+                        "feat_ref": "FEAT-SRC-001-399",
+                        "title": "Deferred Device Connection Flow",
+                        "goal": "Multi-step connection journey with retry and skip.",
+                        "scope": ["multi-step", "retry", "skip", "state sync"],
+                        "constraints": ["non-blocking", "error recovery"],
+                        "dependencies": ["EPIC-SRC-001-001"],
+                        "outputs": ["formal feat"],
+                        "acceptance_checks": [
+                            {"scenario": "happy path", "given": "entry", "when": "continue", "then": "user reaches success"},
+                            {"scenario": "retry path", "given": "api error", "when": "retry", "then": "user can recover"},
+                            {"scenario": "skip path", "given": "optional flow", "when": "skip", "then": "user can continue later"},
+                        ],
+                        "ui_units": [{"page_name": "entry"}, {"page_name": "result"}],
+                        "source_refs": ["FEAT-SRC-001-399", "EPIC-SRC-001-001", "SRC-001"],
+                    }
+                ],
+            },
+        )
+        write_json(
+            self.workspace / "artifacts" / "registry" / f"epic-to-feat-{run_id}-feat-freeze-bundle.json",
+            {
+                "artifact_ref": f"epic-to-feat.{run_id}.feat-freeze-bundle",
+                "managed_artifact_ref": f"artifacts/epic-to-feat/{run_id}/feat-freeze-bundle.md",
+                "status": "committed",
+                "trace": {"run_ref": run_id, "workflow_key": "product.epic-to-feat"},
+                "metadata": {"layer": "formal"},
+                "lineage": [],
+            },
+        )
+        decision_path = self.workspace / "artifacts" / "active" / "gates" / "decisions" / "gate-decision-ui-proto.json"
+        write_json(decision_path, {"decision_type": "approve", "candidate_ref": f"epic-to-feat.{run_id}.feat-freeze-bundle"})
+
+        materialize_request = self.build_request(
+            "gate.materialize",
+            {
+                "gate_decision_ref": "artifacts/active/gates/decisions/gate-decision-ui-proto.json",
+                "candidate_ref": f"epic-to-feat.{run_id}.feat-freeze-bundle",
+            },
+        )
+        materialize_req = self.request_path("gate-materialize-epic-feat-ui-proto.json")
+        write_json(materialize_req, materialize_request)
+        materialize_response = self.response_path("gate-materialize-epic-feat-ui-proto.response.json")
+        self.assertEqual(
+            self.run_cli("gate", "materialize", "--request", str(materialize_req), "--response-out", str(materialize_response)),
+            0,
+        )
+
+        dispatch_request = self.build_request(
+            "gate.dispatch",
+            {"gate_decision_ref": "artifacts/active/gates/decisions/gate-decision-ui-proto.json"},
+        )
+        dispatch_req = self.request_path("gate-dispatch-epic-feat-ui-proto.json")
+        write_json(dispatch_req, dispatch_request)
+        dispatch_response = self.response_path("gate-dispatch-epic-feat-ui-proto.response.json")
+        self.assertEqual(self.run_cli("gate", "dispatch", "--request", str(dispatch_req), "--response-out", str(dispatch_response)), 0)
+        dispatch_payload = read_json(dispatch_response)
+        target_skills = {
+            read_json(self.workspace / job_ref)["target_skill"]
+            for job_ref in dispatch_payload["data"]["materialized_job_refs"]
+        }
+        self.assertIn("workflow.dev.feat_to_proto", target_skills)
+        self.assertNotIn("workflow.dev.feat_to_ui", target_skills)
 
     def test_gate_materialize_feat_to_tech_candidate_promotes_formal_tech_and_dispatches_impl_job(self) -> None:
         run_id = "feat-tech-run"

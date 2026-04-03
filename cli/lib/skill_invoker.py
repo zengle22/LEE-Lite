@@ -44,19 +44,48 @@ def _invoke_feat_to_tech(workspace_root: Path, job: dict[str, Any], payload: dic
 
 
 def _invoke_feat_to_ui(workspace_root: Path, job: dict[str, Any], payload: dict[str, Any]) -> dict[str, Any]:
-    ensure(job.get("feat_ref"), "PRECONDITION_FAILED", "feat_to_ui job missing feat_ref")
-    input_ref = _authoritative_input_ref(job)
-    scripts_dir = resolve_skill_scripts_dir(workspace_root, "ll-dev-feat-to-ui")
-    with _prepend_sys_path(scripts_dir):
-        from feat_to_ui import run_workflow
+    raise CommandError(
+        "PRECONDITION_FAILED",
+        "workflow.dev.feat_to_ui is deprecated and disabled; use workflow.dev.feat_to_proto first, then workflow.dev.proto_to_ui after human-reviewed prototype freeze",
+    )
 
-        result = run_workflow(
-            input_path=input_ref,
-            feat_ref=str(job["feat_ref"]),
-            repo_root=workspace_root,
-            run_id=str(payload.get("downstream_run_id") or ""),
-            allow_update=True,
-        )
+
+def _invoke_feat_to_proto(workspace_root: Path, job: dict[str, Any], payload: dict[str, Any]) -> dict[str, Any]:
+    ensure(job.get("feat_ref"), "PRECONDITION_FAILED", "feat_to_proto job missing feat_ref")
+    input_ref = _authoritative_input_ref(job)
+    scripts_dir = resolve_skill_scripts_dir(workspace_root, "ll-dev-feat-to-proto")
+    with _prepend_sys_path(scripts_dir):
+        from feat_to_proto import build_package, repo_root_from, validate_input_package
+
+        errors, context = validate_input_package(input_ref, str(job["feat_ref"]), workspace_root)
+        if errors:
+            result = {"ok": False, "errors": errors, "input_path": input_ref}
+        else:
+            result = build_package(
+                context,
+                repo_root_from(str(workspace_root)),
+                str(payload.get("downstream_run_id") or ""),
+                True,
+            )
+    return {"ok": bool(result.get("ok", True)), "target_skill": job["target_skill"], "result": result}
+
+
+def _invoke_proto_to_ui(workspace_root: Path, job: dict[str, Any], payload: dict[str, Any]) -> dict[str, Any]:
+    input_ref = _authoritative_input_ref(job)
+    scripts_dir = resolve_skill_scripts_dir(workspace_root, "ll-dev-proto-to-ui")
+    with _prepend_sys_path(scripts_dir):
+        from proto_to_ui import build_package, repo_root_from, validate_input_package
+
+        errors, context = validate_input_package(input_ref)
+        if errors:
+            result = {"ok": False, "errors": errors, "input_path": input_ref}
+        else:
+            result = build_package(
+                context,
+                repo_root_from(str(workspace_root)),
+                str(payload.get("downstream_run_id") or ""),
+                True,
+            )
     return {"ok": bool(result.get("ok", True)), "target_skill": job["target_skill"], "result": result}
 
 
@@ -181,6 +210,10 @@ def invoke_target(
             return _invoke_epic_to_feat(workspace_root, job, payload)
         if target_skill == "workflow.dev.feat_to_ui":
             return _invoke_feat_to_ui(workspace_root, job, payload)
+        if target_skill == "workflow.dev.feat_to_proto":
+            return _invoke_feat_to_proto(workspace_root, job, payload)
+        if target_skill == "workflow.dev.proto_to_ui":
+            return _invoke_proto_to_ui(workspace_root, job, payload)
         if target_skill == "workflow.dev.feat_to_tech":
             return _invoke_feat_to_tech(workspace_root, job, payload)
         if target_skill == "workflow.qa.feat_to_testset":

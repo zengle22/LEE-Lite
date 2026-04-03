@@ -370,6 +370,7 @@ def _feat_to_ui_build_runtime_kwargs(context: ExecutionReturnContext) -> dict[st
         "run_id": workflow_run_id,
         "allow_update": True,
         "revision_request_path": context.revision_request_path,
+        "prototype_bypass_rationale": "execution_return_revision",
     }
 
 
@@ -444,17 +445,6 @@ register_execution_return_route(
         candidate_ref_patterns=(re.compile(r"^feat-to-testset\.(?P<run_id>.+)\.test-set-bundle$"),),
         authoritative_ref_patterns=(re.compile(r"^formal\.feat\.(?P<run_id>.+)$"),),
         build_runtime_kwargs=_feat_to_testset_build_runtime_kwargs,
-    )
-)
-
-register_execution_return_route(
-    ExecutionReturnRoute(
-        workflow_key="dev.feat-to-ui",
-        artifacts_subdir="feat-to-ui",
-        scripts_subdir="ll-dev-feat-to-ui",
-        runtime_module="feat_to_ui",
-        candidate_ref_patterns=(re.compile(r"^feat-to-ui\.(?P<run_id>.+)\.ui-spec-bundle$"),),
-        build_runtime_kwargs=_feat_to_ui_build_runtime_kwargs,
     )
 )
 

@@ -7,8 +7,9 @@ from pathlib import Path
 from typing import Any
 
 from cli.lib.errors import ensure
-from cli.lib.fs import canonical_to_path, write_json
+from cli.lib.fs import canonical_to_path, load_json, write_json
 from cli.lib.registry_store import resolve_registry_record, slugify
+from cli.lib.ui_derivation_routing import route_ui_derivation
 
 
 def _utc_now() -> str:
@@ -86,6 +87,41 @@ def _base_job(
     }
 
 
+def _load_feat_feature(
+    workspace_root: Path,
+    *,
+    source_package_ref: str,
+    feat_ref: str,
+) -> dict[str, Any] | None:
+    if not source_package_ref:
+        return None
+    package_dir = canonical_to_path(source_package_ref, workspace_root)
+    bundle_path = package_dir / "feat-freeze-bundle.json"
+    if not bundle_path.exists():
+        return None
+    payload = load_json(bundle_path)
+    features = payload.get("features")
+    if not isinstance(features, list):
+        return None
+    for feature in features:
+        if isinstance(feature, dict) and str(feature.get("feat_ref") or "").strip() == feat_ref:
+            return feature
+    return None
+
+
+def _resolve_ui_dispatch_target(
+    workspace_root: Path,
+    *,
+    source_package_ref: str,
+    feat_ref: str,
+) -> tuple[str, str, dict[str, Any] | None]:
+    feature = _load_feat_feature(workspace_root, source_package_ref=source_package_ref, feat_ref=feat_ref)
+    if not isinstance(feature, dict):
+        return "workflow.dev.feat_to_proto", "PROTOTYPE", None
+    route = route_ui_derivation(feature)
+    return "workflow.dev.feat_to_proto", "PROTOTYPE", route
+
+
 def build_feat_downstream_dispatch(
     workspace_root: Path,
     trace: dict[str, Any],
@@ -106,8 +142,6 @@ def build_feat_downstream_dispatch(
     handoff_refs: list[str] = []
     job_refs: list[str] = []
     source_run_id = str(trace.get("run_ref", ""))
-    dispatch_targets = [("workflow.dev.feat_to_tech", "TECH"), ("workflow.qa.feat_to_testset", "TESTSET")]
-
     for child_formal_ref in child_formal_refs:
         child_record = resolve_registry_record(workspace_root, child_formal_ref)
         metadata = child_record.get("metadata", {}) if isinstance(child_record.get("metadata"), dict) else {}
@@ -117,8 +151,18 @@ def build_feat_downstream_dispatch(
         source_package_ref = str(metadata.get("source_package_ref") or "").strip()
         authoritative_input_ref = child_formal_ref
         input_refs = [decision_ref, child_formal_ref]
+        ui_target_skill, ui_target_kind, ui_route = _resolve_ui_dispatch_target(
+            workspace_root,
+            source_package_ref=source_package_ref,
+            feat_ref=feat_ref,
+        )
+        dispatch_targets = [
+            ("workflow.dev.feat_to_tech", "TECH", None),
+            (ui_target_skill, ui_target_kind, ui_route),
+            ("workflow.qa.feat_to_testset", "TESTSET", None),
+        ]
 
-        for target_skill, target_kind in dispatch_targets:
+        for target_skill, target_kind, target_route in dispatch_targets:
             slug = f"{slugify(feat_ref)}-{slugify(target_skill)}"
             handoff_ref = f"artifacts/active/handoffs/{Path(decision_ref).stem}-{slug}.json"
             handoff_payload = _base_handoff(
@@ -133,6 +177,8 @@ def build_feat_downstream_dispatch(
                 progression_mode="auto-continue",
             )
             handoff_payload["feat_ref"] = feat_ref
+            if isinstance(target_route, dict):
+                handoff_payload["ui_derivation_route"] = target_route
             write_json(canonical_to_path(handoff_ref, workspace_root), handoff_payload)
 
             job_ref = f"artifacts/jobs/ready/{Path(decision_ref).stem}-{slug}.json"
@@ -154,6 +200,8 @@ def build_feat_downstream_dispatch(
             )
             job_payload["feat_ref"] = feat_ref
             job_payload["reason"] = f"Approved FEAT {feat_ref} is ready for downstream {target_kind} derivation."
+            if isinstance(target_route, dict):
+                job_payload["ui_derivation_route"] = target_route
             write_json(canonical_to_path(job_ref, workspace_root), job_payload)
 
             handoff_refs.append(handoff_ref)
