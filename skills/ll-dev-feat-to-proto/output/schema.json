@@ -1,0 +1,14 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "ll-dev-feat-to-proto output",
+  "type": "object",
+  "required": ["artifact_type", "workflow_key", "feat_ref", "pages", "prototype_entry_ref"],
+  "properties": {
+    "artifact_type": { "type": "string", "const": "prototype_package" },
+    "workflow_key": { "type": "string", "const": "dev.feat-to-proto" },
+    "feat_ref": { "type": "string" },
+    "pages": { "type": "array", "items": { "type": "object" } },
+    "prototype_entry_ref": { "type": "string" }
+  },
+  "additionalProperties": true
+}

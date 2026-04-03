@@ -1,0 +1,87 @@
+skill_id: ll-dev-feat-to-proto
+skill_type: workflow
+version: 0.1.0
+workflow_key: dev.feat-to-proto
+
+authority:
+  canonical_adr: ssot/adr/ADR-040-FEAT-to-UI 拆分为 Prototype Freeze 与 UI Spec 派生双阶段基线.MD
+  upstream_skill: ll-product-epic-to-feat
+
+roles:
+  executor:
+    required: true
+    evidence_required: true
+    prompt_file: agents/executor.md
+  supervisor:
+    required: true
+    evidence_required: true
+    prompt_file: agents/supervisor.md
+
+runtime:
+  mode: lite_native
+  command: python scripts/feat_to_proto.py run --input <feat-package-dir> --feat-ref <feat-ref> --repo-root <repo-root>
+  entry_script: scripts/feat_to_proto.py
+  accepted_input_paths:
+    - artifacts/epic-to-feat/<run_id>
+    - direct feat_freeze_package directory path
+    - formal.feat.<run_id> admission ref
+  produced_output_dir: artifacts/feat-to-proto/<run_id>--<feat_ref>
+  required_output_artifacts:
+    - package-manifest.json
+    - prototype-bundle.md
+    - prototype-bundle.json
+    - prototype-flow-map.md
+    - prototype-review-guide.md
+    - prototype-completeness-report.json
+    - prototype-review-report.json
+    - prototype-defect-list.json
+    - prototype-freeze-gate.json
+    - execution-evidence.json
+    - supervision-evidence.json
+
+input:
+  artifact_type: feat_freeze_package
+  contract_file: input/contract.yaml
+  schema_file: input/schema.json
+  structural_validation_required: true
+  semantic_validation_required: true
+
+output:
+  artifact_type: prototype_package
+  contract_file: output/contract.yaml
+  schema_file: output/schema.json
+  structural_validation_required: true
+  semantic_validation_required: true
+
+validation:
+  structural:
+    - "python scripts/feat_to_proto.py validate-input --input $INPUT --feat-ref $FEAT_REF"
+    - "python scripts/feat_to_proto.py run --input $INPUT --feat-ref $FEAT_REF --repo-root $REPO_ROOT --allow-update"
+    - "python scripts/feat_to_proto.py validate-output --artifacts-dir $OUTPUT"
+    - "python scripts/feat_to_proto.py validate-package-readiness --artifacts-dir $OUTPUT"
+    - "python scripts/feat_to_proto.py freeze-guard --artifacts-dir $OUTPUT"
+
+evidence:
+  execution_schema: evidence/execution-evidence.schema.json
+  supervision_schema: evidence/supervision-evidence.schema.json
+  report_template: evidence/report.template.md
+
+lifecycle:
+  definition_file: ll.lifecycle.yaml
+  max_revision_rounds: 3
+
+gate:
+  freeze_requires:
+    - input_structural_pass
+    - output_structural_pass
+    - structured_review_report_present
+    - human_review_approved
+    - review_coverage_complete
+    - no_blocking_points
+    - execution_evidence_present
+    - supervision_evidence_present
+  reject_when:
+    - upstream_package_not_freeze_ready
+    - selected_feat_ref_missing
+    - missing_html_prototype_output
+    - required_evidence_missing

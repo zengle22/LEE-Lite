@@ -1,0 +1,15 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "ll-dev-feat-to-proto input",
+  "type": "object",
+  "required": ["artifact_type", "workflow_key", "status", "feat_refs", "features", "source_refs"],
+  "properties": {
+    "artifact_type": { "type": "string", "const": "feat_freeze_package" },
+    "workflow_key": { "type": "string", "const": "product.epic-to-feat" },
+    "status": { "type": "string" },
+    "feat_refs": { "type": "array", "items": { "type": "string" } },
+    "features": { "type": "array", "items": { "type": "object" } },
+    "source_refs": { "type": "array", "items": { "type": "string" } }
+  },
+  "additionalProperties": true
+}

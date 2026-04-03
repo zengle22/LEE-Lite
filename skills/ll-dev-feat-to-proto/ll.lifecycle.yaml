@@ -1,0 +1,38 @@
+version: 0.1.0
+states:
+  - drafted
+  - structurally_validated
+  - review_required
+  - revise_required
+  - supervisor_reviewed
+  - approved
+  - frozen
+  - rejected
+
+transitions:
+  drafted:
+    - structurally_validated
+    - rejected
+  structurally_validated:
+    - review_required
+    - revise_required
+    - rejected
+  review_required:
+    - revise_required
+    - supervisor_reviewed
+    - rejected
+  revise_required:
+    - structurally_validated
+    - rejected
+  supervisor_reviewed:
+    - approved
+    - revise_required
+    - rejected
+  approved:
+    - frozen
+    - revise_required
+  frozen: []
+  rejected: []
+
+limits:
+  max_revision_rounds: 3

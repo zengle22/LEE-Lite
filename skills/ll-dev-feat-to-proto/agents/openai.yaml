@@ -1,0 +1,4 @@
+interface:
+  display_name: "LL Dev Feat To Proto"
+  short_description: "Governed skill for LL Dev Feat To Proto"
+  default_prompt: "Use $ll-dev-feat-to-proto to run the governed ll-dev-feat-to-proto workflow."
