@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from typing import Any
 
 from cli.lib.impl_spec_test_findings import make_evidence, make_finding
@@ -9,6 +10,18 @@ from cli.lib.impl_spec_test_findings import make_evidence, make_finding
 
 def _tokens(*groups: list[str]) -> set[str]:
     return {str(item).strip().lower() for group in groups for item in group if str(item).strip()}
+
+
+def _semantic_signature(value: str) -> set[str]:
+    lowered = str(value or "").strip().lower()
+    signature = set(re.findall(r"[a-z_][a-z0-9_]*", lowered.replace("-", "_")))
+    if "verdict" in lowered:
+        signature.add("verdict")
+    if "preserved" in lowered:
+        signature.add("preserved")
+    if "nonblocking" in lowered or "non-blocking" in lowered:
+        signature.add("nonblocking")
+    return {item for item in signature if item}
 
 
 def build_cross_artifact_trace(normalized: dict[str, Any], semantic_review: dict[str, Any], system_views: dict[str, Any]) -> dict[str, Any]:
@@ -53,14 +66,30 @@ def build_cross_artifact_trace(normalized: dict[str, Any], semantic_review: dict
 def build_state_invariant_check(normalized: dict[str, Any], semantic_review: dict[str, Any], system_views: dict[str, Any]) -> dict[str, Any]:
     impl = semantic_review["impl"]
     tech = semantic_review["tech"]
+    api = semantic_review.get("api") or {}
     completion_terms = _tokens(system_views["functional_chain"]["completion_signals"])
     transition_targets = {str(item.get("to", "")).strip().lower() for item in system_views["state_data_relationships"]["transitions"] if str(item.get("to", "")).strip()}
+    supporting_lines = [
+        str(item).strip().lower()
+        for item in (
+            impl.get("state_model", [])
+            + impl.get("main_sequence", [])
+            + impl.get("api_contract", [])
+            + tech.get("state_model", [])
+            + tech.get("main_sequence", [])
+            + tech.get("api_contract", [])
+            + api.get("api_contract", [])
+            + api.get("api_outputs", [])
+        )
+        if str(item).strip()
+    ]
     invariants: list[dict[str, Any]] = []
     for term in sorted(completion_terms):
+        supported = term in transition_targets or any(term in line for line in supporting_lines)
         invariants.append(
             {
                 "name": f"completion:{term}",
-                "status": "supported" if term in transition_targets or term in _tokens(impl.get("main_sequence", []), tech.get("main_sequence", [])) else "unclear",
+                "status": "supported" if supported else "unclear",
                 "evidence": [term],
             }
         )
@@ -90,10 +119,13 @@ def build_logic_risk_inventory(
     completion_terms = set(cross_artifact_trace["completion_trace"]["completion_terms"])
     api_outputs = set(cross_artifact_trace["completion_trace"]["api_outputs"])
     testset_terms = set(cross_artifact_trace["completion_trace"]["testset_observed_terms"])
+    normalized_completion = set().union(*(_semantic_signature(item) for item in completion_terms)) if completion_terms else set()
+    normalized_api_outputs = set().union(*(_semantic_signature(item) for item in api_outputs)) if api_outputs else set()
+    normalized_testset = set().union(*(_semantic_signature(item) for item in testset_terms)) if testset_terms else set()
     impl_non_goals = _tokens(impl.get("non_goals", []), feat.get("non_goals", []))
     impl_units = _tokens(impl.get("implementation_units", []))
 
-    if completion_terms and api_outputs and not (completion_terms & api_outputs):
+    if completion_terms and api_outputs and not (normalized_completion & normalized_api_outputs):
         findings.append(
             make_finding(
                 "logic-completion-api-closure",
@@ -115,7 +147,7 @@ def build_logic_risk_inventory(
             )
         )
 
-    if completion_terms and testset_terms and not (completion_terms & testset_terms):
+    if completion_terms and testset_terms and not (normalized_completion & normalized_testset):
         findings.append(
             make_finding(
                 "logic-completion-test-closure",
@@ -196,11 +228,10 @@ def build_logic_risk_inventory(
             )
         )
 
-    if not api.get("api_preconditions"):
+    if not (api.get("api_preconditions") or impl.get("api_preconditions")):
         open_questions.append("API preconditions are not explicit enough to test caller context and idempotent retry safety.")
     if not semantic_review.get("ui_docs"):
         open_questions.append("UX entry and exit points remain weakly evidenced because no UI authority is bound.")
-    if not impl.get("non_goals") and not feat.get("non_goals"):
+    if not (impl.get("non_goals") or feat.get("non_goals")):
         open_questions.append("Non-goals are not explicit, so review cannot strongly rule out scope leakage.")
     return findings, open_questions
-

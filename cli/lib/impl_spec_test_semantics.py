@@ -9,8 +9,8 @@ from cli.lib.impl_spec_test_support import as_list
 
 
 SECTION_ALIASES = {
-    "scope": ("in scope", "scope", "coverage scope"),
     "non_goals": ("out of scope", "non goals", "non-goals", "coverage exclusions"),
+    "scope": ("in scope", "scope", "coverage scope"),
     "state_model": ("state model snapshot", "state model"),
     "main_sequence": ("main sequence snapshot", "main sequence"),
     "integration_points": ("integration points snapshot", "integration points"),
@@ -60,6 +60,43 @@ RECOVERY_KEYWORDS = (
 NON_BLOCKING_KEYWORDS = ("non-blocking", "nonblocking", "deferred", "skip", "后置", "不阻塞", "跳过")
 BLOCKING_KEYWORDS = ("must connect before", "block", "blocking", "before continue", "must complete first", "阻塞", "前置")
 MIGRATION_KEYWORDS = ("legacy", "compat", "compatibility", "migration", "旧系统", "兼容", "迁移")
+NEGATED_BLOCKING_MARKERS = ("must not", "mustn't", "cannot", "can't", "should not", "不能", "不得", "不可", "误以为", "not require", "without blocking")
+COMPLETION_SIGNAL_MARKERS = ("done", "complete", "completed", "allowed", "visible", "entered", "ready", "verdict")
+COMPLETION_NOISE_MARKERS = (
+    "execution_ready",
+    "done_when",
+    "passed",
+    "structural_passed",
+    "semantic_passed",
+    "completeness_result",
+    "minor_open_items",
+    "checks",
+    "issues",
+    "mapping_status",
+    "acceptance_ref",
+)
+TERMINAL_SIGNAL_MARKERS = (
+    "profile_minimal_done",
+    "homepage_entry_allowed",
+    "homepage_entered",
+    "advice_visible",
+    "device_connected",
+    "device_skipped",
+    "device_failed_nonblocking",
+    "completion_verdict",
+    "eligibility_verdict",
+    "homepage_preserved",
+    "first_advice_preserved",
+    "enhancement_refresh_pending",
+    "next_retry_entry",
+)
+OWNER_DECISIVE_PATTERNS = (
+    r"identifies\s+`([^`]+)`\s+as\s+the\s+sole\s+authority",
+    r"`([^`]+)`\s+(?:is|remains|stays)\s+the\s+(?:sole\s+authority|sole\s+source|canonical\s+writer|canonical\s+owner)",
+    r"`([^`]+)`\s+wins\b",
+    r"`([^`]+)`[^`\n]*唯一事实源",
+    r"resolved_owner\s*=\s*`?([a-z][a-z0-9_]+)`?",
+)
 
 
 def text(value: Any) -> str:
@@ -74,7 +111,10 @@ def normalize_heading(value: str) -> str:
 def canonical_section_key(heading: str) -> str:
     normalized = normalize_heading(heading)
     for key, aliases in SECTION_ALIASES.items():
-        if any(alias in normalized for alias in aliases):
+        if normalized in aliases:
+            return key
+    for key, aliases in SECTION_ALIASES.items():
+        if any(alias in normalized for alias in sorted(aliases, key=len, reverse=True)):
             return key
     return normalized or "body"
 
@@ -139,12 +179,73 @@ def extract_state_transitions(lines: list[str]) -> list[dict[str, str]]:
     return transitions
 
 
-def extract_completion_signals(items: list[str], tokens: list[str]) -> list[str]:
-    signals = [token for token in tokens if any(marker in token.lower() for marker in ("done", "complete", "completed", "allowed", "visible", "entered", "ready"))]
+def _is_ownerish_token(token: str) -> bool:
+    lowered = token.lower()
+    return (
+        " " not in token
+        and any(marker in lowered for marker in ("user", "profile", "runner", "store", "boundary"))
+        and not any(
+            marker in lowered
+            for marker in (
+                "state",
+                "completion",
+                "eligibility",
+                "allowed",
+                "visible",
+                "invalid",
+                "missing",
+                "retry",
+                "digest",
+                "birthdate",
+                "height",
+                "weight",
+                "running_level",
+                "recent_injury_status",
+                "ref",
+                "verdict",
+                "conflict",
+            )
+        )
+    )
+
+
+def _is_completion_signal(token: str) -> bool:
+    lowered = token.lower()
+    return (
+        any(marker in lowered for marker in COMPLETION_SIGNAL_MARKERS)
+        and not any(marker in lowered for marker in COMPLETION_NOISE_MARKERS)
+        and not any(marker in lowered for marker in ("pending", "retry", "invalid", "missing", "error", "fail"))
+    )
+
+
+def _is_terminal_signal(token: str) -> bool:
+    lowered = token.lower()
+    if not lowered or "\n" in token or " " in token or "*" in token or len(token) > 80 or "=" in token or lowered.startswith("mark_") or lowered.endswith("_ref"):
+        return False
+    if any(marker in lowered for marker in ("=false", "pending", "retry", "invalid", "missing", "error", "fail")):
+        return False
+    return _is_completion_signal(token) or any(marker in lowered for marker in TERMINAL_SIGNAL_MARKERS)
+
+
+def _extract_non_blocking_claims(items: list[str]) -> list[str]:
+    claims: list[str] = []
     for item in items:
         lowered = item.lower()
-        if "完成态" in item or "allow immediate" in lowered or "allow homepage" in lowered:
-            signals.append(item)
+        if any(marker in lowered for marker in NON_BLOCKING_KEYWORDS):
+            claims.append(item)
+            continue
+        if any(marker in lowered for marker in NEGATED_BLOCKING_MARKERS) and any(marker in lowered for marker in BLOCKING_KEYWORDS):
+            claims.append(item)
+    return claims
+
+
+def extract_completion_signals(items: list[str], tokens: list[str], state_transitions: list[dict[str, str]]) -> list[str]:
+    signals = [token for token in tokens if _is_terminal_signal(token)]
+    signals.extend(item.get("to", "") for item in state_transitions if _is_terminal_signal(item.get("to", "")))
+    for item in items:
+        lowered = item.lower()
+        if "完成态" in item or "terminal state" in lowered or "allow immediate" in lowered or "allow homepage" in lowered:
+            signals.extend(token for token in extract_tokens(item) if _is_terminal_signal(token))
     return list(dict.fromkeys(signals))
 
 
@@ -152,15 +253,18 @@ def extract_owner_candidates(lines: list[str]) -> list[str]:
     owners: list[str] = []
     for line in lines:
         lowered = line.lower()
-        if (
-            "sole authority" not in lowered
-            and "sole source" not in lowered
-            and "唯一事实源" not in line
-            and "canonical source" not in lowered
-            and "canonical" not in lowered
-        ):
+        explicit = False
+        for pattern in OWNER_DECISIVE_PATTERNS:
+            matches = re.findall(pattern, line, re.IGNORECASE)
+            if matches:
+                owners.extend(text(match) for match in matches if _is_ownerish_token(text(match)))
+                explicit = True
+        if explicit:
             continue
-        owners.extend(extract_tokens(line))
+        if any(marker in lowered for marker in ("sole authority", "sole source", "canonical writer", "canonical owner", "唯一事实源", "wins every")):
+            ownerish = [token for token in extract_tokens(line) if _is_ownerish_token(token)]
+            if len(ownerish) == 1:
+                owners.extend(ownerish)
     return list(dict.fromkeys(owners))
 
 
@@ -168,6 +272,8 @@ def classify_blocking_claims(items: list[str]) -> list[str]:
     claims: list[str] = []
     for item in items:
         lowered = item.lower()
+        if any(marker in lowered for marker in NEGATED_BLOCKING_MARKERS) and any(marker in lowered for marker in BLOCKING_KEYWORDS):
+            continue
         if any(marker in lowered for marker in NON_BLOCKING_KEYWORDS):
             continue
         if any(marker in lowered for marker in BLOCKING_KEYWORDS):
@@ -218,7 +324,7 @@ def extract_testset_semantics(doc: dict[str, Any]) -> dict[str, Any]:
         "completion_signals": observed_terms,
         "failure_signals": failure_terms,
         "recovery_signals": [term for term in failure_terms if any(marker in term.lower() for marker in ("retry", "blocked", "deferred"))],
-        "non_blocking_claims": [item for item in as_list(doc.get("coverage_scope")) if any(marker in item.lower() for marker in NON_BLOCKING_KEYWORDS)],
+        "non_blocking_claims": _extract_non_blocking_claims(as_list(doc.get("coverage_scope"))),
         "blocking_claims": classify_blocking_claims(as_list(doc.get("coverage_scope"))),
         "owner_candidates": [],
         "api_outputs": [],
@@ -252,6 +358,7 @@ def extract_doc_semantics(doc: dict[str, Any]) -> dict[str, Any]:
     tokens = extract_tokens(combined_text)
     outputs, errors, preconditions = extract_api_terms(api_contract + sections.get("api_contract", {}).get("lines", []))
     review_lines = state_model + main_sequence + api_contract + integration_points + acceptance
+    state_transitions = extract_state_transitions(state_model)
     return {
         "sections": sections,
         "scope": sections.get("scope", {}).get("items", []),
@@ -266,13 +373,13 @@ def extract_doc_semantics(doc: dict[str, Any]) -> dict[str, Any]:
         "tokens": tokens,
         "title": text(doc.get("title") or doc.get("id")),
         "body_text": combined_text,
-        "state_transitions": extract_state_transitions(state_model),
-        "completion_signals": extract_completion_signals(state_model + main_sequence + api_contract + acceptance, tokens + outputs),
+        "state_transitions": state_transitions,
+        "completion_signals": extract_completion_signals(state_model + main_sequence + api_contract + acceptance, tokens + outputs, state_transitions),
         "failure_signals": [item for item in review_lines if any(keyword in item.lower() for keyword in FAILURE_KEYWORDS)],
         "recovery_signals": [item for item in review_lines + ui_constraints if any(keyword in item.lower() for keyword in RECOVERY_KEYWORDS)],
-        "non_blocking_claims": [item for item in review_lines + ui_constraints if any(keyword in item.lower() for keyword in NON_BLOCKING_KEYWORDS)],
+        "non_blocking_claims": _extract_non_blocking_claims(review_lines + ui_constraints),
         "blocking_claims": classify_blocking_claims(review_lines + ui_constraints),
-        "owner_candidates": extract_owner_candidates(state_model + api_contract + integration_points),
+        "owner_candidates": extract_owner_candidates(state_model + integration_points),
         "api_outputs": outputs,
         "api_errors": errors,
         "api_preconditions": preconditions,
@@ -305,7 +412,9 @@ def build_system_views(semantic_review: dict[str, Any]) -> dict[str, Any]:
     impl = semantic_review["impl"]
     tech = semantic_review["tech"]
     api = semantic_review.get("api") or {"api_outputs": [], "api_errors": []}
-    completion_signals = list(dict.fromkeys(impl.get("completion_signals", []) + tech.get("completion_signals", []) + api.get("api_outputs", [])))
+    api_outputs = list(dict.fromkeys(item for item in api.get("api_outputs", []) + impl.get("api_outputs", []) if _is_terminal_signal(item)))
+    api_postconditions = list(dict.fromkeys(api.get("api_postconditions", []) + impl.get("api_postconditions", [])))
+    completion_signals = list(dict.fromkeys(impl.get("completion_signals", []) + tech.get("completion_signals", []) + api_outputs))
     failure_terms = list(dict.fromkeys(impl.get("failure_signals", []) + tech.get("failure_signals", []) + api.get("api_errors", [])))
     acceptance_refs: list[str] = []
     ui_constraints: list[str] = []
@@ -337,9 +446,9 @@ def build_system_views(semantic_review: dict[str, Any]) -> dict[str, Any]:
         },
         "ui_api_state_mapping": {
             "ui_constraints": ui_constraints,
-            "api_outputs": api.get("api_outputs", []),
+            "api_outputs": api_outputs,
             "api_errors": api.get("api_errors", []),
-            "api_postconditions": api.get("api_postconditions", []),
+            "api_postconditions": api_postconditions,
             "state_signals": completion_signals,
             "test_acceptance_refs": list(dict.fromkeys(acceptance_refs)),
         },

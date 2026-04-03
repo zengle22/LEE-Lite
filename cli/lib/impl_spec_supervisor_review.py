@@ -16,7 +16,12 @@ def build_false_negative_challenge(
     open_questions: list[str],
 ) -> dict[str, Any]:
     challenges: list[dict[str, Any]] = []
-    if not ux_findings and semantic_review.get("ui_docs"):
+    ui_review = dimension_reviews.get("ui_usability", {})
+    if (
+        not ux_findings
+        and semantic_review.get("ui_docs")
+        and (float(ui_review.get("coverage_confidence", 0.0)) < 0.85 or int(ui_review.get("score", 0)) < 8)
+    ):
         challenges.append(
             make_finding(
                 "supervisor-ux-clean-check",
@@ -113,4 +118,3 @@ def derive_review_coverage(
         "reasons": reasons,
         "recommendation": recommendation,
     }
-

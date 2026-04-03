@@ -9,6 +9,9 @@ from pathlib import Path
 
 import yaml
 
+from cli.lib.impl_spec_test_semantics import extract_doc_semantics
+from cli.lib.impl_spec_test_support import load_document
+
 def write_json(path: Path, payload: dict) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
@@ -492,3 +495,66 @@ class TestImplSpecSkillRuntime(SkillRuntimeHarness):
         artifact_root = response.parent / "qa" / "impl-spec-tests" / "phase2-surface"
         self.assertEqual(read_json(artifact_root / "review-coverage.json")["status"], "sufficient")
         self.assertIn("deferred device entry", read_json(artifact_root / "ux-risk-inventory.json")["items"][0]["title"].lower())
+
+    def test_semantics_parser_keeps_out_of_scope_separate_from_scope(self) -> None:
+        ref = self.write_markdown_doc(
+            "ssot/impl/IMPL-SCOPE-001__demo.md",
+            {"id": "IMPL-SCOPE-001", "ssot_type": "IMPL", "status": "accepted", "feat_ref": "FEAT-SCOPE-001", "tech_ref": "TECH-SCOPE-001"},
+            "\n".join(
+                [
+                    "# Scope Demo",
+                    "",
+                    "## In Scope",
+                    "- Keep device entry deferred.",
+                    "",
+                    "## Out of Scope",
+                    "- Do not redefine upstream authority.",
+                    "- Do not re-block homepage entry with device setup.",
+                    "",
+                ]
+            )
+            + "\n",
+        )
+        impl_doc = load_document(ref, self.workspace, expected_type="IMPL")
+        semantics = extract_doc_semantics(impl_doc)
+        self.assertTrue(any("Do not redefine upstream authority." in item for item in semantics["non_goals"]))
+        self.assertFalse(any("Do not redefine upstream authority." in item for item in semantics["scope"]))
+
+    def test_semantics_owner_extraction_only_keeps_canonical_owner(self) -> None:
+        ref = self.write_markdown_doc(
+            "ssot/impl/IMPL-OWNER-001__demo.md",
+            {"id": "IMPL-OWNER-001", "ssot_type": "IMPL", "status": "accepted", "feat_ref": "FEAT-OWNER-001", "tech_ref": "TECH-OWNER-001"},
+            "\n".join(
+                [
+                    "# Owner Demo",
+                    "",
+                    "## State Model Snapshot",
+                    "- `canonical_profile_boundary` identifies `user_physical_profile` as the sole authority for body facts while `runner_profiles` remains a read model or downstream projection.",
+                    "- `users` may carry identity metadata only; it must not own body facts.",
+                    "- During migration, `user_physical_profile` wins every body-field precedence decision.",
+                    "",
+                ]
+            )
+            + "\n",
+        )
+        semantics = extract_doc_semantics(load_document(ref, self.workspace, expected_type="IMPL"))
+        self.assertEqual(semantics["owner_candidates"], ["user_physical_profile"])
+
+    def test_ui_negated_blocking_language_counts_as_non_blocking(self) -> None:
+        ref = self.write_markdown_doc(
+            "ssot/ui/UI-NEGATION-001__demo.md",
+            {"id": "UI-NEGATION-001", "ssot_type": "UI", "status": "approved"},
+            "\n".join(
+                [
+                    "# UI Negation Demo",
+                    "",
+                    "## UI Constraints",
+                    "- `device_connect_prompt` 只能作为可选增强入口文案，不能让用户误以为设备连接是 advice release 的前置条件。",
+                    "",
+                ]
+            )
+            + "\n",
+        )
+        semantics = extract_doc_semantics(load_document(ref, self.workspace, expected_type="UI"))
+        self.assertEqual(semantics["blocking_claims"], [])
+        self.assertEqual(len(semantics["non_blocking_claims"]), 1)

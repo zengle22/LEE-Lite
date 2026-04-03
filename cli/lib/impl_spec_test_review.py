@@ -18,6 +18,15 @@ def _failure_signature(value: str) -> set[str]:
     return {item for item in signature if item}
 
 
+def _semantic_terms(value: str) -> set[str]:
+    lowered = str(value or "").strip().lower().replace("-", "_")
+    return {item for item in re.findall(r"[a-z_][a-z0-9_]*", lowered) if item}
+
+
+def _semantic_overlap(left: set[str], right: set[str]) -> bool:
+    return bool(left & right)
+
+
 def _has_recovery_for_all_failures(failure_signals: list[str], recovery_signals: list[str]) -> bool:
     normalized_recoveries = [_failure_signature(item) for item in recovery_signals if str(item or "").strip()]
     if not failure_signals:
@@ -103,7 +112,7 @@ def derive_semantic_findings(
             )
         )
 
-    owner_candidates = [item for item in system_views["state_data_relationships"]["ownership"] if any(marker in item.lower() for marker in ("profile", "state", "user", "birthdate"))]
+    owner_candidates = [item for item in system_views["state_data_relationships"]["ownership"] if any(marker in item.lower() for marker in ("profile", "state", "user", "runner"))]
     if len(set(owner_candidates)) > 1:
         findings.append(
             make_finding(
@@ -215,7 +224,9 @@ def derive_semantic_findings(
         observed_terms = set().union(*[set(doc.get("observed_terms", [])) for doc in testset_docs])
         failure_terms = set().union(*[set(doc.get("testable_failure_terms", [])) for doc in testset_docs])
         completion_terms = set(system_views["functional_chain"]["completion_signals"])
-        if completion_terms and not (completion_terms & observed_terms):
+        normalized_completion = set().union(*(_semantic_terms(item) for item in completion_terms)) if completion_terms else set()
+        normalized_observed = set().union(*(_semantic_terms(item) for item in observed_terms)) if observed_terms else set()
+        if completion_terms and not _semantic_overlap(normalized_completion, normalized_observed):
             findings.append(
                 make_finding(
                     "acceptance-not-observable",
@@ -236,7 +247,9 @@ def derive_semantic_findings(
                     dimension="testability",
                 )
             )
-        if api.get("api_errors") and not (set(api.get("api_errors", [])) & failure_terms):
+        normalized_api_errors = set().union(*(_semantic_terms(item) for item in api.get("api_errors", []))) if api.get("api_errors") else set()
+        normalized_failure_terms = set().union(*(_semantic_terms(item) for item in failure_terms)) if failure_terms else set()
+        if api.get("api_errors") and not _semantic_overlap(normalized_api_errors, normalized_failure_terms):
             findings.append(
                 make_finding(
                     "critical-failure-not-testable",
@@ -305,7 +318,7 @@ def derive_semantic_findings(
             )
         )
 
-    if normalized.get("api") and not system_views["ui_api_state_mapping"]["api_outputs"]:
+    if normalized.get("api") and not (system_views["ui_api_state_mapping"]["api_outputs"] or impl.get("api_outputs")):
         missing_information.append("api outputs are not explicit enough to map into state and UI surfaces")
 
     blocking = [item for item in findings if item["severity"] == "blocker"]
@@ -404,19 +417,32 @@ def build_counterexample_result(
     body_text = impl.get("body_text", "").lower()
     tech_text = semantic_review["tech"].get("body_text", "").lower()
     testset_failure_terms = [term for doc in semantic_review.get("testset_docs", []) for term in doc.get("testable_failure_terms", [])]
-    canonical_evidence = [item for item in impl.get("owner_candidates", []) + semantic_review["tech"].get("owner_candidates", []) + impl.get("completion_signals", []) if any(marker in item.lower() for marker in ("canonical", "birthdate", "sole", "authority"))]
-    add_scenario("canonical-field-missing", "data_modeling", "canonical field absence or source conflict reviewed", canonical_evidence, relevant=bool(canonical_evidence) or "canonical" in body_text or "birthdate" in body_text or "唯一事实源" in impl.get("body_text", ""))
+    canonical_evidence = [
+        item
+        for item in impl.get("owner_candidates", []) + semantic_review["tech"].get("owner_candidates", [])
+        if any(marker in item.lower() for marker in ("canonical", "profile", "user_", "runner_profiles", "users"))
+    ]
+    canonical_relevant = bool(canonical_evidence) or any(
+        marker in body_text
+        for marker in ("sole authority", "canonical writer", "resolved_owner", "唯一事实源", "runner_profiles", "user_physical_profile")
+    )
+    add_scenario("canonical-field-missing", "data_modeling", "canonical field absence or source conflict reviewed", canonical_evidence, relevant=canonical_relevant)
     add_scenario("invalid-input", "functional_logic", "invalid input and authority mismatch paths reviewed", impl.get("failure_signals", []) + api.get("api_errors", []), relevant=True)
 
     write_related = any(marker in item.lower() for item in impl.get("main_sequence", []) + impl.get("implementation_units", []) for marker in ("patch", "save", "write", "persist"))
     add_scenario("patch-save-success-completion-not-updated", "implementation_executability", "write succeeds but completion or visibility update is missing", system_views["functional_chain"]["completion_signals"], relevant=write_related)
     add_scenario("state-write-failed", "data_modeling", "state transitions and fail-closed handling reviewed", impl.get("state_model", []) + semantic_review["tech"].get("state_model", []), relevant=bool(impl.get("state_model") or semantic_review["tech"].get("state_model")))
 
-    network_evidence = [item for item in impl.get("failure_signals", []) + impl.get("recovery_signals", []) + api.get("api_errors", []) + testset_failure_terms if "network" in item.lower() or "timeout" in item.lower()]
-    network_relevant = bool(normalized.get("api")) or any(marker in item.lower() for item in impl.get("implementation_units", []) + impl.get("main_sequence", []) for marker in ("submit", "api", "persist"))
+    network_markers = ("network", "timeout", "session", "auth", "sync", "provider", "callback")
+    network_evidence = [
+        item
+        for item in impl.get("failure_signals", []) + impl.get("recovery_signals", []) + api.get("api_errors", []) + testset_failure_terms
+        if any(marker in item.lower() for marker in network_markers)
+    ]
+    network_relevant = bool(network_evidence)
     add_scenario("network-failure", "api_contract", "network failure, retry, and fail-closed behavior reviewed", network_evidence, relevant=network_relevant)
 
-    risk_relevant = any("risk" in item.lower() or "injury" in item.lower() for item in impl.get("body_text", "").splitlines())
+    risk_relevant = any("risk" in item.lower() or "injury" in item.lower() for item in impl.get("failure_signals", []) + impl.get("recovery_signals", []))
     risk_evidence = [item for item in impl.get("failure_signals", []) + impl.get("recovery_signals", []) if "risk" in item.lower() or "injury" in item.lower()]
     add_scenario("risk-gate-fail", "user_journey", "risk gate failure and recovery path reviewed", risk_evidence, relevant=risk_relevant)
 
@@ -447,4 +473,3 @@ def build_counterexample_result(
         "high_risk_dimensions": high_risk_dimensions,
         "required_gap_dimensions": required_gap_dimensions,
     }
-

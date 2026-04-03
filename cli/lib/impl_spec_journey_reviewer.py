@@ -23,14 +23,20 @@ def build_journey_simulation(normalized: dict[str, Any], semantic_review: dict[s
     has_non_blocking = bool(impl.get("non_blocking_claims")) or any(doc.get("non_blocking_claims") for doc in ui_docs)
     failure_surfaces = system_views["user_journey"]["failure_surfaces"]
     recovery_surfaces = system_views["user_journey"]["recovery_surfaces"]
+    device_relevant = "device" in impl.get("body_text", "").lower() or any("device" in doc.get("body_text", "").lower() for doc in ui_docs)
+    invalid_input_relevant = any(marker in item.lower() for item in failure_surfaces for marker in ("invalid", "field", "missing"))
     simulations: list[dict[str, Any]] = []
     for persona_key, persona_label in PERSONAS:
         friction_points: list[str] = []
         status = "covered"
-        if persona_key == "skip_device_user" and not has_non_blocking:
+        if persona_key == "skip_device_user" and not device_relevant:
+            status = "not_applicable"
+        elif persona_key == "skip_device_user" and not has_non_blocking:
             status = "gap"
             friction_points.append("Deferred or skip behavior is not explicit for device setup.")
-        if persona_key == "invalid_input_user" and not any("invalid" in item.lower() for item in failure_surfaces):
+        if persona_key == "invalid_input_user" and not invalid_input_relevant:
+            status = "not_applicable"
+        elif persona_key == "invalid_input_user" and not any("invalid" in item.lower() for item in failure_surfaces):
             status = "gap"
             friction_points.append("Invalid-input recovery is not explicit in the journey.")
         if persona_key == "resume_user" and not any(marker in str(item).lower() for item in recovery_surfaces for marker in ("return", "retry", "resume", "stay", "返回", "重试", "停留")):
@@ -134,4 +140,3 @@ def build_ux_review(
             )
         )
     return ux_risks, opportunities
-
