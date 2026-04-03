@@ -1,16 +1,13 @@
 from __future__ import annotations
 
 import json
-import sys
 import tempfile
 import unittest
 from pathlib import Path
-from unittest.mock import patch
 
 from cli.ll import main
+from cli.lib.errors import CommandError
 from cli.lib.execution_return_registry import invoke_execution_return_job
-
-ROOT = Path(__file__).resolve().parents[2]
 
 
 def write_json(path: Path, payload: dict) -> None:
@@ -113,12 +110,10 @@ class CliRuntimeFeatToUiTest(unittest.TestCase):
         self.assertEqual(registry_record["managed_artifact_ref"], "ssot/ui/SRC-001/UI-FEAT-SRC-001-001__homepage-advice-panel.md")
         self.assertEqual(registry_record["metadata"]["target_kind"], "ui")
 
-    def test_invoke_target_supports_execution_return_for_feat_to_ui(self) -> None:
+    def test_execution_return_rejects_deprecated_feat_to_ui_route(self) -> None:
         run_dir = "src001-ui-20260331--feat-src-001-001"
         package_dir = self.workspace / "artifacts" / "feat-to-ui" / run_dir
-        input_dir = self.workspace / "artifacts" / "epic-to-feat" / "src001-input"
         package_dir.mkdir(parents=True, exist_ok=True)
-        input_dir.mkdir(parents=True, exist_ok=True)
         write_json(package_dir / "execution-evidence.json", {"input_path": "artifacts/epic-to-feat/src001-input"})
         write_json(package_dir / "package-manifest.json", {"feat_ref": "FEAT-SRC-001-001", "run_id": "src001-ui-20260331"})
         write_json(
@@ -147,41 +142,16 @@ class CliRuntimeFeatToUiTest(unittest.TestCase):
             "authoritative_input_ref": candidate_ref,
         }
 
-        scripts_dir = str((ROOT / "skills" / "ll-dev-feat-to-ui" / "scripts").resolve())
-        inserted = False
-        if scripts_dir not in sys.path:
-            sys.path.insert(0, scripts_dir)
-            inserted = True
-        try:
-            import feat_to_ui_route  # type: ignore
-
-            patch_target = patch.object(
-                feat_to_ui_route,
-                "run_workflow",
-                return_value={"ok": True, "artifacts_dir": str(package_dir)},
+        with self.assertRaises(CommandError) as ctx:
+            invoke_execution_return_job(
+                self.workspace,
+                trace={"run_ref": "RUN-RETURN", "workflow_key": "governance.gate-human-orchestrator"},
+                request_id="req-execution-return-ui",
+                job_ref="artifacts/jobs/waiting-human/ui-return.json",
+                job=job,
             )
-            with patch_target as mocked_run:
-                result = invoke_execution_return_job(
-                    self.workspace,
-                    trace={"run_ref": "RUN-RETURN", "workflow_key": "governance.gate-human-orchestrator"},
-                    request_id="req-execution-return-ui",
-                    job_ref="artifacts/jobs/waiting-human/ui-return.json",
-                    job=job,
-                )
-        finally:
-            if inserted:
-                sys.path.remove(scripts_dir)
-
-        self.assertTrue(result["ok"])
-        kwargs = mocked_run.call_args.kwargs
-        self.assertEqual(Path(kwargs["input_path"]), input_dir)
-        self.assertEqual(kwargs["feat_ref"], "FEAT-SRC-001-001")
-        self.assertEqual(kwargs["run_id"], "src001-ui-20260331")
-        self.assertTrue(kwargs["allow_update"])
-        self.assertEqual(Path(kwargs["revision_request_path"]), package_dir / "revision-request.json")
-        revision_request = read_json(package_dir / "revision-request.json")
-        self.assertEqual(revision_request["source_run_id"], run_dir)
-        self.assertEqual(revision_request["candidate_ref"], candidate_ref)
+        self.assertEqual(ctx.exception.code, "REGISTRY_MISS")
+        self.assertIn("feat-to-ui", str(ctx.exception))
 
 
 if __name__ == "__main__":

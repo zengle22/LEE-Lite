@@ -1005,7 +1005,7 @@ class CliRuntimeTest(unittest.TestCase):
             self.assertEqual(job["feat_ref"], "FEAT-SRC-001-301")
             self.assertTrue(
                 job["target_skill"]
-                in {"workflow.dev.feat_to_tech", "workflow.dev.feat_to_ui", "workflow.qa.feat_to_testset"}
+                in {"workflow.dev.feat_to_tech", "workflow.dev.feat_to_proto", "workflow.qa.feat_to_testset"}
             )
 
     def test_gate_dispatch_routes_high_complexity_feat_to_proto(self) -> None:
