@@ -420,7 +420,7 @@ def materialize_ui(
             "assigned_id": assigned_id,
             "output_path": published_ref,
             "source_run_id": snapshot["workflow_run_id"],
-            "source_skill": snapshot["workflow_key"] or "dev.feat-to-ui",
+            "source_skill": snapshot["workflow_key"] or "dev.proto-to-ui",
             "candidate_package_ref": snapshot["candidate_package_ref"],
             "gate_decision_ref": decision_ref,
             "source_refs": snapshot["source_refs"],

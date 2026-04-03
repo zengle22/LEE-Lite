@@ -67,7 +67,7 @@ class FeatToUiWorkflowHarness(unittest.TestCase):
             "feat-acceptance-report.json": {"decision": "approve"},
             "feat-defect-list.json": [],
             "feat-freeze-gate.json": {"workflow_key": "product.epic-to-feat", "freeze_ready": True, "decision": "pass"},
-            "handoff-to-feat-downstreams.json": {"target_workflows": [{"workflow": "workflow.dev.feat_to_ui"}], "derivable_children": ["UI_SPEC"]},
+            "handoff-to-feat-downstreams.json": {"target_workflows": [{"workflow": "workflow.dev.feat_to_proto"}], "derivable_children": ["PROTOTYPE"]},
             "execution-evidence.json": {"run_id": run_id},
             "supervision-evidence.json": {"run_id": run_id},
         }
