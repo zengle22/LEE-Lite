@@ -10,60 +10,13 @@ import sys
 from pathlib import Path
 from typing import Any
 
-from cli.lib.workflow_document_test import build_document_test_report, build_fixability_section
 from src_to_epic_common import dump_json, load_json, parse_markdown_frontmatter, render_markdown
+from src_to_epic_review_phase1 import build_src_to_epic_document_test_report, validate_review_phase1_fields
 
 
 def _write_json(path: Path, payload: dict[str, Any]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
-
-
-def _document_test_report(generated: Any) -> dict[str, Any]:
-    revision_context = generated.json_payload.get("revision_context") if isinstance(generated.json_payload.get("revision_context"), dict) else {}
-    revision_request_ref = str(generated.json_payload.get("revision_request_ref") or revision_context.get("revision_request_ref") or "").strip()
-    defects = list(generated.defect_list)
-    defect_details = [str(item.get("detail") or item.get("title") or item.get("severity") or "unknown") for item in defects]
-    recommended_next_action = "rebuild_and_rerun" if defects else "submit_to_external_gate"
-    recommended_actor = "workflow_rebuild" if defects else "external_gate_review"
-    semantic_drift = generated.semantic_drift_check
-    return build_document_test_report(
-        workflow_key="product.src-to-epic",
-        run_id=str(generated.frontmatter["workflow_run_id"]),
-        tested_at=str(generated.acceptance_report["created_at"]),
-        defect_list=defects,
-        revision_request_ref=revision_request_ref,
-        structural={
-            "package_integrity": True,
-            "traceability_integrity": bool(generated.json_payload.get("source_refs")) and bool(generated.json_payload.get("traceability")),
-            "blocking": False,
-        },
-        logic_consistency={
-            "checked_topics": ["epic_boundary", "goal_scope_alignment", "decomposition_rules", "acceptance_semantics"],
-            "conflicts_found": [str(item.get("title") or item.get("severity") or "unknown") for item in defects],
-            "severity": "blocking" if defects else "none",
-            "blocking": bool(defects),
-        },
-        downstream_readiness={
-            "downstream_target": "product.epic-to-feat",
-            "consumption_contract_ref": "skills/ll-product-src-to-epic/ll.contract.yaml#validation.document_test.downstream_consumption_contract",
-            "ready_for_gate_review": not defects,
-            "blocking_gaps": defect_details,
-            "missing_contracts": [],
-            "assumption_leaks": list(generated.review_report.get("risks") or []),
-        },
-        semantic_drift={
-            "revision_context_present": bool(revision_context),
-            "drift_detected": semantic_drift.get("verdict") == "reject",
-            "drift_items": list(semantic_drift.get("forbidden_axis_detected") or []) or ([str(semantic_drift.get("summary") or "")] if semantic_drift.get("verdict") == "reject" else []),
-            "semantic_lock_preserved": bool(semantic_drift.get("semantic_lock_preserved", True)),
-        },
-        fixability=build_fixability_section(
-            recommended_next_action=recommended_next_action,
-            recommended_actor=recommended_actor,
-            rebuild_required=len(defects),
-        ),
-    )
 
 
 def _commit_markdown(repo_root: Path, artifacts_dir: Path, run_id: str, markdown_text: str, request_suffix: str) -> dict[str, Any]:
@@ -104,7 +57,7 @@ def write_executor_outputs(output_dir: Path, repo_root: Path, package: Any, gene
     output_dir.mkdir(parents=True, exist_ok=True)
     run_id = output_dir.name
     revision_request_ref = str(generated.json_payload.get("revision_request_ref") or "").strip()
-    document_test_report = _document_test_report(generated)
+    document_test_report = build_src_to_epic_document_test_report(generated)
     markdown_text = render_markdown(generated.frontmatter, generated.markdown_body)
     cli_commit = _commit_markdown(repo_root, output_dir, run_id, markdown_text, "epic-freeze-executor-commit")
     dump_json(output_dir / "epic-freeze.json", generated.json_payload)
@@ -179,7 +132,7 @@ def write_executor_outputs(output_dir: Path, repo_root: Path, package: Any, gene
 def build_supervision_evidence(package: Any, output_dir: Path, generated: Any) -> dict[str, Any]:
     decision = "pass" if not generated.defect_list else "revise"
     revision_request_ref = str(generated.json_payload.get("revision_request_ref") or "").strip()
-    document_test_report = _document_test_report(generated)
+    document_test_report = build_src_to_epic_document_test_report(generated)
     findings = [
         {
             "title": "Multi-FEAT boundary preserved" if decision == "pass" else "Multi-FEAT boundary weak",
@@ -206,9 +159,10 @@ def build_supervision_evidence(package: Any, output_dir: Path, generated: Any) -
 
 
 def build_gate_result(generated: Any, supervision_evidence: dict[str, Any]) -> dict[str, Any]:
-    document_test_report = _document_test_report(generated)
+    document_test_report = build_src_to_epic_document_test_report(generated)
+    review_phase1_ready = not validate_review_phase1_fields(document_test_report)
     document_test_non_blocking = document_test_report["test_outcome"] == "no_blocking_defect_found"
-    pass_gate = supervision_evidence["decision"] == "pass" and not generated.defect_list and document_test_non_blocking
+    pass_gate = supervision_evidence["decision"] == "pass" and not generated.defect_list and document_test_non_blocking and review_phase1_ready
     return {
         "workflow_key": "product.src-to-epic",
         "decision": "pass" if pass_gate else "revise",
@@ -227,6 +181,7 @@ def build_gate_result(generated: Any, supervision_evidence: dict[str, Any]) -> d
             "semantic_lock_preserved": generated.semantic_drift_check.get("semantic_lock_preserved", True),
             "document_test_report_present": document_test_report["test_outcome"] in {"no_blocking_defect_found", "blocking_defect_found", "inconclusive", "not_applicable"},
             "document_test_non_blocking": document_test_non_blocking,
+            "review_phase1_ready": review_phase1_ready,
         },
         "created_at": generated.acceptance_report["created_at"],
     }
@@ -234,7 +189,7 @@ def build_gate_result(generated: Any, supervision_evidence: dict[str, Any]) -> d
 
 def update_supervisor_outputs(artifacts_dir: Path, repo_root: Path, package: Any, generated: Any, supervision: dict[str, Any], gate: dict[str, Any]) -> None:
     run_id = artifacts_dir.name
-    document_test_report = _document_test_report(generated)
+    document_test_report = build_src_to_epic_document_test_report(generated)
     epic_json = load_json(artifacts_dir / "epic-freeze.json")
     updated_json = dict(epic_json)
     updated_json["status"] = "accepted" if supervision["decision"] == "pass" else "revised"

@@ -13,9 +13,7 @@ import sys
 from typing import Any
 
 WORKSPACE_ROOT = Path(__file__).resolve().parents[3]
-if str(WORKSPACE_ROOT) not in sys.path:
-    sys.path.insert(0, str(WORKSPACE_ROOT))
-
+if str(WORKSPACE_ROOT) not in sys.path: sys.path.insert(0, str(WORKSPACE_ROOT))
 from cli.lib.workflow_revision import (
     materialize_revision_request,
     normalize_revision_context,
@@ -77,6 +75,7 @@ from src_to_epic_gate_integration import (
     create_handoff_proposal,
     submit_gate_pending,
 )
+from src_to_epic_review_phase1 import validate_review_phase1_fields
 REQUIRED_OUTPUT_FILES = ("epic-freeze.md", "epic-freeze.json", "epic-review-report.json", "epic-acceptance-report.json", "epic-defect-list.json", "document-test-report.json", "epic-freeze-gate.json", "handoff-to-epic-to-feat.json", "semantic-drift-check.json", "execution-evidence.json", "supervision-evidence.json")
 REQUIRED_MARKDOWN_HEADINGS = ("Epic Intent", "Business Goal", "Business Value and Problem", "Product Positioning", "Actors and Roles", "Capability Scope", "Upstream and Downstream", "Epic Success Criteria", "Non-Goals", "Decomposition Rules", "Rollout and Adoption", "Constraints and Dependencies", "Acceptance and Review", "Downstream Handoff", "Traceability")
 def utc_now() -> str:
@@ -525,7 +524,9 @@ def validate_output_package(artifacts_dir: Path) -> tuple[list[str], dict[str, A
             errors.append(f"Missing required output artifact: {required_file}")
     if errors:
         return errors, {"valid": False}
-    errors.extend(validate_document_test_report(load_json(artifacts_dir / "document-test-report.json")))
+    document_test_report = load_json(artifacts_dir / "document-test-report.json")
+    errors.extend(validate_document_test_report(document_test_report))
+    errors.extend(validate_review_phase1_fields(document_test_report))
 
     epic_json = load_json(artifacts_dir / "epic-freeze.json")
     if epic_json.get("artifact_type") != "epic_freeze_package":
@@ -641,9 +642,7 @@ def validate_package_readiness(artifacts_dir: Path) -> tuple[bool, list[str]]:
     errors, _ = validate_output_package(artifacts_dir)
     if errors:
         return False, errors
-
-    gate = load_json(artifacts_dir / "epic-freeze-gate.json")
-    checks = gate.get("checks") or {}
+    checks = load_json(artifacts_dir / "epic-freeze-gate.json").get("checks") or {}
     readiness_errors = [name for name, status in checks.items() if status is not True]
     if load_json(artifacts_dir / "document-test-report.json").get("test_outcome") != "no_blocking_defect_found":
         readiness_errors.append("document_test_non_blocking")
