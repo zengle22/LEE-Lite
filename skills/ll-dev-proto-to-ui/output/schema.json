@@ -1,0 +1,11 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "ll-dev-proto-to-ui output",
+  "type": "object",
+  "required": ["artifact_type", "workflow_key", "feat_ref", "ui_spec_refs"],
+  "properties": {
+    "artifact_type": { "type": "string", "const": "ui_spec_package" },
+    "workflow_key": { "type": "string", "const": "dev.proto-to-ui" }
+  },
+  "additionalProperties": true
+}

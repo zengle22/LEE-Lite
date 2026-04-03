@@ -1,0 +1,11 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "ll-dev-proto-to-ui input",
+  "type": "object",
+  "required": ["artifact_type", "workflow_key", "feat_ref", "pages", "prototype_entry_ref"],
+  "properties": {
+    "artifact_type": { "type": "string", "const": "prototype_package" },
+    "workflow_key": { "type": "string", "const": "dev.feat-to-proto" }
+  },
+  "additionalProperties": true
+}

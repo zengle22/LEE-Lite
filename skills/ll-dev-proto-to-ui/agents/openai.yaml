@@ -1,0 +1,4 @@
+interface:
+  display_name: "LL Dev Proto To UI"
+  short_description: "Governed skill for LL Dev Proto To UI"
+  default_prompt: "Use $ll-dev-proto-to-ui to run the governed ll-dev-proto-to-ui workflow."

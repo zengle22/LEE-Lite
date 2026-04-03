@@ -1,0 +1,54 @@
+skill_id: ll-dev-proto-to-ui
+skill_type: workflow
+version: 0.1.0
+workflow_key: dev.proto-to-ui
+
+authority:
+  canonical_adr: ssot/adr/ADR-040-FEAT-to-UI 拆分为 Prototype Freeze 与 UI Spec 派生双阶段基线.MD
+  upstream_skill: ll-dev-feat-to-proto
+
+roles:
+  executor:
+    required: true
+    evidence_required: true
+    prompt_file: agents/executor.md
+  supervisor:
+    required: true
+    evidence_required: true
+    prompt_file: agents/supervisor.md
+
+runtime:
+  mode: lite_native
+  command: python scripts/proto_to_ui.py run --input <prototype-package-dir> --repo-root <repo-root>
+  entry_script: scripts/proto_to_ui.py
+  accepted_input_paths:
+    - artifacts/feat-to-proto/<run_id>
+    - direct prototype_package directory path
+  produced_output_dir: artifacts/proto-to-ui/<run_id>--<feat_ref>
+  required_output_artifacts:
+    - package-manifest.json
+    - ui-spec-bundle.md
+    - ui-spec-bundle.json
+    - ui-flow-map.md
+    - ui-semantic-source-ledger.json
+    - ui-spec-completeness-report.json
+    - ui-spec-review-report.json
+    - document-test-report.json
+    - ui-spec-defect-list.json
+    - ui-spec-freeze-gate.json
+    - execution-evidence.json
+    - supervision-evidence.json
+
+input:
+  artifact_type: prototype_package
+  contract_file: input/contract.yaml
+  schema_file: input/schema.json
+  structural_validation_required: true
+  semantic_validation_required: true
+
+output:
+  artifact_type: ui_spec_package
+  contract_file: output/contract.yaml
+  schema_file: output/schema.json
+  structural_validation_required: true
+  semantic_validation_required: true

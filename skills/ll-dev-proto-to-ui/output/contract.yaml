@@ -1,0 +1,15 @@
+artifact_type: ui_spec_package
+schema_version: 1.0.0
+required_runtime_artifacts:
+  - package-manifest.json
+  - ui-spec-bundle.md
+  - ui-spec-bundle.json
+  - ui-flow-map.md
+  - ui-semantic-source-ledger.json
+  - ui-spec-completeness-report.json
+  - ui-spec-review-report.json
+  - document-test-report.json
+  - ui-spec-defect-list.json
+  - ui-spec-freeze-gate.json
+  - execution-evidence.json
+  - supervision-evidence.json

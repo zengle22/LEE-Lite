@@ -1,0 +1,28 @@
+version: 0.1.0
+states:
+  - drafted
+  - structurally_validated
+  - semantically_reviewed
+  - document_tested
+  - supervisor_reviewed
+  - frozen
+  - rejected
+
+transitions:
+  drafted:
+    - structurally_validated
+    - rejected
+  structurally_validated:
+    - semantically_reviewed
+    - rejected
+  semantically_reviewed:
+    - document_tested
+    - rejected
+  document_tested:
+    - supervisor_reviewed
+    - rejected
+  supervisor_reviewed:
+    - frozen
+    - rejected
+  frozen: []
+  rejected: []
