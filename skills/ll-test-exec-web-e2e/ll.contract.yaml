@@ -7,7 +7,7 @@ authority:
   canonical_adr: E:\ai\LEE-Lite-skill-first\ssot\adr\ADR-035-TESTSET 驱动的需求覆盖型 Test Case Expansion 基线.MD
   upstream_skill: ll-qa-feat-to-testset
   primary_path: requirement_driven_case_expansion
-  runtime_entry: python -m cli skill test-exec-web-e2e
+  runtime_entry: python skills/ll-test-exec-web-e2e/scripts/run_normalized.py
   runtime_carrier: E:\ai\LEE-Lite-skill-first\cli\lib\test_exec_runtime.py
   runner_carrier: E:\ai\LEE-Lite-skill-first\cli\lib\test_exec_playwright.py
   downstream_workflow: governance.gate-human-orchestrator
@@ -24,7 +24,7 @@ roles:
 
 runtime:
   mode: lite_native
-  command: python -m cli skill test-exec-web-e2e --request <request.json> --response-out <response.json>
+  command: python skills/ll-test-exec-web-e2e/scripts/run_normalized.py --request <request.json> --response-out <response.json>
   entry_script: python -m cli
   execution_model: requirement_driven_case_expansion
   accepted_input_paths:

@@ -5,7 +5,8 @@
   "type": "object",
   "properties": {
     "api_version": {
-      "const": "v1"
+      "type": "string",
+      "enum": ["v1", "1.0.0"]
     },
     "command": {
       "const": "skill.test-exec-web-e2e"
@@ -32,6 +33,13 @@
           "type": "string",
           "minLength": 1,
           "description": "Formal TESTSET ref emitted by ll-qa-feat-to-testset. The resolved TESTSET should expose functional_areas, logic_dimensions, state_model, coverage_matrix, and traceable test_units."
+        },
+        "test_set_refs": {
+          "description": "Backward-compatible alias for test_set_ref. When provided, the runtime will normalize to payload.test_set_ref.",
+          "oneOf": [
+            {"type": "string", "minLength": 1},
+            {"type": "array", "items": {"type": "string", "minLength": 1}, "minItems": 1}
+          ]
         },
         "test_environment_ref": {
           "type": "string",
@@ -66,9 +74,14 @@
           "additionalProperties": true
         }
       },
-      "required": [
-        "test_set_ref",
-        "test_environment_ref"
+      "required": ["test_environment_ref"],
+      "allOf": [
+        {
+          "anyOf": [
+            {"required": ["test_set_ref"]},
+            {"required": ["test_set_refs"]}
+          ]
+        }
       ],
       "additionalProperties": true
     }
