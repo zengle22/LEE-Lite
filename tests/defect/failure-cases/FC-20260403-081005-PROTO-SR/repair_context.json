@@ -1,0 +1,39 @@
+{
+  "artifact_type": "repair_context",
+  "schema_version": "0.1.0",
+  "status": "ready_for_manual_repair",
+  "repair_mode": "manual_or_human_directed_ai",
+  "automatic_repair_allowed": false,
+  "repair_goal": "Record the SRC-001 proto review distortion as a governed failure case before repair, then allow a narrow follow-up fix that restores frozen enums, state-specific surface branching, and user-visible field boundaries.",
+  "problem_focus": "SRC-001 prototype packages remain review-distorting because frozen enums drift, state branches do not materially change page content, and technical payload fields leak into required user-facing scope.",
+  "allowed_edit_scope": [
+    "E:/ai/LEE-Lite-skill-first/skills/ll-dev-feat-to-proto/scripts/feat_to_proto.py",
+    "artifacts/feat-to-proto/feat-src-001-001--feat-src-001-001/",
+    "artifacts/feat-to-proto/feat-src-001-002--feat-src-001-002/",
+    "artifacts/feat-to-proto/feat-src-001-003--feat-src-001-003/",
+    "artifacts/feat-to-proto/feat-src-001-004--feat-src-001-004/",
+    "artifacts/feat-to-proto/feat-src-001-005--feat-src-001-005/"
+  ],
+  "protected_refs": [
+    "artifacts/epic-to-feat/user-onboarding-v2-20260330/",
+    "artifacts/feat-to-ui/src001-ui-20260331--feat-src-001-001/",
+    "artifacts/feat-to-ui/src001-ui-20260331--feat-src-001-002/",
+    "artifacts/feat-to-ui/src001-ui-20260331--feat-src-001-003/",
+    "artifacts/feat-to-ui/src001-ui-20260331--feat-src-001-004/",
+    "artifacts/feat-to-ui/src001-ui-20260331--feat-src-001-005/"
+  ],
+  "do_not_modify": [
+    "artifacts/epic-to-feat/user-onboarding-v2-20260330/",
+    "artifacts/feat-to-ui/src001-ui-20260331--feat-src-001-001/",
+    "artifacts/feat-to-ui/src001-ui-20260331--feat-src-001-002/",
+    "artifacts/feat-to-ui/src001-ui-20260331--feat-src-001-003/",
+    "artifacts/feat-to-ui/src001-ui-20260331--feat-src-001-004/",
+    "artifacts/feat-to-ui/src001-ui-20260331--feat-src-001-005/"
+  ],
+  "repair_instructions": [
+    "Only edit the approved scope.",
+    "Do not restructure unaffected sections.",
+    "Keep the fix diff reviewable and minimal.",
+    "Re-run minimum validation after repair."
+  ]
+}

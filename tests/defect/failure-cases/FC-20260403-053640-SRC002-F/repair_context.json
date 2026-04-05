@@ -1,0 +1,29 @@
+{
+  "artifact_type": "repair_context",
+  "schema_version": "0.1.0",
+  "status": "ready_for_manual_repair",
+  "repair_mode": "manual_or_human_directed_ai",
+  "automatic_repair_allowed": false,
+  "repair_goal": "Freeze the SRC002 suite-level blockers into a governed failure package so the next repair pass can systematically normalize IMPL, UI, TESTSET, and API contracts without losing final-runtime rerun evidence.",
+  "problem_focus": "SRC002 suite remains fully blocked after final runtime rerun, driven by incomplete IMPL, missing UI authority, and non-freeze-ready TESTSETs.",
+  "allowed_edit_scope": [
+    "ssot/impl/SRC-002",
+    "ssot/testset",
+    "ssot/ui/SRC-002",
+    "ssot/api/SRC-002"
+  ],
+  "protected_refs": [
+    "artifacts/active/qa/impl-spec-tests",
+    "artifacts/active/qa/impl-spec-test-src002-final-runtime-rerun/responses"
+  ],
+  "do_not_modify": [
+    "artifacts/active/qa/impl-spec-tests",
+    "artifacts/active/qa/impl-spec-test-src002-final-runtime-rerun/responses"
+  ],
+  "repair_instructions": [
+    "Only edit the approved scope.",
+    "Do not restructure unaffected sections.",
+    "Keep the fix diff reviewable and minimal.",
+    "Re-run minimum validation after repair."
+  ]
+}

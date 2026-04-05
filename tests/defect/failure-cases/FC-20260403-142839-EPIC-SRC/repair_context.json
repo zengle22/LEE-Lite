@@ -1,0 +1,21 @@
+{
+  "artifact_type": "repair_context",
+  "schema_version": "0.1.0",
+  "status": "ready_for_manual_repair",
+  "repair_mode": "manual_or_human_directed_ai",
+  "automatic_repair_allowed": false,
+  "repair_goal": "重新生成 EPIC，使主语回到“工程承载面/最小可运行骨架”，并确保下游可按工程骨架对象拆分 FEAT；治理/交接/审核语义仅作为 cross-cutting constraints / acceptance overlay 保留。",
+  "problem_focus": "EPIC 主语从“工程骨架/代码框架基线”漂移成“治理平台主链产品切片”（handoff/gate/formal/IO/skill 接入）",
+  "allowed_edit_scope": [
+    "E:\\ai\\LEE-Lite-skill-first\\skills\\ll-product-src-to-epic\\scripts\\src_to_epic_identity.py:is_governance_bridge_package",
+    "E:\\ai\\LEE-Lite-skill-first\\skills\\ll-product-src-to-epic\\scripts\\src_to_epic_identity.py:derive_capability_axes"
+  ],
+  "protected_refs": [],
+  "do_not_modify": [],
+  "repair_instructions": [
+    "Only edit the approved scope.",
+    "Do not restructure unaffected sections.",
+    "Keep the fix diff reviewable and minimal.",
+    "Re-run minimum validation after repair."
+  ]
+}

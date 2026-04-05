@@ -1,0 +1,10 @@
+{
+  "artifact_type": "diagnosis_stub",
+  "schema_version": "0.1.0",
+  "status": "stubbed",
+  "error_class": "detection_miss",
+  "root_cause_primary": "definition_weakness",
+  "expected_detector": "impl_spec_testing",
+  "remediation_hint": "Repair upstream SSOT definitions before allowing implementation or test execution to proceed.",
+  "note": "This is an initial capture-time stub, not a final diagnosis report."
+}

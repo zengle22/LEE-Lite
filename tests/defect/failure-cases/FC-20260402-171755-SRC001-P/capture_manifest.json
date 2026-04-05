@@ -1,0 +1,44 @@
+{
+  "artifact_type": "failure_capture_package",
+  "schema_version": "0.1.0",
+  "status": "captured",
+  "workflow_key": "governance.failure-capture",
+  "package_kind": "failure_case",
+  "package_id": "FC-20260402-171755-SRC001-P",
+  "triage_level": "P1",
+  "skill_id": "qa.impl-spec-test",
+  "sku": "impl_spec_test_phase2_suite",
+  "run_id": "RUN-20260402-SRC001-PHASE2-SUITE",
+  "artifact_id": "SRC001-PHASE2-SUITE",
+  "failure_scope": "run",
+  "package_dir_ref": "tests/defect/failure-cases/FC-20260402-171755-SRC001-P",
+  "request_ref": "artifacts/active/governance/failure-capture/src001-phase2-suite/failure-capture.request.json",
+  "source_refs": [
+    "artifacts/active/governance/failure-capture/src001-phase2-suite/failure-capture.request.json",
+    "artifacts/active/governance/failure-capture/src001-phase2-suite/suite-problem-summary.json",
+    "ssot/impl/IMPL-SRC-001-001__最小建档主链能力-implementation-task-package.md",
+    "ssot/impl/IMPL-SRC-001-002__首页主入口与首进分发能力-implementation-task-package.md",
+    "ssot/impl/IMPL-SRC-001-003__首页后置设备连接能力-implementation-task-package.md",
+    "ssot/impl/IMPL-SRC-001-004__运动能力评估主链与结果页能力-implementation-task-package.md",
+    "ssot/impl/IMPL-SRC-001-005__状态模型与存储边界统一能力-implementation-task-package.md"
+  ],
+  "evidence_refs": [
+    "artifacts/active/governance/failure-capture/src001-phase2-suite/suite-problem-summary.json",
+    "artifacts/active/qa/impl-spec-test-phase2-src001-rerun/responses/impl-spec-test-src001-001.response.json",
+    "artifacts/active/qa/impl-spec-test-phase2-src001-rerun/responses/impl-spec-test-src001-002.response.json",
+    "artifacts/active/qa/impl-spec-test-phase2-src001-rerun/responses/impl-spec-test-src001-003.response.json",
+    "artifacts/active/qa/impl-spec-test-phase2-src001-rerun/responses/impl-spec-test-src001-004.response.json",
+    "artifacts/active/qa/impl-spec-test-phase2-src001-rerun/responses/impl-spec-test-src001-005.response.json",
+    "artifacts/active/qa/impl-spec-tests/phase2-src001-001-impl-src-001-001/impl-spec-test-report.json",
+    "artifacts/active/qa/impl-spec-tests/phase2-src001-002-impl-src-001-002/impl-spec-test-report.json",
+    "artifacts/active/qa/impl-spec-tests/phase2-src001-003-impl-src-001-003/impl-spec-test-report.json",
+    "artifacts/active/qa/impl-spec-tests/phase2-src001-004-impl-src-001-004/impl-spec-test-report.json",
+    "artifacts/active/qa/impl-spec-tests/phase2-src001-005-impl-src-001-005/impl-spec-test-report.json"
+  ],
+  "files": {
+    "capture_manifest_ref": "tests/defect/failure-cases/FC-20260402-171755-SRC001-P/capture_manifest.json",
+    "diagnosis_stub_ref": "tests/defect/failure-cases/FC-20260402-171755-SRC001-P/diagnosis_stub.json",
+    "repair_context_ref": "tests/defect/failure-cases/FC-20260402-171755-SRC001-P/repair_context.json",
+    "failure_case_ref": "tests/defect/failure-cases/FC-20260402-171755-SRC001-P/failure_case.json"
+  }
+}

@@ -1,0 +1,37 @@
+{
+  "artifact_type": "failure_case",
+  "schema_version": "0.1.0",
+  "status": "open",
+  "failure_id": "FC-20260403-081005-PROTO-SR",
+  "skill_id": "dev.feat-to-proto",
+  "sku": "src001_proto_review",
+  "run_id": "RUN-20260403-SRC001-PROTO-REVIEW",
+  "artifact_id": "PROTO-SRC001-REVIEW",
+  "failure_scope": "run",
+  "detected_stage": "human_final_review",
+  "detected_by": "reviewer.codex",
+  "severity": "high",
+  "triage_level": "P1",
+  "symptom_summary": "SRC-001 prototype packages remain review-distorting because frozen enums drift, state branches do not materially change page content, and technical payload fields leak into required user-facing scope.",
+  "problem_description": "The governed dev.feat-to-proto output for SRC-001 no longer uses a generic skeleton, but it still misrepresents the review target in three bounded ways. First, FEAT-SRC-001-001 shows running_level and recent_injury_status values that drift from the frozen SRC enum domain. Second, panel / entry / status family pages switch state labels without making the core surface materially branch, so degraded, conservative, blocked, and retryable states still look too similar to pass states. Third, the prototype field-boundary section exposes technical payload such as entry_context as if it were a required user-visible input. These defects make the package unsuitable as a freeze-review proxy until repaired.",
+  "failed_artifact_ref": "E:/ai/LEE-Lite-skill-first/skills/ll-dev-feat-to-proto/scripts/feat_to_proto.py",
+  "upstream_refs": [
+    "ssot/src/SRC-001__用户建档-2-0-最小-mvp-重构.md",
+    "artifacts/feat-to-ui/src001-ui-20260331--feat-src-001-001/ui-spec-bundle.json",
+    "artifacts/feat-to-ui/src001-ui-20260331--feat-src-001-002/ui-spec-bundle.json",
+    "artifacts/feat-to-ui/src001-ui-20260331--feat-src-001-003/ui-spec-bundle.json",
+    "artifacts/feat-to-ui/src001-ui-20260331--feat-src-001-004/ui-spec-bundle.json",
+    "artifacts/feat-to-ui/src001-ui-20260331--feat-src-001-005/ui-spec-bundle.json"
+  ],
+  "evidence_refs": [
+    "artifacts/feat-to-proto/feat-src-001-001--feat-src-001-001/prototype/index.html",
+    "artifacts/feat-to-proto/feat-src-001-001--feat-src-001-001/prototype/mock-data.json",
+    "artifacts/feat-to-proto/feat-src-001-002--feat-src-001-002/prototype/index.html",
+    "artifacts/feat-to-proto/feat-src-001-002--feat-src-001-002/prototype/mock-data.json",
+    "artifacts/feat-to-proto/feat-src-001-003--feat-src-001-003/prototype/index.html",
+    "artifacts/feat-to-proto/feat-src-001-004--feat-src-001-004/prototype/index.html",
+    "artifacts/feat-to-proto/feat-src-001-004--feat-src-001-004/prototype/mock-data.json",
+    "artifacts/feat-to-proto/feat-src-001-005--feat-src-001-005/prototype/index.html",
+    "artifacts/feat-to-proto/feat-src-001-005--feat-src-001-005/prototype/mock-data.json"
+  ]
+}

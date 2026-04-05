@@ -1,0 +1,10 @@
+{
+  "artifact_type": "diagnosis_stub",
+  "schema_version": "0.1.0",
+  "status": "stubbed",
+  "error_class": "semantic_drift",
+  "root_cause_primary": "detection_weakness",
+  "expected_detector": "document_test",
+  "remediation_hint": "src-to-epic 需要以 semantic_lock.domain_type/primary_object 为主锚点，避免将 engineering_bootstrap_baseline_rule 误判为 governance bridge；并在工程基线类 SRC 下，将切片轴围绕 repo/layout、shell、env、migrations、health/readiness、module boundaries 等工程骨架对象展开。",
+  "note": "This is an initial capture-time stub, not a final diagnosis report."
+}

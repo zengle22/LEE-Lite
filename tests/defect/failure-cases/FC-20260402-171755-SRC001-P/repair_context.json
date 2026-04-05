@@ -1,0 +1,29 @@
+{
+  "artifact_type": "repair_context",
+  "schema_version": "0.1.0",
+  "status": "ready_for_manual_repair",
+  "repair_mode": "manual_or_human_directed_ai",
+  "automatic_repair_allowed": false,
+  "repair_goal": "Freeze the suite-level blockers into a governed failure package so upstream owners can execute a controlled repair pass without losing the phase2 evidence trail.",
+  "problem_focus": "SRC001 suite rerun is fully blocked by repeated recovery, state-closure, and ownership-definition defects.",
+  "allowed_edit_scope": [
+    "ssot/impl/SRC-001",
+    "ssot/tech/SRC-001",
+    "ssot/testset/SRC-001",
+    "ssot/ui/SRC-001"
+  ],
+  "protected_refs": [
+    "artifacts/active/qa/impl-spec-tests",
+    "artifacts/active/qa/impl-spec-test-phase2-src001-rerun/responses"
+  ],
+  "do_not_modify": [
+    "artifacts/active/qa/impl-spec-tests",
+    "artifacts/active/qa/impl-spec-test-phase2-src001-rerun/responses"
+  ],
+  "repair_instructions": [
+    "Only edit the approved scope.",
+    "Do not restructure unaffected sections.",
+    "Keep the fix diff reviewable and minimal.",
+    "Re-run minimum validation after repair."
+  ]
+}

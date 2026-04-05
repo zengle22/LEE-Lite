@@ -1,0 +1,41 @@
+{
+  "artifact_type": "failure_capture_package",
+  "schema_version": "0.1.0",
+  "status": "captured",
+  "workflow_key": "governance.failure-capture",
+  "package_kind": "failure_case",
+  "package_id": "FC-20260403-053640-SRC002-F",
+  "triage_level": "P1",
+  "skill_id": "qa.impl-spec-test",
+  "sku": "impl_spec_test_src002_final_runtime_suite",
+  "run_id": "RUN-20260403-SRC002-FINAL-RUNTIME-SUITE",
+  "artifact_id": "SRC002-FINAL-RUNTIME-SUITE",
+  "failure_scope": "run",
+  "package_dir_ref": "tests/defect/failure-cases/FC-20260403-053640-SRC002-F",
+  "request_ref": "artifacts/active/governance/failure-capture/src002-final-runtime-suite/failure-capture.request.json",
+  "source_refs": [
+    "artifacts/active/governance/failure-capture/src002-final-runtime-suite/failure-capture.request.json",
+    "artifacts/active/governance/failure-capture/src002-final-runtime-suite/suite-problem-summary.json",
+    "ssot/impl/SRC-002/IMPL-SRC-002-001__最小输入与能力基线能力-implementation-task-package.md",
+    "ssot/impl/SRC-002/IMPL-SRC-002-002__生成前风险-gate-能力-implementation-task-package.md",
+    "ssot/impl/SRC-002/IMPL-SRC-002-003__计划草案与激活能力-implementation-task-package.md",
+    "ssot/impl/SRC-002/IMPL-SRC-002-004__今日训练主视图能力-implementation-task-package.md",
+    "ssot/impl/SRC-002/IMPL-SRC-002-005__训练前检查与训练后反馈能力-implementation-task-package.md",
+    "ssot/impl/SRC-002/IMPL-SRC-002-006__近端训练微调能力-implementation-task-package.md"
+  ],
+  "evidence_refs": [
+    "artifacts/active/qa/impl-spec-tests/SRC002-final-runtime-rerun-summary.md",
+    "artifacts/active/qa/impl-spec-test-src002-final-runtime-rerun/responses/impl-spec-test-src002-001.response.json",
+    "artifacts/active/qa/impl-spec-test-src002-final-runtime-rerun/responses/impl-spec-test-src002-002.response.json",
+    "artifacts/active/qa/impl-spec-test-src002-final-runtime-rerun/responses/impl-spec-test-src002-003.response.json",
+    "artifacts/active/qa/impl-spec-test-src002-final-runtime-rerun/responses/impl-spec-test-src002-004.response.json",
+    "artifacts/active/qa/impl-spec-test-src002-final-runtime-rerun/responses/impl-spec-test-src002-005.response.json",
+    "artifacts/active/qa/impl-spec-test-src002-final-runtime-rerun/responses/impl-spec-test-src002-006.response.json"
+  ],
+  "files": {
+    "capture_manifest_ref": "tests/defect/failure-cases/FC-20260403-053640-SRC002-F/capture_manifest.json",
+    "diagnosis_stub_ref": "tests/defect/failure-cases/FC-20260403-053640-SRC002-F/diagnosis_stub.json",
+    "repair_context_ref": "tests/defect/failure-cases/FC-20260403-053640-SRC002-F/repair_context.json",
+    "failure_case_ref": "tests/defect/failure-cases/FC-20260403-053640-SRC002-F/failure_case.json"
+  }
+}

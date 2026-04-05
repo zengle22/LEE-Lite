@@ -1,0 +1,36 @@
+{
+  "artifact_type": "failure_capture_package",
+  "schema_version": "0.1.0",
+  "status": "captured",
+  "workflow_key": "governance.failure-capture",
+  "package_kind": "failure_case",
+  "package_id": "FC-20260403-142839-EPIC-SRC",
+  "triage_level": "P1",
+  "skill_id": "ll-product-src-to-epic",
+  "sku": "epic_freeze_builder",
+  "run_id": "src003-engineering-baseline-20260403",
+  "artifact_id": "EPIC-SRC003-ENGINEERING-BASELINE-20260403",
+  "failure_scope": "artifact",
+  "package_dir_ref": "tests/defect/failure-cases/FC-20260403-142839-EPIC-SRC",
+  "request_ref": ".local/smoke/failure-capture/src003-epic-drift-20260403/request.json",
+  "source_refs": [
+    ".local/smoke/failure-capture/src003-epic-drift-20260403/request.json",
+    "artifacts/src-to-epic/epic-src003-engineering-baseline-20260403/epic-freeze.md",
+    "artifacts/raw-to-src/src003-engineering-baseline-20260403/src-candidate.md",
+    "artifacts/raw-to-src/src003-engineering-baseline-20260403/src-candidate.json",
+    "ssot/src/SRC-003__工程基线-代码框架-adr-001-002-003-合并输入-最小可运行骨架.md",
+    "ssot/adr/ADR-001-基础技术架构.md",
+    "ssot/adr/ADR-002-项目Harness方案.md",
+    "ssot/adr/ADR-003-代码仓库与开发环境基线.md"
+  ],
+  "evidence_refs": [
+    "artifacts/registry/src-to-epic-epic-src003-engineering-baseline-20260403-epic-freeze.json",
+    "ssot/feat/FEAT-SRC-SRC003-ENGINEERING-BASELINE-20260403-001__主链候选提交与交接流.md"
+  ],
+  "files": {
+    "capture_manifest_ref": "tests/defect/failure-cases/FC-20260403-142839-EPIC-SRC/capture_manifest.json",
+    "diagnosis_stub_ref": "tests/defect/failure-cases/FC-20260403-142839-EPIC-SRC/diagnosis_stub.json",
+    "repair_context_ref": "tests/defect/failure-cases/FC-20260403-142839-EPIC-SRC/repair_context.json",
+    "failure_case_ref": "tests/defect/failure-cases/FC-20260403-142839-EPIC-SRC/failure_case.json"
+  }
+}

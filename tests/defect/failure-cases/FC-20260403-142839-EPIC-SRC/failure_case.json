@@ -1,0 +1,30 @@
+{
+  "artifact_type": "failure_case",
+  "schema_version": "0.1.0",
+  "status": "open",
+  "failure_id": "FC-20260403-142839-EPIC-SRC",
+  "skill_id": "ll-product-src-to-epic",
+  "sku": "epic_freeze_builder",
+  "run_id": "src003-engineering-baseline-20260403",
+  "artifact_id": "EPIC-SRC003-ENGINEERING-BASELINE-20260403",
+  "failure_scope": "artifact",
+  "detected_stage": "human_final_review",
+  "detected_by": "reviewer.human",
+  "severity": "high",
+  "triage_level": "P1",
+  "symptom_summary": "EPIC 主语从“工程骨架/代码框架基线”漂移成“治理平台主链产品切片”（handoff/gate/formal/IO/skill 接入）",
+  "problem_description": "上游 SRC003 的 one-sentence truth 明确要求先冻结最小可运行工程骨架（repo layout、apps/api 壳子、apps/miniapp 壳子、local postgres/compose、migrations、healthz/readyz、模块边界与禁止 legacy/src 扩展等），并把 QA/handoff/gate/formal 等语义作为继承约束/overlay；但当前 src-to-epic 输出把这些 overlay 误提升为 EPIC primary slices，导致下游 FEAT 会按治理平台主链拆分而不是按工程骨架拆分，属于主轴级语义漂移。",
+  "failed_artifact_ref": "artifacts/src-to-epic/epic-src003-engineering-baseline-20260403/epic-freeze.md",
+  "upstream_refs": [
+    "artifacts/raw-to-src/src003-engineering-baseline-20260403/src-candidate.md",
+    "artifacts/raw-to-src/src003-engineering-baseline-20260403/src-candidate.json",
+    "ssot/src/SRC-003__工程基线-代码框架-adr-001-002-003-合并输入-最小可运行骨架.md",
+    "ssot/adr/ADR-001-基础技术架构.md",
+    "ssot/adr/ADR-002-项目Harness方案.md",
+    "ssot/adr/ADR-003-代码仓库与开发环境基线.md"
+  ],
+  "evidence_refs": [
+    "artifacts/registry/src-to-epic-epic-src003-engineering-baseline-20260403-epic-freeze.json",
+    "ssot/feat/FEAT-SRC-SRC003-ENGINEERING-BASELINE-20260403-001__主链候选提交与交接流.md"
+  ]
+}

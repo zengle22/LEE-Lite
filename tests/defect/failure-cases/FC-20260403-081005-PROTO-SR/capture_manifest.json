@@ -1,0 +1,43 @@
+{
+  "artifact_type": "failure_capture_package",
+  "schema_version": "0.1.0",
+  "status": "captured",
+  "workflow_key": "governance.failure-capture",
+  "package_kind": "failure_case",
+  "package_id": "FC-20260403-081005-PROTO-SR",
+  "triage_level": "P1",
+  "skill_id": "dev.feat-to-proto",
+  "sku": "src001_proto_review",
+  "run_id": "RUN-20260403-SRC001-PROTO-REVIEW",
+  "artifact_id": "PROTO-SRC001-REVIEW",
+  "failure_scope": "run",
+  "package_dir_ref": "tests/defect/failure-cases/FC-20260403-081005-PROTO-SR",
+  "request_ref": ".tmp/governance/failure-capture/proto-review-src001-p1.request.json",
+  "source_refs": [
+    ".tmp/governance/failure-capture/proto-review-src001-p1.request.json",
+    "E:/ai/LEE-Lite-skill-first/skills/ll-dev-feat-to-proto/scripts/feat_to_proto.py",
+    "ssot/src/SRC-001__用户建档-2-0-最小-mvp-重构.md",
+    "artifacts/feat-to-ui/src001-ui-20260331--feat-src-001-001/ui-spec-bundle.json",
+    "artifacts/feat-to-ui/src001-ui-20260331--feat-src-001-002/ui-spec-bundle.json",
+    "artifacts/feat-to-ui/src001-ui-20260331--feat-src-001-003/ui-spec-bundle.json",
+    "artifacts/feat-to-ui/src001-ui-20260331--feat-src-001-004/ui-spec-bundle.json",
+    "artifacts/feat-to-ui/src001-ui-20260331--feat-src-001-005/ui-spec-bundle.json"
+  ],
+  "evidence_refs": [
+    "artifacts/feat-to-proto/feat-src-001-001--feat-src-001-001/prototype/index.html",
+    "artifacts/feat-to-proto/feat-src-001-001--feat-src-001-001/prototype/mock-data.json",
+    "artifacts/feat-to-proto/feat-src-001-002--feat-src-001-002/prototype/index.html",
+    "artifacts/feat-to-proto/feat-src-001-002--feat-src-001-002/prototype/mock-data.json",
+    "artifacts/feat-to-proto/feat-src-001-003--feat-src-001-003/prototype/index.html",
+    "artifacts/feat-to-proto/feat-src-001-004--feat-src-001-004/prototype/index.html",
+    "artifacts/feat-to-proto/feat-src-001-004--feat-src-001-004/prototype/mock-data.json",
+    "artifacts/feat-to-proto/feat-src-001-005--feat-src-001-005/prototype/index.html",
+    "artifacts/feat-to-proto/feat-src-001-005--feat-src-001-005/prototype/mock-data.json"
+  ],
+  "files": {
+    "capture_manifest_ref": "tests/defect/failure-cases/FC-20260403-081005-PROTO-SR/capture_manifest.json",
+    "diagnosis_stub_ref": "tests/defect/failure-cases/FC-20260403-081005-PROTO-SR/diagnosis_stub.json",
+    "repair_context_ref": "tests/defect/failure-cases/FC-20260403-081005-PROTO-SR/repair_context.json",
+    "failure_case_ref": "tests/defect/failure-cases/FC-20260403-081005-PROTO-SR/failure_case.json"
+  }
+}

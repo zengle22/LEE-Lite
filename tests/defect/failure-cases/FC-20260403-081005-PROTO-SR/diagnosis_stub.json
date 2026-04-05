@@ -1,0 +1,10 @@
+{
+  "artifact_type": "diagnosis_stub",
+  "schema_version": "0.1.0",
+  "status": "stubbed",
+  "error_class": "structure_error",
+  "root_cause_primary": "repair_fault",
+  "expected_detector": "human_final_review",
+  "remediation_hint": "Repair should stay inside the feat-to-proto generator and rerun the five SRC-001 prototype packages after state-aware rendering, enum normalization, and user-visible field filtering are in place.",
+  "note": "This is an initial capture-time stub, not a final diagnosis report."
+}
