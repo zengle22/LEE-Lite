@@ -1,3 +1,4 @@
+---
 name: ll-dev-feat-to-ui
 description: Deprecated workflow skill. Direct FEAT-to-UI derivation is disabled; use ll-dev-feat-to-proto and ll-dev-proto-to-ui instead.
 ---

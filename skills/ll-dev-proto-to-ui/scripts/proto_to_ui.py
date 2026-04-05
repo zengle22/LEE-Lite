@@ -134,6 +134,8 @@ def _build_document_test(run_id: str, ledger_errors: list[str], review_decision:
 def build_package(context: dict[str, Any], repo_root: Path, run_id: str, allow_update: bool) -> dict[str, Any]:
     bundle = context["bundle"]
     feat_ref = str(bundle.get("feat_ref") or "")
+    feat_title = str(bundle.get("feat_title") or "").strip()
+    source_refs = [str(ref).strip() for ref in (bundle.get("source_refs") or []) if str(ref).strip()]
     output_dir = repo_root / "artifacts" / "proto-to-ui" / f"{(run_id or feat_ref).lower()}--{feat_ref.lower()}"
     if output_dir.exists() and not allow_update:
         return {"ok": False, "errors": [f"output directory already exists: {output_dir}"]}
@@ -165,7 +167,7 @@ def build_package(context: dict[str, Any], repo_root: Path, run_id: str, allow_u
     review_decision = "revise" if ledger_errors else "pass"
     document_test = _build_document_test(run_id or feat_ref, ledger_errors, review_decision)
     write_json(output_dir / "package-manifest.json", {"artifact_type": "ui_spec_package", "workflow_key": "dev.proto-to-ui", "run_id": run_id or feat_ref, "feat_ref": feat_ref, "ui_spec_refs": ui_spec_refs})
-    write_json(output_dir / "ui-spec-bundle.json", {"artifact_type": "ui_spec_package", "workflow_key": "dev.proto-to-ui", "feat_ref": feat_ref, "ui_spec_refs": ui_spec_refs, "source_package_ref": str(context["input_dir"]), "ui_spec_count": len(ui_spec_refs)})
+    write_json(output_dir / "ui-spec-bundle.json", {"artifact_type": "ui_spec_package", "workflow_key": "dev.proto-to-ui", "feat_ref": feat_ref, "feat_title": feat_title, "title": f"UI Spec Bundle for {feat_ref}", "ui_ref": f"UI-{feat_ref}", "ui_spec_refs": ui_spec_refs, "source_package_ref": str(context["input_dir"]), "source_refs": source_refs, "ui_spec_count": len(ui_spec_refs)})
     write_text(output_dir / "ui-spec-bundle.md", f"# UI Spec Bundle for {feat_ref}\n\n- ui_spec_count: {len(ui_spec_refs)}")
     write_text(output_dir / "ui-flow-map.md", "\n".join(["# UI Flow Map", "", *[f"{index+1}. {page['title']}" for index, page in enumerate(pages)]]))
     write_json(output_dir / "ui-semantic-source-ledger.json", ledger)
