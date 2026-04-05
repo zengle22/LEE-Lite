@@ -5,6 +5,7 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from pathlib import Path
 import re
+import shutil
 from typing import Any
 
 from cli.lib.errors import ensure
@@ -25,10 +26,12 @@ from cli.lib.formalization_render import (
     render_formal_testset_yaml,
 )
 from cli.lib.formalization_snapshot import (
+    assigned_id_from_path,
     compliant_epic_path,
     compliant_feat_path,
     compliant_impl_path,
     candidate_source_path,
+    compliant_prototype_path,
     compliant_tech_path,
     compliant_ui_path,
     compliant_testset_path,
@@ -36,6 +39,7 @@ from cli.lib.formalization_snapshot import (
     formal_epic_output_path,
     formal_feat_output_path,
     formal_impl_output_path,
+    formal_prototype_output_path,
     formal_tech_output_path,
     formal_ui_output_path,
     formal_testset_output_path,
@@ -50,6 +54,14 @@ from cli.lib.formalization_tech_support import materialize_tech_supporting_artif
 from cli.lib.fs import canonical_to_path, load_json, to_canonical_path, write_json
 from cli.lib.managed_gateway import governed_write
 from cli.lib.registry_store import bind_record, resolve_registry_record, slugify
+
+
+def _load_prototype_bundle(source_path: Path) -> dict[str, Any]:
+    bundle_path = source_path.parent.parent / "prototype-bundle.json"
+    ensure(bundle_path.exists(), "PRECONDITION_FAILED", f"prototype-bundle.json missing for {source_path}")
+    bundle = load_json(bundle_path)
+    ensure(str(bundle.get("artifact_type") or "") == "prototype_package", "PRECONDITION_FAILED", "prototype bundle must be prototype_package")
+    return bundle
 
 
 def materialize_src(
@@ -458,6 +470,100 @@ def materialize_ui(
     }
 
 
+def materialize_prototype(
+    workspace_root: Path,
+    trace: dict[str, Any],
+    candidate: dict[str, Any],
+    source_path: Path,
+    decision_ref: str,
+    formal_ref: str,
+    materialized_by: str,
+) -> dict[str, Any]:
+    bundle = _load_prototype_bundle(source_path)
+    feat_ref = str(bundle.get("feat_ref") or candidate.get("metadata", {}).get("feat_ref") or "").strip()
+    assigned_id = f"PROTOTYPE-{feat_ref}" if feat_ref else formal_ref.split(".")[-1].upper()
+    title = ensure_publication_title(str(bundle.get("feat_title") or feat_ref or source_path.parent.name), "prototype", assigned_id)
+    source_refs = [str(ref).strip() for ref in (bundle.get("source_refs") or []) if str(ref).strip()]
+    existing = existing_formal_record(workspace_root, formal_ref)
+    target_path: Path | None = None
+    if existing:
+        existing_path = canonical_to_path(str(existing.get("managed_artifact_ref", "")), workspace_root)
+        if existing_path.exists() and compliant_prototype_path(existing_path, workspace_root):
+            existing_assigned_id = assigned_id_from_path(existing_path.parent) or assigned_id
+            normalized_existing_target = formal_prototype_output_path(workspace_root, existing_assigned_id, title, source_refs)
+            if existing_path == normalized_existing_target:
+                target_path = existing_path
+            else:
+                target_path = normalized_existing_target
+            assigned_id = existing_assigned_id
+    if target_path is None:
+        target_path = formal_prototype_output_path(workspace_root, assigned_id, title, source_refs)
+
+    target_dir = target_path.parent
+    source_dir = source_path.parent
+    if target_dir.exists():
+        shutil.rmtree(target_dir)
+    target_dir.mkdir(parents=True, exist_ok=True)
+    copied_refs: list[str] = []
+    for child in source_dir.iterdir():
+        destination = target_dir / child.name
+        if child.is_dir():
+            shutil.copytree(child, destination, dirs_exist_ok=True)
+        else:
+            shutil.copy2(child, destination)
+        copied_refs.append(to_canonical_path(destination, workspace_root))
+
+    published_ref = to_canonical_path(target_path, workspace_root)
+    frozen_at = datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
+    materialized_ssot_ref = "artifacts/active/ssot/materialized-prototype.json"
+    write_json(
+        workspace_root / materialized_ssot_ref,
+        {
+            "materialization_id": f"materialization-{slugify(assigned_id)}",
+            "ssot_type": "PROTOTYPE",
+            "assigned_id": assigned_id,
+            "output_path": published_ref,
+            "copied_refs": copied_refs,
+            "source_run_id": str(candidate.get("trace", {}).get("run_ref") or ""),
+            "source_skill": str(candidate.get("trace", {}).get("workflow_key") or "dev.feat-to-proto"),
+            "candidate_package_ref": str(candidate.get("metadata", {}).get("source_package_ref") or ""),
+            "gate_decision_ref": decision_ref,
+            "source_refs": source_refs,
+            "materialized_by": materialized_by,
+            "materialized_at": frozen_at,
+        },
+    )
+    bind_record(
+        workspace_root,
+        formal_ref,
+        published_ref,
+        "materialized",
+        trace,
+        metadata={
+            "target_kind": "prototype",
+            "published_ref": published_ref,
+            "source_run_id": str(candidate.get("trace", {}).get("run_ref") or ""),
+            "source_skill": str(candidate.get("trace", {}).get("workflow_key") or "dev.feat-to-proto"),
+            "candidate_package_ref": str(candidate.get("metadata", {}).get("source_package_ref") or ""),
+            "source_package_ref": str(candidate.get("metadata", {}).get("source_package_ref") or ""),
+            "workflow_lineage_ref": str(candidate.get("metadata", {}).get("source_package_ref") or ""),
+            "source_refs": source_refs,
+            "source_kind": "prototype_package",
+            "assigned_id": assigned_id,
+            "prototype_ref": assigned_id,
+            "feat_ref": feat_ref,
+            "copied_refs": copied_refs,
+        },
+        lineage=[candidate["artifact_ref"], decision_ref],
+    )
+    return {
+        "published_ref": published_ref,
+        "materialized_ssot_ref": materialized_ssot_ref,
+        "assigned_id": assigned_id,
+        "gateway_receipt_ref": to_canonical_path(workspace_root / materialized_ssot_ref, workspace_root),
+    }
+
+
 def materialize_testset(
     workspace_root: Path,
     trace: dict[str, Any],
@@ -741,6 +847,10 @@ def materialize_formal(
         result = materialize_ui(
             workspace_root, trace, candidate, source_path, decision_ref, formal_ref, materialized_by_value
         )
+    elif effective_target_kind == "prototype":
+        result = materialize_prototype(
+            workspace_root, trace, candidate, source_path, decision_ref, formal_ref, materialized_by_value
+        )
     elif effective_target_kind == "testset":
         result = materialize_testset(
             workspace_root, trace, candidate, source_path, decision_ref, formal_ref, materialized_by_value
@@ -771,6 +881,6 @@ def materialize_formal(
 
 
 def _default_formal_artifact_ref(target_kind: str, run_ref: str) -> str:
-    if target_kind in {"src", "epic", "feat", "tech", "ui", "testset", "impl"} and run_ref:
+    if target_kind in {"src", "epic", "feat", "tech", "ui", "prototype", "testset", "impl"} and run_ref:
         return f"formal.{target_kind}.{run_ref}"
     return default_formal_ref(target_kind)
