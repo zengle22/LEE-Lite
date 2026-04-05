@@ -152,6 +152,10 @@ def _build_executor_bundle(
     dispatch_result: dict[str, Any],
 ) -> dict[str, Any]:
     projection_fields = projection_bundle_fields(repo_root, evaluate_result["brief_record_ref"], str(package_payload.get("machine_ssot_ref", "")))
+    decision_basis_refs = [str(item) for item in evaluate_result["decision_basis_refs"]]
+    machine_ssot_ref = str(package_payload.get("machine_ssot_ref", ""))
+    if machine_ssot_ref and machine_ssot_ref not in decision_basis_refs:
+        decision_basis_refs.append(machine_ssot_ref)
     return {
         "artifact_type": "gate_decision_package",
         "workflow_key": "governance.gate-human-orchestrator",
@@ -165,7 +169,7 @@ def _build_executor_bundle(
         "decision": evaluate_result["decision"],
         "decision_display": decision_display(evaluate_result["decision"]),
         "decision_target": evaluate_result["decision_target"],
-        "decision_basis_refs": evaluate_result["decision_basis_refs"],
+        "decision_basis_refs": decision_basis_refs,
         "dispatch_target": evaluate_result["dispatch_target"],
         "dispatch_target_display": dispatch_target_display(evaluate_result["dispatch_target"]),
         "projection_status_display": projection_status_display(projection_fields["projection_status"]),
@@ -303,6 +307,10 @@ def _semantic_findings(bundle: dict[str, Any]) -> list[dict[str, str]]:
         findings.append({"title": "Missing decision target", "detail": "decision_target must be explicit."})
     if not bundle.get("decision_basis_refs"):
         findings.append({"title": "Missing basis refs", "detail": "decision_basis_refs must not be empty."})
+    elif bundle.get("machine_ssot_ref") and str(bundle["machine_ssot_ref"]) not in {str(item) for item in bundle.get("decision_basis_refs", [])}:
+        findings.append({"title": "Machine SSOT not cited", "detail": "machine_ssot_ref must appear in decision_basis_refs so the reviewer can trace the authoritative basis."})
+    if bundle.get("projection_status") != "review_visible":
+        findings.append({"title": "Projection not review-visible", "detail": "projection_status must be review_visible before the gate package can pass supervisor review."})
     if bundle.get("decision") == "approve" and not bundle.get("materialized_handoff_ref"):
         findings.append({"title": "Approve without materialization", "detail": "approve must produce materialization evidence."})
     if bundle.get("decision") != "approve" and bundle.get("materialized_handoff_ref"):
@@ -404,12 +412,25 @@ def validate_output_package(artifacts_dir: Path) -> tuple[list[str], dict[str, A
 
 def validate_package_readiness(artifacts_dir: Path) -> tuple[bool, list[str]]:
     errors, _ = validate_output_package(artifacts_dir)
+    bundle = load_json(artifacts_dir / "gate-decision-bundle.json") if (artifacts_dir / "gate-decision-bundle.json").exists() else {}
+    if bundle.get("projection_status") != "review_visible":
+        errors.append("human projection must be review_visible before freeze")
+    machine_ssot_ref = str(bundle.get("machine_ssot_ref", "")).strip()
+    decision_basis_refs = {str(item).strip() for item in bundle.get("decision_basis_refs", []) if str(item).strip()}
+    if machine_ssot_ref and machine_ssot_ref not in decision_basis_refs:
+        errors.append("machine_ssot_ref must appear in decision_basis_refs before freeze")
     if not (artifacts_dir / "gate-freeze-gate.json").exists():
         errors.append("missing gate-freeze-gate.json")
         return False, errors
     gate = load_json(artifacts_dir / "gate-freeze-gate.json")
     if gate.get("freeze_ready") is not True:
         errors.append("freeze gate is not ready")
+    if not (artifacts_dir / "supervision-evidence.json").exists():
+        errors.append("missing supervision-evidence.json")
+        return False, errors
+    supervision = load_json(artifacts_dir / "supervision-evidence.json")
+    if supervision.get("decision") != "pass":
+        errors.append("supervisor decision is not pass")
     return not errors, errors
 
 

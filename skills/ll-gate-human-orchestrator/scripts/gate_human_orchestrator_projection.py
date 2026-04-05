@@ -189,7 +189,7 @@ def write_bundle_files(artifacts_dir: Path, bundle: dict[str, Any]) -> None:
 
 def human_projection_findings(bundle: dict[str, Any]) -> list[dict[str, str]]:
     findings: list[dict[str, str]] = []
-    allowed_statuses = {"review_visible", "traceability_pending"}
+    allowed_statuses = {"review_visible"}
     if not bundle.get("machine_ssot_ref"):
         findings.append({"title": "Missing Machine SSOT ref", "detail": "machine_ssot_ref must be explicit in the gate package."})
     if not bundle.get("human_projection_ref"):
