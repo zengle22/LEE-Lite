@@ -14,7 +14,8 @@
     "downstream_workflows",
     "source_refs",
     "glossary",
-    "prohibited_inference_rules"
+    "prohibited_inference_rules",
+    "integration_context"
   ],
   "properties": {
     "artifact_type": {
@@ -79,6 +80,38 @@
     "prohibited_inference_rules": {
       "type": "array",
       "minItems": 1
+    },
+    "integration_context": {
+      "type": "object",
+      "required": [
+        "artifact_type",
+        "schema_version",
+        "context_ref",
+        "workflow_inventory",
+        "module_boundaries",
+        "legacy_fields_states_interfaces",
+        "canonical_ownership",
+        "compatibility_constraints",
+        "migration_modes",
+        "legacy_invariants",
+        "gate_audit_evidence",
+        "source_refs"
+      ],
+      "properties": {
+        "artifact_type": { "type": "string", "const": "integration_context" },
+        "schema_version": { "type": "string" },
+        "context_ref": { "type": "string" },
+        "workflow_inventory": { "type": "array", "minItems": 1, "items": { "type": "string" } },
+        "module_boundaries": { "type": "array", "minItems": 1, "items": { "type": "string" } },
+        "legacy_fields_states_interfaces": { "type": "array", "minItems": 1, "items": { "type": "string" } },
+        "canonical_ownership": { "type": "array", "minItems": 1, "items": { "type": "string" } },
+        "compatibility_constraints": { "type": "array", "minItems": 1, "items": { "type": "string" } },
+        "migration_modes": { "type": "array", "minItems": 1, "items": { "type": "string" } },
+        "legacy_invariants": { "type": "array", "minItems": 1, "items": { "type": "string" } },
+        "gate_audit_evidence": { "type": "array", "minItems": 1, "items": { "type": "string" } },
+        "source_refs": { "type": "array", "minItems": 1, "items": { "type": "string" } }
+      },
+      "additionalProperties": true
     },
     "feat_track_map": {
       "type": "array"

@@ -34,6 +34,7 @@ runtime:
   required_output_artifacts:
     - feat-freeze-bundle.md
     - feat-freeze-bundle.json
+    - integration-context.json
     - feat-review-report.json
     - document-test-report.json
     - feat-acceptance-report.json
@@ -110,14 +111,15 @@ validation:
       - only_low_risk_field_ref_manifest_evidence_repairs_remain_mechanical
     downstream_consumption_contract:
       target_workflows:
-        - dev.feat-to-ui
+        - dev.feat-to-proto
         - dev.feat-to-tech
         - qa.feat-to-testset
       checks:
         - feat_boundaries_mutually_exclusive_and_basically_complete
         - acceptance_inheritable_to_feat
         - dependencies_and_rollout_assumptions_explicit
-        - downstream_handoff_sufficient_for_ui_tech_and_testset
+        - downstream_handoff_sufficient_for_proto_tech_and_testset
+        - integration_context_seed_present_for_feat_to_tech
 
 evidence:
   execution_schema: evidence/execution-evidence.schema.json

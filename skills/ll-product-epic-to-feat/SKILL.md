@@ -41,7 +41,7 @@ This skill is a lite-native governed workflow between `ll-product-src-to-epic` a
 5. Collect execution evidence, then hand the governed FEAT bundle to the supervisor.
 6. Run `python scripts/epic_to_feat.py supervisor-review --artifacts-dir <feat-package-dir>` before freeze.
 7. Freeze only after the supervisor records a semantic pass and `python scripts/epic_to_feat.py freeze-guard --artifacts-dir <feat-package-dir>` returns success.
-8. Emit a downstream handoff that preserves `epic_freeze_ref`, `src_root_id`, `feat_refs`, and the downstream workflow list for governed TECH and TESTSET derivation.
+8. Emit a downstream handoff that preserves `epic_freeze_ref`, `src_root_id`, `feat_refs`, `integration_context_ref`, and the downstream workflow list for governed TECH and TESTSET derivation.
 9. When external gate returns `revise` or `retry`, rerun `run`, `executor-run`, or `supervisor-review` with `--revision-request <revision-request.json>` so the regenerated FEAT bundle carries normalized revision context.
 
 ## Workflow Boundary
@@ -57,4 +57,5 @@ This skill is a lite-native governed workflow between `ll-product-src-to-epic` a
 - Every emitted FEAT must remain an independently acceptable capability slice, not an implementation task, screen TODO list, or architecture-only note.
 - Preserve `epic_freeze_ref`, `src_root_id`, authoritative `source_refs`, and ADR-025 acceptance semantics.
 - Downstream readiness must stay explicit: FEAT output must be strong enough to seed TECH and TESTSET derivation without re-deriving the parent EPIC.
+- Always materialize `integration-context.json` as a downstream seed for `ll-dev-feat-to-tech`; do not force TECH derivation to guess integration facts from FEAT prose alone.
 - Do not let the executor self-approve the semantic validity of its own FEAT output.

@@ -6,6 +6,7 @@ downstream_workflows:
 required_runtime_artifacts:
   - feat-freeze-bundle.md
   - feat-freeze-bundle.json
+  - integration-context.json
   - feat-review-report.json
   - feat-acceptance-report.json
   - feat-defect-list.json
@@ -43,11 +44,12 @@ forbidden_content:
   - unstated new requirements
 notes:
   - The output must be strong enough for downstream TECH and TESTSET derivation without re-deriving the parent EPIC.
+  - The output must materialize an `integration-context.json` seed so downstream `feat-to-tech` can freeze current-system integration facts without guessing package lineage or glossary ownership.
   - Each FEAT must carry structured acceptance checks and remain independently acceptable.
   - Each FEAT must also freeze a product slice: actors, scenario, business flow, deliverables, business timeline, and downstream semantic boundary.
   - Each FEAT must also expose dedicated constraints and explicit overlap boundaries relative to adjacent FEATs.
   - Each FEAT must expose explicit machine-friendly mapping fields for upstream/downstream FEAT refs, consumed and produced objects, authoritative artifact, and both prose + feat-ref gate/admission dependencies.
   - The bundle must expose a canonical glossary and bundle-level prohibited inference rules so downstream TECH / TESTSET consumers do not invent term semantics.
-  - Downstream handoff must carry a compact machine snapshot of glossary, prohibited inference rules, authoritative artifact ownership, and feature dependency map.
+  - Downstream handoff must carry a compact machine snapshot of glossary, prohibited inference rules, authoritative artifact ownership, feature dependency map, and `integration_context_ref`.
   - Shared non-goals should be stated at bundle level; FEAT-level non-responsibility should focus on adjacent capability boundaries.
   - Traceability and independent-acceptance conventions may live at bundle level instead of consuming FEAT-specific acceptance slots.

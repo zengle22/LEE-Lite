@@ -52,7 +52,7 @@ source_refs:
 ## Prohibited Inference Rules
 
 [State bundle-level rules that downstream TECH / TESTSET / consumer flows must not infer on their own, especially around product completion state, authoritative outputs, candidate vs formal objects, and admission vs path guessing.]
-[Downstream Handoff must also carry forward glossary, prohibited inference rules, authoritative_artifact_map, and feature_dependency_map so downstream flows do not need to reopen the full bundle just to recover machine constraints.]
+[Downstream Handoff must also carry forward glossary, prohibited inference rules, authoritative_artifact_map, feature_dependency_map, and `integration_context_ref` so downstream flows do not need to reopen the full bundle just to recover machine constraints.]
 
 ## Acceptance and Review
 
