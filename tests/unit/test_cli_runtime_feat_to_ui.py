@@ -150,7 +150,7 @@ class CliRuntimeFeatToUiTest(unittest.TestCase):
                 job_ref="artifacts/jobs/waiting-human/ui-return.json",
                 job=job,
             )
-        self.assertEqual(ctx.exception.code, "REGISTRY_MISS")
+        self.assertEqual(ctx.exception.status_code, "REGISTRY_MISS")
         self.assertIn("feat-to-ui", str(ctx.exception))
 
 

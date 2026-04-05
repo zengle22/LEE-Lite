@@ -848,6 +848,17 @@ class CliRunnerRuntimeTest(unittest.TestCase):
         epic_mock.assert_called_once()
         self.assertEqual(result["target_skill"], "workflow.product.epic_to_feat")
 
+    def test_invoke_target_rejects_deprecated_feat_to_ui(self) -> None:
+        with self.assertRaises(CommandError) as ctx:
+            invoke_target(
+                workspace_root=self.workspace,
+                trace={},
+                request_id="req-deprecated-ui",
+                job={"target_skill": "workflow.dev.feat_to_ui", "feat_ref": "FEAT-DEMO", "formal_ref": "formal.feat.demo"},
+            )
+        self.assertEqual(ctx.exception.status_code, "PRECONDITION_FAILED")
+        self.assertIn("deprecated and disabled", str(ctx.exception))
+
     def test_runner_enforces_claim_owner_and_running_only_completion(self) -> None:
         ready_job_ref = self.create_ready_job("job-owner.json")
         claimed = claim_job(

@@ -145,6 +145,51 @@ class SrcToEpicWorkflowTests(unittest.TestCase):
             validate = self.run_cmd("validate-output", "--artifacts-dir", str(artifacts_dir))
             self.assertEqual(validate.returncode, 0, validate.stderr)
 
+    def test_engineering_baseline_src_anchors_bootstrap_axes_without_semantic_lock(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            repo_root = Path(temp_dir)
+            candidate = {
+                "artifact_type": "src_candidate_package",
+                "workflow_key": "product.raw-to-src",
+                "workflow_run_id": "src-engineering-baseline",
+                "title": "SRC-003 工程基线与最小可运行骨架",
+                "status": "freeze_ready",
+                "source_kind": "product_src",
+                "source_refs": ["SRC-003", "ADR-001", "ADR-002", "ADR-003"],
+                "problem_statement": "需要先冻结 repo layout、apps/api 壳子、apps/miniapp 壳子、compose/postgres、本地 env、db/migrations、/healthz /readyz 与模块边界。",
+                "target_users": ["后端工程师", "前端工程师", "DevOps"],
+                "trigger_scenarios": ["初始化新仓库承载面时", "准备进入第一条业务功能链时"],
+                "business_drivers": ["先冻结最小可运行工程基线，避免后续业务实现继续沿错误目录和运行时边界扩散。"],
+                "key_constraints": [
+                    "QA/handoff/gate/formal 等语义必须作为 overlay，不得提升为 EPIC 主切片。",
+                    "禁止 legacy/src 继续增量扩展。",
+                    "必须提供可启动的 apps/api 与 apps/miniapp 骨架。",
+                ],
+                "in_scope": [
+                    "repo layout baseline（业务只进 apps/，legacy/src 不再增量）",
+                    "apps/api shell runnable（最小路由 + 分层约束）",
+                    "apps/miniapp shell runnable（最小页面与导航）",
+                    "local env baseline（compose/postgres/.env.example）",
+                    "db migrations discipline（db/migrations 作为唯一 schema 演进通道）",
+                    "/healthz 与 /readyz contract（readiness 至少覆盖 DB 可用性）",
+                ],
+                "out_of_scope": ["不在本 SRC 中展开 handoff/gate/formal 的实现细节。"],
+            }
+            input_dir = self.make_src_package(repo_root, "src-engineering-baseline", candidate)
+            result = self.run_cmd("run", "--input", str(input_dir), "--repo-root", str(repo_root), "--run-id", "epic-engineering-baseline")
+            self.assertEqual(result.returncode, 0, result.stderr)
+            artifacts_dir = Path(json.loads(result.stdout)["artifacts_dir"])
+            epic = json.loads((artifacts_dir / "epic-freeze.json").read_text(encoding="utf-8"))
+            axis_ids = [item["id"] for item in epic["capability_axes"]]
+            slice_ids = [item["id"] for item in epic["product_behavior_slices"]]
+            self.assertIn("repo-layout-baseline", axis_ids)
+            self.assertIn("api-shell", axis_ids)
+            self.assertIn("health-readiness", axis_ids)
+            self.assertNotIn("collaboration-loop", axis_ids)
+            self.assertNotIn("handoff-formalization", axis_ids)
+            self.assertIn("repo-layout-baseline", slice_ids)
+            self.assertIn("api-shell", slice_ids)
+
     def test_governance_runtime_src_keeps_single_epic_with_adoption_e2e_requirements(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             repo_root = Path(temp_dir)
