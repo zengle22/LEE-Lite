@@ -65,10 +65,22 @@ from epic_to_feat_derivation import (
 from epic_to_feat_review_phase1 import validate_review_phase1_fields
 
 
-REQUIRED_OUTPUT_FILES = ["feat-freeze-bundle.md", "feat-freeze-bundle.json", "feat-review-report.json", "feat-acceptance-report.json", "feat-defect-list.json", "document-test-report.json", "feat-freeze-gate.json", "handoff-to-feat-downstreams.json", "semantic-drift-check.json", "execution-evidence.json", "supervision-evidence.json"]
+REQUIRED_OUTPUT_FILES = ["feat-freeze-bundle.md", "feat-freeze-bundle.json", "integration-context.json", "feat-review-report.json", "feat-acceptance-report.json", "feat-defect-list.json", "document-test-report.json", "feat-freeze-gate.json", "handoff-to-feat-downstreams.json", "semantic-drift-check.json", "execution-evidence.json", "supervision-evidence.json"]
 REQUIRED_MARKDOWN_HEADINGS = ["FEAT Bundle Intent", "EPIC Context", "Canonical Glossary", "Boundary Matrix", "FEAT Inventory", "Prohibited Inference Rules", "Acceptance and Review", "Downstream Handoff", "Traceability"]
 REQUIRED_FEAT_SUBHEADINGS = ["#### Identity and Scenario", "#### Business Flow", "#### Product Objects and Deliverables", "#### Collaboration and Timeline", "#### Acceptance and Testability", "#### Frozen Downstream Boundary"]
 DOWNSTREAM_WORKFLOWS = ["workflow.dev.feat_to_tech", "workflow.qa.feat_to_testset"]
+INTEGRATION_CONTEXT_FILENAME = "integration-context.json"
+REQUIRED_INTEGRATION_CONTEXT_FIELDS = [
+    "workflow_inventory",
+    "module_boundaries",
+    "legacy_fields_states_interfaces",
+    "canonical_ownership",
+    "compatibility_constraints",
+    "migration_modes",
+    "legacy_invariants",
+    "gate_audit_evidence",
+    "source_refs",
+]
 
 
 def utc_now() -> str:
@@ -159,6 +171,90 @@ class GeneratedFeatBundle:
     semantic_drift_check: dict[str, Any]
 
 
+def build_integration_context(
+    package: Any,
+    feats: list[dict[str, Any]],
+    glossary: list[dict[str, Any]],
+    inference_rules: list[str],
+    source_refs: list[str],
+    prerequisites: list[str],
+) -> dict[str, Any]:
+    inference_rule_lines = [
+        str(item.get("rule") or "").strip() for item in inference_rules if isinstance(item, dict) and str(item.get("rule") or "").strip()
+    ]
+    workflow_inventory = [
+        "workflow.dev.feat_to_tech consumes one frozen FEAT slice plus this integration context seed.",
+        "workflow.qa.feat_to_testset consumes the same FEAT acceptance boundary.",
+        "workflow.dev.tech_to_impl must inherit frozen TECH outputs instead of re-deriving product semantics.",
+    ]
+    module_boundaries = [
+        "ll-product-epic-to-feat owns FEAT boundary decomposition only.",
+        "ll-dev-feat-to-tech owns implementation-facing design freeze and current-system hookup decisions.",
+        "ll-dev-tech-to-impl owns implementation planning only and must not redefine TECH truth.",
+    ]
+    legacy_fields_states_interfaces = unique_strings(
+        [
+            *(f"{feat['feat_ref']}: authoritative_artifact={feat['authoritative_artifact']}" for feat in feats),
+            *(f"{feat['feat_ref']}: output_objects={', '.join(ensure_list((feat.get('product_objects_and_deliverables') or {}).get('output_objects'))[:3])}" for feat in feats if ensure_list((feat.get("product_objects_and_deliverables") or {}).get("output_objects"))),
+            *(f"{feat['feat_ref']}: handoff_points={', '.join(ensure_list((feat.get('collaboration_and_timeline') or {}).get('handoff_points'))[:2])}" for feat in feats if ensure_list((feat.get("collaboration_and_timeline") or {}).get("handoff_points"))),
+        ]
+    )
+    canonical_ownership = unique_strings(
+        [
+            *(f"{item.get('term')}: {item.get('definition')}" for item in glossary if isinstance(item, dict) and str(item.get("term") or "").strip()),
+            *(f"{feat['feat_ref']} owns product slice `{feat['title']}` and authoritative artifact `{feat['authoritative_artifact']}`." for feat in feats),
+        ]
+    )
+    compatibility_constraints = unique_strings(
+        ensure_list(package.epic_json.get("constraints_and_dependencies"))
+        + inference_rule_lines
+        + [
+            "Downstream TECH must consume glossary, authoritative artifact ownership, and feature dependency map without inventing alternate semantics.",
+        ]
+    )
+    migration_modes = ["extend"] + (["shadow", "cutover", "fallback"] if bool((package.epic_json.get("rollout_requirement") or {}).get("required")) else [])
+    legacy_invariants = unique_strings(
+        [
+            "FEAT remains the product SSOT boundary; TECH must not collapse multiple FEAT slices back into one implementation blob.",
+            "Authoritative artifact, gate/admission dependencies, and prohibited inference rules must stay explicit across downstream derivation.",
+            *prerequisites,
+        ]
+    )
+    gate_audit_evidence = [
+        "feat-review-report.json records semantic review outcome.",
+        "feat-acceptance-report.json records bundle acceptance outcome.",
+        "feat-freeze-gate.json must pass before downstream governed derivation.",
+        "handoff-to-feat-downstreams.json carries machine-readable downstream refs and dependency maps.",
+    ]
+    return {
+        "artifact_type": "integration_context",
+        "schema_version": "1.0.0",
+        "context_ref": INTEGRATION_CONTEXT_FILENAME,
+        "workflow_inventory": workflow_inventory,
+        "module_boundaries": module_boundaries,
+        "legacy_fields_states_interfaces": legacy_fields_states_interfaces or ["bundle-level authoritative artifacts and handoff points are preserved in FEAT output"],
+        "canonical_ownership": canonical_ownership or ["FEAT bundle owns product-slice semantics"],
+        "compatibility_constraints": compatibility_constraints or ["Downstream consumers must preserve FEAT lineage and dependency semantics."],
+        "migration_modes": unique_strings(migration_modes),
+        "legacy_invariants": legacy_invariants or ["Preserve FEAT lineage and authoritative artifact ownership across downstream derivation."],
+        "gate_audit_evidence": gate_audit_evidence,
+        "source_refs": source_refs,
+    }
+
+
+def integration_context_errors(context: Any) -> list[str]:
+    if not isinstance(context, dict):
+        return ["integration_context must be an object."]
+    errors: list[str] = []
+    if str(context.get("artifact_type") or "") != "integration_context":
+        errors.append("integration_context artifact_type must be integration_context.")
+    for field in REQUIRED_INTEGRATION_CONTEXT_FIELDS:
+        values = ensure_list(context.get(field))
+        if not values:
+            errors.append(f"integration_context missing required field: {field}.")
+    return errors
+
+
 def build_semantic_drift_check(package: Any, feats: list[dict[str, Any]]) -> dict[str, Any]:
     lock = normalize_semantic_lock(package.epic_json.get("semantic_lock") or package.epic_frontmatter.get("semantic_lock"))
     if not lock:
@@ -202,7 +298,19 @@ def build_semantic_drift_check(package: Any, feats: list[dict[str, Any]]) -> dic
         if all(token in generated_text for token in review_projection_tokens):
             anchor_matches.append("review_projection_signature")
     domain_type = str(lock.get("domain_type") or "").strip().lower()
-    if domain_type == "implementation_readiness_rule":
+    primary_object = str(lock.get("primary_object") or "").strip().lower()
+    if domain_type == "engineering_bootstrap_baseline_rule" or primary_object == "mvp_bootstrap_codebase_baseline":
+        baseline_signatures = [
+            ("bootstrap_repo_shell_signature", ["apps/api", "apps/miniapp"]),
+            ("bootstrap_env_signature", ["local", "env"]),
+            ("bootstrap_migration_signature", ["db", "migrations"]),
+            ("bootstrap_health_signature", ["healthz", "readyz"]),
+        ]
+        for label, tokens in baseline_signatures:
+            if all(token in generated_text for token in tokens):
+                anchor_matches.append(label)
+        preserved = not forbidden_hits and sum(1 for label, _ in baseline_signatures if label in anchor_matches) >= 3
+    elif domain_type == "implementation_readiness_rule":
         readiness_signatures = [
             ("implementation_readiness_signature", ["implementation", "readiness"]),
             ("impl_spec_testing_signature", ["impl", "spec", "testing"]),
@@ -256,6 +364,7 @@ def build_feat_bundle(
     source_refs = unique_strings([f"product.src-to-epic::{package.run_id}", epic_ref, src_ref] + inherited_source_refs)
     feat_track_map = [{"feat_ref": feat["feat_ref"], "title": feat["title"], "track": feat["track"]} for feat in feats]
     prerequisites = prerequisite_foundations(package, axes)
+    integration_context = build_integration_context(package, feats, glossary, inference_rules, source_refs, prerequisites)
     semantic_drift_check = build_semantic_drift_check(package, feats)
     revision_summary = _apply_revision_request(package, revision_request_ref, revision_request)
 
@@ -349,10 +458,12 @@ def build_feat_bundle(
         "primary_artifact_ref": "feat-freeze-bundle.md",
         "supporting_artifact_refs": [
             "feat-freeze-bundle.json",
+            INTEGRATION_CONTEXT_FILENAME,
             "feat-review-report.json",
             "feat-acceptance-report.json",
             "feat-defect-list.json",
         ],
+        "integration_context_ref": INTEGRATION_CONTEXT_FILENAME,
         "prerequisite_foundations": prerequisites,
         "created_at": utc_now(),
     }
@@ -387,6 +498,7 @@ def build_feat_bundle(
             "prerequisite_foundations": prerequisites,
         },
         "glossary": glossary,
+        "integration_context": integration_context,
         "boundary_matrix": boundary_matrix,
         "features": feats,
         "feat_track_map": feat_track_map,
@@ -902,6 +1014,8 @@ def validate_output_package(artifacts_dir: Path) -> tuple[list[str], dict[str, A
     prohibited_rules = feat_json.get("prohibited_inference_rules")
     if not isinstance(prohibited_rules, list) or not prohibited_rules:
         errors.append("feat-freeze-bundle.json must include prohibited_inference_rules.")
+    integration_context = feat_json.get("integration_context")
+    errors.extend(integration_context_errors(integration_context))
 
     markdown_text = (artifacts_dir / "feat-freeze-bundle.md").read_text(encoding="utf-8")
     _, markdown_body = parse_markdown_frontmatter(markdown_text)
@@ -913,6 +1027,10 @@ def validate_output_package(artifacts_dir: Path) -> tuple[list[str], dict[str, A
             errors.append(f"feat-freeze-bundle.md is missing feature subsection: {heading}")
 
     handoff = load_json(artifacts_dir / "handoff-to-feat-downstreams.json")
+    materialized_integration_context = load_json(artifacts_dir / INTEGRATION_CONTEXT_FILENAME)
+    errors.extend(integration_context_errors(materialized_integration_context))
+    if materialized_integration_context != integration_context:
+        errors.append("integration-context.json must match feat-freeze-bundle.json integration_context.")
     if not isinstance(handoff.get("glossary"), list) or not handoff.get("glossary"):
         errors.append("handoff-to-feat-downstreams.json must include glossary.")
     if not isinstance(handoff.get("prohibited_inference_rules"), list) or not handoff.get("prohibited_inference_rules"):
@@ -921,6 +1039,8 @@ def validate_output_package(artifacts_dir: Path) -> tuple[list[str], dict[str, A
         errors.append("handoff-to-feat-downstreams.json must include authoritative_artifact_map.")
     if not isinstance(handoff.get("feature_dependency_map"), list) or not handoff.get("feature_dependency_map"):
         errors.append("handoff-to-feat-downstreams.json must include feature_dependency_map.")
+    if str(handoff.get("integration_context_ref") or "") != INTEGRATION_CONTEXT_FILENAME:
+        errors.append("handoff-to-feat-downstreams.json must include integration_context_ref -> integration-context.json.")
     workflows = [item.get("workflow") for item in handoff.get("target_workflows", []) if isinstance(item, dict)]
     for workflow in DOWNSTREAM_WORKFLOWS:
         if workflow not in workflows:

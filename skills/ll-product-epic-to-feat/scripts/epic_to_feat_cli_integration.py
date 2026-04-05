@@ -62,6 +62,7 @@ def write_executor_outputs(output_dir: Path, repo_root: Path, package: Any, gene
     markdown_text = render_markdown(generated.frontmatter, generated.markdown_body)
     cli_commit = _commit_markdown(repo_root, output_dir, run_id, markdown_text, "feat-freeze-executor-commit")
     dump_json(output_dir / "feat-freeze-bundle.json", generated.json_payload)
+    dump_json(output_dir / "integration-context.json", generated.json_payload["integration_context"])
     dump_json(output_dir / "feat-review-report.json", generated.review_report)
     dump_json(output_dir / "feat-acceptance-report.json", generated.acceptance_report)
     dump_json(output_dir / "feat-defect-list.json", generated.defect_list)
@@ -75,6 +76,7 @@ def write_executor_outputs(output_dir: Path, repo_root: Path, package: Any, gene
             "artifacts_dir": str(output_dir),
             "input_artifacts_dir": str(package.artifacts_dir),
             "primary_artifact_ref": str(output_dir / "feat-freeze-bundle.md"),
+            "integration_context_ref": str(output_dir / "integration-context.json"),
             "result_summary_ref": str(output_dir / "feat-freeze-gate.json"),
             "review_report_ref": str(output_dir / "feat-review-report.json"),
             "acceptance_report_ref": str(output_dir / "feat-acceptance-report.json"),
@@ -97,13 +99,14 @@ def write_executor_outputs(output_dir: Path, repo_root: Path, package: Any, gene
             "role": "executor",
             "input_path": str(package.artifacts_dir),
             "inputs": [str(package.artifacts_dir)],
-            "outputs": [str(output_dir / "feat-freeze-bundle.md"), str(output_dir / "feat-freeze-bundle.json")],
+            "outputs": [str(output_dir / "feat-freeze-bundle.md"), str(output_dir / "feat-freeze-bundle.json"), str(output_dir / "integration-context.json")],
             "commands_run": [command_name],
             "structural_results": {
                 "input_validation": "pass",
                 "draft_output_files": [
                     "feat-freeze-bundle.md",
                     "feat-freeze-bundle.json",
+                    "integration-context.json",
                     "feat-review-report.json",
                     "feat-acceptance-report.json",
                     "feat-defect-list.json",

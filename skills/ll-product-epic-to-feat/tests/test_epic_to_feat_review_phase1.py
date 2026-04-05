@@ -20,6 +20,20 @@ class _Generated:
             "source_refs": ["product.src-to-epic::run-1", "EPIC-1", "SRC-1"],
             "traceability": {"upstream": ["EPIC-1"]},
             "revision_context": {},
+            "integration_context": {
+                "artifact_type": "integration_context",
+                "schema_version": "1.0.0",
+                "context_ref": "integration-context.json",
+                "workflow_inventory": ["workflow.dev.feat_to_tech"],
+                "module_boundaries": ["ll-product-epic-to-feat owns FEAT decomposition"],
+                "legacy_fields_states_interfaces": ["FEAT-1 authoritative artifact is feat-freeze-bundle.md"],
+                "canonical_ownership": ["FEAT bundle owns product-slice semantics"],
+                "compatibility_constraints": ["Downstream TECH must preserve glossary and dependency map semantics"],
+                "migration_modes": ["extend"],
+                "legacy_invariants": ["Preserve FEAT lineage across downstream derivation"],
+                "gate_audit_evidence": ["feat-freeze-gate.json passes before downstream derivation"],
+                "source_refs": ["product.src-to-epic::run-1", "EPIC-1", "SRC-1"],
+            },
         }
         self.review_report = {"risks": []}
         self.acceptance_report = {"created_at": "2026-04-03T00:00:00Z"}
@@ -28,7 +42,8 @@ class _Generated:
             "target_workflows": [
                 {"workflow": "workflow.dev.feat_to_tech"},
                 {"workflow": "workflow.qa.feat_to_testset"},
-            ]
+            ],
+            "integration_context_ref": "integration-context.json",
         }
         self.semantic_drift_check = {"verdict": "pass", "semantic_lock_preserved": True}
 
@@ -121,6 +136,20 @@ def _minimal_feat_bundle_json() -> dict[str, object]:
         "bundle_acceptance_conventions": ["convention"],
         "glossary": [{"term": "EPIC", "definition": "epic"}],
         "prohibited_inference_rules": ["rule"],
+        "integration_context": {
+            "artifact_type": "integration_context",
+            "schema_version": "1.0.0",
+            "context_ref": "integration-context.json",
+            "workflow_inventory": ["workflow.dev.feat_to_tech"],
+            "module_boundaries": ["ll-product-epic-to-feat owns FEAT decomposition"],
+            "legacy_fields_states_interfaces": ["FEAT-1 authoritative artifact is feat-freeze-bundle.md"],
+            "canonical_ownership": ["FEAT bundle owns product-slice semantics"],
+            "compatibility_constraints": ["Downstream TECH must preserve glossary and dependency map semantics"],
+            "migration_modes": ["extend"],
+            "legacy_invariants": ["Preserve FEAT lineage across downstream derivation"],
+            "gate_audit_evidence": ["feat-freeze-gate.json passes before downstream derivation"],
+            "source_refs": ["product.src-to-epic::run-1", "EPIC-1", "SRC-1"],
+        },
     }
 
 
@@ -134,6 +163,7 @@ def _minimal_handoff() -> dict[str, object]:
             {"workflow": "workflow.dev.feat_to_tech"},
             {"workflow": "workflow.qa.feat_to_testset"},
         ],
+        "integration_context_ref": "integration-context.json",
     }
 
 
@@ -147,6 +177,7 @@ def _write_minimal_output_package(artifacts_dir: Path, *, document_test_report: 
             _write_json(path, {})
 
     _write_json(artifacts_dir / "feat-freeze-bundle.json", _minimal_feat_bundle_json())
+    _write_json(artifacts_dir / "integration-context.json", _minimal_feat_bundle_json()["integration_context"])
     _write_json(artifacts_dir / "feat-review-report.json", {"risks": []})
     _write_json(artifacts_dir / "feat-acceptance-report.json", {"decision": "approve"})
     _write_json(artifacts_dir / "feat-defect-list.json", [])
