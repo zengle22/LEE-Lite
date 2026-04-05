@@ -34,6 +34,16 @@
     },
     "files": {
       "type": "object"
+    },
+    "ref_resolution": {
+      "type": "object"
+    },
+    "reproducibility_status": {
+      "type": "string",
+      "enum": [
+        "reproducible",
+        "captured_but_not_reproducible"
+      ]
     }
   },
   "additionalProperties": true

@@ -91,6 +91,48 @@ def _canonical_ref(path: Path, repo_root: Path) -> str:
         return path.resolve().as_posix()
 
 
+def _strip_scope_suffix(ref_value: str) -> str:
+    value = ref_value.strip()
+    if "#" in value:
+        value = value.split("#", 1)[0]
+    match = re.match(r"^([A-Za-z]:[\\/].+\.[A-Za-z0-9]+):[^\\/]+$", value)
+    if match:
+        return match.group(1)
+    if "://" not in value and "/" in value and ":" in value:
+        head, tail = value.rsplit(":", 1)
+        if "." in Path(head).name and "/" not in tail and "\\" not in tail:
+            return head
+    return value
+
+
+def _resolve_ref_path(repo_root: Path, ref_value: str) -> Path:
+    normalized = _strip_scope_suffix(ref_value)
+    candidate = Path(normalized)
+    return candidate.resolve() if candidate.is_absolute() else (repo_root / candidate).resolve()
+
+
+def _resolution_report(repo_root: Path, refs: list[str]) -> dict:
+    items = []
+    for ref in refs:
+        resolved = _resolve_ref_path(repo_root, ref)
+        items.append(
+            {
+                "ref": ref,
+                "resolved_ref": _canonical_ref(resolved, repo_root),
+                "exists": resolved.exists(),
+            }
+        )
+    total = len(items)
+    resolved_count = sum(1 for item in items if item["exists"])
+    return {
+        "total": total,
+        "resolved": resolved_count,
+        "missing": total - resolved_count,
+        "resolved_ratio": round((resolved_count / total), 4) if total else 1.0,
+        "items": items,
+    }
+
+
 def _slug_seed(value: str) -> str:
     seed = re.sub(r"[^A-Za-z0-9]+", "-", value).strip("-").upper()
     return seed[:8] if seed else uuid4().hex[:4].upper()
@@ -297,6 +339,17 @@ def _build_repair_context(request: dict) -> dict:
 
 
 def _build_manifest(request: dict, repo_root: Path, package_dir: Path, package_kind: str, capture_id: str, refs: dict[str, str], request_ref: str) -> dict:
+    source_refs = [request_ref, request["failed_artifact_ref"], *_string_list(request.get("upstream_refs"))]
+    evidence_refs = _string_list(request.get("evidence_refs"))
+    allowed_edit_scope = _string_list(request.get("suggested_edit_scope")) or [request["failed_artifact_ref"]]
+    ref_resolution = {
+        "source_refs": _resolution_report(repo_root, source_refs),
+        "evidence_refs": _resolution_report(repo_root, evidence_refs),
+        "allowed_edit_scope": _resolution_report(repo_root, allowed_edit_scope),
+    }
+    reproducibility_status = "reproducible"
+    if any(report.get("missing", 0) for report in ref_resolution.values()):
+        reproducibility_status = "captured_but_not_reproducible"
     return {
         "artifact_type": PACKAGE_ARTIFACT_TYPE,
         "schema_version": SCHEMA_VERSION,
@@ -312,8 +365,10 @@ def _build_manifest(request: dict, repo_root: Path, package_dir: Path, package_k
         "failure_scope": request["failure_scope"],
         "package_dir_ref": _canonical_ref(package_dir, repo_root),
         "request_ref": request_ref,
-        "source_refs": [request_ref, request["failed_artifact_ref"], *_string_list(request.get("upstream_refs"))],
-        "evidence_refs": _string_list(request.get("evidence_refs")),
+        "source_refs": source_refs,
+        "evidence_refs": evidence_refs,
+        "ref_resolution": ref_resolution,
+        "reproducibility_status": reproducibility_status,
         "files": refs,
     }
 
@@ -448,6 +503,18 @@ def command_validate_package_readiness(args: argparse.Namespace) -> int:
         errors.append("repair_context.automatic_repair_allowed must be false")
     if repair_context.get("repair_mode") != "manual_or_human_directed_ai":
         errors.append("repair_context.repair_mode must be manual_or_human_directed_ai")
+    resolution = manifest.get("ref_resolution") or {}
+    allowed_scope = resolution.get("allowed_edit_scope") or {}
+    source_refs = resolution.get("source_refs") or {}
+    evidence_refs = resolution.get("evidence_refs") or {}
+    if allowed_scope.get("missing", 0):
+        errors.append("allowed_edit_scope contains unresolved refs")
+    if source_refs.get("missing", 0):
+        errors.append("source_refs contains unresolved refs")
+    if evidence_refs.get("missing", 0):
+        errors.append("evidence_refs contains unresolved refs")
+    if manifest.get("reproducibility_status") != "reproducible":
+        errors.append("capture_manifest reproducibility_status must be reproducible")
     return _emit(not errors, errors=errors, artifacts_dir=str(artifacts_dir))
 
 

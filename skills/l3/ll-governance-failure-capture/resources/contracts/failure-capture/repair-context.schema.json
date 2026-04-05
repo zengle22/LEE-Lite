@@ -14,6 +14,12 @@
       "type": "string",
       "const": "repair_context"
     },
+    "allowed_edit_scope": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
     "automatic_repair_allowed": {
       "type": "boolean",
       "const": false

@@ -215,8 +215,15 @@ def freeze_guard(path: Path) -> int:
     validate_output(path)
     payload = _load_json(path)
     verdict = payload["data"]["verdict"]
-    if verdict == "block":
-        raise ValueError("freeze guard rejects block verdicts")
+    review_coverage = _load_json(_resolve_ref(path, str(payload["data"]["review_coverage_ref"])))
+    if verdict != "pass":
+        raise ValueError("freeze guard requires verdict=pass")
+    if str(payload["data"].get("self_contained_readiness") or "").strip() != "sufficient":
+        raise ValueError("freeze guard requires self_contained_readiness=sufficient")
+    if str(payload["data"].get("implementation_readiness") or "").strip() != "ready":
+        raise ValueError("freeze guard requires implementation_readiness=ready")
+    if str(review_coverage.get("status") or "").strip() != "sufficient":
+        raise ValueError("freeze guard requires review coverage to be sufficient")
     print(f"[OK] Freeze guard passed with verdict={verdict}")
     return 0
 
