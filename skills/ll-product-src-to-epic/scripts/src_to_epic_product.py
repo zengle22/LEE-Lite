@@ -2,6 +2,7 @@ from typing import Any
 
 from src_to_epic_identity import (
     choose_src_root_id,
+    is_engineering_bootstrap_baseline_package,
     is_review_projection_package,
     is_execution_runner_package,
     is_governance_bridge_package,
@@ -19,6 +20,8 @@ def derive_epic_title(package: Any) -> str:
         return "Gate 审批后自动推进 Execution Runner 统一能力"
     if is_implementation_readiness_package(package):
         return "IMPL 实施前文档压力测试与 Implementation Readiness 统一能力"
+    if is_engineering_bootstrap_baseline_package(package):
+        return "最小可运行代码库与本地开发环境基线"
     if is_governance_bridge_package(package):
         return "主链正式交接与治理闭环统一能力"
     title = str(package.src_candidate.get("title") or package.run_id).strip()
@@ -202,6 +205,12 @@ def derive_actors_and_roles(package: Any, rollout_requirement: dict[str, Any] | 
         if rollout_requirement and rollout_requirement.get("required"):
             actors.append({"role": "skill onboarding / rollout owner", "responsibility": "定义接入矩阵、迁移波次、pilot 范围与 fallback 规则。"})
         return actors
+    if is_engineering_bootstrap_baseline_package(package):
+        return [
+            {"role": "Primary actors", "responsibility": "后端 / 前端 / 测试 / DevOps / 架构（落地工程骨架：目录落点、模块边界、本地环境、迁移机制、健康检查与最小可运行壳子）。"},
+            {"role": "Primary actors", "responsibility": "AI 实施代理（在受约束承载面内增量实现，不引入落点漂移、raw SQL 或手工改库等不可逆坏范式）。"},
+            {"role": "Secondary governance stakeholders", "responsibility": "平台 QA skill family 维护者（作为继承约束与验收 overlay 的利益相关方，确保项目 harness 接入不另起治理真相）。"},
+        ]
     for user in target_users[:4]:
         actors.append({"role": user, "responsibility": "作为该 EPIC 的主要业务参与角色之一，消费或推动该能力块。"})
     if not actors:
@@ -388,6 +397,15 @@ def derive_success_metrics(package: Any, capability_axes: list[dict[str, str]], 
             "当 rollout_required 为 true 时，至少一组 adoption / cutover / fallback 策略被验证。",
             "下游 FEAT 必须产出可执行的 governed skill integration matrix、迁移波次规则与至少一条真实跨 skill pilot 闭环 evidence。",
             "治理主链是否成立，不以组件内自测为唯一依据，而以真实 producer / consumer 接入后的 handoff / gate / E2E 证据为准。",
+        ]
+    if is_engineering_bootstrap_baseline_package(package):
+        return [
+            "apps/api 空壳可启动，并暴露 `/healthz`、`/readyz`（readyz 至少覆盖 DB 依赖可用性）。",
+            "apps/miniapp 目录落点冻结且可启动最小工程（可在本地跑通编译/预览/调试入口）。",
+            "PostgreSQL 本地环境可通过 compose 启动，并能被 apps/api 正常连接。",
+            "`db/migrations` 存在首个可执行 migration，并能在空库上完成初始化。",
+            "新增业务实现代码不再进入 `src/`（legacy 目录进入冻结态）。",
+            "`Makefile` / `scripts/` / `.env.example` / `README.md` / `AGENTS.md` 到位，且能指导新成员完成本地启动与迁移流程。",
         ]
     bridge_context = package.src_candidate.get("bridge_context") or {}
     acceptance_impact = ensure_list(bridge_context.get("acceptance_impact"))

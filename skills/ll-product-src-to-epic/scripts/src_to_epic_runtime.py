@@ -108,6 +108,7 @@ def _materialize_revision_request(
     artifacts_dir: Path,
     revision_request_path: str | Path | None,
 ) -> tuple[str, dict[str, Any]]:
+    artifacts_dir.mkdir(parents=True, exist_ok=True)
     revision_request_ref, revision_request, _ = materialize_revision_request(
         artifacts_dir,
         revision_request_path=revision_request_path,
@@ -134,7 +135,6 @@ def _apply_revision_request(package: Any, revision_request_ref: str, revision_re
     revision_context.update(revision_context_patch)
     candidate["revision_context"] = revision_context
     candidate["revision_request_ref"] = revision_request_ref
-    candidate["key_constraints"] = unique_strings(ensure_list(candidate.get("key_constraints")) + [revision_summary])
     return revision_summary
 
 
@@ -200,7 +200,19 @@ def build_semantic_drift_check(
         if all(token in generated_text for token in review_projection_tokens):
             anchor_matches.append("review_projection_signature")
     domain_type = str(lock.get("domain_type") or "").strip().lower()
-    if domain_type == "execution_runner_rule":
+    primary_object = str(lock.get("primary_object") or "").strip().lower()
+    if domain_type == "engineering_bootstrap_baseline_rule" or primary_object == "mvp_bootstrap_codebase_baseline":
+        baseline_signatures = [
+            ("bootstrap_repo_shell_signature", ["apps/api", "apps/miniapp"]),
+            ("bootstrap_env_signature", ["compose", "postgres"]),
+            ("bootstrap_migration_signature", ["db/migrations"]),
+            ("bootstrap_health_signature", ["/healthz", "/readyz"]),
+        ]
+        for label, tokens in baseline_signatures:
+            if all(token in generated_text for token in tokens):
+                anchor_matches.append(label)
+        preserved = not forbidden_hits and sum(1 for label, _ in baseline_signatures if label in anchor_matches) >= 3
+    elif domain_type == "execution_runner_rule":
         runner_signatures = [
             ("runner_ready_queue_signature", ["ready", "job", "runner"]),
             ("approve_next_skill_signature", ["approve", "next", "skill"]),
@@ -248,11 +260,20 @@ def build_epic_payload(package: Any, workflow_run_id: str | None = None) -> Gene
     upstream_downstream = derive_upstream_downstream(package, rollout_requirement)
     semantic_drift_check = build_semantic_drift_check(package, epic_title, business_goal, scope, product_behavior_slices)
 
-    epic_intent = (
-        f"将《{package.src_candidate.get('title') or package.run_id}》中的治理问题空间进一步收敛为“{epic_title}”这一 EPIC 级产品能力块，"
-        "让下游可以围绕稳定的产品行为切片拆分 FEAT，并把 capability axes 保留在 cross-cutting constraints 层，"
-        "而不是继续复述 SRC 原则或沿治理对象逐项平移。"
-    )
+    src_title = package.src_candidate.get("title") or package.run_id
+    lock_domain_type = str(semantic_lock(package).get("domain_type") or "").strip().lower()
+    lock_primary_object = str(semantic_lock(package).get("primary_object") or "").strip().lower()
+    if lock_domain_type == "engineering_bootstrap_baseline_rule" or lock_primary_object == "mvp_bootstrap_codebase_baseline":
+        epic_intent = (
+            f"将《{src_title}》收敛为一个工程承载面 EPIC，冻结代码库目录落点、后端/前端可运行空壳、数据库迁移机制、本地开发环境与基础健康检查，"
+            "为进入第一条业务功能链提供稳定承载面，并把 QA/handoff/gate/formal 等治理语义降为继承约束/验收 overlay，而不是 EPIC 主切片。"
+        )
+    else:
+        epic_intent = (
+            f"将《{src_title}》中的治理问题空间进一步收敛为“{epic_title}”这一 EPIC 级产品能力块，"
+            "让下游可以围绕稳定的产品行为切片拆分 FEAT，并把 capability axes 保留在 cross-cutting constraints 层，"
+            "而不是继续复述 SRC 原则或沿治理对象逐项平移。"
+        )
 
     review_findings = [
         "EPIC 已从 SRC 原文上浮到产品能力块层，Scope 以产品行为切片而非治理对象清单表达。",
@@ -417,6 +438,24 @@ def build_epic_payload(package: Any, workflow_run_id: str | None = None) -> Gene
         for item in rollout_plan["required_feat_families"]:
             rollout_lines.append(f"  - {item['family']}: {item['goal']}")
 
+    success_section = "## Epic Success Criteria\n\n" + "\n".join(f"- {item}" for item in success_metrics)
+    lock = semantic_lock(package) or {}
+    lock_domain_type = str(lock.get("domain_type") or "").strip().lower()
+    lock_primary_object = str(lock.get("primary_object") or "").strip().lower()
+    if lock_domain_type == "engineering_bootstrap_baseline_rule" or lock_primary_object == "mvp_bootstrap_codebase_baseline":
+        success_section += "\n\n### Minimum Success State / Gate-ready Evidence\n\n" + "\n".join(
+            f"- {item}"
+            for item in [
+                "apps/api 已存在并可启动（开发入口明确）。",
+                "`/healthz`、`/readyz` 返回有效（readyz 至少覆盖 DB 依赖可用性）。",
+                "apps/miniapp 已存在并可启动最小工程（编译/预览/调试入口可复现）。",
+                "`deploy/` 下存在可启动本地 PostgreSQL 的 compose 配置（例如 `docker-compose.local.yml` 或同等落点）。",
+                "`db/migrations` 已具备初始 migration，且可在空库执行完成初始化。",
+                "`src/` 明确进入 legacy 冻结态，新业务实现代码不再增量进入该树。",
+                "`Makefile`、`scripts/`、`.env.example`、`README.md`、`AGENTS.md` 已到位并能指导执行。",
+            ]
+        )
+
     markdown_body = "\n\n".join(
         [
             f"# {json_payload['title']}",
@@ -427,7 +466,7 @@ def build_epic_payload(package: Any, workflow_run_id: str | None = None) -> Gene
             "## Actors and Roles\n\n" + "\n".join(f"- {item['role']}：{item['responsibility']}" for item in actors_and_roles),
             "## Capability Scope\n\n" + "\n".join(f"- {item}" for item in scope),
             "## Upstream and Downstream\n\n" + "\n".join(f"- {item}" for item in upstream_downstream),
-            "## Epic Success Criteria\n\n" + "\n".join(f"- {item}" for item in success_metrics),
+            success_section,
             "## Non-Goals\n\n" + "\n".join(f"- {item}" for item in non_goals),
             "## Decomposition Rules\n\n"
             + "\n".join(f"- {item}" for item in decomposition_rules)

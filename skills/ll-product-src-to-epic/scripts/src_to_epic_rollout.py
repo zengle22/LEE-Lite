@@ -1,6 +1,14 @@
 from typing import Any
 
-from src_to_epic_identity import ROLLOUT_KEYWORD_GROUPS, is_review_projection_package, is_execution_runner_package, is_governance_bridge_package, semantic_lock, uses_adr005_prerequisite
+from src_to_epic_identity import (
+    ROLLOUT_KEYWORD_GROUPS,
+    is_engineering_bootstrap_baseline_package,
+    is_execution_runner_package,
+    is_governance_bridge_package,
+    is_review_projection_package,
+    semantic_lock,
+    uses_adr005_prerequisite,
+)
 from src_to_epic_common import unique_strings, ensure_list, guess_repo_root_from_input
 
 
@@ -8,8 +16,16 @@ def _constraint_group(name: str, items: list[str]) -> dict[str, Any]:
     return {"name": name, "items": unique_strings(items)}
 
 
+def _revision_constraint_note(package: Any) -> str:
+    revision_context = package.src_candidate.get("revision_context")
+    if not isinstance(revision_context, dict):
+        return ""
+    return str(revision_context.get("summary") or "").strip()
+
+
 def _review_projection_constraint_groups(package: Any, key_constraints: list[str], source_refs: list[str]) -> list[dict[str, Any]]:
     lock = semantic_lock(package)
+    revision_note = _revision_constraint_note(package)
     epic_level_items = [
         "本 EPIC 直接负责 gate 审核阶段的人类友好 Projection，而不是引入新的运行时治理闭环。",
         "Projection 必须是 derived-only、non-authoritative、non-inheritable；冻结与下游继承仍只回到 Machine SSOT。",
@@ -20,6 +36,7 @@ def _review_projection_constraint_groups(package: Any, key_constraints: list[str
         + ([f"Allowed capabilities: {', '.join(lock.get('allowed_capabilities', []))}"] if lock.get("allowed_capabilities") else [])
         + ([f"Forbidden capabilities: {', '.join(lock.get('forbidden_capabilities', []))}"] if lock.get("forbidden_capabilities") else [])
         + key_constraints
+        + ([revision_note] if revision_note else [])
         + ([f"Authoritative source refs: {', '.join(source_refs)}"] if source_refs else [])
         + [f"Upstream package: {package.artifacts_dir}"]
     )
@@ -37,6 +54,7 @@ def _review_projection_constraint_groups(package: Any, key_constraints: list[str
 
 def _execution_runner_constraint_groups(package: Any, key_constraints: list[str], source_refs: list[str]) -> list[dict[str, Any]]:
     lock = semantic_lock(package)
+    revision_note = _revision_constraint_note(package)
     epic_level_items = [
         "本 EPIC 直接负责 gate approve 后的自动推进运行时，不把 approve 停在 formal publication 或人工接力。",
         "自动推进主链固定为：approve -> ready execution job -> runner claim -> next skill dispatch -> execution outcome。",
@@ -47,6 +65,7 @@ def _execution_runner_constraint_groups(package: Any, key_constraints: list[str]
         + ([f"Allowed capabilities: {', '.join(lock.get('allowed_capabilities', []))}"] if lock.get("allowed_capabilities") else [])
         + ([f"Forbidden capabilities: {', '.join(lock.get('forbidden_capabilities', []))}"] if lock.get("forbidden_capabilities") else [])
         + key_constraints
+        + ([revision_note] if revision_note else [])
         + ([f"Authoritative source refs: {', '.join(source_refs)}"] if source_refs else [])
         + [f"Upstream package: {package.artifacts_dir}"]
     )
@@ -63,6 +82,7 @@ def _execution_runner_constraint_groups(package: Any, key_constraints: list[str]
 
 
 def _governance_bridge_constraint_groups(package: Any, key_constraints: list[str], source_refs: list[str], rollout_requirement: dict[str, Any] | None = None) -> list[dict[str, Any]]:
+    revision_note = _revision_constraint_note(package)
     filtered_constraints = [item for item in key_constraints if item not in {"QA test execution skill", "TestEnvironmentSpec", "TestCasePack 冻结", "ScriptPack 冻结", "合规与判定分层"}]
     epic_level_items = [
         "本 EPIC 直接负责形成可被多 skill 共享继承的主链受治理交接闭环，而不是回退为单一上游业务对象清单。",
@@ -75,7 +95,13 @@ def _governance_bridge_constraint_groups(package: Any, key_constraints: list[str
     if rollout_requirement and rollout_requirement.get("required"):
         epic_level_items.append("当 rollout_required 为 true 时，foundation 与 adoption_e2e 必须同时落成，并至少保留一条真实 producer -> consumer -> audit -> gate pilot 主链。")
     inherited_intro = "以下来源约束来自 authoritative SRC，downstream must preserve where applicable，但它们不重新定义本 EPIC 的 primary capability boundary。"
-    inherited_items = unique_strings([inherited_intro] + filtered_constraints + ([f"Authoritative source refs: {', '.join(source_refs)}"] if source_refs else []) + [f"Upstream package: {package.artifacts_dir}"])
+    inherited_items = unique_strings(
+        [inherited_intro]
+        + filtered_constraints
+        + ([revision_note] if revision_note else [])
+        + ([f"Authoritative source refs: {', '.join(source_refs)}"] if source_refs else [])
+        + [f"Upstream package: {package.artifacts_dir}"]
+    )
     downstream_items = [
         "下游 FEAT 不得改写 src_root_id、epic_freeze_ref 与 authoritative source_refs。",
         "下游 FEAT 不得把 EPIC 重新打平为上游 QA test execution 对象清单；source-level object constraints 只能附着到实际受其约束的 FEAT。",
@@ -89,6 +115,7 @@ def _governance_bridge_constraint_groups(package: Any, key_constraints: list[str
 
 
 def _default_constraint_groups(package: Any, key_constraints: list[str], source_refs: list[str]) -> list[dict[str, Any]]:
+    revision_note = _revision_constraint_note(package)
     structure_items: list[str] = []
     layering_items: list[str] = []
     formalization_items: list[str] = []
@@ -110,7 +137,13 @@ def _default_constraint_groups(package: Any, key_constraints: list[str], source_
         _constraint_group("主链结构约束", structure_items),
         _constraint_group("职责分层约束", layering_items),
         _constraint_group("Formalization 约束", formalization_items),
-        _constraint_group("来源与依赖约束", remaining_items + ([f"Authoritative source refs: {', '.join(source_refs)}"] if source_refs else []) + [f"Upstream package: {package.artifacts_dir}" ]),
+        _constraint_group(
+            "来源与依赖约束",
+            remaining_items
+            + ([revision_note] if revision_note else [])
+            + ([f"Authoritative source refs: {', '.join(source_refs)}"] if source_refs else [])
+            + [f"Upstream package: {package.artifacts_dir}"],
+        ),
     ]
     return [group for group in groups if group["items"]]
 
@@ -277,6 +310,13 @@ def assess_rollout_requirement(package: Any) -> dict[str, Any]:
             "score": 0,
             "triggers": {name: False for name in ROLLOUT_KEYWORD_GROUPS},
             "rationale": ["该源只覆盖 gate 审核投影视图，不需要 adoption / rollout / cross-skill E2E 轨。"],
+        }
+    if is_engineering_bootstrap_baseline_package(package):
+        return {
+            "required": False,
+            "score": 0,
+            "triggers": {name: False for name in ROLLOUT_KEYWORD_GROUPS},
+            "rationale": ["该源为工程骨架/本地开发环境基线：可包含治理约束，但不应强制引入 adoption / rollout / cross-skill E2E 作为主拆分轨。"],
         }
     text_blob = _package_text_blob(package)
     governance_bridge = is_governance_bridge_package(package)

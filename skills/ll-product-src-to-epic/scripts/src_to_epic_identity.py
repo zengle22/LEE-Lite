@@ -89,8 +89,51 @@ def is_implementation_readiness_package(package: Any) -> bool:
     return domain_type == "implementation_readiness_rule" or primary_object == "qa.impl-spec-test"
 
 
+_ENGINEERING_BOOTSTRAP_SIGNATURE_GROUPS: tuple[tuple[str, ...], ...] = (
+    ("工程骨架", "最小可运行骨架", "工程基线", "代码框架基线", "repo layout", "目录落点", "legacy/src", "模块边界"),
+    ("apps/api", "apps api", "api 空壳", "api shell", "go api"),
+    ("apps/miniapp", "apps miniapp", "miniapp", "uniapp", "小程序"),
+    ("compose", "docker compose", "postgres", "postgre", ".env.example", "本地开发环境", "env vars"),
+    ("db/migrations", "db migrations", "migrations", "migration", "schema 演进"),
+    ("/healthz", "/readyz", "healthz", "readyz", "健康检查"),
+)
+
+
+def _engineering_bootstrap_signature_score(candidate: dict[str, Any]) -> int:
+    text_parts: list[str] = []
+    for key in ("title", "problem_statement", "one_sentence_truth"):
+        text_parts.append(str(candidate.get(key) or ""))
+    text_parts.extend(str(item) for item in ensure_list(candidate.get("in_scope")))
+    text_parts.extend(str(item) for item in ensure_list(candidate.get("key_constraints")))
+    text_parts.extend(str(item) for item in ensure_list(candidate.get("source_refs")))
+    blob = " ".join(part.strip() for part in text_parts if part and str(part).strip()).lower()
+    return sum(1 for group in _ENGINEERING_BOOTSTRAP_SIGNATURE_GROUPS if any(token.lower() in blob for token in group))
+
+
+def is_engineering_bootstrap_baseline_package(package: Any) -> bool:
+    lock = semantic_lock(package)
+    domain_type = str(lock.get("domain_type") or "").strip().lower()
+    primary_object = str(lock.get("primary_object") or "").strip().lower()
+    if domain_type == "engineering_bootstrap_baseline_rule" or primary_object == "mvp_bootstrap_codebase_baseline":
+        return True
+    if domain_type or primary_object:
+        return False
+    candidate = package.src_candidate
+    if not isinstance(candidate, dict):
+        return False
+    source_kind = str(candidate.get("source_kind") or "").strip()
+    if source_kind == "governance_bridge_src":
+        return False
+    refs = {str(item).strip().upper() for item in ensure_list(candidate.get("source_refs"))}
+    if not refs.intersection({"ADR-001", "ADR-002", "ADR-003"}):
+        return False
+    return _engineering_bootstrap_signature_score(candidate) >= 2
+
+
 def is_governance_bridge_package(package: Any) -> bool:
     if is_review_projection_package(package) or is_execution_runner_package(package) or is_implementation_readiness_package(package):
+        return False
+    if is_engineering_bootstrap_baseline_package(package):
         return False
     source_kind = str(package.src_candidate.get("source_kind") or "")
     title = str(package.src_candidate.get("title") or "")
@@ -144,9 +187,52 @@ def derive_capability_axes(package: Any, rollout_requirement: dict[str, Any] | N
         return review_projection_axes()
     if is_execution_runner_package(package):
         return execution_runner_axes(package)
+    if is_engineering_bootstrap_baseline_package(package):
+        return engineering_bootstrap_axes()
     if is_governance_bridge_package(package):
         return governance_bridge_axes(package, rollout_requirement)
     return default_capability_axes(package)
+
+
+def engineering_bootstrap_axes() -> list[dict[str, str]]:
+    return [
+        {
+            "id": "repo-layout-baseline",
+            "name": "代码库目录与落点基线能力",
+            "scope": "冻结 repo layout 与新代码落点：业务实现只进 apps/；legacy src 不再增量；治理/产物目录只放说明与工件。",
+            "feat_axis": "repo layout baseline",
+        },
+        {
+            "id": "api-shell",
+            "name": "Go API 空壳可运行能力",
+            "scope": "提供可启动的 apps/api 骨架（模块边界、依赖注入/分层约束、最小路由），并确保 handler 不直接跑 raw SQL。",
+            "feat_axis": "apps/api shell runnable",
+        },
+        {
+            "id": "miniapp-shell",
+            "name": "UniApp MiniApp 空壳可运行能力",
+            "scope": "提供可启动的 apps/miniapp 骨架（页面落点与最小导航），与后端健康检查打通最小联通性验证。",
+            "feat_axis": "apps/miniapp shell runnable",
+        },
+        {
+            "id": "local-env",
+            "name": "本地开发环境与 Postgres 基线能力",
+            "scope": "冻结本地运行方式（compose/postgres、env vars、.env.example），保证新成员可复现启动，不引入密钥到仓库。",
+            "feat_axis": "local env baseline",
+        },
+        {
+            "id": "db-migrations",
+            "name": "Migration 机制与初始 Schema 基线能力",
+            "scope": "建立 db/migrations 作为唯一 schema 演进通道，禁止手工改库作为默认协作方式，并提供最小初始化迁移路径。",
+            "feat_axis": "db migrations discipline",
+        },
+        {
+            "id": "health-readiness",
+            "name": "Healthz/ReadyZ 合约与可验证就绪性能力",
+            "scope": "提供 /healthz 与 /readyz contract 与依赖检查边界，作为后续业务链进入前的最小可观测与可验收基线。",
+            "feat_axis": "healthz/readyz contract",
+        },
+    ]
 
 
 def review_projection_axes() -> list[dict[str, str]]:
