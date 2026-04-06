@@ -95,8 +95,13 @@ def test_proto_to_ui_emits_semantic_ledger(tmp_path: Path) -> None:
     assert run_ui.returncode == 0
     ui_dir = Path(json.loads(run_ui.stdout)["artifacts_dir"])
     ledger = json.loads((ui_dir / "ui-semantic-source-ledger.json").read_text(encoding="utf-8"))
+    bundle = json.loads((ui_dir / "ui-spec-bundle.json").read_text(encoding="utf-8"))
     assert "ui_spec_semantic_sources" in ledger
     assert (ui_dir / "ui-spec-bundle.json").exists()
+    assert bundle["journey_structural_spec_ref"] == "journey-ux-ascii.md"
+    assert bundle["ui_shell_snapshot_ref"] == "ui-shell-spec.md"
+    assert any(entry["semantic_area"] == "journey_structure" for entry in ledger["ui_spec_semantic_sources"]["from_other_authority"])
+    assert any(entry["semantic_area"] == "shell_frame" for entry in ledger["ui_spec_semantic_sources"]["from_other_authority"])
 
 
 def test_proto_to_ui_rejects_pending_human_reviewer(tmp_path: Path) -> None:
@@ -109,12 +114,26 @@ def test_proto_to_ui_rejects_pending_human_reviewer(tmp_path: Path) -> None:
                 "workflow_key": "dev.feat-to-proto",
                 "feat_ref": "FEAT-BAD-REVIEW",
                 "prototype_entry_ref": "prototype/index.html",
+                "journey_structural_spec_ref": "journey-ux-ascii.md",
+                "ui_shell_snapshot_ref": "ui-shell-spec.md",
+                "ui_shell_source_ref": "skills/ll-dev-feat-to-proto/resources/ui-shell/default-ui-shell-spec.md",
+                "ui_shell_version": "1.0.0",
+                "ui_shell_snapshot_hash": "abc",
+                "shell_change_policy": "governance-only",
                 "pages": [{"page_id": "entry", "title": "Entry", "page_goal": "Goal", "main_path": ["A", "B"], "branch_paths": [], "states": [{"name": "initial", "ui_behavior": "ready"}], "buttons": [{"label": "Continue", "action": "next"}]}],
             },
             ensure_ascii=False,
             indent=2,
         )
         + "\n",
+        encoding="utf-8",
+    )
+    (proto_dir / "journey-ux-ascii.md").write_text(
+        "# Journey Structural Spec\n\n## 1. Journey Main Chain\n- A\n\n## 2. Page Map\n- entry\n\n## 3. Decision Points\n- none\n\n## 4. CTA Hierarchy\n- Continue\n\n## 5. Container Hints\n- page\n\n## 6. Error / Degraded / Retry Paths\n- none\n\n## 7. Open Questions / Frozen Assumptions\n- none\n",
+        encoding="utf-8",
+    )
+    (proto_dir / "ui-shell-spec.md").write_text(
+        "# UI Shell Source\n\n- ui_shell_source_id: UI-SHELL-DEFAULT-001\n- ui_shell_family: default-app-shell\n- ui_shell_version: 1.0.0\n- shell_change_policy: governance-only\n\n## App Shell\n- ok\n\n## Container Rules\n- ok\n\n## CTA Placement\n- ok\n\n## State Expression\n- ok\n\n## Common Structural Components\n- ok\n\n## Governance\n- ok\n",
         encoding="utf-8",
     )
     (proto_dir / "prototype-review-report.json").write_text(
