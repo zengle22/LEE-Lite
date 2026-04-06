@@ -1,0 +1,79 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="lee-prototype-kind" content="hifi" />
+  <title>SRC002 高保真可交互原型（UX 旅程版）</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <main class="shell">
+    <section class="phone" aria-label="Prototype Phone">
+      <header class="nav">
+        <button class="nav-btn" id="nav-back" aria-label="Back">←</button>
+        <div class="nav-center">
+          <div class="nav-title" id="nav-title">SRC002 · 智能训练计划闭环</div>
+          <div class="nav-sub" id="nav-sub"></div>
+        </div>
+        <button class="nav-btn" id="nav-menu" aria-label="Menu">⋯</button>
+      </header>
+      <section class="screen" id="screen"></section>
+      <footer class="cta" id="cta"></footer>
+    </section>
+
+    <section class="sheet" id="sheet" hidden>
+      <div class="sheet-scrim" id="sheet-scrim"></div>
+      <div class="sheet-panel" role="dialog" aria-modal="true" aria-label="Prototype Menu">
+        <header class="sheet-head">
+          <div>
+            <div class="sheet-title">Prototype Menu</div>
+            <div class="sheet-sub" id="sheet-meta"></div>
+          </div>
+          <button class="nav-btn" id="sheet-close" aria-label="Close">✕</button>
+        </header>
+        <div class="sheet-body">
+          <section class="sheet-block">
+            <div class="sheet-label">Jump</div>
+            <div class="journey" id="journey"></div>
+          </section>
+          <section class="sheet-block">
+            <div class="sheet-label">Debug</div>
+            <div class="states" id="debug"></div>
+          </section>
+          <section class="sheet-block">
+            <button class="btn ghost" id="reset">Reset Prototype State</button>
+          </section>
+        </div>
+      </div>
+    </section>
+
+    <div class="toast" id="toast" hidden></div>
+
+    <div class="modal" id="modal" hidden>
+      <div class="modal-scrim" id="modal-scrim"></div>
+      <div class="modal-card" role="dialog" aria-modal="true">
+        <div class="modal-title" id="modal-title"></div>
+        <div class="modal-body" id="modal-body"></div>
+        <div class="modal-actions" id="modal-actions"></div>
+      </div>
+    </div>
+
+    <div class="drawer" id="drawer" hidden>
+      <div class="drawer-scrim" id="drawer-scrim"></div>
+      <div class="drawer-panel" role="dialog" aria-modal="true" aria-label="Drawer">
+        <header class="drawer-head">
+          <div>
+            <div class="drawer-title" id="drawer-title"></div>
+            <div class="drawer-sub" id="drawer-sub"></div>
+          </div>
+          <button class="nav-btn" id="drawer-close" aria-label="Close">✕</button>
+        </header>
+        <div class="drawer-body" id="drawer-body"></div>
+        <footer class="drawer-foot" id="drawer-foot"></footer>
+      </div>
+    </div>
+  </main>
+  <script src="app.js"></script>
+</body>
+</html>

@@ -1,0 +1,150 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>__LEE_TITLE__ | 跑步大师 Prototype</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <main class="app-shell">
+    <aside class="journey-rail">
+      <div class="rail-head">
+        <p class="eyebrow">Running Coach Prototype</p>
+        <h1 id="feat-title"></h1>
+        <p class="rail-ref" id="feat-ref"></p>
+      </div>
+      <section class="rail-card">
+        <div class="section-title">
+          <p class="eyebrow">Fixed Journey</p>
+          <h2>Flow Rail</h2>
+        </div>
+        <ol id="journey-nav"></ol>
+      </section>
+      <section class="rail-card">
+        <div class="section-title">
+          <p class="eyebrow">State Model</p>
+          <h2>Readiness</h2>
+        </div>
+        <div class="state-pills" id="state-pills"></div>
+      </section>
+      <section class="rail-card">
+        <div class="section-title">
+          <p class="eyebrow">Authority Trace</p>
+          <h2>Refs</h2>
+        </div>
+        <ul class="source-list" id="source-refs"></ul>
+      </section>
+    </aside>
+
+    <section class="studio">
+      <header class="studio-hero">
+        <div>
+          <p class="eyebrow">Journey Structural Spec + UI Shell Source</p>
+          <h2 id="page-title"></h2>
+          <p id="page-goal"></p>
+        </div>
+        <div class="principle-chip">无伤第一，PB 第二</div>
+      </header>
+
+      <section class="shell-layout">
+        <article class="coach-mobile-shell">
+          <header class="mobile-shell-head">
+            <div>
+              <p class="shell-brand">跑步大师</p>
+              <h3 id="shell-stage"></h3>
+            </div>
+            <div class="athlete-badge">Coach-guided</div>
+          </header>
+
+          <nav class="stage-tabs" id="stage-tabs"></nav>
+
+          <section class="readiness-strip" id="readiness-strip"></section>
+
+          <section class="screen-panel">
+            <div class="panel-head">
+              <div>
+                <p class="eyebrow">Primary Screen</p>
+                <h3 id="screen-title"></h3>
+              </div>
+              <div class="container-badge" id="container-hint"></div>
+            </div>
+            <div class="coach-copy" id="coach-copy"></div>
+            <div class="focus-chips" id="plan-focus"></div>
+            <div class="micro-detail-grid">
+              <article class="detail-card">
+                <div class="wireframe-head">
+                  <h4 id="snapshot-title">Training Snapshot</h4>
+                  <span id="snapshot-meta">Current mode</span>
+                </div>
+                <ul id="training-snapshot"></ul>
+              </article>
+              <article class="detail-card">
+                <div class="wireframe-head">
+                  <h4 id="decision-options-title">Decision Options</h4>
+                  <span id="decision-options-meta">Recommended path</span>
+                </div>
+                <div id="decision-options"></div>
+              </article>
+            </div>
+            <div class="state-summary-card" id="state-summary"></div>
+            <div class="split-detail">
+              <article class="detail-card">
+                <h4>Flow Steps</h4>
+                <ol id="main-path"></ol>
+              </article>
+              <article class="detail-card">
+                <h4>Key Sections</h4>
+                <ul id="page-sections"></ul>
+              </article>
+            </div>
+            <article class="wireframe-card">
+              <div class="wireframe-head">
+                <h4>ASCII Screen Shape</h4>
+                <span id="wireframe-label">Shell frame</span>
+              </div>
+              <pre id="wireframe"></pre>
+            </article>
+          </section>
+
+          <footer class="cta-dock">
+            <div class="actions-meta" id="action-hint"></div>
+            <div class="button-row" id="actions"></div>
+          </footer>
+        </article>
+
+        <aside class="insight-rail">
+          <section class="insight-card">
+            <div class="section-title">
+              <p class="eyebrow">Coach Summary</p>
+              <h3>Today's Decision</h3>
+            </div>
+            <div id="decision-summary"></div>
+          </section>
+
+          <section class="insight-card">
+            <div class="section-title">
+              <p class="eyebrow">Risk Branches</p>
+              <h3>Fallback Paths</h3>
+            </div>
+            <div id="branch-paths"></div>
+          </section>
+
+          <section class="insight-card">
+            <div class="section-title">
+              <p class="eyebrow">Shell Authority</p>
+              <h3>References</h3>
+            </div>
+            <div class="authority-list">
+              <p id="journey-ref"></p>
+              <p id="shell-ref"></p>
+            </div>
+          </section>
+        </aside>
+      </section>
+    </section>
+  </main>
+  <script src="mock-data.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>

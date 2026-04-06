@@ -2,10 +2,17 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import re
+import shutil
+import subprocess
 import sys
+import threading
+from contextlib import suppress
 from datetime import datetime, timezone
+from functools import partial
+from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Any
 
@@ -33,9 +40,17 @@ OUTPUT_FILES = [
     "package-manifest.json",
     "prototype-bundle.md",
     "prototype-bundle.json",
+    "journey-ux-ascii.md",
+    "ui-shell-spec.md",
     "prototype-flow-map.md",
     "prototype-review-guide.md",
     "prototype-completeness-report.json",
+    "prototype-fidelity-report.json",
+    "prototype-route-map.json",
+    "prototype-journey-reachability-report.json",
+    "prototype-initial-view-report.json",
+    "prototype-placeholder-lint.json",
+    "prototype-runtime-smoke.json",
     "prototype-review-report.json",
     "prototype-defect-list.json",
     "prototype-freeze-gate.json",
@@ -45,7 +60,32 @@ OUTPUT_FILES = [
     "prototype/styles.css",
     "prototype/app.js",
     "prototype/mock-data.json",
+    "prototype/mock-data.js",
 ]
+RESOURCE_ROOT = Path(__file__).resolve().parents[1] / "resources"
+JOURNEY_SPEC_REF = "journey-ux-ascii.md"
+JOURNEY_SPEC_VERSION = "1.0.0"
+UI_SHELL_SNAPSHOT_REF = "ui-shell-spec.md"
+UI_SHELL_SOURCE_REF = "skills/ll-dev-feat-to-proto/resources/ui-shell/default-ui-shell-spec.md"
+PROTOTYPE_TEMPLATE_ROOT = RESOURCE_ROOT / "prototype"
+SRC002_HIFI_TEMPLATE_ROOT = RESOURCE_ROOT / "templates" / "src002-journey-hifi" / "prototype"
+SHELL_REQUIRED_SECTIONS = (
+    "## App Shell",
+    "## Container Rules",
+    "## CTA Placement",
+    "## State Expression",
+    "## Common Structural Components",
+    "## Governance",
+)
+JOURNEY_REQUIRED_SECTIONS = (
+    "## 1. Journey Main Chain",
+    "## 2. Page Map",
+    "## 3. Decision Points",
+    "## 4. CTA Hierarchy",
+    "## 5. Container Hints",
+    "## 6. Error / Degraded / Retry Paths",
+    "## 7. Open Questions / Frozen Assumptions",
+)
 
 
 def utc_now() -> str:
@@ -77,6 +117,55 @@ def rel(path: Path, repo_root: Path) -> str:
         return path.resolve().as_posix()
 
 
+def sha256_text(content: str) -> str:
+    return hashlib.sha256(content.encode("utf-8")).hexdigest()
+
+
+def read_resource_text(*parts: str) -> str:
+    return (RESOURCE_ROOT.joinpath(*parts)).read_text(encoding="utf-8")
+
+
+def render_resource_text(parts: tuple[str, ...], replacements: dict[str, str] | None = None) -> str:
+    content = read_resource_text(*parts)
+    for key, value in (replacements or {}).items():
+        content = content.replace(key, value)
+    return content
+
+
+def extract_shell_metadata(shell_source_text: str) -> dict[str, str]:
+    metadata: dict[str, str] = {}
+    for key in ("ui_shell_source_id", "ui_shell_family", "ui_shell_version", "shell_change_policy"):
+        match = re.search(rf"-\s*{re.escape(key)}:\s*(.+)", shell_source_text)
+        metadata[key] = match.group(1).strip() if match else ""
+    return metadata
+
+
+def _collect_section_body(text: str, heading: str) -> str:
+    lines = text.splitlines()
+    try:
+        start = lines.index(heading) + 1
+    except ValueError:
+        return ""
+    body: list[str] = []
+    for line in lines[start:]:
+        if line.startswith("## "):
+            break
+        if line.strip():
+            body.append(line.strip())
+    return "\n".join(body).strip()
+
+
+def validate_structured_sections(text: str, label: str, headings: tuple[str, ...]) -> list[str]:
+    errors: list[str] = []
+    for heading in headings:
+        if heading not in text:
+            errors.append(f"{label} missing section: {heading}")
+            continue
+        if not _collect_section_body(text, heading):
+            errors.append(f"{label} section has no content: {heading}")
+    return errors
+
+
 def validate_input_package(
     input_path: str | Path,
     feat_ref: str,
@@ -105,6 +194,279 @@ def validate_input_package(
         "bundle": bundle,
         "feature": feature,
         "feat_ref": feat_ref,
+    }
+
+
+def _feat_num_from_ref(feat_ref: str) -> str:
+    match = re.search(r"-(\d{3})$", str(feat_ref or "").strip())
+    return match.group(1) if match else ""
+
+
+def _is_src002_hifi_required(context: dict[str, Any]) -> bool:
+    feature = context.get("feature") if isinstance(context.get("feature"), dict) else {}
+    contract = feature.get("journey_contract") if isinstance(feature.get("journey_contract"), dict) else {}
+    if str(contract.get("journey_id") or "").strip() != "SRC002":
+        return False
+    return _feat_num_from_ref(str(context.get("feat_ref") or "")) in {"001", "002", "003", "004", "005", "006"}
+
+
+def _copy_template_dir(from_dir: Path, to_dir: Path) -> None:
+    required = [from_dir / "index.html", from_dir / "styles.css", from_dir / "app.js"]
+    missing = [str(path) for path in required if not path.exists()]
+    if missing:
+        raise FileNotFoundError(f"template missing files: {', '.join(missing)}")
+    if to_dir.exists():
+        shutil.rmtree(to_dir)
+    to_dir.parent.mkdir(parents=True, exist_ok=True)
+    shutil.copytree(from_dir, to_dir)
+
+
+def _load_text(path: Path) -> str:
+    try:
+        return path.read_text(encoding="utf-8")
+    except Exception:
+        return ""
+
+
+def _find_chrome_executable() -> Path | None:
+    candidates = [
+        Path(r"C:\Program Files\Google\Chrome\Application\chrome.exe"),
+        Path(r"C:\Program Files (x86)\Google\Chrome\Application\chrome.exe"),
+    ]
+    for candidate in candidates:
+        if candidate.exists():
+            return candidate
+    return None
+
+
+def _serve_dir_for_smoke(prototype_dir: Path) -> tuple[ThreadingHTTPServer, str]:
+    class QuietHandler(SimpleHTTPRequestHandler):
+        def log_message(self, fmt: str, *args: Any) -> None:
+            return
+
+    handler = partial(QuietHandler, directory=str(prototype_dir))
+    server = ThreadingHTTPServer(("127.0.0.1", 0), handler)
+    url = f"http://127.0.0.1:{server.server_address[1]}/index.html"
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    return server, url
+
+
+def _chrome_dump_dom(chrome: Path, url: str) -> tuple[bool, str]:
+    args = [
+        str(chrome),
+        "--headless=new",
+        "--disable-gpu",
+        "--allow-file-access-from-files",
+        "--disable-web-security",
+        "--virtual-time-budget=3000",
+        "--dump-dom",
+        url,
+    ]
+    try:
+        proc = subprocess.run(args, capture_output=True, text=True, timeout=25, check=False)
+    except Exception as exc:
+        return False, f"chrome invocation failed: {exc}"
+    if proc.returncode != 0:
+        args[1] = "--headless"
+        with suppress(Exception):
+            proc = subprocess.run(args, capture_output=True, text=True, timeout=25, check=False)
+    if proc.returncode != 0:
+        return False, (proc.stderr or proc.stdout or "").strip()
+    return True, (proc.stdout or "").strip()
+
+
+def _build_fidelity_report(bundle: dict[str, Any], context: dict[str, Any]) -> dict[str, Any]:
+    required = _is_src002_hifi_required(context)
+    proto_source = str(bundle.get("prototype_source") or "")
+    expected = "hifi_interactive_html" if required else "interactive_html"
+    ok = (not required) or proto_source == "src002_journey_hifi_template"
+    return {
+        "gate_name": "Prototype Fidelity Gate",
+        "decision": "pass" if ok else "fail",
+        "expected": expected,
+        "prototype_source": proto_source,
+        "checked_at": utc_now(),
+        "notes": "" if ok else "SRC002 journey feats must use the SRC002 hi-fi template (not the UI spec viewer).",
+    }
+
+
+def _build_route_map(bundle: dict[str, Any], context: dict[str, Any]) -> dict[str, Any]:
+    feat_ref = str(bundle.get("feat_ref") or "")
+    routes: list[dict[str, Any]] = []
+    edges: list[dict[str, Any]] = []
+    entry = ""
+
+    if _is_src002_hifi_required(context):
+        input_dir = Path(context["input_dir"])
+        handoff = load_json(input_dir / "handoff-to-feat-downstreams.json")
+        surfaces = handoff.get("journey_surface_inventory") if isinstance(handoff.get("journey_surface_inventory"), list) else []
+        main_path = handoff.get("journey_main_path") if isinstance(handoff.get("journey_main_path"), list) else []
+        surface_ids = [str(item.get("surface_id") or "").strip() for item in surfaces if isinstance(item, dict) and str(item.get("surface_id") or "").strip()]
+        surface_titles = {str(item.get("surface_id") or "").strip(): str(item.get("surface_title") or "").strip() for item in surfaces if isinstance(item, dict)}
+        for sid in surface_ids:
+            routes.append({"route_id": sid, "label": surface_titles.get(sid) or sid, "kind": "surface"})
+        entry = next((sid for sid in surface_ids if sid.startswith("screen_")), (surface_ids[0] if surface_ids else ""))
+
+        path_surface_seq: list[str] = []
+        for step in main_path:
+            found = re.findall(r"(screen_[a-z0-9_]+|drawer_[a-z0-9_]+|inline_[a-z0-9_]+)", str(step))
+            if found:
+                path_surface_seq.append(found[-1])
+        for left, right in zip(path_surface_seq, path_surface_seq[1:]):
+            edges.append({"from": left, "to": right, "trigger": "main_path"})
+
+        return {
+            "gate_name": "Prototype Route Map",
+            "feat_ref": feat_ref,
+            "entry_route_id": entry,
+            "routes": routes,
+            "edges": edges,
+            "journey_surface_inventory_present": bool(surfaces),
+            "journey_main_path_present": bool(main_path),
+            "generated_at": utc_now(),
+        }
+
+    pages = bundle.get("pages") if isinstance(bundle.get("pages"), list) else []
+    for index, page in enumerate(pages):
+        if not isinstance(page, dict):
+            continue
+        route_id = f"page-{index}"
+        routes.append({"route_id": route_id, "label": str(page.get("title") or page.get("page_id") or route_id), "kind": "page"})
+        if index + 1 < len(pages):
+            edges.append({"from": route_id, "to": f"page-{index+1}", "trigger": "page_next"})
+        if index - 1 >= 0:
+            edges.append({"from": route_id, "to": f"page-{index-1}", "trigger": "page_back"})
+    entry = routes[0]["route_id"] if routes else ""
+    return {
+        "gate_name": "Prototype Route Map",
+        "feat_ref": feat_ref,
+        "entry_route_id": entry,
+        "routes": routes,
+        "edges": edges,
+        "generated_at": utc_now(),
+    }
+
+
+def _check_journey_reachability(route_map: dict[str, Any], context: dict[str, Any]) -> dict[str, Any]:
+    if not _is_src002_hifi_required(context):
+        return {"gate_name": "Journey Reachability", "decision": "pass", "checked_at": utc_now(), "notes": "not a journey-hifi required feat"}
+    routes = route_map.get("routes") if isinstance(route_map.get("routes"), list) else []
+    edges = route_map.get("edges") if isinstance(route_map.get("edges"), list) else []
+    entry = str(route_map.get("entry_route_id") or "")
+    route_ids = {str(item.get("route_id") or "") for item in routes if isinstance(item, dict) and str(item.get("route_id") or "")}
+    adjacency: dict[str, set[str]] = {}
+    for edge in edges:
+        if not isinstance(edge, dict):
+            continue
+        a = str(edge.get("from") or "")
+        b = str(edge.get("to") or "")
+        if not a or not b:
+            continue
+        adjacency.setdefault(a, set()).add(b)
+    seen: set[str] = set()
+    stack = [entry] if entry else []
+    while stack:
+        cur = stack.pop()
+        if cur in seen:
+            continue
+        seen.add(cur)
+        stack.extend(sorted(adjacency.get(cur) or []))
+    missing = sorted([rid for rid in route_ids if rid and rid not in seen])
+    ignored: list[str] = []
+    if missing and all(rid.startswith("inline_") for rid in missing):
+        ignored = list(missing)
+        missing = []
+    ok = bool(entry) and not missing
+    return {
+        "gate_name": "Journey Reachability",
+        "decision": "pass" if ok else "fail",
+        "entry_route_id": entry,
+        "reachable_count": len(seen),
+        "route_count": len(route_ids),
+        "unreachable_routes": missing,
+        "ignored_unreachable_routes": ignored,
+        "checked_at": utc_now(),
+    }
+
+
+def _check_initial_view_integrity(prototype_dir: Path) -> dict[str, Any]:
+    css = _load_text(prototype_dir / "styles.css")
+    html = _load_text(prototype_dir / "index.html")
+    css_hidden_ok = "[hidden]" in css and "display:none" in css.replace(" ", "")
+    overlays_declared_hidden = True
+    for marker in ('id="sheet"', 'id="modal"', 'id="drawer"'):
+        if marker in html and "hidden" not in html.split(marker, 1)[1][:140]:
+            overlays_declared_hidden = False
+    ok = css_hidden_ok and overlays_declared_hidden
+    return {
+        "gate_name": "Initial View Integrity",
+        "decision": "pass" if ok else "fail",
+        "css_hidden_rule": css_hidden_ok,
+        "overlays_hidden_attr": overlays_declared_hidden,
+        "checked_at": utc_now(),
+    }
+
+
+def _placeholder_lint(prototype_dir: Path) -> dict[str, Any]:
+    hay = (_load_text(prototype_dir / "index.html") + "\n" + _load_text(prototype_dir / "app.js")).lower()
+    markers = ["todo", "lorem", "ipsum", "占位", "placeholder", "来自 ui spec", "仅供说明", "原型说明"]
+    hits = {m: hay.count(m) for m in markers if hay.count(m)}
+    decision = "pass" if sum(hits.values()) <= 10 else "warn"
+    return {"gate_name": "Placeholder Lint", "decision": decision, "hits": hits, "checked_at": utc_now()}
+
+
+def _runtime_smoke(prototype_dir: Path, context: dict[str, Any]) -> dict[str, Any]:
+    html = _load_text(prototype_dir / "index.html")
+    css = _load_text(prototype_dir / "styles.css")
+    js = _load_text(prototype_dir / "app.js")
+    chrome = _find_chrome_executable()
+
+    expected_kind = "src002-hifi" if _is_src002_hifi_required(context) else "spec-viewer"
+    static_ok = bool(html.strip()) and bool(css.strip()) and bool(js.strip()) and 'src="app.js"' in html
+    template_marker_ok = True if expected_kind != "src002-hifi" else 'name="lee-prototype-kind" content="hifi"' in html
+
+    runtime_ok = False
+    runtime_note = ""
+    dom_excerpt = ""
+    if chrome:
+        server = None
+        try:
+            server, url = _serve_dir_for_smoke(prototype_dir)
+            ok, dom = _chrome_dump_dom(chrome, url)
+            if expected_kind == "src002-hifi":
+                runtime_ok = ok and "生成训练计划" in dom
+            else:
+                runtime_ok = ok and ("Prototype Bundle" in dom or "Prototype" in dom)
+            dom_excerpt = dom[:8000]
+            runtime_note = "" if runtime_ok else "dom did not include expected render markers"
+        finally:
+            if server:
+                with suppress(Exception):
+                    server.shutdown()
+                with suppress(Exception):
+                    server.server_close()
+    else:
+        runtime_note = "chrome not found; runtime smoke skipped"
+
+    decision = "pass"
+    if not static_ok or not template_marker_ok:
+        decision = "fail"
+    if expected_kind == "src002-hifi" and (not chrome or not runtime_ok):
+        decision = "fail"
+
+    if dom_excerpt:
+        write_text(prototype_dir / "runtime-smoke-dom.html", dom_excerpt)
+
+    return {
+        "gate_name": "Runtime Smoke",
+        "decision": decision,
+        "expected_kind": expected_kind,
+        "static_ok": static_ok,
+        "template_marker_ok": template_marker_ok,
+        "runtime_ok": runtime_ok,
+        "notes": runtime_note,
+        "checked_at": utc_now(),
     }
 
 
@@ -551,659 +913,22 @@ def _page_model(unit: dict[str, Any], index: int, total: int) -> dict[str, Any]:
 
 
 def _render_index_html(feat_title: str) -> str:
-    return f"""<!doctype html>
-<html lang="en">
-<head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>{feat_title} Prototype</title>
-  <link rel="stylesheet" href="styles.css" />
-</head>
-<body>
-  <main class="app">
-    <aside class="sidebar">
-      <p class="eyebrow">FEAT Prototype</p>
-      <h1 id="feat-title"></h1>
-      <p class="sidebar-ref" id="feat-ref"></p>
-      <section class="sidebar-card">
-        <h2>Journey</h2>
-        <ol id="journey-nav"></ol>
-      </section>
-      <section class="sidebar-card">
-        <h2>States</h2>
-        <div class="state-pills" id="state-pills"></div>
-      </section>
-      <section class="sidebar-card">
-        <h2>Trace</h2>
-        <ul class="source-list" id="source-refs"></ul>
-      </section>
-    </aside>
-    <section class="canvas">
-      <header class="hero">
-        <p class="eyebrow">Static HTML prototype</p>
-        <h2 id="page-title"></h2>
-        <p id="page-goal"></p>
-        <div class="hero-meta" id="hero-meta"></div>
-      </header>
-      <section class="preview-grid">
-        <article class="card surface-card">
-          <div class="card-head">
-            <h3>Interactive Surface</h3>
-            <p id="state-caption"></p>
-          </div>
-          <div id="preview-surface"></div>
-        </article>
-        <div class="stack">
-          <section class="card">
-            <h3>Current State</h3>
-            <div id="state-summary"></div>
-          </section>
-          <section class="card">
-            <h3>Completion Boundary</h3>
-            <div id="completion-summary"></div>
-          </section>
-        </div>
-      </section>
-      <section class="detail-grid">
-        <article class="card">
-          <h3>Main Journey</h3>
-          <ol id="main-path"></ol>
-        </article>
-        <article class="card">
-          <h3>Failure / Alternate Paths</h3>
-          <div id="branch-paths"></div>
-        </article>
-        <article class="card">
-          <h3>Field Boundary</h3>
-          <div id="field-boundary"></div>
-        </article>
-        <article class="card">
-          <h3>Validation & Integrations</h3>
-          <div id="technical-boundary"></div>
-        </article>
-        <article class="card wireframe-card">
-          <h3>Wireframe</h3>
-          <pre id="wireframe"></pre>
-        </article>
-      </section>
-      <footer class="card actions-card">
-        <div class="actions-meta" id="action-hint"></div>
-        <div class="button-row" id="actions"></div>
-      </footer>
-    </section>
-  </main>
-  <script src="app.js"></script>
-</body>
-</html>"""
+    return render_resource_text(("prototype", "index.html"), {"__LEE_TITLE__": feat_title})
 
 
 def _render_styles() -> str:
-    return """:root{
-  --bg:#f4f1ea;
-  --ink:#152126;
-  --muted:#5c6a70;
-  --panel:#fffdf8;
-  --line:#d9d1c3;
-  --primary:#1f6a5b;
-  --primary-ink:#f4fffb;
-  --danger:#b74a32;
-  --danger-ink:#fff4ef;
-  --secondary:#d8e4df;
-  --secondary-ink:#16352e;
-  --ghost:#ece7dc;
-  --shadow:0 16px 40px rgba(21,33,38,.08);
-}
-*{box-sizing:border-box}
-body{
-  margin:0;
-  font-family:"IBM Plex Sans","Segoe UI",sans-serif;
-  background:
-    radial-gradient(circle at top right, rgba(31,106,91,.16), transparent 28%),
-    linear-gradient(180deg,#f7f4ee 0%,var(--bg) 100%);
-  color:var(--ink);
-}
-.app{display:grid;grid-template-columns:320px 1fr;min-height:100vh}
-.sidebar{
-  background:linear-gradient(180deg,#132328 0%,#172d33 100%);
-  color:#f7fbfc;
-  padding:28px 24px;
-  border-right:1px solid rgba(255,255,255,.08);
-}
-.sidebar-ref,.source-list,.sidebar-card{color:rgba(247,251,252,.76)}
-.sidebar-card{
-  margin-top:20px;
-  padding:18px;
-  border:1px solid rgba(255,255,255,.08);
-  border-radius:20px;
-  background:rgba(255,255,255,.04);
-}
-.sidebar-card h2{margin:0 0 12px;font-size:14px;letter-spacing:.04em;text-transform:uppercase}
-.source-list,.state-pills,#journey-nav{display:grid;gap:10px;padding:0;margin:0;list-style:none}
-#journey-nav a{
-  display:block;
-  padding:12px 14px;
-  border-radius:14px;
-  background:rgba(255,255,255,.04);
-  color:inherit;
-  text-decoration:none;
-}
-#journey-nav li.active a{background:rgba(255,255,255,.14);color:#fff;font-weight:600}
-.canvas{padding:32px;display:grid;gap:18px}
-.hero,.card{
-  background:var(--panel);
-  border:1px solid var(--line);
-  border-radius:24px;
-  box-shadow:var(--shadow);
-}
-.hero{padding:28px}
-.hero h2{margin:8px 0 10px;font-size:32px;line-height:1.1}
-.hero p{margin:0;color:var(--muted)}
-.eyebrow{
-  margin:0;
-  font-size:11px;
-  letter-spacing:.18em;
-  text-transform:uppercase;
-  color:#7f8c92;
-}
-.hero-meta,.info-chip-row,.button-row,.preview-grid,.detail-grid,.stack,.field-grid,.metric-grid,.provider-grid,.task-grid,.task-list{display:flex;gap:12px;flex-wrap:wrap}
-.hero-meta{margin-top:16px}
-.preview-grid{display:grid;grid-template-columns:1.45fr .9fr;align-items:start}
-.detail-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:18px}
-.stack{display:grid;gap:18px}
-.card{padding:22px}
-.card h3{margin:0 0 14px;font-size:18px}
-.card-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin-bottom:16px}
-.card-head p{margin:0;color:var(--muted)}
-.surface-card{padding-bottom:26px}
-.state-pills button,.button-row button{
-  border:0;
-  border-radius:999px;
-  padding:11px 16px;
-  font:inherit;
-  cursor:pointer;
-}
-.state-pills button{
-  width:100%;
-  text-align:left;
-  background:rgba(255,255,255,.06);
-  color:#eef7f9;
-}
-.state-pills button.active{background:#e5f4ef;color:#14352d;font-weight:700}
-.button-row button[data-tone="primary"]{background:var(--primary);color:var(--primary-ink)}
-.button-row button[data-tone="danger"]{background:var(--danger);color:var(--danger-ink)}
-.button-row button[data-tone="secondary"]{background:var(--secondary);color:var(--secondary-ink)}
-.button-row button[data-tone="ghost"]{background:var(--ghost);color:var(--ink)}
-.chip,.pill,.tone-pill{
-  display:inline-flex;
-  align-items:center;
-  gap:8px;
-  padding:7px 12px;
-  border-radius:999px;
-  border:1px solid var(--line);
-  background:#f8f5ee;
-  color:var(--ink);
-  font-size:13px;
-}
-.tone-pill.good{background:#e0f0eb;color:#16463c}
-.tone-pill.warn{background:#fff0d9;color:#7d5312}
-.tone-pill.danger{background:#fde5de;color:#812f1f}
-.surface{
-  display:grid;
-  gap:16px;
-  background:linear-gradient(180deg,#fcfaf5 0%,#f2ece1 100%);
-  border:1px solid var(--line);
-  border-radius:22px;
-  padding:22px;
-}
-.surface-header{display:flex;justify-content:space-between;gap:12px;align-items:flex-start}
-.surface-header h4{margin:0;font-size:22px}
-.surface-header p,.muted{margin:0;color:var(--muted)}
-.banner{
-  border-radius:18px;
-  padding:14px 16px;
-  border:1px solid var(--line);
-  background:#fff;
-}
-.banner.good{background:#ecf7f3}
-.banner.warn{background:#fff5df}
-.banner.danger{background:#feebe4}
-.field-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}
-.field-card,.metric-card,.provider-card,.task-list article,.task-stage,.mini-card{
-  border:1px solid var(--line);
-  border-radius:18px;
-  background:#fff;
-  padding:14px;
-}
-.field-card.has-error{border-color:#d46a50;background:#fff2ed}
-.field-card header,.provider-card header{display:flex;justify-content:space-between;gap:8px;align-items:center;margin-bottom:10px}
-.field-card strong,.metric-card strong,.provider-card strong{font-size:15px}
-.field-card small,.metric-card small,.provider-card small,.task-list small{color:var(--muted)}
-.field-input,.field-select,.field-textarea{
-  margin-top:10px;
-  width:100%;
-  padding:11px 12px;
-  border-radius:14px;
-  border:1px solid var(--line);
-  background:#faf7f0;
-  color:var(--ink);
-}
-.field-textarea{min-height:110px;resize:none}
-.surface-footer{display:flex;justify-content:space-between;gap:12px;align-items:center;flex-wrap:wrap}
-.device{display:flex;justify-content:center}
-.device-frame{
-  width:360px;
-  max-width:100%;
-  background:linear-gradient(180deg,#ffffff 0%,#faf7f0 100%);
-  border:1px solid var(--line);
-  border-radius:34px;
-  overflow:hidden;
-  box-shadow:0 18px 44px rgba(21,33,38,.14);
-}
-.device-status{
-  display:flex;
-  justify-content:space-between;
-  gap:10px;
-  padding:12px 14px;
-  background:rgba(216,228,223,.55);
-}
-.device-top{padding:16px 16px 10px}
-.device-top strong{display:block;font-size:16px;margin-bottom:6px}
-.device-body{padding:0 16px 16px;display:grid;gap:12px}
-.device-header{
-  border:1px solid var(--line);
-  border-radius:18px;
-  background:#fff;
-  padding:12px;
-}
-.device-title{font-weight:800;font-size:15px;line-height:1.2}
-.device-subtitle{margin-top:6px;color:var(--muted);font-size:13px;line-height:1.3}
-.device-banner{
-  border:1px solid var(--line);
-  border-radius:18px;
-  padding:12px;
-  background:#fff;
-  display:flex;
-  align-items:center;
-  gap:8px;
-  flex-wrap:wrap;
-}
-.device-banner.good{background:#ecf7f3}
-.device-banner.warn{background:#fff5df}
-.device-banner.danger{background:#feebe4}
-.device-dot{opacity:.6}
-.device-pill-row{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
-.device-compare{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
-.device-card h6{margin:0 0 8px;font-size:13px}
-.device-list{margin:0;padding-left:18px;color:var(--muted)}
-.device-section h5{
-  margin:0 0 8px;
-  font-size:12px;
-  letter-spacing:.12em;
-  text-transform:uppercase;
-  color:var(--muted);
-}
-.device-card{
-  border:1px solid var(--line);
-  border-radius:18px;
-  background:#fff;
-  padding:12px;
-  display:grid;
-  gap:8px;
-}
-.device-pre{
-  margin:0;
-  white-space:pre-wrap;
-  line-height:1.35;
-  font-family:"IBM Plex Mono","Cascadia Code",monospace;
-  font-size:12px;
-  color:#2b3a3f;
-}
-.device-row{
-  display:flex;
-  justify-content:space-between;
-  gap:10px;
-  padding-bottom:8px;
-  border-bottom:1px dashed var(--line);
-}
-.device-row:last-child{border-bottom:0;padding-bottom:0}
-.device-bottom{
-  padding:14px 16px 18px;
-  background:#fff;
-  display:flex;
-  gap:10px;
-  border-top:1px solid var(--line);
-}
-.device-cta{
-  flex:1;
-  border:0;
-  border-radius:999px;
-  padding:11px 14px;
-  font:inherit;
-  opacity:.9;
-}
-.device-cta[data-tone="primary"]{background:var(--primary);color:var(--primary-ink)}
-.device-cta[data-tone="danger"]{background:var(--danger);color:var(--danger-ink)}
-.device-cta[data-tone="secondary"]{background:var(--secondary);color:var(--secondary-ink)}
-.device-cta[data-tone="ghost"]{background:var(--ghost);color:var(--ink)}
-.task-grid{display:grid;grid-template-columns:260px 1fr;gap:16px}
-.task-list{display:grid;gap:12px}
-.task-list article.active{border-color:var(--primary);box-shadow:inset 0 0 0 1px rgba(31,106,91,.18)}
-.progress-track{height:10px;border-radius:999px;background:#e6dfd1;overflow:hidden}
-.progress-fill{height:100%;border-radius:999px;background:linear-gradient(90deg,#1f6a5b 0%,#68a896 100%)}
-.metric-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
-.provider-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
-.provider-card.active{border-color:var(--primary);background:#eef7f3}
-.kv-list{display:grid;gap:12px}
-.kv-row{
-  display:flex;
-  justify-content:space-between;
-  gap:12px;
-  align-items:flex-start;
-  padding-bottom:10px;
-  border-bottom:1px dashed var(--line);
-}
-.kv-row:last-child{border-bottom:0;padding-bottom:0}
-.kv-row code{font-family:"IBM Plex Mono","Cascadia Code",monospace}
-.list-tight,pre{margin:0}
-pre{
-  white-space:pre-wrap;
-  line-height:1.35;
-  color:#2b3a3f;
-  background:#f8f5ee;
-  border:1px solid var(--line);
-  border-radius:18px;
-  padding:16px;
-}
-.actions-card{display:flex;justify-content:space-between;align-items:center;gap:16px;flex-wrap:wrap}
-.actions-meta{display:grid;gap:6px}
-.actions-meta strong{font-size:15px}
-.wireframe-card{grid-column:1 / -1}
-.source-list li{word-break:break-word}
-.empty{color:var(--muted)}
-@media (max-width:1100px){
-  .app{grid-template-columns:1fr}
-  .preview-grid,.detail-grid,.task-grid,.provider-grid{grid-template-columns:1fr}
-}
-@media (max-width:720px){
-  .canvas{padding:18px}
-  .hero h2{font-size:26px}
-  .field-grid,.metric-grid{grid-template-columns:1fr}
-  .device-compare{grid-template-columns:1fr}
-}"""
+    return read_resource_text("prototype", "styles.css")
 
 
 def _render_app_js() -> str:
-    return """async function boot() {
-  const response = await fetch('mock-data.json');
-  const data = await response.json();
-  let pageIndex = 0;
-  let stateIndex = 0;
-
-  const els = {
-    featTitle: document.getElementById('feat-title'),
-    featRef: document.getElementById('feat-ref'),
-    journeyNav: document.getElementById('journey-nav'),
-    statePills: document.getElementById('state-pills'),
-    sourceRefs: document.getElementById('source-refs'),
-    pageTitle: document.getElementById('page-title'),
-    pageGoal: document.getElementById('page-goal'),
-    heroMeta: document.getElementById('hero-meta'),
-    stateCaption: document.getElementById('state-caption'),
-    previewSurface: document.getElementById('preview-surface'),
-    stateSummary: document.getElementById('state-summary'),
-    completionSummary: document.getElementById('completion-summary'),
-    mainPath: document.getElementById('main-path'),
-    branchPaths: document.getElementById('branch-paths'),
-    fieldBoundary: document.getElementById('field-boundary'),
-    technicalBoundary: document.getElementById('technical-boundary'),
-    wireframe: document.getElementById('wireframe'),
-    actions: document.getElementById('actions'),
-    actionHint: document.getElementById('action-hint'),
-  };
-
-  const stateGroups = {
-    primary: ['success', 'saved', 'connected', 'consistent', 'visible', 'ready', 'offered'],
-    error: ['error', 'failed', 'blocked', 'retryable', 'degraded', 'validation', 'conflict', 'illegal'],
-    skip: ['skip', 'skipped', 'partial', 'conservative', 'recovery', 'provider_selected'],
-  };
-
-  function currentPage() { return data.pages[pageIndex]; }
-  function currentState(page) { return page.states[stateIndex] || page.states[0] || { name: 'initial', ui_behavior: 'No state available', user_options: '' }; }
-  function labelize(text) { return String(text || '').replace(/_/g, ' ').replace(/\\b\\w/g, (match) => match.toUpperCase()); }
-  function renderList(items, emptyText) { return !items || !items.length ? `<p class="empty">${emptyText}</p>` : `<ul class="list-tight">${items.map((item) => `<li>${item}</li>`).join('')}</ul>`; }
-  function renderFieldTag(field) { return `<div class="mini-card"><strong>${field.label || labelize(field.field)}</strong><p class="muted">${field.type} · ${field.source || 'ui'}</p></div>`; }
-  function previewTone(page, state) {
-    const name = String(state.name || '').toLowerCase();
-    if (name.includes('error') || name.includes('failed') || name.includes('blocked') || name.includes('retryable') || name.includes('illegal')) return 'danger';
-    if (name.includes('conservative') || name.includes('skip') || name.includes('partial') || name.includes('recover')) return 'warn';
-    if (page.page_type_family === 'panel' && name.includes('evaluating')) return 'warn';
-    return 'good';
-  }
-  function valueFromField(field, stateName = '') {
-    const key = String(field.field || '').toLowerCase();
-    if (key.includes('percent')) return '40%';
-    if (key.includes('advice_level')) return '可执行保守建议';
-    if (key.includes('first_week_action')) return '周二轻松跑 20 分钟 + 周末快走';
-    if (key.includes('needs_more_info')) return '补充 injury 与训练基础可释放更稳定建议';
-    if (key.includes('device_connect')) return '连接设备可增强后续建议精度';
-    if (key.includes('connection_status')) return stateName.includes('connected') ? 'device_connected' : stateName.includes('failed') ? 'connect_failed' : 'not_connected';
-    if (key.includes('conflict_blocked')) return stateName.includes('conflict') || stateName.includes('illegal') ? 'true' : 'false';
-    if (key.includes('status')) return 'non-blocking';
-    if (key.includes('primary_state')) return 'profile_minimal_done';
-    if (key.includes('capability_flags')) return 'device_connected=false, initial_plan_ready=false';
-    if (key.includes('blocking_reason')) return 'runner_profiles.birthdate 与 user_physical_profile.birthdate 冲突';
-    if (key.includes('recovery_hint')) return '以 user_physical_profile 为 canonical source 重写后重读';
-    if (key.includes('canonical_profile_boundary')) return 'user_physical_profile 是唯一身体事实源';
-    if (key.includes('resolved_profile_refs')) return 'users/basic, user_physical_profile/canonical';
-    if (key.includes('task_cards')) return '基础习惯、周跑量、恢复备注';
-    if (key.includes('next_task_cards')) return '睡眠习惯、训练天数';
-    if (key.includes('experience_enhancement_ready')) return '后续建议可增强';
-    if (key.includes('homepage_access_preserved')) return 'true';
-    if (key.includes('first_advice_access_preserved')) return 'true';
-    return field.note || labelize(field.field);
-  }
-  function renderFieldInput(field, state, idx) {
-    const stateName = String(state.name || '').toLowerCase();
-    const hasError = stateName.includes('validation') || stateName.includes('error');
-    const fieldClass = hasError && idx < 2 ? 'field-card has-error' : 'field-card';
-    const options = field.options && field.options.length ? `<div class="info-chip-row">${field.options.slice(0, 4).map((item) => `<span class="chip">${item}</span>`).join('')}</div>` : '';
-    const control = field.type === 'text' ? `<textarea class="field-textarea" aria-label="${field.label}" placeholder="${field.note || field.label}">${field.note || ''}</textarea>` : `<input class="field-input" aria-label="${field.label}" placeholder="${field.note || field.label}" value="" />`;
-    return `<article class="${fieldClass}"><header><strong>${field.label}</strong><span class="pill">${field.required ? 'Required' : 'Optional'}</span></header><small>${field.note || field.type}</small>${options}${field.options && field.options.length ? `<div class="field-select">${field.options[0]}</div>` : control}</article>`;
-  }
-  function renderFormSurface(page, state) {
-    const tone = previewTone(page, state);
-    const fields = (page.editable_ui_fields || page.input_fields || []).map((field, idx) => renderFieldInput(field, state, idx)).join('');
-    const errorSummary = String(state.name).toLowerCase().includes('error') || String(state.name).toLowerCase().includes('validation') ? `<div class="banner danger"><strong>字段校验阻断</strong><p>${page.validation_feedback}</p></div>` : '';
-    const successBanner = String(state.name).toLowerCase().includes('success') ? `<div class="banner good"><strong>建档完成，首页已放行</strong><p>${page.success_feedback}</p></div>` : '';
-    return `<section class="surface"><div class="surface-header"><div><h4>${page.title}</h4><p>${page.entry_condition}</p></div><span class="tone-pill ${tone}">${labelize(state.name)}</span></div><div class="banner ${tone}"><strong>One-screen onboarding</strong><p>${page.completion_definition}</p></div>${errorSummary}${successBanner}<div class="field-grid">${fields}</div><div class="surface-footer"><div class="info-chip-row">${(page.required_fields || []).map((item) => `<span class="chip">${item}</span>`).join('')}</div></div></section>`;
-  }
-  function renderPanelSurface(page, state) {
-    const tone = previewTone(page, state);
-    const stateName = String(state.name || '').toLowerCase();
-    const visibleKeys = stateName.includes('degraded')
-      ? ['needs_more_info_prompt', 'device_connect_prompt', 'advice_mode']
-      : stateName.includes('conservative')
-        ? ['needs_more_info_prompt', 'device_connect_prompt', 'advice_mode']
-        : stateName.includes('loading') || stateName.includes('evaluating')
-          ? ['advice_mode']
-          : ['training_advice_level', 'first_week_action', 'needs_more_info_prompt', 'device_connect_prompt'];
-    const fields = (page.display_fields || [])
-      .filter((field) => visibleKeys.includes(field.field))
-      .map((field) => `<article class="metric-card"><strong>${field.label}</strong><p class="muted">${valueFromField(field, stateName)}</p></article>`)
-      .join('');
-    const guidance = tone === 'good' ? page.success_feedback : tone === 'warn' ? (page.validation_feedback || page.error_feedback) : page.error_feedback;
-    return `<section class="surface"><div class="surface-header"><div><h4>${page.title}</h4><p>${page.page_goal}</p></div><span class="tone-pill ${tone}">${labelize(state.name)}</span></div><div class="banner ${tone}"><strong>${tone === 'good' ? '正常建议可见' : tone === 'warn' ? '保守提示 / 补充路径' : '建议生成异常'}</strong><p>${guidance}</p></div><div class="metric-grid">${fields}</div></section>`;
-  }
-  function renderCardListSurface(page, state) {
-    const tone = previewTone(page, state);
-    const tasks = ['基础习惯', '周跑量', '恢复备注', '训练频次'];
-    const activeField = (page.editable_ui_fields || [])[0];
-    const activeControl = activeField ? `<label class="field-card"><header><strong>${activeField.label}</strong><span class="pill">${activeField.required ? 'Required' : 'Optional'}</span></header><small>${activeField.note || activeField.type}</small><textarea class="field-textarea" placeholder="${activeField.note || activeField.label}"></textarea></label>` : '<p class="empty">No editable task-card field available.</p>';
-    return `<section class="surface"><div class="surface-header"><div><h4>${page.title}</h4><p>${page.page_goal}</p></div><span class="tone-pill ${tone}">${labelize(state.name)}</span></div><div class="banner good"><strong>Profile completion 40%</strong><p>${page.success_feedback}</p><div class="progress-track"><div class="progress-fill" style="width:40%"></div></div></div><div class="task-grid"><aside class="task-list">${tasks.map((task, idx) => `<article class="${idx === 0 ? 'active' : ''}"><strong>${task}</strong><small>${idx === 0 ? '当前任务卡' : '待补全'}</small></article>`).join('')}</aside><div class="task-stage">${activeControl}</div></div></section>`;
-  }
-  function renderEntrySurface(page, state) {
-    const tone = previewTone(page, state);
-    const stateName = String(state.name || '').toLowerCase();
-    const providers = ['Garmin', 'Apple Watch', 'Coros'];
-    const showProviders = !(stateName.includes('skipped') || stateName.includes('failed') || stateName.includes('connected'));
-    const metrics = (page.display_fields || [])
-      .filter((field) => stateName.includes('connected') ? field.field !== 'connection_status' || true : !field.field.includes('experience_enhancement_ready') || stateName.includes('connected'))
-      .map((field) => `<article class="metric-card"><strong>${field.label}</strong><p class="muted">${valueFromField(field, stateName)}</p></article>`)
-      .join('');
-    const summary = stateName.includes('skipped')
-      ? '用户已跳过设备连接，首页和首轮建议继续可用。'
-      : stateName.includes('connected')
-        ? '设备已连接，后续增强体验已解锁。'
-        : stateName.includes('failed')
-          ? '连接失败被视为非阻塞事件，允许用户稍后重试。'
-          : '连接设备只会增强体验，不会回退主链完成态。';
-    return `<section class="surface"><div class="surface-header"><div><h4>${page.title}</h4><p>${page.page_goal}</p></div><span class="tone-pill ${tone}">${labelize(state.name)}</span></div><div class="banner ${tone === 'danger' ? 'danger' : 'good'}"><strong>设备连接是后置增强，不阻塞首页</strong><p>${summary}</p></div>${showProviders ? `<div class="provider-grid">${providers.map((name, idx) => `<article class="provider-card ${idx === 0 ? 'active' : ''}"><header><strong>${name}</strong><span class="pill">${idx === 0 ? 'selected' : 'available'}</span></header><small>连接后提升后续建议精度，不改变首页放行状态。</small></article>`).join('')}</div>` : ''}<div class="metric-grid">${metrics}</div></section>`;
-  }
-  function renderStatusSurface(page, state) {
-    const tone = previewTone(page, state);
-    const stateName = String(state.name || '').toLowerCase();
-    const rows = (page.ui_visible_fields || [])
-      .filter((field) => {
-        if (stateName.includes('conflict') || stateName.includes('illegal')) {
-          return ['blocking_reason', 'recovery_hint', 'canonical_profile_boundary'].includes(field.field);
-        }
-        return !['blocking_reason', 'recovery_hint'].includes(field.field);
-      })
-      .map((field) => `<div class="kv-row"><strong>${field.label}</strong><code>${valueFromField(field, stateName)}</code></div>`)
-      .join('');
-    return `<section class="surface"><div class="surface-header"><div><h4>${page.title}</h4><p>${page.page_goal}</p></div><span class="tone-pill ${tone}">${labelize(state.name)}</span></div><div class="banner ${tone}"><strong>${tone === 'danger' ? 'Conflict blocked' : 'Unified state available'}</strong><p>${tone === 'danger' ? page.error_feedback : page.success_feedback}</p></div><div class="kv-list">${rows}</div></section>`;
-  }
-  function renderGenericSurface(page, state) {
-    const tone = previewTone(page, state);
-    return `<section class="surface"><div class="surface-header"><div><h4>${page.title}</h4><p>${page.page_goal}</p></div><span class="tone-pill ${tone}">${labelize(state.name)}</span></div><div class="banner ${tone}"><strong>Preview</strong><p>${state.ui_behavior}</p></div>${renderList(page.main_path, 'No path defined.')}</section>`;
-  }
-  function renderUiSpecSurface(page, state) {
-    const tone = previewTone(page, state);
-    const wireframe = String(page.ascii_wireframe || '').trim();
-
-    function escapeHtml(text) {
-      return String(text || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-    }
-
-    function wireframeButtons(text) {
-      const matches = String(text || '').match(/\\[[^\\]]+\\]/g) || [];
-      const normalized = matches.map((item) => item.replace(/^\\[|\\]$/g, '').trim()).filter(Boolean);
-      return Array.from(new Set(normalized));
-    }
-
-    function wireframeBlocks(text) {
-      const lines = String(text || '').split('\\n');
-      const blocks = [];
-      let current = [];
-      for (const line of lines) {
-        if (line.trim().startsWith('+')) {
-          if (current.length) { blocks.push(current); current = []; }
-          continue;
-        }
-        if (!line.includes('|')) continue;
-        const inner = line.replace(/^\\|\\s?/, '').replace(/\\s?\\|\\s*$/, '').replace(/\\s+$/g, '');
-        if (inner.trim()) current.push(inner);
-      }
-      if (current.length) blocks.push(current);
-      return blocks.slice(0, 10);
-    }
-
-    function renderWireframeCards(text) {
-      if (!text) return '<div class="device-card"><p class="muted">No ASCII wireframe provided.</p></div>';
-      const blocks = wireframeBlocks(text);
-      if (!blocks.length) return `<div class="device-card"><pre class="device-pre">${escapeHtml(text)}</pre></div>`;
-      return blocks.map((block) => `<div class="device-card"><pre class="device-pre">${escapeHtml(block.join('\\n'))}</pre></div>`).join('');
-    }
-
-    const wireframeCtas = wireframeButtons(wireframe);
-    const fallbackCtas = (page.buttons || []).filter((button) => button.action !== 'reset').slice(0, 2).map((button) => button.label);
-    const ctas = (wireframeCtas.length ? wireframeCtas : fallbackCtas).slice(0, 2);
-    const actionButtons = ctas.map((label, idx) => {
-      const btnTone = idx === 0 ? 'primary' : 'ghost';
-      return `<button class="device-cta" type="button" disabled data-tone="${btnTone}">${label}</button>`;
-    }).join('');
-
-    const header = `<div class="device-header"><div class="device-title">${page.title}</div><div class="device-subtitle">${page.page_goal || ''}</div></div>`;
-    const meta = `<div class="device-banner ${tone}"><strong>${labelize(state.name)}</strong><span class="device-dot">·</span><span class="muted">${page.page_type || page.page_type_family}</span></div>`;
-    const cards = renderWireframeCards(wireframe);
-
-    return `<section class="device"><div class="device-frame"><div class="device-status"><span class="pill">${page.fidelity_class || 'ui'}</span><span class="pill">${tone}</span></div><div class="device-body">${header}${meta}${cards}</div><div class="device-bottom">${actionButtons}</div></div></section>`;
-  }
-  function renderSurface(page, state) {
-    if (page.fidelity_class === 'ui_spec_backed') return renderUiSpecSurface(page, state);
-    switch (page.page_type_family) {
-      case 'form': return renderFormSurface(page, state);
-      case 'panel': return renderPanelSurface(page, state);
-      case 'card_list': return renderCardListSurface(page, state);
-      case 'entry': return renderEntrySurface(page, state);
-      case 'status': return renderStatusSurface(page, state);
-      default: return renderGenericSurface(page, state);
-    }
-  }
-  function findStateIndex(page, tokens) {
-    const states = page.states || [];
-    for (const token of tokens) {
-      const idx = states.findIndex((state) => String(state.name || '').toLowerCase().includes(token));
-      if (idx >= 0) return idx;
-    }
-    return -1;
-  }
-  function targetStateIndex(page, action) {
-    if (action === 'reset') return 0;
-    const tokens = stateGroups[action] || [];
-    const idx = findStateIndex(page, tokens);
-    if (idx >= 0) return idx;
-    if (action === 'primary') return Math.min((page.states || []).length - 1, 1);
-    if (action === 'error') return Math.min((page.states || []).length - 1, 2);
-    if (action === 'skip') return Math.min((page.states || []).length - 1, 3);
-    return 0;
-  }
-  function render() {
-    const page = currentPage();
-    const state = currentState(page);
-    document.title = `${data.feat_title} Prototype`;
-    els.featTitle.textContent = data.feat_title;
-    els.featRef.textContent = data.feat_ref;
-    els.journeyNav.innerHTML = data.pages.map((item, idx) => `<li class="${idx === pageIndex ? 'active' : ''}"><a href="#" data-page="${idx}">${item.title}</a></li>`).join('');
-    els.statePills.innerHTML = (page.states || []).map((item, idx) => `<button type="button" class="${idx === stateIndex ? 'active' : ''}" data-state="${idx}">${labelize(item.name)}</button>`).join('');
-    els.sourceRefs.innerHTML = (data.source_refs || []).map((item) => `<li>${item}</li>`).join('');
-    els.pageTitle.textContent = page.title;
-    els.pageGoal.textContent = page.page_goal;
-    els.heroMeta.innerHTML = `<span class="chip">${page.page_type_family}</span><span class="chip">${page.platform}</span><span class="chip">${page.fidelity_class || 'unknown'}</span><span class="chip">${page.ui_spec_id || 'feat-derived'}</span>`;
-    els.stateCaption.textContent = `${labelize(state.name)} · ${state.trigger || ''}`;
-    els.previewSurface.innerHTML = renderSurface(page, state);
-    els.stateSummary.innerHTML = `<p><strong>${labelize(state.name)}</strong></p><p class="muted">${state.ui_behavior || ''}</p><p class="muted">${state.user_options || ''}</p>`;
-    els.completionSummary.innerHTML = `<p><strong>Entry</strong></p><p class="muted">${page.entry_condition}</p><p><strong>Completion</strong></p><p class="muted">${page.completion_definition}</p><p><strong>Exit</strong></p><p class="muted">${page.exit_condition}</p>`;
-    els.mainPath.innerHTML = (page.main_path || []).map((step) => `<li>${step}</li>`).join('');
-    els.branchPaths.innerHTML = (page.branch_paths || []).map((branch) => `<article class="mini-card"><strong>${branch.title}</strong>${renderList(branch.steps || [], 'No branch steps.')}</article>`).join('');
-    els.fieldBoundary.innerHTML = `<p><strong>Required user-visible fields</strong></p>${renderList(page.required_ui_fields || [], 'No explicit required UI fields.')}<p><strong>UI-visible</strong></p><div class="info-chip-row">${(page.ui_visible_fields || []).map(renderFieldTag).join('') || '<p class="empty">No UI-visible fields.</p>'}</div><p><strong>Technical payload</strong></p><div class="info-chip-row">${(page.technical_payload_fields || []).map(renderFieldTag).join('') || '<p class="empty">No technical payload fields.</p>'}</div>`;
-    els.technicalBoundary.innerHTML = `<p><strong>Validation rules</strong></p>${renderList(page.frontend_validation_rules || [], 'No validation rules.')}<p><strong>Data dependencies</strong></p>${renderList(page.data_dependencies || [], 'No dependencies listed.')}<p><strong>API touchpoints</strong></p>${renderList(page.api_touchpoints || [], 'No API touchpoints listed.')}<p><strong>Feedback</strong></p>${renderList([page.loading_feedback, page.validation_feedback, page.success_feedback, page.error_feedback, page.retry_behavior].filter(Boolean), 'No feedback guidance.')}`;
-    els.wireframe.textContent = page.ascii_wireframe || 'No ASCII wireframe available.';
-    els.actionHint.innerHTML = `<strong>${(page.action_priority || [page.title])[0] || page.title}</strong><span class="muted">${page.success_feedback || page.retry_behavior || page.validation_feedback || ''}</span>`;
-    els.actions.innerHTML = (page.buttons || []).map((button) => `<button type="button" data-action="${button.action}" data-tone="${button.tone || 'primary'}">${button.label}</button>`).join('');
-  }
-  document.addEventListener('click', (event) => {
-    const pageRef = event.target.getAttribute('data-page');
-    if (pageRef !== null) { event.preventDefault(); pageIndex = Number(pageRef); stateIndex = 0; render(); return; }
-    const stateRef = event.target.getAttribute('data-state');
-    if (stateRef !== null) { stateIndex = Number(stateRef); render(); return; }
-    const action = event.target.getAttribute('data-action');
-    if (!action) return;
-    if (action === 'page_next' && pageIndex < data.pages.length - 1) { pageIndex += 1; stateIndex = 0; render(); return; }
-    if (action === 'page_back' && pageIndex > 0) { pageIndex -= 1; stateIndex = 0; render(); return; }
-    stateIndex = targetStateIndex(currentPage(), action);
-    render();
-  });
-  render();
-}
-boot();"""
-
+    return read_resource_text("prototype", "app.js")
 
 def _review_guide(bundle: dict[str, Any]) -> str:
     return "\n".join(
         [
             "# Prototype Review Guide",
             "",
+            f"0. Read `{bundle['journey_structural_spec_ref']}` and `{bundle['ui_shell_snapshot_ref']}` first.",
             "1. Open `prototype/index.html` in a browser.",
             "2. Click through every page in the left journey navigation.",
             "3. Use the left state pills to inspect every named state.",
@@ -1216,6 +941,77 @@ def _review_guide(bundle: dict[str, Any]) -> str:
     )
 
 
+def _container_hint(page: dict[str, Any]) -> str:
+    return {
+        "form": "page",
+        "entry": "page",
+        "status": "page",
+        "panel": "bottom_sheet",
+        "card_list": "page",
+    }.get(str(page.get("page_type_family") or "").strip(), "page")
+
+
+def _journey_structural_spec(bundle: dict[str, Any]) -> str:
+    lines = [
+        f"# Journey Structural Spec for {bundle['feat_ref']}",
+        "",
+        f"- journey_structural_spec_version: {JOURNEY_SPEC_VERSION}",
+        f"- feat_ref: {bundle['feat_ref']}",
+        f"- feat_title: {bundle['feat_title']}",
+        "",
+        "## 1. Journey Main Chain",
+        *[f"{idx + 1}. {page['title']}" for idx, page in enumerate(bundle["pages"])],
+        "",
+        "## 2. Page Map",
+        *[
+            f"- {page['page_id']}: family={page['page_type_family']} goal={page['page_goal'] or 'n/a'}"
+            for page in bundle["pages"]
+        ],
+        "",
+        "## 3. Decision Points",
+        *[
+            f"- {page['title']}: {'; '.join(state['name'] for state in page.get('states', [])[:4]) or 'no named states'}"
+            for page in bundle["pages"]
+        ],
+        "",
+        "## 4. CTA Hierarchy",
+        *[
+            f"- {page['title']}: primary={next((button['label'] for button in page['buttons'] if button.get('tone') == 'primary'), 'TBD')} | secondary={', '.join(button['label'] for button in page['buttons'] if button.get('tone') != 'primary') or 'none'}"
+            for page in bundle["pages"]
+        ],
+        "",
+        "## 5. Container Hints",
+        *[f"- {page['title']}: {_container_hint(page)}" for page in bundle["pages"]],
+        "",
+        "## 6. Error / Degraded / Retry Paths",
+        *[
+            f"- {page['title']}: {'; '.join(state['name'] for state in page.get('states', []) if any(token in state['name'].lower() for token in ('error', 'failed', 'blocked', 'degraded', 'retry', 'conflict', 'validation'))) or 'no explicit degraded/error path'}"
+            for page in bundle["pages"]
+        ],
+        "",
+        "## 7. Open Questions / Frozen Assumptions",
+        "- Assumption: page family and container choice stay within the current UI Shell Source rules.",
+        f"- Frozen source: {bundle['ui_shell_source_ref']} @ {bundle['ui_shell_version']}",
+    ]
+    return "\n".join(lines)
+
+
+def _validate_journey_structural_spec(text: str) -> list[str]:
+    errors = validate_structured_sections(text, "journey structural spec", JOURNEY_REQUIRED_SECTIONS)
+    if "TBD" in text:
+        errors.append("journey structural spec must not contain TBD placeholders")
+    return errors
+
+
+def _validate_ui_shell_snapshot(text: str) -> list[str]:
+    errors = validate_structured_sections(text, "ui shell snapshot", SHELL_REQUIRED_SECTIONS)
+    metadata = extract_shell_metadata(text)
+    for key in ("ui_shell_source_id", "ui_shell_family", "ui_shell_version", "shell_change_policy"):
+        if not metadata.get(key):
+            errors.append(f"ui shell snapshot missing metadata: {key}")
+    return errors
+
+
 def build_package(context: dict[str, Any], repo_root: Path, run_id: str, allow_update: bool) -> dict[str, Any]:
     feat_ref = context["feat_ref"]
     feature = context["feature"]
@@ -1223,6 +1019,9 @@ def build_package(context: dict[str, Any], repo_root: Path, run_id: str, allow_u
     if output_dir.exists() and not allow_update:
         return {"ok": False, "errors": [f"output directory already exists: {output_dir}"]}
     output_dir.mkdir(parents=True, exist_ok=True)
+    ui_shell_source_text = Path(WORKSPACE_ROOT / UI_SHELL_SOURCE_REF).read_text(encoding="utf-8")
+    ui_shell_metadata = extract_shell_metadata(ui_shell_source_text)
+    ui_shell_snapshot_hash = sha256_text(ui_shell_source_text)
     feat_title = first(feature.get("title"), "").strip()
     ui_spec_context = resolve_ui_spec_bundle(repo_root, feat_ref, feat_title)
     units = d_list(ui_spec_context["bundle"].get("ui_specs")) if ui_spec_context else build_units(feature, feat_ref)
@@ -1233,11 +1032,24 @@ def build_package(context: dict[str, Any], repo_root: Path, run_id: str, allow_u
         "feat_ref": feat_ref,
         "feat_title": feat_title or feat_ref,
         "prototype_entry_ref": "prototype/index.html",
+        "journey_structural_spec_ref": JOURNEY_SPEC_REF,
+        "journey_structural_spec_version": JOURNEY_SPEC_VERSION,
+        "journey_ascii_ref": JOURNEY_SPEC_REF,
+        "ui_shell_snapshot_ref": UI_SHELL_SNAPSHOT_REF,
+        "ui_shell_ref": UI_SHELL_SNAPSHOT_REF,
+        "ui_shell_source_ref": UI_SHELL_SOURCE_REF,
+        "ui_shell_version": ui_shell_metadata.get("ui_shell_version", ""),
+        "ui_shell_family": ui_shell_metadata.get("ui_shell_family", ""),
+        "ui_shell_snapshot_hash": ui_shell_snapshot_hash,
+        "shell_change_policy": ui_shell_metadata.get("shell_change_policy", ""),
         "prototype_source": "ui_spec_package" if ui_spec_context else "feat_freeze_package",
         "ui_spec_package_ref": rel(ui_spec_context["path"], repo_root) if ui_spec_context else "",
         "pages": pages,
         "source_refs": (ui_spec_context["bundle"].get("source_refs") if ui_spec_context else None) or feature.get("source_refs") or context["bundle"].get("source_refs") or [],
     }
+    if _is_src002_hifi_required(context):
+        bundle["prototype_source"] = "src002_journey_hifi_template"
+        bundle["fidelity_target"] = "hifi_interactive_html"
     defects = [{"page_id": page["page_id"], "type": "human_review_pending"} for page in pages]
     fidelity_issues: list[str] = []
     blocking_points = [{"id": "human-review-required", "description": "Prototype must be reviewed by a human."}]
@@ -1279,10 +1091,43 @@ def build_package(context: dict[str, Any], repo_root: Path, run_id: str, allow_u
         "gate_name": "Prototype Human Review Gate",
         "freeze_ready": False,
         "checked_at": utc_now(),
-        "checks": {"human_review_approved": False, "review_coverage_complete": True, "no_blocking_points": False},
+        "checks": {
+            "human_review_approved": False,
+            "review_coverage_complete": True,
+            "no_blocking_points": False,
+            "journey_structural_spec_present": True,
+            "journey_structural_spec_quality_pass": True,
+            "ui_shell_snapshot_present": True,
+            "ui_shell_snapshot_quality_pass": True,
+        },
     }
-    write_json(output_dir / "package-manifest.json", {"artifact_type": "prototype_package", "workflow_key": "dev.feat-to-proto", "run_id": run_id or feat_ref, "feat_ref": feat_ref})
+    journey_structural_spec_text = _journey_structural_spec(bundle)
+    journey_errors = _validate_journey_structural_spec(journey_structural_spec_text)
+    shell_errors = _validate_ui_shell_snapshot(ui_shell_source_text)
+    completeness["journey_structural_spec"] = {"decision": "pass" if not journey_errors else "fail", "errors": journey_errors}
+    completeness["ui_shell_snapshot"] = {"decision": "pass" if not shell_errors else "fail", "errors": shell_errors}
+    if journey_errors or shell_errors or not pages:
+        completeness["decision"] = "fail"
+        freeze_gate["checks"]["journey_structural_spec_quality_pass"] = not journey_errors
+        freeze_gate["checks"]["ui_shell_snapshot_quality_pass"] = not shell_errors
+    write_json(
+        output_dir / "package-manifest.json",
+        {
+            "artifact_type": "prototype_package",
+            "workflow_key": "dev.feat-to-proto",
+            "run_id": run_id or feat_ref,
+            "feat_ref": feat_ref,
+            "journey_structural_spec_ref": JOURNEY_SPEC_REF,
+            "ui_shell_snapshot_ref": UI_SHELL_SNAPSHOT_REF,
+            "ui_shell_source_ref": UI_SHELL_SOURCE_REF,
+            "ui_shell_version": bundle["ui_shell_version"],
+            "ui_shell_snapshot_hash": ui_shell_snapshot_hash,
+            "shell_change_policy": bundle["shell_change_policy"],
+        },
+    )
     write_json(output_dir / "prototype-bundle.json", bundle)
+    write_text(output_dir / JOURNEY_SPEC_REF, journey_structural_spec_text)
+    write_text(output_dir / UI_SHELL_SNAPSHOT_REF, ui_shell_source_text)
     write_text(
         output_dir / "prototype-bundle.md",
         "\n".join(
@@ -1292,11 +1137,88 @@ def build_package(context: dict[str, Any], repo_root: Path, run_id: str, allow_u
                 f"- feat_title: {bundle['feat_title']}",
                 f"- page_count: {len(pages)}",
                 f"- prototype_source: {bundle['prototype_source']}",
+                f"- journey_structural_spec_ref: {bundle['journey_structural_spec_ref']}",
+                f"- ui_shell_snapshot_ref: {bundle['ui_shell_snapshot_ref']}",
+                f"- ui_shell_source_ref: {bundle['ui_shell_source_ref']}",
+                f"- ui_shell_version: {bundle['ui_shell_version']}",
                 *[f"- page: {page['title']} | family={page['page_type_family']} | states={len(page['states'])}" for page in pages],
             ]
         ),
     )
     write_text(output_dir / "prototype-flow-map.md", "\n".join(["# Prototype Flow Map", "", *[f"{index+1}. {page['title']}" for index, page in enumerate(pages)]]))
+    prototype_dir = output_dir / "prototype"
+    if _is_src002_hifi_required(context):
+        _copy_template_dir(SRC002_HIFI_TEMPLATE_ROOT, prototype_dir)
+    else:
+        write_text(prototype_dir / "index.html", _render_index_html(bundle["feat_title"]))
+        write_text(prototype_dir / "styles.css", _render_styles())
+        write_text(prototype_dir / "app.js", _render_app_js())
+
+    mock_payload = {
+        "feat_ref": feat_ref,
+        "feat_title": bundle["feat_title"],
+        "source_refs": bundle["source_refs"],
+        "journey_structural_spec_ref": JOURNEY_SPEC_REF,
+        "ui_shell_snapshot_ref": UI_SHELL_SNAPSHOT_REF,
+        "pages": pages,
+    }
+    write_json(prototype_dir / "mock-data.json", mock_payload)
+    write_text(prototype_dir / "mock-data.js", "window.__LEE_PROTO_DATA__ = " + json.dumps(mock_payload, ensure_ascii=False, indent=2) + ";\n")
+
+    if _is_src002_hifi_required(context):
+        handoff = load_json(Path(context["input_dir"]) / "handoff-to-feat-downstreams.json")
+        journey_model = {
+            "feat_ref": "SRC002-JOURNEY",
+            "journey_surface_inventory": handoff.get("journey_surface_inventory") or [],
+            "journey_main_path": handoff.get("journey_main_path") or [],
+            "feat_dependency_order": [item.get("feat_ref") for item in (handoff.get("feature_dependency_map") or []) if isinstance(item, dict) and item.get("feat_ref")],
+            "checked_at": utc_now(),
+        }
+        write_json(prototype_dir / "journey-model.json", journey_model)
+        write_text(prototype_dir / "journey-model.js", "window.__LEE_JOURNEY_MODEL__ = " + json.dumps(journey_model, ensure_ascii=False, indent=2) + ";\n")
+
+    fidelity_report = _build_fidelity_report(bundle, context)
+    route_map = _build_route_map(bundle, context)
+    route_map["decision"] = "pass" if str(route_map.get("entry_route_id") or "").strip() and route_map.get("routes") else "fail"
+    route_map["checked_at"] = utc_now()
+    reachability_report = _check_journey_reachability(route_map, context)
+    initial_view_report = _check_initial_view_integrity(prototype_dir)
+    placeholder_report = _placeholder_lint(prototype_dir)
+    runtime_smoke_report = _runtime_smoke(prototype_dir, context)
+
+    write_json(output_dir / "prototype-fidelity-report.json", fidelity_report)
+    write_json(output_dir / "prototype-route-map.json", route_map)
+    write_json(output_dir / "prototype-journey-reachability-report.json", reachability_report)
+    write_json(output_dir / "prototype-initial-view-report.json", initial_view_report)
+    write_json(output_dir / "prototype-placeholder-lint.json", placeholder_report)
+    write_json(output_dir / "prototype-runtime-smoke.json", runtime_smoke_report)
+
+    completeness["fidelity_gate"] = fidelity_report
+    completeness["route_map"] = {"decision": route_map["decision"], "entry_route_id": route_map.get("entry_route_id"), "route_count": len(route_map.get("routes") or [])}
+    completeness["journey_reachability"] = reachability_report
+    completeness["initial_view_integrity"] = initial_view_report
+    completeness["placeholder_lint"] = placeholder_report
+    completeness["runtime_smoke"] = runtime_smoke_report
+
+    freeze_gate["checks"]["fidelity_gate_pass"] = fidelity_report.get("decision") == "pass"
+    freeze_gate["checks"]["route_map_present"] = route_map.get("decision") == "pass"
+    freeze_gate["checks"]["journey_reachability_pass"] = reachability_report.get("decision") == "pass"
+    freeze_gate["checks"]["initial_view_integrity_pass"] = initial_view_report.get("decision") == "pass"
+    freeze_gate["checks"]["placeholder_lint_pass"] = placeholder_report.get("decision") in {"pass", "warn"}
+    freeze_gate["checks"]["runtime_smoke_pass"] = runtime_smoke_report.get("decision") == "pass"
+
+    if (
+        fidelity_report.get("decision") != "pass"
+        or route_map.get("decision") != "pass"
+        or reachability_report.get("decision") != "pass"
+        or initial_view_report.get("decision") != "pass"
+        or runtime_smoke_report.get("decision") != "pass"
+        or journey_errors
+        or shell_errors
+        or not pages
+    ):
+        completeness["decision"] = "fail"
+
     write_text(output_dir / "prototype-review-guide.md", _review_guide(bundle))
     write_json(output_dir / "prototype-completeness-report.json", completeness)
     write_json(output_dir / "prototype-review-report.json", review)
@@ -1304,10 +1226,6 @@ def build_package(context: dict[str, Any], repo_root: Path, run_id: str, allow_u
     write_json(output_dir / "prototype-freeze-gate.json", freeze_gate)
     write_json(output_dir / "execution-evidence.json", {"workflow_key": "dev.feat-to-proto", "run_id": run_id or feat_ref, "generated_at": utc_now(), "artifacts_dir": str(output_dir)})
     write_json(output_dir / "supervision-evidence.json", {"workflow_key": "dev.feat-to-proto", "run_id": run_id or feat_ref, "review_completed_at": utc_now(), "decision": "review_required"})
-    write_text(output_dir / "prototype" / "index.html", _render_index_html(bundle["feat_title"]))
-    write_text(output_dir / "prototype" / "styles.css", _render_styles())
-    write_text(output_dir / "prototype" / "app.js", _render_app_js())
-    write_json(output_dir / "prototype" / "mock-data.json", {"feat_ref": feat_ref, "feat_title": bundle["feat_title"], "source_refs": bundle["source_refs"], "pages": pages})
     return {"ok": True, "artifacts_dir": str(output_dir), "freeze_ready": False}
 
 
@@ -1316,11 +1234,44 @@ def validate_output_package(artifacts_dir: Path) -> tuple[list[str], dict[str, A
     if errors:
         return errors, {}
     review = load_json(artifacts_dir / "prototype-review-report.json")
+    bundle = load_json(artifacts_dir / "prototype-bundle.json")
+    journey_text = (artifacts_dir / JOURNEY_SPEC_REF).read_text(encoding="utf-8")
+    shell_text = (artifacts_dir / UI_SHELL_SNAPSHOT_REF).read_text(encoding="utf-8")
+    fidelity = load_json(artifacts_dir / "prototype-fidelity-report.json")
+    route_map = load_json(artifacts_dir / "prototype-route-map.json")
+    reachability = load_json(artifacts_dir / "prototype-journey-reachability-report.json")
+    initial_view = load_json(artifacts_dir / "prototype-initial-view-report.json")
+    placeholder = load_json(artifacts_dir / "prototype-placeholder-lint.json")
+    runtime_smoke = load_json(artifacts_dir / "prototype-runtime-smoke.json")
     errors.extend(validate_prototype_review(review))
+    errors.extend(_validate_journey_structural_spec(journey_text))
+    errors.extend(_validate_ui_shell_snapshot(shell_text))
+    for key in ("journey_structural_spec_ref", "ui_shell_snapshot_ref", "ui_shell_source_ref", "ui_shell_version", "ui_shell_snapshot_hash", "shell_change_policy"):
+        if not str(bundle.get(key) or "").strip():
+            errors.append(f"prototype bundle missing {key}")
+
+    def _decision(label: str, payload: dict[str, Any]) -> str:
+        decision = str((payload or {}).get("decision") or "").strip().lower()
+        if decision not in {"pass", "fail", "warn"}:
+            errors.append(f"{label} missing/invalid decision: {decision or '(empty)'}")
+        return decision
+
+    if _decision("prototype-fidelity-report.json", fidelity) != "pass":
+        errors.append("prototype fidelity gate failed")
+    if _decision("prototype-route-map.json", route_map) != "pass":
+        errors.append("prototype route map gate failed")
+    if _decision("prototype-journey-reachability-report.json", reachability) != "pass":
+        errors.append("prototype journey reachability gate failed")
+    if _decision("prototype-initial-view-report.json", initial_view) != "pass":
+        errors.append("prototype initial view integrity gate failed")
+    if _decision("prototype-runtime-smoke.json", runtime_smoke) != "pass":
+        errors.append("prototype runtime smoke gate failed")
+    if _decision("prototype-placeholder-lint.json", placeholder) == "fail":
+        errors.append("prototype placeholder lint gate failed")
     return errors, {
         "review": review,
         "freeze_gate": load_json(artifacts_dir / "prototype-freeze-gate.json"),
-        "bundle": load_json(artifacts_dir / "prototype-bundle.json"),
+        "bundle": bundle,
     }
 
 
@@ -1352,11 +1303,15 @@ def supervisor_review(artifacts_dir: Path, run_id: str) -> dict[str, Any]:
     gate = load_json(artifacts_dir / "prototype-freeze-gate.json")
     gate["freeze_ready"] = ok
     gate["checked_at"] = utc_now()
-    gate["checks"] = {
-        "human_review_approved": ok,
-        "review_coverage_complete": not errors,
-        "no_blocking_points": ok,
-    }
+    checks = gate.get("checks") if isinstance(gate.get("checks"), dict) else {}
+    checks.update(
+        {
+            "human_review_approved": ok,
+            "review_coverage_complete": not errors,
+            "no_blocking_points": ok,
+        }
+    )
+    gate["checks"] = checks
     write_json(artifacts_dir / "prototype-freeze-gate.json", gate)
     write_json(
         artifacts_dir / "supervision-evidence.json",

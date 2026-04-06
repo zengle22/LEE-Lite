@@ -99,6 +99,17 @@ def test_feat_to_proto_requires_human_approval_before_freeze(tmp_path: Path) -> 
     result = json.loads(run.stdout)
     artifacts_dir = Path(result["artifacts_dir"])
     assert (artifacts_dir / "prototype" / "index.html").exists()
+    bundle = json.loads((artifacts_dir / "prototype-bundle.json").read_text(encoding="utf-8"))
+    completeness = json.loads((artifacts_dir / "prototype-completeness-report.json").read_text(encoding="utf-8"))
+    assert bundle["journey_structural_spec_ref"] == "journey-ux-ascii.md"
+    assert bundle["ui_shell_snapshot_ref"] == "ui-shell-spec.md"
+    assert bundle["ui_shell_version"] == "1.0.0"
+    assert bundle["shell_change_policy"] == "governance-only"
+    assert len(bundle["ui_shell_snapshot_hash"]) == 64
+    assert (artifacts_dir / "journey-ux-ascii.md").exists()
+    assert (artifacts_dir / "ui-shell-spec.md").exists()
+    assert completeness["journey_structural_spec"]["decision"] == "pass"
+    assert completeness["ui_shell_snapshot"]["decision"] == "pass"
 
     freeze = subprocess.run(
         [sys.executable, "scripts/feat_to_proto.py", "freeze-guard", "--artifacts-dir", str(artifacts_dir)],
