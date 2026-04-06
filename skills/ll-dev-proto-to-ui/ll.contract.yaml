@@ -4,7 +4,7 @@ version: 0.1.0
 workflow_key: dev.proto-to-ui
 
 authority:
-  canonical_adr: ssot/adr/ADR-040-FEAT-to-UI 拆分为 Prototype Freeze 与 UI Spec 派生双阶段基线.MD
+  canonical_adr: ssot/adr/ADR-041-FEAT-to-PROTOTYPE 前增加 Journey ASCII 产物并引入固定 UI Shell 引用基线.MD
   upstream_skill: ll-dev-feat-to-proto
 
 roles:

@@ -3,6 +3,8 @@ schema_version: 1.0.0
 required_runtime_artifacts:
   - package-manifest.json
   - prototype-bundle.json
+  - journey-ux-ascii.md
+  - ui-shell-spec.md
   - prototype-review-report.json
   - prototype-freeze-gate.json
   - execution-evidence.json
