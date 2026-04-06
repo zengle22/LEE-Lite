@@ -2,13 +2,20 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "ll-dev-feat-to-proto output",
   "type": "object",
-  "required": ["artifact_type", "workflow_key", "feat_ref", "pages", "prototype_entry_ref"],
+  "required": ["artifact_type", "workflow_key", "feat_ref", "pages", "prototype_entry_ref", "journey_structural_spec_ref", "journey_structural_spec_version", "ui_shell_snapshot_ref", "ui_shell_source_ref", "ui_shell_version", "ui_shell_snapshot_hash", "shell_change_policy"],
   "properties": {
     "artifact_type": { "type": "string", "const": "prototype_package" },
     "workflow_key": { "type": "string", "const": "dev.feat-to-proto" },
     "feat_ref": { "type": "string" },
     "pages": { "type": "array", "items": { "type": "object" } },
-    "prototype_entry_ref": { "type": "string" }
+    "prototype_entry_ref": { "type": "string" },
+    "journey_structural_spec_ref": { "type": "string" },
+    "journey_structural_spec_version": { "type": "string" },
+    "ui_shell_snapshot_ref": { "type": "string" },
+    "ui_shell_source_ref": { "type": "string" },
+    "ui_shell_version": { "type": "string" },
+    "ui_shell_snapshot_hash": { "type": "string" },
+    "shell_change_policy": { "type": "string" }
   },
   "additionalProperties": true
 }

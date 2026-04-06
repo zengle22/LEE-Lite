@@ -10,7 +10,7 @@ The output is a static HTML prototype, not production frontend code.
 
 ## Runtime Boundary
 
-- Interpret this skill through `E:\ai\LEE-Lite-skill-first\ssot\adr\ADR-040-FEAT-to-UI 拆分为 Prototype Freeze 与 UI Spec 派生双阶段基线.MD`.
+- Interpret this skill through `E:\ai\LEE-Lite-skill-first\ssot\adr\ADR-041-FEAT-to-PROTOTYPE 前增加 Journey ASCII 产物并引入固定 UI Shell 引用基线.MD`.
 - This skill stops at experience prototyping and review gating.
 - It does not emit final `ui_spec_package`.
 
@@ -20,13 +20,19 @@ The output is a static HTML prototype, not production frontend code.
 2. Accept only one governed `feat_freeze_package` plus an explicit `feat_ref`.
 3. `--input` may be either the FEAT package directory or a `formal.feat.*` admission ref.
 4. Run `python scripts/feat_to_proto.py run --input <feat-package-dir-or-formal-ref> --feat-ref <feat-ref> --repo-root <repo-root>`.
-5. Generate a static HTML prototype with:
+5. Generate:
+   - `journey-ux-ascii.md` as the Journey Structural Spec
+   - `ui-shell-spec.md` as a snapshot of the fixed UI Shell Source
+   - a static HTML prototype
+6. The shell snapshot must record `ui_shell_version`, `ui_shell_snapshot_hash`, and `shell_change_policy`.
+7. The Journey Structural Spec must at minimum cover main chain, page map, decision points, CTA hierarchy, container hints, and error/degraded/retry paths.
+8. Generate a static HTML prototype with:
    - button responses
    - page-to-page navigation
    - happy path
    - key retry / skip / error journeys
-6. Emit structured review artifacts, but do not self-approve human review.
-7. Only treat the package as frozen when `python scripts/feat_to_proto.py freeze-guard --artifacts-dir <prototype-package-dir>` succeeds.
+9. Emit structured review artifacts, but do not self-approve human review.
+10. Only treat the package as frozen when `python scripts/feat_to_proto.py freeze-guard --artifacts-dir <prototype-package-dir>` succeeds.
 
 ## Files To Read
 

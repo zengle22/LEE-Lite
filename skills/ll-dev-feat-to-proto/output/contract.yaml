@@ -4,9 +4,17 @@ required_runtime_artifacts:
   - package-manifest.json
   - prototype-bundle.md
   - prototype-bundle.json
+  - journey-ux-ascii.md
+  - ui-shell-spec.md
   - prototype-flow-map.md
   - prototype-review-guide.md
   - prototype-completeness-report.json
+  - prototype-fidelity-report.json
+  - prototype-route-map.json
+  - prototype-journey-reachability-report.json
+  - prototype-initial-view-report.json
+  - prototype-placeholder-lint.json
+  - prototype-runtime-smoke.json
   - prototype-review-report.json
   - prototype-defect-list.json
   - prototype-freeze-gate.json
@@ -17,3 +25,4 @@ required_prototype_assets:
   - prototype/styles.css
   - prototype/app.js
   - prototype/mock-data.json
+  - prototype/mock-data.js
