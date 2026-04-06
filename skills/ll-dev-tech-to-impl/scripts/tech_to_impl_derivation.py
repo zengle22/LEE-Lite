@@ -54,21 +54,28 @@ def _strip_inline_markup(text: str) -> str:
     return text.replace("`", "").replace("**", "").strip()
 
 
+def _split_path_and_mode(left: str) -> tuple[str, str]:
+    candidate = left.strip()
+    match = re.match(r"^(?P<path>.+?)\s*\((?P<mode>new|extend|modify|touch|create)\)\s*$", candidate, flags=re.IGNORECASE)
+    if match:
+        return match.group("path").strip(), match.group("mode").strip().lower()
+    if candidate.endswith(")") and "(" in candidate:
+        return candidate.split("(", 1)[0].strip(), "touch"
+    return candidate, "touch"
+
+
 def implementation_units(package: Any) -> list[dict[str, str]]:
     units: list[dict[str, str]] = []
     for raw in tech_list(package, "implementation_unit_mapping"):
         cleaned = _strip_inline_markup(raw)
-        match = re.match(r"(?P<path>[^(:：]+?)\s*\((?P<mode>[^)]+)\)\s*[:：]\s*(?P<detail>.+)", cleaned)
-        if match:
-            units.append(
-                {
-                    "path": match.group("path").strip(),
-                    "mode": match.group("mode").strip(),
-                    "detail": match.group("detail").strip(),
-                }
-            )
-            continue
-        units.append({"path": cleaned, "mode": "touch", "detail": cleaned})
+        if ":" in cleaned:
+            left, detail = cleaned.split(":", 1)
+        elif "：" in cleaned:
+            left, detail = cleaned.split("：", 1)
+        else:
+            left, detail = cleaned, cleaned
+        path, mode = _split_path_and_mode(left)
+        units.append({"path": path, "mode": mode, "detail": detail.strip() or cleaned})
     return units
 
 

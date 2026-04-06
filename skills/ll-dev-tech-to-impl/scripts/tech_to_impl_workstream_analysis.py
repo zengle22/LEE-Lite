@@ -78,6 +78,16 @@ EXECUTION_RUNNER_AXIS_IDS = {
     "execution-result-feedback",
     "runner-observability-surface",
 }
+
+ENGINEERING_BASELINE_AXIS = "engineering_baseline"
+ENGINEERING_BASELINE_AXIS_IDS = {
+    "repo-layout-baseline",
+    "api-shell",
+    "miniapp-shell",
+    "local-env",
+    "db-migrations",
+    "health-readiness",
+}
 FRONTEND_SURFACE_MARKERS = [
     "/ui/",
     "\\ui\\",
@@ -314,6 +324,48 @@ def _assess_execution_runner(feature: dict[str, Any], package: Any) -> dict[str,
     }
 
 
+def _assess_engineering_baseline(feature: dict[str, Any], package: Any) -> dict[str, Any]:
+    del package
+    axis_id = str(feature.get("axis_id") or feature.get("slice_id") or "").strip().lower()
+    if axis_id == "miniapp-shell":
+        return {
+            "frontend_required": True,
+            "backend_required": False,
+            "migration_required": False,
+            "execution_surface_count": 1,
+            "rationale": {
+                "frontend": ["Engineering baseline miniapp shell owns the UniApp frontend skeleton and verification page."],
+                "backend": ["Miniapp shell must not absorb apps/api/local env/migrations workstreams; backend is upstream-owned."],
+                "migration": ["Miniapp shell does not own migrations or rollout/cutover planning."],
+            },
+        }
+    if axis_id == "db-migrations":
+        return {
+            "frontend_required": False,
+            "backend_required": True,
+            "migration_required": True,
+            "execution_surface_count": 1,
+            "rationale": {
+                "frontend": ["DB migrations discipline does not own UI work."],
+                "backend": ["DB migrations discipline owns db/migrations artifacts and runner entrypoints."],
+                "migration": ["This slice explicitly owns schema evolution via migrations (apply + rollback)."],
+            },
+        }
+    if axis_id in ENGINEERING_BASELINE_AXIS_IDS:
+        return {
+            "frontend_required": False,
+            "backend_required": True,
+            "migration_required": False,
+            "execution_surface_count": 1,
+            "rationale": {
+                "frontend": ["Engineering baseline slice is non-UI by default; do not treat actor mentions (e.g. 前端) as UI scope."],
+                "backend": ["Engineering baseline slice is executed via repo files/commands/runtime wiring under frozen landing zones."],
+                "migration": ["Migration/cutover is owned only by the db-migrations slice."],
+            },
+        }
+    return _assess_general(feature, package)
+
+
 def _assess_general(feature: dict[str, Any], package: Any) -> dict[str, Any]:
     segments = implementation_surface_segments(feature, package)
     feature_only_segments = feature_segments(feature)
@@ -388,4 +440,9 @@ def assess_workstreams(feature: dict[str, Any], package: Any) -> dict[str, Any]:
         return _assess_review_projection(feature, package)
     if is_execution_runner_package(feature, package):
         return _assess_execution_runner(feature, package)
+    resolved_axis = str(feature.get("resolved_axis") or feature.get("derived_axis") or "").strip().lower()
+    normalized_axis = re.sub(r"[^a-z0-9_]+", "_", resolved_axis.replace("-", "_").replace(" ", "_"))
+    normalized_axis = re.sub(r"_+", "_", normalized_axis).strip("_")
+    if normalized_axis == ENGINEERING_BASELINE_AXIS:
+        return _assess_engineering_baseline(feature, package)
     return _assess_general(feature, package)

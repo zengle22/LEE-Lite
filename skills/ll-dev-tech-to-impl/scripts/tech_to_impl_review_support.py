@@ -441,6 +441,11 @@ def check_contract_projection(
     if not isinstance(repo_touch_points, list) or not repo_touch_points:
         errors.append("impl-bundle.json repo_touch_points must be non-empty.")
     else:
+        engineering_baseline_touch_set = any(
+            str((point or {}).get("placement_status") or "") == "authoritative_frozen_path"
+            for point in repo_touch_points
+            if isinstance(point, dict)
+        )
         for point in repo_touch_points:
             if not isinstance(point, dict):
                 errors.append("Each repo_touch_points item must be an object.")
@@ -450,7 +455,10 @@ def check_contract_projection(
                 errors.append("Each repo_touch_points item must include touch_ref, unit_path, surface, mode, detail, repo_paths, primary_repo_path, and placement_status.")
                 break
             primary_repo_path = str(point.get("primary_repo_path") or "").lower()
-            if any(primary_repo_path.endswith(suffix) for suffix in [".png", ".jpg", ".jpeg", ".gif", ".bmp", ".webp", ".ico", ".md", ".txt", ".out"]):
+            forbidden_suffixes = [".png", ".jpg", ".jpeg", ".gif", ".bmp", ".webp", ".ico", ".out"]
+            if not engineering_baseline_touch_set:
+                forbidden_suffixes.extend([".md", ".txt"])
+            if any(primary_repo_path.endswith(suffix) for suffix in forbidden_suffixes):
                 errors.append("repo_touch_points primary_repo_path must not resolve to screenshot/report/non-runtime artifact files.")
                 break
     embedded_execution_contract = bundle_json.get("embedded_execution_contract") or {}

@@ -315,6 +315,13 @@ def _build_text_sections(
                 ]
             ),
             "## 7. 交付物要求\n\n"
+            + "\n".join(
+                [
+                    "- 说明: 本切片的主要实现对象是上文 `Repo Touch Points` 列出的代码/配置/文档路径。",
+                    "- 说明: 下面列出的多数文件是 workflow 流程产物（evidence / review / handoff），用于审计与交接，不应替代工程对象本身的交付。",
+                    "",
+                ]
+            )
             + "\n".join(f"- {item}" for item in deliverables)
             + "\n\n### Handoff Artifacts\n\n"
             + "\n".join(f"- {item}" for item in contract_projection["handoff_artifacts"]),

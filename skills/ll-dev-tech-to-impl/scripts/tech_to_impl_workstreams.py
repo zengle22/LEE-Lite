@@ -5,6 +5,7 @@ Workstream helpers for tech-to-impl.
 
 from __future__ import annotations
 
+import re
 from typing import Any
 
 from tech_to_impl_common import ensure_list
@@ -34,6 +35,10 @@ def implementation_steps(
     checkpoints: list[dict[str, str]] | None = None,
 ) -> list[dict[str, Any]]:
     runner_package = is_execution_runner_package(feature, package)
+    resolved_axis = str(feature.get("resolved_axis") or feature.get("derived_axis") or "").strip().lower()
+    resolved_axis = re.sub(r"[^a-z0-9_]+", "_", resolved_axis.replace("-", "_").replace(" ", "_"))
+    resolved_axis = re.sub(r"_+", "_", resolved_axis).strip("_")
+    axis_id = str(feature.get("axis_id") or feature.get("slice_id") or "").strip().lower()
     units = package.tech_json.get("tech_design", {}).get("implementation_unit_mapping") or []
     unit_rows = []
     for raw in units:
@@ -74,6 +79,296 @@ def implementation_steps(
             "done_when": "The implementation entry references frozen upstream objects only, the concrete file/module touch set is explicit, and repo landing zones are frozen before coding starts.",
         }
     ]
+
+    if resolved_axis == "engineering_baseline":
+        def _outputs(prefixes: list[str], fallback: list[str]) -> list[str]:
+            selected = [row["path"] for row in unit_rows if any(row["path"].startswith(prefix) for prefix in prefixes)]
+            return selected[:6] or fallback
+
+        if axis_id == "repo-layout-baseline":
+            steps.extend(
+                [
+                    {
+                        "task_id": "TASK-002",
+                        "title": "Freeze root layout rules (allow/deny + legacy src guard)",
+                        "workstream": "backend",
+                        "depends_on": ["TASK-001"],
+                        "parallel_group": "repo-layout",
+                        "outputs": ["README.md", "AGENTS.md"],
+                        "acceptance_refs": _acceptance_refs(checkpoints, ["AC-001"]),
+                        "work": "Write/update `README.md` and `AGENTS.md` to freeze: new code landing zones (`apps/`, `db/`, `deploy/`, `scripts/`), "
+                        "forbidden roots (`src/` is legacy), and root-level allow/deny rules so implementers cannot drift.",
+                        "done_when": "`README.md` and `AGENTS.md` explicitly define allowed roots, forbidden roots, and the legacy `src/` no-increment rule.",
+                    },
+                    {
+                        "task_id": "TASK-003",
+                        "title": "Implement repo doctor checks and entrypoint",
+                        "workstream": "backend",
+                        "depends_on": ["TASK-002"],
+                        "parallel_group": "repo-layout",
+                        "outputs": _outputs(["scripts/doctor/", "scripts/dev/", "Makefile"], ["scripts/doctor/*", "Makefile"]),
+                        "acceptance_refs": _acceptance_refs(checkpoints, ["AC-001", "AC-002"]),
+                        "work": "Add a lightweight `doctor` check (Makefile target and/or scripts) that detects forbidden roots and layout violations. "
+                        "Do not add business code; keep checks focused on repo layout compliance.",
+                        "done_when": "`make doctor` (or equivalent script entrypoint) exists and fails loudly when forbidden roots (e.g. `src/`) receive new code.",
+                    },
+                    {
+                        "task_id": "TASK-004",
+                        "title": "Run doctor and capture layout compliance evidence",
+                        "workstream": "evidence",
+                        "depends_on": ["TASK-003"],
+                        "parallel_group": "repo-layout",
+                        "outputs": ["doctor-evidence"],
+                        "acceptance_refs": _acceptance_refs(checkpoints, ["AC-002"]),
+                        "work": "Run the frozen doctor entrypoint on a clean checkout and record the output as evidence. Ensure the check reports layout violations clearly.",
+                        "done_when": "Doctor evidence exists and demonstrates that forbidden roots and layout drift are detectable before implementation begins.",
+                    },
+                ]
+            )
+            return steps
+
+        if axis_id == "api-shell":
+            steps.extend(
+                [
+                    {
+                        "task_id": "TASK-002",
+                        "title": "Scaffold apps/api module and server entrypoint",
+                        "workstream": "backend",
+                        "depends_on": ["TASK-001"],
+                        "parallel_group": "api-shell",
+                        "outputs": _outputs(["apps/api/go.mod", "apps/api/cmd/server/main.go"], ["apps/api/go.mod", "apps/api/cmd/server/main.go"]),
+                        "acceptance_refs": _acceptance_refs(checkpoints, ["AC-001"]),
+                        "work": "Create the Go module baseline under `apps/api/` and a single runnable server entrypoint at `apps/api/cmd/server/main.go`.",
+                        "done_when": "`apps/api` can be started locally via a single entrypoint without pulling in unrelated slices (compose/migrations/miniapp).",
+                    },
+                    {
+                        "task_id": "TASK-003",
+                        "title": "Add minimal internal skeleton and HTTP router/handlers",
+                        "workstream": "backend",
+                        "depends_on": ["TASK-002"],
+                        "parallel_group": "api-shell",
+                        "outputs": _outputs(
+                            ["apps/api/internal/config/", "apps/api/internal/infra/", "apps/api/internal/transport/"],
+                            ["apps/api/internal/transport/httpapi/*"],
+                        ),
+                        "acceptance_refs": _acceptance_refs(checkpoints, ["AC-001", "AC-002"]),
+                        "work": "Freeze minimal directory boundaries (`internal/config`, `internal/infra/db`, `internal/transport/httpapi`) and mount the base routes. "
+                        "HTTP handlers must not run raw SQL directly; DB access stays in infra/repository layers.",
+                        "done_when": "Router + handlers compile and the service exposes the minimal HTTP surface expected by upstream FEAT/TECH.",
+                    },
+                    {
+                        "task_id": "TASK-004",
+                        "title": "Freeze local dev start command and smoke endpoint existence",
+                        "workstream": "backend",
+                        "depends_on": ["TASK-003"],
+                        "parallel_group": "api-shell",
+                        "outputs": ["Makefile"],
+                        "acceptance_refs": _acceptance_refs(checkpoints, ["AC-001", "AC-002"]),
+                        "work": "Provide a stable dev entrypoint (e.g. `make api-dev`) and verify the server responds on `/healthz` and `/readyz` (existence + wiring only; semantics are owned by the health contract slice).",
+                        "done_when": "`make api-dev` starts the server and `/healthz` + `/readyz` routes are mounted and reachable.",
+                    },
+                    {
+                        "task_id": "TASK-005",
+                        "title": "Capture runnable shell evidence (start + curl)",
+                        "workstream": "evidence",
+                        "depends_on": ["TASK-004"],
+                        "parallel_group": "api-shell",
+                        "outputs": ["api-shell-smoke-evidence"],
+                        "acceptance_refs": _acceptance_refs(checkpoints, ["AC-002"]),
+                        "work": "Start the API via the frozen entrypoint and capture minimal evidence (logs + curl results) proving the shell is runnable and endpoints exist.",
+                        "done_when": "Evidence proves the API shell starts deterministically and `/healthz` + `/readyz` are reachable from the dev environment.",
+                    },
+                ]
+            )
+            return steps
+
+        if axis_id == "miniapp-shell":
+            steps.extend(
+                [
+                    {
+                        "task_id": "TASK-002",
+                        "title": "Scaffold UniApp miniapp skeleton (routes + manifest + index page)",
+                        "workstream": "frontend",
+                        "depends_on": ["TASK-001"],
+                        "parallel_group": "miniapp",
+                        "outputs": _outputs(["apps/miniapp/pages.json", "apps/miniapp/manifest.json", "apps/miniapp/pages/index/"], ["apps/miniapp/pages.json", "apps/miniapp/manifest.json"]),
+                        "acceptance_refs": _acceptance_refs(checkpoints, ["AC-001"]),
+                        "work": "Create `apps/miniapp/` minimal runnable skeleton with `pages.json`, `manifest.json`, and a minimal landing page.",
+                        "done_when": "`apps/miniapp` contains a minimal page/router structure and can be started via a frozen command.",
+                    },
+                    {
+                        "task_id": "TASK-003",
+                        "title": "Add healthz connectivity verification page",
+                        "workstream": "frontend",
+                        "depends_on": ["TASK-002"],
+                        "parallel_group": "miniapp",
+                        "outputs": _outputs(["apps/miniapp/pages/debug/"], ["apps/miniapp/pages/debug/healthz.vue"]),
+                        "acceptance_refs": _acceptance_refs(checkpoints, ["AC-002"]),
+                        "work": "Implement `apps/miniapp/pages/debug/healthz.vue` (and any tiny helper module under `apps/miniapp`) to call backend `GET /healthz` and display success/failure clearly.",
+                        "done_when": "A deterministic, reproducible verification path exists inside the miniapp to validate backend connectivity via `/healthz`.",
+                    },
+                    {
+                        "task_id": "TASK-004",
+                        "title": "Freeze miniapp dev command and verification steps",
+                        "workstream": "frontend",
+                        "depends_on": ["TASK-003"],
+                        "parallel_group": "miniapp",
+                        "outputs": _outputs(["apps/miniapp/README.md", "Makefile"], ["apps/miniapp/README.md", "Makefile"]),
+                        "acceptance_refs": _acceptance_refs(checkpoints, ["AC-001", "AC-002"]),
+                        "work": "Document the dev command + verification steps in `apps/miniapp/README.md` and expose a stable entrypoint (e.g. `make miniapp-dev`).",
+                        "done_when": "New contributors can start the miniapp and follow a documented path to run the `/healthz` verification.",
+                    },
+                    {
+                        "task_id": "TASK-005",
+                        "title": "Capture miniapp verification evidence",
+                        "workstream": "evidence",
+                        "depends_on": ["TASK-004"],
+                        "parallel_group": "miniapp",
+                        "outputs": ["miniapp-healthz-evidence"],
+                        "acceptance_refs": _acceptance_refs(checkpoints, ["AC-002"]),
+                        "work": "Follow the documented verification path (start miniapp, open debug page, invoke `/healthz`) and capture evidence (screenshot/log).",
+                        "done_when": "Evidence shows the miniapp can reach the backend `/healthz` endpoint via the debug verification page.",
+                    },
+                ]
+            )
+            return steps
+
+        if axis_id == "local-env":
+            steps.extend(
+                [
+                    {
+                        "task_id": "TASK-002",
+                        "title": "Deliver docker-compose local Postgres entrypoint",
+                        "workstream": "backend",
+                        "depends_on": ["TASK-001"],
+                        "parallel_group": "local-env",
+                        "outputs": _outputs(["deploy/docker-compose.local.yml"], ["deploy/docker-compose.local.yml"]),
+                        "acceptance_refs": _acceptance_refs(checkpoints, ["AC-001"]),
+                        "work": "Create `deploy/docker-compose.local.yml` that starts a local Postgres with durable volume and predictable ports.",
+                        "done_when": "`deploy/docker-compose.local.yml` exists and can boot Postgres via a stable entrypoint.",
+                    },
+                    {
+                        "task_id": "TASK-003",
+                        "title": "Freeze local env vars entry (.env.example)",
+                        "workstream": "backend",
+                        "depends_on": ["TASK-002"],
+                        "parallel_group": "local-env",
+                        "outputs": [".env.example"],
+                        "acceptance_refs": _acceptance_refs(checkpoints, ["AC-001"]),
+                        "work": "Provide `.env.example` with the required DB connection variables. Do not commit secrets; `.env` remains ignored.",
+                        "done_when": "Local DB connection inputs are standardized via `.env.example` (no secrets in repo).",
+                    },
+                    {
+                        "task_id": "TASK-004",
+                        "title": "Freeze dev up/down/doctor commands",
+                        "workstream": "backend",
+                        "depends_on": ["TASK-003"],
+                        "parallel_group": "local-env",
+                        "outputs": _outputs(["Makefile", "scripts/dev/"], ["Makefile", "scripts/dev/*.ps1"]),
+                        "acceptance_refs": _acceptance_refs(checkpoints, ["AC-001", "AC-003"]),
+                        "work": "Add Makefile targets (e.g. `dev-up`, `dev-down`, `doctor`) and optional helpers under `scripts/dev/` to standardize local env lifecycle.",
+                        "done_when": "`make dev-up`/`make dev-down` are symmetric and `doctor` can validate basic prerequisites.",
+                    },
+                    {
+                        "task_id": "TASK-005",
+                        "title": "Verify local env lifecycle and capture evidence",
+                        "workstream": "evidence",
+                        "depends_on": ["TASK-004"],
+                        "parallel_group": "local-env",
+                        "outputs": ["local-env-evidence"],
+                        "acceptance_refs": _acceptance_refs(checkpoints, ["AC-001", "AC-003"]),
+                        "work": "Run `make dev-up` and `make dev-down` and capture evidence (compose status/logs) proving the lifecycle is reproducible and symmetric.",
+                        "done_when": "Evidence shows local Postgres starts/stops via frozen entrypoints and does not depend on undocumented personal setup.",
+                    },
+                ]
+            )
+            return steps
+
+        if axis_id == "db-migrations":
+            steps.extend(
+                [
+                    {
+                        "task_id": "TASK-002",
+                        "title": "Create initial migration (0001) with up/down scripts",
+                        "workstream": "migration",
+                        "depends_on": ["TASK-001"],
+                        "parallel_group": "migrations",
+                        "outputs": _outputs(["db/migrations/0001_init."], ["db/migrations/0001_init.up.sql", "db/migrations/0001_init.down.sql"]),
+                        "acceptance_refs": _acceptance_refs(checkpoints, ["AC-001"]),
+                        "work": "Create `db/migrations/0001_init.up.sql` and `db/migrations/0001_init.down.sql` as the first executable migration pair.",
+                        "done_when": "An empty DB can apply the initial migration cleanly and has a defined rollback script.",
+                    },
+                    {
+                        "task_id": "TASK-003",
+                        "title": "Freeze migration runner entrypoints",
+                        "workstream": "migration",
+                        "depends_on": ["TASK-002"],
+                        "parallel_group": "migrations",
+                        "outputs": _outputs(["Makefile", "scripts/db/"], ["Makefile", "scripts/db/*.ps1"]),
+                        "acceptance_refs": _acceptance_refs(checkpoints, ["AC-001", "AC-002"]),
+                        "work": "Add Makefile targets (e.g. `db-migrate-up`, `db-migrate-down-one`) and optional helpers under `scripts/db/` so schema changes can only flow through migrations.",
+                        "done_when": "There is a single, documented migration execution path; hand-edited DB changes are treated as out-of-bounds.",
+                    },
+                    {
+                        "task_id": "TASK-004",
+                        "title": "Verify migration apply/rollback and capture evidence",
+                        "workstream": "evidence",
+                        "depends_on": ["TASK-003"],
+                        "parallel_group": "migrations",
+                        "outputs": ["migration-evidence"],
+                        "acceptance_refs": _acceptance_refs(checkpoints, ["AC-001", "AC-002"]),
+                        "work": "On an empty local DB, run the frozen migrate-up and migrate-down-one entrypoints and capture evidence (status/output).",
+                        "done_when": "Evidence shows the initial migration applies cleanly and can rollback at the declared minimum granularity.",
+                    },
+                ]
+            )
+            return steps
+
+        if axis_id == "health-readiness":
+            steps.extend(
+                [
+                    {
+                        "task_id": "TASK-002",
+                        "title": "Implement /healthz and /readyz handlers and mount points",
+                        "workstream": "backend",
+                        "depends_on": ["TASK-001"],
+                        "parallel_group": "health",
+                        "outputs": _outputs(
+                            ["apps/api/internal/transport/httpapi/handlers/", "apps/api/internal/transport/httpapi/router"],
+                            ["apps/api/internal/transport/httpapi/handlers/healthz.go", "apps/api/internal/transport/httpapi/handlers/readyz.go"],
+                        ),
+                        "acceptance_refs": _acceptance_refs(checkpoints, ["AC-001"]),
+                        "work": "Implement `/healthz` (liveness) and `/readyz` (readiness) handlers and wire them into the HTTP router.",
+                        "done_when": "Endpoints are implemented and mounted; contract semantics are stable and can be verified via curl.",
+                    },
+                    {
+                        "task_id": "TASK-003",
+                        "title": "Implement DB probe injection for readiness",
+                        "workstream": "backend",
+                        "depends_on": ["TASK-002"],
+                        "parallel_group": "health",
+                        "outputs": _outputs(["apps/api/internal/infra/db/"], ["apps/api/internal/infra/db/probe.go"]),
+                        "acceptance_refs": _acceptance_refs(checkpoints, ["AC-002"]),
+                        "work": "Add a DB probe helper with timeout; `/readyz` depends on the probe while `/healthz` must not.",
+                        "done_when": "Readiness reflects DB connectivity (200 when ok, 503 when not) while liveness remains DB-independent.",
+                    },
+                    {
+                        "task_id": "TASK-004",
+                        "title": "Verify health/readiness responses and capture evidence",
+                        "workstream": "evidence",
+                        "depends_on": ["TASK-003"],
+                        "parallel_group": "health",
+                        "outputs": ["health-contract-evidence"],
+                        "acceptance_refs": _acceptance_refs(checkpoints, ["AC-001", "AC-002"]),
+                        "work": "Capture evidence via curl (or equivalent) for: `/healthz` returns 200 when process is up; `/readyz` returns 200 with DB up and 503 when DB is down/unreachable.",
+                        "done_when": "Evidence demonstrates the frozen HTTP contract behavior and the DB-dependency boundary between liveness and readiness.",
+                    },
+                ]
+            )
+            return steps
+
+        return steps
+
     if assessment["frontend_required"]:
         steps.append(
             {
