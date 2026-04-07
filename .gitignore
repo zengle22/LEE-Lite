@@ -100,3 +100,24 @@ package.json
 scripts/*.py
 scripts/*.sh
 scripts/*.ps1
+
+# BMAD skills (auto-downloaded third-party skills)
+.claude/skills/bmad-*/
+
+# WDS skills (auto-downloaded third-party skills)
+.claude/skills/wds-*/
+
+# Semantic dimensions (auto-generated during skill execution)
+**/output/semantic-dimensions.json
+
+# OMC state and session data
+.omc/
+
+# Cursor IDE
+.cursor/
+
+# Agents directory (auto-generated)
+.agents/
+
+# B MAD working directory
+_bmad/
