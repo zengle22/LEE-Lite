@@ -8,6 +8,10 @@ description: Governed workflow skill for transforming one frozen FEAT into a sta
 This skill converts one selected frozen FEAT into one governed `prototype_package`.
 The output is a static HTML prototype, not production frontend code.
 
+## Journey Hi-Fi Dedup
+
+When the selected FEAT belongs to a known journey (e.g. `SRC001`, `SRC002`) that requires a hi-fi template, the workflow emits a **single journey-level prototype package** (e.g. `SRC001-JOURNEY`) and reuses the same `artifacts_dir` across FEATs in that journey to avoid 001-005 producing duplicate prototypes.
+
 ## Runtime Boundary
 
 - Interpret this skill through `E:\ai\LEE-Lite-skill-first\ssot\adr\ADR-041-FEAT-to-PROTOTYPE 前增加 Journey ASCII 产物并引入固定 UI Shell 引用基线.MD`.
@@ -23,6 +27,7 @@ The output is a static HTML prototype, not production frontend code.
 5. Generate:
    - `journey-ux-ascii.md` as the Journey Structural Spec
    - `ui-shell-spec.md` as a snapshot of the fixed UI Shell Source
+   - `prototype/journey-model.json` as the journey-level surface + main-path map used by downstream gates and reviewers
    - a static HTML prototype
 6. The shell snapshot must record `ui_shell_version`, `ui_shell_snapshot_hash`, and `shell_change_policy`.
 7. The Journey Structural Spec must at minimum cover main chain, page map, decision points, CTA hierarchy, container hints, and error/degraded/retry paths.

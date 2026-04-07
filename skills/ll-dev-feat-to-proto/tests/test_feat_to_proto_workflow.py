@@ -25,6 +25,9 @@ def _write_feat_package(root: Path, feat_ref: str) -> Path:
                     "constraints": ["non-blocking", "preserve journey state"],
                     "acceptance_checks": ["user can complete happy path", "user can retry after error"],
                     "source_refs": ["SRC-1"],
+                    "design_impact_required": True,
+                    "candidate_design_surfaces": ["prototype", "ui", "architecture", "tech"],
+                    "surface_map_required_reason": "prototype and ui shared assets must be resolved before derivation",
                     "ui_units": [{"page_name": "Entry"}, {"page_name": "Result"}],
                 }
             ],
@@ -40,6 +43,43 @@ def _write_feat_package(root: Path, feat_ref: str) -> Path:
     for name, payload in files.items():
         (pkg / name).write_text(json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     (pkg / "feat-freeze-bundle.md").write_text("# stub\n", encoding="utf-8")
+    (pkg / "surface-map-bundle.json").write_text(
+        json.dumps(
+            {
+                "artifact_type": "surface_map_package",
+                "workflow_key": "dev.feat-to-surface-map",
+                "surface_map_ref": f"SURFACE-MAP-{feat_ref}",
+                "feat_ref": feat_ref,
+                "related_feat_refs": [feat_ref],
+                "design_surfaces": {
+                    "prototype": [
+                        {
+                            "owner": "PROTO-COACH-MAIN",
+                            "action": "update",
+                            "scope": ["connection_flow"],
+                            "reason": "extends existing prototype shell",
+                        }
+                    ],
+                    "ui": [
+                        {
+                            "owner": "UI-COACH-SHELL",
+                            "action": "update",
+                            "scope": ["connection_card"],
+                            "reason": "extends existing ui shell",
+                        }
+                    ],
+                },
+            },
+            ensure_ascii=False,
+            indent=2,
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    (pkg / "surface-map-freeze-gate.json").write_text(
+        json.dumps({"freeze_ready": True}, ensure_ascii=False, indent=2) + "\n",
+        encoding="utf-8",
+    )
     return pkg
 
 
@@ -105,6 +145,12 @@ def test_feat_to_proto_requires_human_approval_before_freeze(tmp_path: Path) -> 
     assert bundle["ui_shell_snapshot_ref"] == "ui-shell-spec.md"
     assert bundle["ui_shell_version"] == "1.0.0"
     assert bundle["shell_change_policy"] == "governance-only"
+    assert bundle["surface_map_ref"] == "SURFACE-MAP-FEAT-PROTO-001"
+    assert bundle["prototype_owner_ref"] == "PROTO-COACH-MAIN"
+    assert bundle["prototype_action"] == "update"
+    assert bundle["ui_owner_ref"] == "UI-COACH-SHELL"
+    assert bundle["ui_action"] == "update"
+    assert bundle["related_feat_refs"] == ["FEAT-PROTO-001"]
     assert len(bundle["ui_shell_snapshot_hash"]) == 64
     assert (artifacts_dir / "journey-ux-ascii.md").exists()
     assert (artifacts_dir / "ui-shell-spec.md").exists()

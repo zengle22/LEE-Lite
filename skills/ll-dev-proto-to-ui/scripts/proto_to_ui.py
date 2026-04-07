@@ -127,9 +127,25 @@ def validate_input_package(input_path: str | Path) -> tuple[list[str], dict[str,
         errors.append("artifact_type must be prototype_package")
     if not bundle.get("pages"):
         errors.append("prototype package must contain at least one page")
-    for key in ("journey_structural_spec_ref", "ui_shell_snapshot_ref", "ui_shell_source_ref", "ui_shell_version", "ui_shell_snapshot_hash", "shell_change_policy"):
+    for key in (
+        "journey_structural_spec_ref",
+        "ui_shell_snapshot_ref",
+        "ui_shell_source_ref",
+        "ui_shell_version",
+        "ui_shell_snapshot_hash",
+        "shell_change_policy",
+        "surface_map_ref",
+        "prototype_owner_ref",
+        "prototype_action",
+    ):
         if not str(bundle.get(key) or "").strip():
             errors.append(f"prototype bundle missing {key}")
+    if str(bundle.get("prototype_action") or "").strip() not in {"update", "create"}:
+        errors.append("prototype_action must be update or create")
+    if not str(bundle.get("ui_owner_ref") or "").strip():
+        errors.append("prototype bundle missing ui_owner_ref")
+    if str(bundle.get("ui_action") or "").strip() not in {"update", "create"}:
+        errors.append("prototype bundle missing valid ui_action")
     journey_ref = _resolve_package_ref(input_dir, str(bundle.get("journey_structural_spec_ref") or ""))
     shell_ref = _resolve_package_ref(input_dir, str(bundle.get("ui_shell_snapshot_ref") or ""))
     if journey_ref.exists():
@@ -244,6 +260,12 @@ def build_package(context: dict[str, Any], repo_root: Path, run_id: str, allow_u
     ledger_errors = validate_ui_semantic_ledger(ledger)
     review_decision = "revise" if ledger_errors else "pass"
     document_test = _build_document_test(run_id or feat_ref, ledger_errors, review_decision)
+    ui_owner_ref = str(bundle.get("ui_owner_ref") or "").strip()
+    ui_action = str(bundle.get("ui_action") or "").strip()
+    related_feat_refs = [str(item).strip() for item in (bundle.get("related_feat_refs") or []) if str(item).strip()]
+    if feat_ref not in related_feat_refs:
+        related_feat_refs = [feat_ref, *[item for item in related_feat_refs if item != feat_ref]]
+
     write_json(
         output_dir / "package-manifest.json",
         {
@@ -251,9 +273,13 @@ def build_package(context: dict[str, Any], repo_root: Path, run_id: str, allow_u
             "workflow_key": "dev.proto-to-ui",
             "run_id": run_id or feat_ref,
             "feat_ref": feat_ref,
+            "ui_ref": ui_owner_ref,
+            "ui_owner_ref": ui_owner_ref,
+            "ui_action": ui_action,
             "ui_spec_refs": ui_spec_refs,
             "journey_structural_spec_ref": str(bundle.get("journey_structural_spec_ref") or ""),
             "ui_shell_snapshot_ref": str(bundle.get("ui_shell_snapshot_ref") or ""),
+            "surface_map_ref": str(bundle.get("surface_map_ref") or ""),
         },
     )
     write_json(
@@ -264,13 +290,19 @@ def build_package(context: dict[str, Any], repo_root: Path, run_id: str, allow_u
             "feat_ref": feat_ref,
             "feat_title": feat_title,
             "title": f"UI Spec Bundle for {feat_ref}",
-            "ui_ref": f"UI-{feat_ref}",
+            "ui_ref": ui_owner_ref,
+            "ui_owner_ref": ui_owner_ref,
+            "ui_action": ui_action,
             "ui_spec_refs": ui_spec_refs,
             "source_package_ref": str(context["input_dir"]),
             "source_refs": source_refs,
             "ui_spec_count": len(ui_spec_refs),
             "journey_structural_spec_ref": str(bundle.get("journey_structural_spec_ref") or ""),
             "ui_shell_snapshot_ref": str(bundle.get("ui_shell_snapshot_ref") or ""),
+            "surface_map_ref": str(bundle.get("surface_map_ref") or ""),
+            "prototype_owner_ref": str(bundle.get("prototype_owner_ref") or ""),
+            "prototype_action": str(bundle.get("prototype_action") or ""),
+            "related_feat_refs": related_feat_refs,
         },
     )
     write_text(
@@ -279,9 +311,12 @@ def build_package(context: dict[str, Any], repo_root: Path, run_id: str, allow_u
             [
                 f"# UI Spec Bundle for {feat_ref}",
                 "",
+                f"- ui_ref: {ui_owner_ref}",
+                f"- ui_action: {ui_action}",
                 f"- ui_spec_count: {len(ui_spec_refs)}",
                 f"- journey_structural_spec_ref: {bundle.get('journey_structural_spec_ref', '')}",
                 f"- ui_shell_snapshot_ref: {bundle.get('ui_shell_snapshot_ref', '')}",
+                f"- surface_map_ref: {bundle.get('surface_map_ref', '')}",
             ]
         ),
     )
@@ -306,9 +341,11 @@ def validate_output_package(artifacts_dir: Path) -> tuple[list[str], dict[str, A
     bundle = load_json(artifacts_dir / "ui-spec-bundle.json")
     errors.extend(validate_ui_semantic_ledger(ledger))
     errors.extend(validate_document_test_report(report))
-    for key in ("journey_structural_spec_ref", "ui_shell_snapshot_ref"):
+    for key in ("journey_structural_spec_ref", "ui_shell_snapshot_ref", "surface_map_ref", "ui_ref", "ui_owner_ref", "ui_action"):
         if not str(bundle.get(key) or "").strip():
             errors.append(f"ui-spec bundle missing {key}")
+    if str(bundle.get("ui_ref") or "").strip() != str(bundle.get("ui_owner_ref") or "").strip():
+        errors.append("ui-spec bundle ui_ref must equal ui_owner_ref")
     return errors, {"ledger": ledger, "report": report, "bundle": bundle}
 
 

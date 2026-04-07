@@ -8,7 +8,26 @@
     "workflow_key": { "type": "string", "const": "product.epic-to-feat" },
     "status": { "type": "string" },
     "feat_refs": { "type": "array", "items": { "type": "string" } },
-    "features": { "type": "array", "items": { "type": "object" } },
+    "features": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["feat_ref", "title", "goal", "scope", "constraints", "acceptance_checks", "source_refs"],
+        "properties": {
+          "feat_ref": { "type": "string" },
+          "title": { "type": "string" },
+          "goal": { "type": "string" },
+          "scope": { "type": "array", "items": { "type": "string" } },
+          "constraints": { "type": "array", "items": { "type": "string" } },
+          "acceptance_checks": { "type": "array", "items": {} },
+          "source_refs": { "type": "array", "items": { "type": "string" } },
+          "design_impact_required": { "type": "boolean" },
+          "candidate_design_surfaces": { "type": "array", "items": { "type": "string" } },
+          "surface_map_required_reason": { "type": "string" }
+        },
+        "additionalProperties": true
+      }
+    },
     "source_refs": { "type": "array", "items": { "type": "string" } }
   },
   "additionalProperties": true

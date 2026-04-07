@@ -36,6 +36,10 @@ INPUT_FILES = [
     "execution-evidence.json",
     "supervision-evidence.json",
 ]
+SURFACE_MAP_REQUIRED_FILES = [
+    "surface-map-bundle.json",
+    "surface-map-freeze-gate.json",
+]
 OUTPUT_FILES = [
     "package-manifest.json",
     "prototype-bundle.md",
@@ -61,6 +65,8 @@ OUTPUT_FILES = [
     "prototype/app.js",
     "prototype/mock-data.json",
     "prototype/mock-data.js",
+    "prototype/journey-model.json",
+    "prototype/journey-model.js",
 ]
 RESOURCE_ROOT = Path(__file__).resolve().parents[1] / "resources"
 JOURNEY_SPEC_REF = "journey-ux-ascii.md"
@@ -68,6 +74,7 @@ JOURNEY_SPEC_VERSION = "1.0.0"
 UI_SHELL_SNAPSHOT_REF = "ui-shell-spec.md"
 UI_SHELL_SOURCE_REF = "skills/ll-dev-feat-to-proto/resources/ui-shell/default-ui-shell-spec.md"
 PROTOTYPE_TEMPLATE_ROOT = RESOURCE_ROOT / "prototype"
+SRC001_HIFI_TEMPLATE_ROOT = RESOURCE_ROOT / "templates" / "src001-onboarding-hifi" / "prototype"
 SRC002_HIFI_TEMPLATE_ROOT = RESOURCE_ROOT / "templates" / "src002-journey-hifi" / "prototype"
 SHELL_REQUIRED_SECTIONS = (
     "## App Shell",
@@ -188,12 +195,45 @@ def validate_input_package(
         errors.append("feat-freeze-gate.json freeze_ready must be true")
     if feature is None:
         errors.append(f"selected feat_ref not found in bundle: {feat_ref}")
+    surface_map: dict[str, Any] | None = None
+    prototype_binding: dict[str, Any] | None = None
+    ui_binding: dict[str, Any] | None = None
+    if feature is not None and bool(feature.get("design_impact_required")):
+        missing_surface_files = [name for name in SURFACE_MAP_REQUIRED_FILES if not (input_dir / name).exists()]
+        for name in missing_surface_files:
+            errors.append(f"missing required surface-map artifact: {name}")
+        if not missing_surface_files:
+            surface_map = load_json(input_dir / "surface-map-bundle.json")
+            surface_gate = load_json(input_dir / "surface-map-freeze-gate.json")
+            if str(surface_map.get("artifact_type") or "") != "surface_map_package":
+                errors.append("surface-map-bundle.json artifact_type must be surface_map_package")
+            if not surface_gate.get("freeze_ready"):
+                errors.append("surface-map-freeze-gate.json freeze_ready must be true")
+            mapped_feat_ref = str(surface_map.get("feat_ref") or "").strip()
+            related_feat_refs = [str(item).strip() for item in d_list(surface_map.get("related_feat_refs")) if str(item).strip()]
+            if mapped_feat_ref != feat_ref and feat_ref not in related_feat_refs:
+                errors.append(f"surface-map-bundle.json does not cover selected feat_ref: {feat_ref}")
+            design_surfaces = surface_map.get("design_surfaces") if isinstance(surface_map.get("design_surfaces"), dict) else {}
+            prototype_candidates = d_list(design_surfaces.get("prototype"))
+            ui_candidates = d_list(design_surfaces.get("ui"))
+            prototype_binding = prototype_candidates[0] if prototype_candidates else None
+            ui_binding = ui_candidates[0] if ui_candidates else None
+            if not prototype_binding:
+                errors.append(f"surface-map-bundle.json must include a prototype binding for {feat_ref}")
+            else:
+                if not str(prototype_binding.get("owner") or "").strip():
+                    errors.append("surface-map prototype binding must include owner")
+                if str(prototype_binding.get("action") or "").strip() not in {"update", "create"}:
+                    errors.append("surface-map prototype binding action must be update or create")
     return errors, {
         "input_dir": input_dir,
         "input_mode": input_resolution.get("input_mode", "package_dir"),
         "bundle": bundle,
         "feature": feature,
         "feat_ref": feat_ref,
+        "surface_map": surface_map,
+        "prototype_binding": prototype_binding,
+        "ui_binding": ui_binding,
     }
 
 
@@ -202,12 +242,44 @@ def _feat_num_from_ref(feat_ref: str) -> str:
     return match.group(1) if match else ""
 
 
-def _is_src002_hifi_required(context: dict[str, Any]) -> bool:
+def _journey_id_from_context(context: dict[str, Any]) -> str:
     feature = context.get("feature") if isinstance(context.get("feature"), dict) else {}
     contract = feature.get("journey_contract") if isinstance(feature.get("journey_contract"), dict) else {}
-    if str(contract.get("journey_id") or "").strip() != "SRC002":
-        return False
-    return _feat_num_from_ref(str(context.get("feat_ref") or "")) in {"001", "002", "003", "004", "005", "006"}
+    return str(contract.get("journey_id") or "").strip()
+
+
+def _hifi_kind(context: dict[str, Any]) -> str:
+    journey_id = _journey_id_from_context(context)
+    feat_num = _feat_num_from_ref(str(context.get("feat_ref") or ""))
+    if journey_id == "SRC001" and feat_num in {"001", "002", "003", "004", "005"}:
+        return "src001"
+    if journey_id == "SRC002" and feat_num in {"001", "002", "003", "004", "005", "006"}:
+        return "src002"
+    return ""
+
+
+def _is_src002_hifi_required(context: dict[str, Any]) -> bool:
+    return _hifi_kind(context) == "src002"
+
+
+def _is_hifi_required(context: dict[str, Any]) -> bool:
+    return bool(_hifi_kind(context))
+
+
+def _prototype_source_for_kind(kind: str) -> str:
+    if kind == "src001":
+        return "src001_onboarding_hifi_template"
+    if kind == "src002":
+        return "src002_journey_hifi_template"
+    return ""
+
+
+def _template_root_for_kind(kind: str) -> Path | None:
+    if kind == "src001":
+        return SRC001_HIFI_TEMPLATE_ROOT
+    if kind == "src002":
+        return SRC002_HIFI_TEMPLATE_ROOT
+    return None
 
 
 def _copy_template_dir(from_dir: Path, to_dir: Path) -> None:
@@ -277,17 +349,25 @@ def _chrome_dump_dom(chrome: Path, url: str) -> tuple[bool, str]:
 
 
 def _build_fidelity_report(bundle: dict[str, Any], context: dict[str, Any]) -> dict[str, Any]:
-    required = _is_src002_hifi_required(context)
+    kind = _hifi_kind(context)
+    required = bool(kind)
     proto_source = str(bundle.get("prototype_source") or "")
     expected = "hifi_interactive_html" if required else "interactive_html"
-    ok = (not required) or proto_source == "src002_journey_hifi_template"
+    expected_source = _prototype_source_for_kind(kind)
+    ok = (not required) or proto_source == expected_source
+    notes = ""
+    if not ok:
+        if kind == "src002":
+            notes = "SRC002 journey feats must use the SRC002 hi-fi template (not the UI spec viewer)."
+        elif kind == "src001":
+            notes = "SRC001 onboarding feats must use the SRC001 hi-fi template (not the UI spec viewer)."
     return {
         "gate_name": "Prototype Fidelity Gate",
         "decision": "pass" if ok else "fail",
         "expected": expected,
         "prototype_source": proto_source,
         "checked_at": utc_now(),
-        "notes": "" if ok else "SRC002 journey feats must use the SRC002 hi-fi template (not the UI spec viewer).",
+        "notes": notes,
     }
 
 
@@ -297,7 +377,7 @@ def _build_route_map(bundle: dict[str, Any], context: dict[str, Any]) -> dict[st
     edges: list[dict[str, Any]] = []
     entry = ""
 
-    if _is_src002_hifi_required(context):
+    if _is_hifi_required(context):
         input_dir = Path(context["input_dir"])
         handoff = load_json(input_dir / "handoff-to-feat-downstreams.json")
         surfaces = handoff.get("journey_surface_inventory") if isinstance(handoff.get("journey_surface_inventory"), list) else []
@@ -349,7 +429,7 @@ def _build_route_map(bundle: dict[str, Any], context: dict[str, Any]) -> dict[st
 
 
 def _check_journey_reachability(route_map: dict[str, Any], context: dict[str, Any]) -> dict[str, Any]:
-    if not _is_src002_hifi_required(context):
+    if not _is_hifi_required(context):
         return {"gate_name": "Journey Reachability", "decision": "pass", "checked_at": utc_now(), "notes": "not a journey-hifi required feat"}
     routes = route_map.get("routes") if isinstance(route_map.get("routes"), list) else []
     edges = route_map.get("edges") if isinstance(route_map.get("edges"), list) else []
@@ -422,9 +502,14 @@ def _runtime_smoke(prototype_dir: Path, context: dict[str, Any]) -> dict[str, An
     js = _load_text(prototype_dir / "app.js")
     chrome = _find_chrome_executable()
 
-    expected_kind = "src002-hifi" if _is_src002_hifi_required(context) else "spec-viewer"
+    kind = _hifi_kind(context)
+    expected_kind = "spec-viewer"
+    if kind == "src002":
+        expected_kind = "src002-hifi"
+    if kind == "src001":
+        expected_kind = "src001-hifi"
     static_ok = bool(html.strip()) and bool(css.strip()) and bool(js.strip()) and 'src="app.js"' in html
-    template_marker_ok = True if expected_kind != "src002-hifi" else 'name="lee-prototype-kind" content="hifi"' in html
+    template_marker_ok = True if expected_kind == "spec-viewer" else 'name="lee-prototype-kind" content="hifi"' in html
 
     runtime_ok = False
     runtime_note = ""
@@ -436,6 +521,8 @@ def _runtime_smoke(prototype_dir: Path, context: dict[str, Any]) -> dict[str, An
             ok, dom = _chrome_dump_dom(chrome, url)
             if expected_kind == "src002-hifi":
                 runtime_ok = ok and "生成训练计划" in dom
+            elif expected_kind == "src001-hifi":
+                runtime_ok = ok and "最小建档" in dom
             else:
                 runtime_ok = ok and ("Prototype Bundle" in dom or "Prototype" in dom)
             dom_excerpt = dom[:8000]
@@ -452,7 +539,7 @@ def _runtime_smoke(prototype_dir: Path, context: dict[str, Any]) -> dict[str, An
     decision = "pass"
     if not static_ok or not template_marker_ok:
         decision = "fail"
-    if expected_kind == "src002-hifi" and (not chrome or not runtime_ok):
+    if expected_kind in {"src001-hifi", "src002-hifi"} and (not chrome or not runtime_ok):
         decision = "fail"
 
     if dom_excerpt:
@@ -952,6 +1039,148 @@ def _container_hint(page: dict[str, Any]) -> str:
 
 
 def _journey_structural_spec(bundle: dict[str, Any]) -> str:
+    return _journey_structural_spec_with_model(bundle, None)
+
+
+def _surface_seq_from_main_path(main_path: list[str]) -> list[str]:
+    seq: list[str] = []
+    for step in main_path:
+        found = re.findall(r"(screen_[a-z0-9_]+|sheet_[a-z0-9_]+|drawer_[a-z0-9_]+|inline_[a-z0-9_]+)", str(step))
+        if found:
+            seq.append(found[-1])
+    dedup: list[str] = []
+    for item in seq:
+        if not dedup or dedup[-1] != item:
+            dedup.append(item)
+    return dedup
+
+
+def _surface_container_hint(surface_kind: str) -> str:
+    kind = str(surface_kind or "").strip()
+    return {
+        "screen": "page",
+        "page": "page",
+        "sheet": "bottom_sheet",
+        "drawer": "drawer",
+        "inline_component": "embedded",
+    }.get(kind, "page")
+
+
+def _journey_structural_spec_with_model(bundle: dict[str, Any], journey_model: dict[str, Any] | None) -> str:
+    surfaces = []
+    main_path = []
+    journey_id = ""
+    if isinstance(journey_model, dict):
+        surfaces = journey_model.get("journey_surface_inventory") if isinstance(journey_model.get("journey_surface_inventory"), list) else []
+        main_path = journey_model.get("journey_main_path") if isinstance(journey_model.get("journey_main_path"), list) else []
+        journey_id = str(journey_model.get("journey_id") or "").strip()
+
+    if surfaces:
+        surface_ids = [str(item.get("surface_id") or "").strip() for item in surfaces if isinstance(item, dict) and str(item.get("surface_id") or "").strip()]
+        title_by_id = {
+            str(item.get("surface_id") or "").strip(): str(item.get("surface_title") or "").strip()
+            for item in surfaces
+            if isinstance(item, dict) and str(item.get("surface_id") or "").strip()
+        }
+        kind_by_id = {
+            str(item.get("surface_id") or "").strip(): str(item.get("surface_kind") or "").strip()
+            for item in surfaces
+            if isinstance(item, dict) and str(item.get("surface_id") or "").strip()
+        }
+        decision_by_id: dict[str, list[str]] = {}
+        cta_by_id: dict[str, tuple[str, list[str]]] = {}
+        error_by_id: dict[str, list[str]] = {}
+
+        if journey_id == "SRC001":
+            decision_by_id = {
+                "screen_onboarding_minimal": ["initial", "field_partial", "validation_error", "submitted"],
+                "screen_first_suggestion": ["viewing", "accept", "back_to_edit"],
+                "screen_home_entry": ["idle", "open_profile_tasks", "open_device_connect"],
+                "sheet_profile_tasks": ["editing", "save", "skip"],
+                "sheet_device_connect": ["select_device", "connect", "skip", "connect_failed"],
+            }
+            cta_by_id = {
+                "screen_onboarding_minimal": ("继续", ["重置场景"]),
+                "screen_first_suggestion": ("接受并进入首页", ["返回修改"]),
+                "screen_home_entry": ("开始今日训练", ["补全画像", "连接设备"]),
+                "sheet_profile_tasks": ("保存并返回首页", ["稍后再说"]),
+                "sheet_device_connect": ("开始连接", ["跳过"]),
+            }
+            error_by_id = {
+                "screen_onboarding_minimal": ["validation_error", "submit_error"],
+                "sheet_device_connect": ["connect_failed"],
+            }
+        elif journey_id == "SRC002":
+            decision_by_id = {
+                "screen_plan_setup": ["initial", "field_partial", "ready_for_gate"],
+                "inline_risk_gate": ["assessing", "pass", "degraded", "blocked"],
+                "screen_plan_draft": ["reviewing", "activate", "back_to_edit"],
+                "screen_today_hub": ["planned", "in_progress", "completed"],
+                "drawer_checkin_feedback": ["checkin", "feedback", "blocked_start"],
+                "drawer_adjustment": ["keep_plan", "apply_adjustment"],
+            }
+            cta_by_id = {
+                "screen_plan_setup": ("进入风险评估", ["清空输入"]),
+                "inline_risk_gate": ("确认并继续", ["返回修改"]),
+                "screen_plan_draft": ("激活计划", ["返回修改"]),
+                "screen_today_hub": ("开始训练", ["打开反馈抽屉", "查看微调"]),
+                "drawer_checkin_feedback": ("提交", ["取消"]),
+                "drawer_adjustment": ("确认调整", ["保持原计划"]),
+            }
+            error_by_id = {"inline_risk_gate": ["blocked", "degraded"], "drawer_checkin_feedback": ["validation_error"]}
+
+        seq = _surface_seq_from_main_path(main_path) or surface_ids
+        main_chain = [f"{idx + 1}. {title_by_id.get(sid) or sid} ({sid})" for idx, sid in enumerate(seq)]
+        page_map = [
+            f"- {sid}: kind={kind_by_id.get(sid) or 'n/a'} container={_surface_container_hint(kind_by_id.get(sid) or '')} title={title_by_id.get(sid) or sid}"
+            for sid in surface_ids
+        ]
+        decision_points = [
+            f"- {title_by_id.get(sid) or sid}: {'; '.join(decision_by_id.get(sid) or ['entry', 'primary_action', 'cancel/skip', 'error'])}"
+            for sid in surface_ids
+        ]
+        cta_lines = []
+        for sid in surface_ids:
+            primary, secondary = cta_by_id.get(sid) or ("继续", ["返回"])
+            cta_lines.append(f"- {title_by_id.get(sid) or sid}: primary={primary} | secondary={', '.join(secondary) if secondary else 'none'}")
+        error_lines = [
+            f"- {title_by_id.get(sid) or sid}: {'; '.join(error_by_id.get(sid) or ['no explicit degraded/error path'])}"
+            for sid in surface_ids
+        ]
+
+        lines = [
+            f"# Journey Structural Spec for {bundle['feat_ref']}",
+            "",
+            f"- journey_structural_spec_version: {JOURNEY_SPEC_VERSION}",
+            f"- feat_ref: {bundle['feat_ref']}",
+            f"- feat_title: {bundle['feat_title']}",
+            f"- journey_id: {journey_id or '(unspecified)'}",
+            "",
+            "## 1. Journey Main Chain",
+            *main_chain,
+            "",
+            "## 2. Page Map",
+            *page_map,
+            "",
+            "## 3. Decision Points",
+            *decision_points,
+            "",
+            "## 4. CTA Hierarchy",
+            *cta_lines,
+            "",
+            "## 5. Container Hints",
+            *[f"- {title_by_id.get(sid) or sid}: {_surface_container_hint(kind_by_id.get(sid) or '')}" for sid in surface_ids],
+            "",
+            "## 6. Error / Degraded / Retry Paths",
+            *error_lines,
+            "",
+            "## 7. Open Questions / Frozen Assumptions",
+            "- Assumption: journey surfaces and ordering are authoritative from epic2feat handoff-to-feat-downstreams.json.",
+            "- Assumption: surface-level UI stays within the current UI Shell Source rules.",
+            f"- Frozen source: {bundle['ui_shell_source_ref']} @ {bundle['ui_shell_version']}",
+        ]
+        return "\n".join(lines)
+
     lines = [
         f"# Journey Structural Spec for {bundle['feat_ref']}",
         "",
@@ -970,13 +1199,13 @@ def _journey_structural_spec(bundle: dict[str, Any]) -> str:
         "",
         "## 3. Decision Points",
         *[
-            f"- {page['title']}: {'; '.join(state['name'] for state in page.get('states', [])[:4]) or 'no named states'}"
+            f"- {page['title']}: {'; '.join(state['name'] for state in page.get('states', [])[:4]) or 'no_named_states'}"
             for page in bundle["pages"]
         ],
         "",
         "## 4. CTA Hierarchy",
         *[
-            f"- {page['title']}: primary={next((button['label'] for button in page['buttons'] if button.get('tone') == 'primary'), 'TBD')} | secondary={', '.join(button['label'] for button in page['buttons'] if button.get('tone') != 'primary') or 'none'}"
+            f"- {page['title']}: primary={next((button['label'] for button in page['buttons'] if button.get('tone') == 'primary'), 'Continue')} | secondary={', '.join(button['label'] for button in page['buttons'] if button.get('tone') != 'primary') or 'none'}"
             for page in bundle["pages"]
         ],
         "",
@@ -1015,22 +1244,32 @@ def _validate_ui_shell_snapshot(text: str) -> list[str]:
 def build_package(context: dict[str, Any], repo_root: Path, run_id: str, allow_update: bool) -> dict[str, Any]:
     feat_ref = context["feat_ref"]
     feature = context["feature"]
-    output_dir = repo_root / "artifacts" / "feat-to-proto" / f"{slugify(run_id or feat_ref)}--{slugify(feat_ref)}"
+    journey_id = _journey_id_from_context(context)
+    hifi_kind = _hifi_kind(context)
+    journey_ref = f"{journey_id}-JOURNEY" if (journey_id and hifi_kind) else feat_ref
+    output_run_id = run_id or (f"{journey_ref}-hifi" if (journey_id and hifi_kind) else feat_ref)
+    output_dir = repo_root / "artifacts" / "feat-to-proto" / f"{slugify(output_run_id)}--{slugify(journey_ref)}"
     if output_dir.exists() and not allow_update:
-        return {"ok": False, "errors": [f"output directory already exists: {output_dir}"]}
+        return {"ok": True, "artifacts_dir": str(output_dir), "freeze_ready": False, "notes": "existing artifacts_dir reused (use --allow-update to rebuild)"}
     output_dir.mkdir(parents=True, exist_ok=True)
     ui_shell_source_text = Path(WORKSPACE_ROOT / UI_SHELL_SOURCE_REF).read_text(encoding="utf-8")
     ui_shell_metadata = extract_shell_metadata(ui_shell_source_text)
     ui_shell_snapshot_hash = sha256_text(ui_shell_source_text)
     feat_title = first(feature.get("title"), "").strip()
     ui_spec_context = resolve_ui_spec_bundle(repo_root, feat_ref, feat_title)
+    surface_map = context.get("surface_map") if isinstance(context.get("surface_map"), dict) else {}
+    prototype_binding = context.get("prototype_binding") if isinstance(context.get("prototype_binding"), dict) else {}
+    ui_binding = context.get("ui_binding") if isinstance(context.get("ui_binding"), dict) else {}
+    resolved_surface_map_ref = str(surface_map.get("surface_map_ref") or "").strip() or ("surface-map-bundle.json" if surface_map else "")
     units = d_list(ui_spec_context["bundle"].get("ui_specs")) if ui_spec_context else build_units(feature, feat_ref)
     pages = [_page_model(unit, index, len(units)) for index, unit in enumerate(units)]
     bundle = {
         "artifact_type": "prototype_package",
         "workflow_key": "dev.feat-to-proto",
-        "feat_ref": feat_ref,
-        "feat_title": feat_title or feat_ref,
+        "feat_ref": journey_ref,
+        "entry_feat_ref": feat_ref,
+        "journey_id": journey_id,
+        "feat_title": feat_title or journey_ref,
         "prototype_entry_ref": "prototype/index.html",
         "journey_structural_spec_ref": JOURNEY_SPEC_REF,
         "journey_structural_spec_version": JOURNEY_SPEC_VERSION,
@@ -1042,13 +1281,20 @@ def build_package(context: dict[str, Any], repo_root: Path, run_id: str, allow_u
         "ui_shell_family": ui_shell_metadata.get("ui_shell_family", ""),
         "ui_shell_snapshot_hash": ui_shell_snapshot_hash,
         "shell_change_policy": ui_shell_metadata.get("shell_change_policy", ""),
+        "surface_map_ref": resolved_surface_map_ref,
+        "prototype_owner_ref": str(prototype_binding.get("owner") or "").strip(),
+        "prototype_action": str(prototype_binding.get("action") or "").strip(),
+        "ui_owner_ref": str(ui_binding.get("owner") or "").strip(),
+        "ui_action": str(ui_binding.get("action") or "").strip(),
+        "related_feat_refs": [feat_ref]
+        + [str(item).strip() for item in d_list(surface_map.get("related_feat_refs")) if str(item).strip() and str(item).strip() != feat_ref],
         "prototype_source": "ui_spec_package" if ui_spec_context else "feat_freeze_package",
         "ui_spec_package_ref": rel(ui_spec_context["path"], repo_root) if ui_spec_context else "",
         "pages": pages,
         "source_refs": (ui_spec_context["bundle"].get("source_refs") if ui_spec_context else None) or feature.get("source_refs") or context["bundle"].get("source_refs") or [],
     }
-    if _is_src002_hifi_required(context):
-        bundle["prototype_source"] = "src002_journey_hifi_template"
+    if hifi_kind:
+        bundle["prototype_source"] = _prototype_source_for_kind(hifi_kind)
         bundle["fidelity_target"] = "hifi_interactive_html"
     defects = [{"page_id": page["page_id"], "type": "human_review_pending"} for page in pages]
     fidelity_issues: list[str] = []
@@ -1101,7 +1347,44 @@ def build_package(context: dict[str, Any], repo_root: Path, run_id: str, allow_u
             "ui_shell_snapshot_quality_pass": True,
         },
     }
-    journey_structural_spec_text = _journey_structural_spec(bundle)
+    handoff = load_json(Path(context["input_dir"]) / "handoff-to-feat-downstreams.json")
+    journey_surface_inventory = handoff.get("journey_surface_inventory") if isinstance(handoff.get("journey_surface_inventory"), list) else []
+    journey_main_path = handoff.get("journey_main_path") if isinstance(handoff.get("journey_main_path"), list) else []
+    feat_dependency_order = [item.get("feat_ref") for item in (handoff.get("feature_dependency_map") or []) if isinstance(item, dict) and item.get("feat_ref")]
+    if not journey_surface_inventory:
+        pages_for_model = bundle.get("pages") if isinstance(bundle.get("pages"), list) else []
+        journey_surface_inventory = [
+            {
+                "journey_id": "",
+                "journey_loop": "",
+                "journey_stage": "",
+                "surface_id": f"page-{idx}",
+                "surface_kind": "page",
+                "surface_title": str(page.get("title") or page.get("page_id") or f"Page {idx+1}"),
+                "surface_role": "host",
+                "host_surface_id": "",
+                "composes_feat_refs": [feat_ref],
+                "modes": [],
+                "entry_from": [],
+                "exit_to": [f"page-{idx+1}"] if idx + 1 < len(pages_for_model) else [],
+                "shared_state_refs": [],
+                "notes": "",
+            }
+            for idx, page in enumerate(pages_for_model)
+            if isinstance(page, dict)
+        ]
+        journey_main_path = [f"page-{idx} -> page-{idx+1}" for idx in range(0, max(0, len(journey_surface_inventory) - 1))]
+
+    journey_model = {
+        "journey_id": _journey_id_from_context(context),
+        "feat_ref": feat_ref,
+        "journey_surface_inventory": journey_surface_inventory,
+        "journey_main_path": journey_main_path,
+        "feat_dependency_order": feat_dependency_order,
+        "checked_at": utc_now(),
+    }
+
+    journey_structural_spec_text = _journey_structural_spec_with_model(bundle, journey_model)
     journey_errors = _validate_journey_structural_spec(journey_structural_spec_text)
     shell_errors = _validate_ui_shell_snapshot(ui_shell_source_text)
     completeness["journey_structural_spec"] = {"decision": "pass" if not journey_errors else "fail", "errors": journey_errors}
@@ -1141,14 +1424,20 @@ def build_package(context: dict[str, Any], repo_root: Path, run_id: str, allow_u
                 f"- ui_shell_snapshot_ref: {bundle['ui_shell_snapshot_ref']}",
                 f"- ui_shell_source_ref: {bundle['ui_shell_source_ref']}",
                 f"- ui_shell_version: {bundle['ui_shell_version']}",
+                f"- surface_map_ref: {bundle['surface_map_ref']}",
+                f"- prototype_owner_ref: {bundle['prototype_owner_ref']}",
+                f"- prototype_action: {bundle['prototype_action']}",
+                f"- ui_owner_ref: {bundle['ui_owner_ref']}",
+                f"- ui_action: {bundle['ui_action']}",
                 *[f"- page: {page['title']} | family={page['page_type_family']} | states={len(page['states'])}" for page in pages],
             ]
         ),
     )
     write_text(output_dir / "prototype-flow-map.md", "\n".join(["# Prototype Flow Map", "", *[f"{index+1}. {page['title']}" for index, page in enumerate(pages)]]))
     prototype_dir = output_dir / "prototype"
-    if _is_src002_hifi_required(context):
-        _copy_template_dir(SRC002_HIFI_TEMPLATE_ROOT, prototype_dir)
+    template_root = _template_root_for_kind(hifi_kind)
+    if template_root:
+        _copy_template_dir(template_root, prototype_dir)
     else:
         write_text(prototype_dir / "index.html", _render_index_html(bundle["feat_title"]))
         write_text(prototype_dir / "styles.css", _render_styles())
@@ -1158,24 +1447,19 @@ def build_package(context: dict[str, Any], repo_root: Path, run_id: str, allow_u
         "feat_ref": feat_ref,
         "feat_title": bundle["feat_title"],
         "source_refs": bundle["source_refs"],
+        "surface_map_ref": bundle["surface_map_ref"],
+        "prototype_owner_ref": bundle["prototype_owner_ref"],
+        "prototype_action": bundle["prototype_action"],
+        "ui_owner_ref": bundle["ui_owner_ref"],
+        "ui_action": bundle["ui_action"],
         "journey_structural_spec_ref": JOURNEY_SPEC_REF,
         "ui_shell_snapshot_ref": UI_SHELL_SNAPSHOT_REF,
         "pages": pages,
     }
     write_json(prototype_dir / "mock-data.json", mock_payload)
     write_text(prototype_dir / "mock-data.js", "window.__LEE_PROTO_DATA__ = " + json.dumps(mock_payload, ensure_ascii=False, indent=2) + ";\n")
-
-    if _is_src002_hifi_required(context):
-        handoff = load_json(Path(context["input_dir"]) / "handoff-to-feat-downstreams.json")
-        journey_model = {
-            "feat_ref": "SRC002-JOURNEY",
-            "journey_surface_inventory": handoff.get("journey_surface_inventory") or [],
-            "journey_main_path": handoff.get("journey_main_path") or [],
-            "feat_dependency_order": [item.get("feat_ref") for item in (handoff.get("feature_dependency_map") or []) if isinstance(item, dict) and item.get("feat_ref")],
-            "checked_at": utc_now(),
-        }
-        write_json(prototype_dir / "journey-model.json", journey_model)
-        write_text(prototype_dir / "journey-model.js", "window.__LEE_JOURNEY_MODEL__ = " + json.dumps(journey_model, ensure_ascii=False, indent=2) + ";\n")
+    write_json(prototype_dir / "journey-model.json", journey_model)
+    write_text(prototype_dir / "journey-model.js", "window.__LEE_JOURNEY_MODEL__ = " + json.dumps(journey_model, ensure_ascii=False, indent=2) + ";\n")
 
     fidelity_report = _build_fidelity_report(bundle, context)
     route_map = _build_route_map(bundle, context)
@@ -1246,7 +1530,7 @@ def validate_output_package(artifacts_dir: Path) -> tuple[list[str], dict[str, A
     errors.extend(validate_prototype_review(review))
     errors.extend(_validate_journey_structural_spec(journey_text))
     errors.extend(_validate_ui_shell_snapshot(shell_text))
-    for key in ("journey_structural_spec_ref", "ui_shell_snapshot_ref", "ui_shell_source_ref", "ui_shell_version", "ui_shell_snapshot_hash", "shell_change_policy"):
+    for key in ("journey_structural_spec_ref", "ui_shell_snapshot_ref", "ui_shell_source_ref", "ui_shell_version", "ui_shell_snapshot_hash", "shell_change_policy", "surface_map_ref", "prototype_owner_ref", "prototype_action"):
         if not str(bundle.get(key) or "").strip():
             errors.append(f"prototype bundle missing {key}")
 

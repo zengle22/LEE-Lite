@@ -1,5 +1,9 @@
 artifact_type: prototype_package
 schema_version: 1.0.0
+authoritative_upstream_skill: ll-dev-feat-to-proto
+accepted_statuses:
+  - accepted
+  - frozen
 required_runtime_artifacts:
   - package-manifest.json
   - prototype-bundle.md
@@ -26,3 +30,36 @@ required_prototype_assets:
   - prototype/app.js
   - prototype/mock-data.json
   - prototype/mock-data.js
+  - prototype/journey-model.json
+  - prototype/journey-model.js
+required_fields:
+  - artifact_type
+  - workflow_key
+  - feat_ref
+  - prototype_entry_ref
+  - journey_structural_spec_ref
+  - journey_structural_spec_version
+  - ui_shell_snapshot_ref
+  - ui_shell_source_ref
+  - ui_shell_version
+  - ui_shell_snapshot_hash
+  - shell_change_policy
+  - surface_map_ref
+  - prototype_owner_ref
+  - prototype_action
+required_optional_fields:
+  - ui_owner_ref
+  - ui_action
+  - related_feat_refs
+structural_checks:
+  - required_artifact_presence
+  - workflow_is_dev.feat-to-proto
+  - prototype_freeze_gate_present
+  - prototype_owner_binding_present
+  - surface_map_trace_present
+  - evidence_presence
+semantic_gate:
+  required: true
+notes:
+  - Prototype output is a shared design asset update candidate, not a FEAT-private artifact.
+  - `surface_map_ref` and owner/action fields must trace back to the resolved `surface_map_package`.

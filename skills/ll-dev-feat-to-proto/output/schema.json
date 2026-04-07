@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "ll-dev-feat-to-proto output",
   "type": "object",
-  "required": ["artifact_type", "workflow_key", "feat_ref", "pages", "prototype_entry_ref", "journey_structural_spec_ref", "journey_structural_spec_version", "ui_shell_snapshot_ref", "ui_shell_source_ref", "ui_shell_version", "ui_shell_snapshot_hash", "shell_change_policy"],
+  "required": ["artifact_type", "workflow_key", "feat_ref", "pages", "prototype_entry_ref", "journey_structural_spec_ref", "journey_structural_spec_version", "ui_shell_snapshot_ref", "ui_shell_source_ref", "ui_shell_version", "ui_shell_snapshot_hash", "shell_change_policy", "surface_map_ref", "prototype_owner_ref", "prototype_action"],
   "properties": {
     "artifact_type": { "type": "string", "const": "prototype_package" },
     "workflow_key": { "type": "string", "const": "dev.feat-to-proto" },
@@ -15,7 +15,13 @@
     "ui_shell_source_ref": { "type": "string" },
     "ui_shell_version": { "type": "string" },
     "ui_shell_snapshot_hash": { "type": "string" },
-    "shell_change_policy": { "type": "string" }
+    "shell_change_policy": { "type": "string" },
+    "surface_map_ref": { "type": "string" },
+    "prototype_owner_ref": { "type": "string" },
+    "prototype_action": { "type": "string", "enum": ["update", "create"] },
+    "ui_owner_ref": { "type": "string" },
+    "ui_action": { "type": "string", "enum": ["update", "create", ""] },
+    "related_feat_refs": { "type": "array", "items": { "type": "string" } }
   },
   "additionalProperties": true
 }

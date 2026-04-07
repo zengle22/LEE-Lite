@@ -9,3 +9,33 @@ required_runtime_artifacts:
   - prototype-freeze-gate.json
   - execution-evidence.json
   - supervision-evidence.json
+required_fields:
+  - artifact_type
+  - workflow_key
+  - feat_ref
+  - pages
+  - prototype_entry_ref
+  - journey_structural_spec_ref
+  - ui_shell_snapshot_ref
+  - ui_shell_source_ref
+  - ui_shell_version
+  - ui_shell_snapshot_hash
+  - shell_change_policy
+  - surface_map_ref
+  - prototype_owner_ref
+  - prototype_action
+required_optional_fields:
+  - ui_owner_ref
+  - ui_action
+  - related_feat_refs
+structural_checks:
+  - required_artifact_presence
+  - upstream_workflow_is_dev.feat-to-proto
+  - prototype_freeze_gate_is_pass
+  - approved_human_review_present
+  - surface_map_trace_present
+semantic_gate:
+  required: true
+notes:
+  - UI derivation must consume the resolved UI owner binding carried by the prototype package.
+  - `ui_ref` must no longer be inferred from `feat_ref`; it must resolve from `surface_map_package` lineage.

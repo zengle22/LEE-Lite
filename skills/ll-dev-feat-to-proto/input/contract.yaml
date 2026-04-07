@@ -23,5 +23,25 @@ required_feature_fields:
   - constraints
   - acceptance_checks
   - source_refs
+required_optional_feature_fields:
+  - design_impact_required
+  - candidate_design_surfaces
+  - surface_map_required_reason
+conditional_runtime_artifacts:
+  when_design_impact_required_true:
+    - surface-map-bundle.json
+    - surface-map-freeze-gate.json
 required_selector_fields:
   - feat_ref
+structural_checks:
+  - required_artifact_presence
+  - upstream_workflow_is_product.epic-to-feat
+  - feat_freeze_gate_is_pass
+  - selected_feat_ref_present
+  - surface_map_gate_present_when_design_impact_required
+  - evidence_presence
+semantic_gate:
+  required: true
+notes:
+  - `design_impact_required=true` FEATs must carry a frozen `surface_map_package` before prototype derivation can start.
+  - The selected FEAT must resolve to a `prototype` owner/action binding in `surface-map-bundle.json`.

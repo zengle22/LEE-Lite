@@ -40,6 +40,9 @@ def test_proto_to_ui_emits_semantic_ledger(tmp_path: Path) -> None:
                     "constraints": ["non-blocking", "preserve journey state"],
                     "acceptance_checks": ["user can complete happy path", "user can retry after error"],
                     "source_refs": ["SRC-1"],
+                    "design_impact_required": True,
+                    "candidate_design_surfaces": ["prototype", "ui", "architecture", "tech"],
+                    "surface_map_required_reason": "prototype and ui updates require owner routing",
                     "ui_units": [{"page_name": "Entry"}, {"page_name": "Result"}],
                 }
             ],
@@ -54,6 +57,42 @@ def test_proto_to_ui_emits_semantic_ledger(tmp_path: Path) -> None:
     }.items():
         (feat_pkg / name).write_text(json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     (feat_pkg / "feat-freeze-bundle.md").write_text("# stub\n", encoding="utf-8")
+    (feat_pkg / "surface-map-bundle.json").write_text(
+        json.dumps(
+            {
+                "artifact_type": "surface_map_package",
+                "workflow_key": "dev.feat-to-surface-map",
+                "feat_ref": "FEAT-PROTO-TO-UI-001",
+                "related_feat_refs": ["FEAT-PROTO-TO-UI-001"],
+                "design_surfaces": {
+                    "prototype": [
+                        {
+                            "owner": "PROTO-COACH-MAIN",
+                            "action": "update",
+                            "scope": ["connection_flow"],
+                            "reason": "extends existing prototype shell",
+                        }
+                    ],
+                    "ui": [
+                        {
+                            "owner": "UI-COACH-SHELL",
+                            "action": "update",
+                            "scope": ["connection_card"],
+                            "reason": "extends existing ui shell",
+                        }
+                    ],
+                },
+            },
+            ensure_ascii=False,
+            indent=2,
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    (feat_pkg / "surface-map-freeze-gate.json").write_text(
+        json.dumps({"freeze_ready": True}, ensure_ascii=False, indent=2) + "\n",
+        encoding="utf-8",
+    )
 
     proto_skill = Path(__file__).resolve().parents[2] / "ll-dev-feat-to-proto"
     run_proto = subprocess.run(
@@ -100,6 +139,12 @@ def test_proto_to_ui_emits_semantic_ledger(tmp_path: Path) -> None:
     assert (ui_dir / "ui-spec-bundle.json").exists()
     assert bundle["journey_structural_spec_ref"] == "journey-ux-ascii.md"
     assert bundle["ui_shell_snapshot_ref"] == "ui-shell-spec.md"
+    assert bundle["surface_map_ref"] == "surface-map-bundle.json"
+    assert bundle["ui_owner_ref"] == "UI-COACH-SHELL"
+    assert bundle["ui_action"] == "update"
+    assert bundle["ui_ref"] == "UI-COACH-SHELL"
+    assert bundle["prototype_owner_ref"] == "PROTO-COACH-MAIN"
+    assert bundle["prototype_action"] == "update"
     assert any(entry["semantic_area"] == "journey_structure" for entry in ledger["ui_spec_semantic_sources"]["from_other_authority"])
     assert any(entry["semantic_area"] == "shell_frame" for entry in ledger["ui_spec_semantic_sources"]["from_other_authority"])
 
@@ -120,6 +165,12 @@ def test_proto_to_ui_rejects_pending_human_reviewer(tmp_path: Path) -> None:
                 "ui_shell_version": "1.0.0",
                 "ui_shell_snapshot_hash": "abc",
                 "shell_change_policy": "governance-only",
+                "surface_map_ref": "surface-map-bundle.json",
+                "prototype_owner_ref": "PROTO-BAD-REVIEW",
+                "prototype_action": "update",
+                "ui_owner_ref": "UI-BAD-REVIEW",
+                "ui_action": "update",
+                "related_feat_refs": ["FEAT-BAD-REVIEW"],
                 "pages": [{"page_id": "entry", "title": "Entry", "page_goal": "Goal", "main_path": ["A", "B"], "branch_paths": [], "states": [{"name": "initial", "ui_behavior": "ready"}], "buttons": [{"label": "Continue", "action": "next"}]}],
             },
             ensure_ascii=False,
