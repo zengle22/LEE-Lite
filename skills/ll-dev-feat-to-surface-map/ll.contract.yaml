@@ -1,0 +1,121 @@
+skill_id: ll-dev-feat-to-surface-map
+skill_type: workflow
+version: 0.1.0
+workflow_key: dev.feat-to-surface-map
+
+authority:
+  canonical_template: E:\ai\LEE\spec-global\departments\dev\workflows\templates\surface-map-l2-template.yaml
+  upstream_skill: ll-product-epic-to-feat
+  downstream_workflow: workflow.dev.feat_to_tech
+  downstream_artifact_children:
+    - SURFACE_MAP
+    - TECH
+    - PROTOTYPE
+    - UI
+
+roles:
+  executor:
+    required: true
+    evidence_required: true
+    prompt_file: agents/executor.md
+  supervisor:
+    required: true
+    evidence_required: true
+    prompt_file: agents/supervisor.md
+
+runtime:
+  mode: lite_native
+  command: python scripts/feat_to_surface_map.py run --input <feat-package-dir> --feat-ref <feat-ref> --repo-root <repo-root>
+  entry_script: scripts/feat_to_surface_map.py
+  accepted_input_paths:
+    - artifacts/epic-to-feat/<run_id>
+    - direct feat_freeze_package directory path
+  produced_output_dir: artifacts/feat-to-surface-map/<run_id>--<feat_ref>
+  required_output_artifacts:
+    - package-manifest.json
+    - surface-map-bundle.md
+    - surface-map-bundle.json
+    - surface-map-review-report.json
+    - surface-map-defect-list.json
+    - surface-map-freeze-gate.json
+    - execution-evidence.json
+    - supervision-evidence.json
+
+input:
+  artifact_type: feat_freeze_package
+  contract_file: input/contract.yaml
+  schema_file: input/schema.json
+  structural_validation_required: true
+  semantic_validation_required: true
+  required_context_objects:
+    - feat_ref
+  integration_context_required: false
+
+output:
+  artifact_type: surface_map_package
+  contract_file: output/contract.yaml
+  schema_file: output/schema.json
+  template_file: output/template.md
+  structural_validation_required: true
+  semantic_validation_required: true
+  frozen_sections:
+    - selected_feat
+    - design_impact
+    - surface_map
+    - ownership_summary
+    - create_justification
+    - downstream_handoff
+    - traceability
+  downstream_handoff_refs:
+    - surface_map_ref
+    - feat_ref
+    - downstream_target_workflows
+
+validation:
+  structural:
+    - "python scripts/feat_to_surface_map.py validate-input --input $INPUT --feat-ref $FEAT_REF"
+    - "python scripts/feat_to_surface_map.py run --input $INPUT --feat-ref $FEAT_REF --repo-root $REPO_ROOT --allow-update"
+    - "python scripts/feat_to_surface_map.py validate-output --artifacts-dir $OUTPUT"
+    - "python scripts/feat_to_surface_map.py freeze-guard --artifacts-dir $OUTPUT"
+  semantic:
+    input_checklist: input/semantic-checklist.md
+    output_checklist: output/semantic-checklist.md
+
+evidence:
+  execution_schema: evidence/execution-evidence.schema.json
+  supervision_schema: evidence/supervision-evidence.schema.json
+  report_template: evidence/report.template.md
+
+lifecycle:
+  definition_file: ll.lifecycle.yaml
+  max_revision_rounds: 3
+  state_semantics:
+    document_tested:
+      evidence_complete: true
+      implies_ready: false
+      implies_approved: false
+      implies_frozen: false
+    supervisor_reviewed:
+      evidence_submission_review_complete: true
+      implies_authoritative_approval: false
+    gate_ready:
+      external_gate_submission_ready: true
+      implies_approved: false
+      implies_frozen: false
+
+gate:
+  freeze_requires:
+    - input_structural_pass
+    - input_semantic_pass
+    - output_structural_pass
+    - output_semantic_pass
+    - document_test_report_present
+    - execution_evidence_present
+    - supervision_evidence_present
+    - surface_map_freeze_gate_pass
+  reject_when:
+    - upstream_package_not_freeze_ready
+    - selected_feat_ref_missing
+    - missing_feat_freeze_provenance
+    - surface_map_validation_failed
+    - required_evidence_missing

@@ -1,0 +1,90 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "ll-dev-feat-to-surface-map output",
+  "type": "object",
+  "required": [
+    "artifact_type",
+    "workflow_key",
+    "workflow_run_id",
+    "status",
+    "schema_version",
+    "feat_ref",
+    "surface_map_ref",
+    "selected_feat",
+    "design_impact_required",
+    "surface_map",
+    "source_refs",
+    "downstream_handoff"
+  ],
+  "properties": {
+    "artifact_type": { "type": "string", "const": "surface_map_package" },
+    "workflow_key": { "type": "string", "const": "dev.feat-to-surface-map" },
+    "workflow_run_id": { "type": "string" },
+    "status": { "type": "string" },
+    "schema_version": { "type": "string" },
+    "feat_ref": { "type": "string" },
+    "surface_map_ref": { "type": "string" },
+    "selected_feat": {
+      "type": "object",
+      "required": ["feat_ref", "title", "goal", "scope", "constraints", "acceptance_checks", "source_refs"],
+      "properties": {
+        "feat_ref": { "type": "string" },
+        "title": { "type": "string" },
+        "goal": { "type": "string" },
+        "scope": { "type": "array", "items": { "type": "string" } },
+        "constraints": { "type": "array", "items": { "type": "string" } },
+        "acceptance_checks": { "type": "array", "items": { "type": "object" } },
+        "source_refs": { "type": "array", "items": { "type": "string" } }
+      },
+      "additionalProperties": true
+    },
+    "design_impact_required": { "type": "boolean" },
+    "surface_map": {
+      "type": "object",
+      "required": ["design_surfaces", "ownership_summary", "create_justification_summary", "owner_binding_status"],
+      "properties": {
+        "design_surfaces": {
+          "type": "object",
+          "properties": {
+            "architecture": { "type": "array", "items": { "$ref": "#/$defs/surfaceEntry" } },
+            "api": { "type": "array", "items": { "$ref": "#/$defs/surfaceEntry" } },
+            "ui": { "type": "array", "items": { "$ref": "#/$defs/surfaceEntry" } },
+            "prototype": { "type": "array", "items": { "$ref": "#/$defs/surfaceEntry" } },
+            "tech": { "type": "array", "items": { "$ref": "#/$defs/surfaceEntry" } }
+          },
+          "additionalProperties": false
+        },
+        "ownership_summary": { "type": "array", "items": { "type": "string" } },
+        "create_justification_summary": { "type": "array", "items": { "type": "string" } },
+        "owner_binding_status": { "type": "string" },
+        "bypass_rationale": { "type": ["string", "null"] }
+      },
+      "additionalProperties": true
+    },
+    "source_refs": { "type": "array", "items": { "type": "string" } },
+    "downstream_handoff": {
+      "type": "object",
+      "required": ["target_workflows", "surface_map_ref", "feat_ref"],
+      "properties": {
+        "target_workflows": { "type": "array", "items": { "type": "string" } },
+        "surface_map_ref": { "type": "string" },
+        "feat_ref": { "type": "string" }
+      },
+      "additionalProperties": true
+    }
+  },
+  "$defs": {
+    "surfaceEntry": {
+      "type": "object",
+      "required": ["owner", "action", "scope", "reason"],
+      "properties": {
+        "owner": { "type": "string" },
+        "action": { "type": "string", "enum": ["update", "create"] },
+        "scope": { "type": "array", "items": { "type": "string" } },
+        "reason": { "type": "string" }
+      },
+      "additionalProperties": true
+    }
+  },
+  "additionalProperties": true
+}

@@ -13,16 +13,18 @@
 RAW -> SRC -> EPIC -> FEAT
 ```
 
-FEAT 派生对象：
+ADR-042 之后的推荐设计派生链：
 
 ```text
 FEAT
- ├─> ARCH?
- ├─> TECH
- ├─> API?
+ ├─> SURFACE_MAP
+ │    ├─> ARCH?
+ │    ├─> API?
+ │    ├─> UI?
+ │    ├─> PROTOTYPE?
+ │    └─> TECH?
  ├─> IMPL
- ├─> TESTSET
- └─> UI?
+ └─> TESTSET
 ```
 
 发布事实对象：
@@ -35,9 +37,10 @@ RELEASE_NOTE
 
 * `RAW` 不是 SSOT，只是输入池。
 * `SRC`、`EPIC`、`FEAT` 是主链 SSOT。
+* `SURFACE_MAP` 是 `FEAT` 进入设计层前的归属层对象，用于把一个 `FEAT` 映射到 shared design assets。
 * `TECH`、`IMPL`、`TESTSET` 是围绕 `FEAT` 的派生 SSOT。
-* `API` 只要承载跨边界契约，就应作为正式 SSOT 对象存在。
-* `UI` 是可选对象，不是每个 FEAT 必须具备。
+* `API`、`UI`、`PROTOTYPE` 只要承载长期共享边界，就应作为 shared design assets 存在。
+* `UI / PROTOTYPE / ARCH / API / TECH` 不再默认按单个 `FEAT` 一对一新建；默认先 `update existing`。
 * `RELEASE_NOTE` 是发布后的事实记录对象。
 
 ## Canonical Naming
@@ -48,12 +51,14 @@ RELEASE_NOTE
 
 * `EPIC-SRC-001-001__...`
 * `FEAT-SRC-001-001__...`
+* `SURFACE-MAP-FEAT-SRC-001-001`
 * `ARCH-SRC-001-001__...`
 * `TECH-SRC-001-001__...`
 * `API-SRC-001-001__...`
 * `IMPL-SRC-001-001__...`
 * `TESTSET-SRC-001-001__...`
 * `UI-SRC-001-001__...`
+* `PROTO-SRC-001-001__...`
 
 解释：
 
@@ -83,11 +88,13 @@ RELEASE_NOTE
 * `ssot/src/`
 * `ssot/epic/`
 * `ssot/feat/`
+* `ssot/mapping/`
 * `ssot/tech/`
 * `ssot/api/`
 * `ssot/impl/`
 * `ssot/testset/`
 * `ssot/ui/`
+* `ssot/prototype/`
 * `ssot/release_note/`
 * `ssot/adr/`
 
