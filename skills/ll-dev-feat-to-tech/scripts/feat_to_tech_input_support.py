@@ -12,6 +12,7 @@ from typing import Any
 
 from feat_to_tech_common import (
     REQUIRED_INPUT_FILES,
+    SURFACE_MAP_REQUIRED_FILES,
     ensure_list,
     load_json,
     normalize_semantic_lock,
@@ -161,6 +162,41 @@ def validate_input_package(input_value: str | Path, feat_ref: str, repo_root: Pa
                 errors.append(f"Selected feature is missing required field: {field}")
         if len(feature.get("acceptance_checks") or []) < 3:
             errors.append(f"{effective_feat_ref} must include at least three acceptance checks.")
+        design_impact_required = feature.get("design_impact_required")
+        if design_impact_required is not None and not isinstance(design_impact_required, bool):
+            errors.append("selected_feat.design_impact_required must be a boolean when provided.")
+        if design_impact_required is True:
+            missing_surface_files = [name for name in SURFACE_MAP_REQUIRED_FILES if not (artifacts_dir / name).exists()]
+            for name in missing_surface_files:
+                errors.append(f"Missing required surface-map artifact: {name}")
+            if not missing_surface_files:
+                surface_map = load_json(artifacts_dir / "surface-map-bundle.json")
+                surface_gate = load_json(artifacts_dir / "surface-map-freeze-gate.json")
+                if str(surface_map.get("artifact_type") or "") != "surface_map_package":
+                    errors.append("surface-map-bundle.json artifact_type must be surface_map_package")
+                if surface_gate.get("freeze_ready") is not True:
+                    errors.append("surface-map-freeze-gate.json freeze_ready must be true")
+                mapped_feat_ref = str(surface_map.get("feat_ref") or "").strip()
+                related_feat_refs = [str(item).strip() for item in ensure_list(surface_map.get("related_feat_refs")) if str(item).strip()]
+                if mapped_feat_ref != effective_feat_ref and effective_feat_ref not in related_feat_refs:
+                    errors.append(f"surface-map-bundle.json does not cover selected feat_ref: {effective_feat_ref}")
+                design_surfaces = surface_map.get("design_surfaces") if isinstance(surface_map.get("design_surfaces"), dict) else {}
+                tech_bindings = design_surfaces.get("tech") if isinstance(design_surfaces.get("tech"), list) else []
+                tech_binding = tech_bindings[0] if tech_bindings else None
+                if not tech_binding:
+                    errors.append(f"surface-map-bundle.json must include a tech binding for {effective_feat_ref}")
+                else:
+                    if not str(tech_binding.get("owner") or "").strip():
+                        errors.append("surface-map tech binding must include owner")
+                    if str(tech_binding.get("action") or "").strip() not in {"update", "create"}:
+                        errors.append("surface-map tech binding action must be update or create")
+                    else:
+                        surface_map_ref = str(surface_map.get("surface_map_ref") or "").strip() or "surface-map-bundle.json"
+                        feature = dict(feature)
+                        feature["surface_map_ref"] = surface_map_ref
+                        feature["tech_owner_ref"] = str(tech_binding.get("owner") or "").strip()
+                        feature["tech_action"] = str(tech_binding.get("action") or "").strip()
+                        feature["owner_binding_status"] = "bound"
 
     source_refs = ensure_list(package.feat_json.get("source_refs"))
     if not any(ref.startswith("EPIC-") for ref in source_refs):
@@ -182,6 +218,10 @@ def validate_input_package(input_value: str | Path, feat_ref: str, repo_root: Pa
         "epic_freeze_ref": package.feat_json.get("epic_freeze_ref"),
         "src_root_id": package.feat_json.get("src_root_id"),
         "source_refs": source_refs,
+        "surface_map_ref": str((feature or {}).get("surface_map_ref") or ""),
+        "tech_owner_ref": str((feature or {}).get("tech_owner_ref") or ""),
+        "tech_action": str((feature or {}).get("tech_action") or ""),
+        "owner_binding_status": str((feature or {}).get("owner_binding_status") or ""),
         "integration_context_ref": integration_context_ref(package.integration_context),
         "integration_context_present": bool(package.integration_context),
     }

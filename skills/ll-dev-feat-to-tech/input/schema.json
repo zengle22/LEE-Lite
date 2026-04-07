@@ -55,6 +55,18 @@
               "type": "object"
             }
           },
+          "design_impact_required": {
+            "type": "boolean"
+          },
+          "candidate_design_surfaces": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "surface_map_required_reason": {
+            "type": "string"
+          },
           "source_refs": {
             "type": "array",
             "items": {

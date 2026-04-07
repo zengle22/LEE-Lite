@@ -26,6 +26,11 @@ REQUIRED_INPUT_FILES = [
     "supervision-evidence.json",
 ]
 
+SURFACE_MAP_REQUIRED_FILES = [
+    "surface-map-bundle.json",
+    "surface-map-freeze-gate.json",
+]
+
 
 def load_json(path: Path) -> Any:
     return json.loads(path.read_text(encoding="utf-8"))

@@ -125,6 +125,10 @@ def executor_run(
     if feature is None:
         raise ValueError(f"Selected feat_ref not found: {effective_feat_ref}")
     feature = dict(feature)
+    for key in ["surface_map_ref", "tech_owner_ref", "tech_action", "owner_binding_status"]:
+        value = validation.get(key)
+        if value not in (None, "", []):
+            feature[key] = value
     feature["semantic_lock"] = derive_semantic_lock(feature, package.semantic_lock)
 
     effective_run_id = run_id or f"{package.run_id}--{effective_feat_ref.lower()}"
@@ -172,6 +176,13 @@ def supervisor_review(
     if feature is None:
         raise ValueError(f"Selected feat_ref not found: {feat_ref}")
     feature = dict(feature)
+    validation_errors, validation = validate_input_package(input_package_dir, feat_ref, repo_root)
+    if validation_errors:
+        raise ValueError("; ".join(validation_errors))
+    for key in ["surface_map_ref", "tech_owner_ref", "tech_action", "owner_binding_status"]:
+        value = validation.get(key)
+        if value not in (None, "", []):
+            feature[key] = value
     feature["semantic_lock"] = derive_semantic_lock(feature, package.semantic_lock)
     effective_run_id = run_id or artifacts_dir.name
     generated = build_tech_package(package, feature, feat_ref, effective_run_id, utc_now, revision_request=revision_context)

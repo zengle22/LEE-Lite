@@ -34,6 +34,14 @@ required_feature_fields:
   - constraints
   - acceptance_checks
   - source_refs
+required_optional_feature_fields:
+  - design_impact_required
+  - candidate_design_surfaces
+  - surface_map_required_reason
+conditional_runtime_artifacts:
+  when_design_impact_required_true:
+    - surface-map-bundle.json
+    - surface-map-freeze-gate.json
 required_selector_fields:
   - feat_ref
 required_integration_context_fields:
@@ -54,6 +62,7 @@ structural_checks:
   - evidence_presence
   - integration_context_presence
   - integration_context_structure
+  - surface_map_gate_present_when_design_impact_required
 semantic_gate:
   required: true
 forbidden_statuses:
@@ -68,3 +77,4 @@ notes:
   - The selected FEAT must already be independently acceptable at the FEAT layer before design expansion begins.
   - `feat_ref` selection is mandatory because a feat_freeze_package may contain multiple FEATs.
   - `integration_context` is mandatory as a runtime artifact because formal tech design must freeze existing-system integration facts instead of inferring them later.
+  - When `design_impact_required=true`, a frozen `surface_map_package` must already exist and must include a `tech` owner binding for the selected FEAT.

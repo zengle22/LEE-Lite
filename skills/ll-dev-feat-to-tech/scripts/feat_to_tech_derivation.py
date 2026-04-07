@@ -207,9 +207,11 @@ def keyword_hits(feature: dict[str, Any], keywords: list[str]) -> list[str]:
 def build_refs(feature: dict[str, Any], package: Any) -> dict[str, str]:
     feat_ref = str(feature.get("feat_ref") or "").strip()
     feat_suffix = feat_ref.replace("FEAT-", "", 1) if feat_ref.startswith("FEAT-") else feat_ref
+    tech_owner_ref = str(feature.get("tech_owner_ref") or feature.get("tech_ref") or "").strip()
     return {
         "feat_ref": feat_ref,
-        "tech_ref": f"TECH-{feat_suffix}" if feat_suffix else "",
+        "tech_ref": tech_owner_ref or (f"TECH-{feat_suffix}" if feat_suffix else ""),
+        "surface_map_ref": str(feature.get("surface_map_ref") or "").strip(),
         "arch_ref": f"ARCH-{feat_suffix}" if feat_suffix else "",
         "api_ref": f"API-{feat_suffix}" if feat_suffix else "",
         "epic_ref": str(package.feat_json.get("epic_freeze_ref") or ""),

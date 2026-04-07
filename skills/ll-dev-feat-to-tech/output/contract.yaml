@@ -25,17 +25,24 @@ required_fields:
   - schema_version
   - feat_ref
   - tech_ref
+  - surface_map_ref
   - selected_feat
   - source_refs
   - need_assessment
   - integration_sufficiency_check
   - downstream_handoff
+  - owner_binding_status
 required_selected_feat_fields:
   - feat_ref
   - title
   - goal
   - scope
   - constraints
+required_optional_selected_feat_fields:
+  - design_impact_required
+  - surface_map_ref
+  - tech_owner_ref
+  - tech_action
 required_selector_fields:
   - feat_ref
   - tech_ref
@@ -61,6 +68,7 @@ structural_checks:
   - selected_feat_ref_present
   - selected_tech_ref_present
   - upstream_feat_lineage_present
+  - surface_map_trace_present_when_design_impact_required
   - evidence_presence
   - integration_sufficiency_presence
   - downstream_handoff_presence
@@ -88,4 +96,5 @@ notes:
   - The selected TECH package must already be independently acceptable at the TECH layer before implementation planning begins.
   - `feat_ref` and `tech_ref` selection are both mandatory because IMPL derives from frozen TECH authority, not raw FEAT notes.
   - `integration_context` is mandatory because formal TECH design must freeze existing-system integration facts, canonical ownership, and migration constraints.
+  - `surface_map_ref` is required when the selected FEAT carries `design_impact_required=true`, and it must trace the shared design ownership binding used for TECH derivation.
   - The 10-block TECH structure is represented by the runtime headings in `tech-design-bundle.md`; the contract names are the SSOT for semantic review.

@@ -35,6 +35,7 @@ def validate_input_package(input_value: str | Path, feat_ref: str, tech_ref: str
     errors.extend(check_bundle_identity(bundle))
     errors.extend(check_selected_refs(package, selected_feat, effective_feat_ref, effective_tech_ref))
     errors.extend(check_selected_feat_fields(selected_feat))
+    errors.extend(check_surface_map_requirement(bundle, package))
     errors.extend(check_provisional_inputs(selected_feat))
     errors.extend(check_source_refs(bundle, package, effective_tech_ref))
     errors.extend(check_optional_refs(bundle, package))
@@ -48,6 +49,7 @@ def validate_input_package(input_value: str | Path, feat_ref: str, tech_ref: str
         "status": str(bundle.get("status") or package.manifest.get("status") or ""),
         "feat_ref": effective_feat_ref,
         "tech_ref": effective_tech_ref,
+        "surface_map_ref": package.surface_map_ref,
         "arch_ref": package.arch_ref,
         "api_ref": package.api_ref,
         "feat_title": str(selected_feat.get("title") or ""),
@@ -103,6 +105,20 @@ def check_selected_feat_fields(selected_feat: dict[str, Any]) -> list[str]:
     return errors
 
 
+def check_surface_map_requirement(bundle: dict[str, Any], package: Any) -> list[str]:
+    errors: list[str] = []
+    selected_feat = package.selected_feat
+    design_impact_required = bool(
+        bundle.get("design_impact_required")
+        if isinstance(bundle.get("design_impact_required"), bool)
+        else selected_feat.get("design_impact_required")
+    )
+    surface_map_ref = package.surface_map_ref
+    if design_impact_required and not surface_map_ref:
+        errors.append("surface_map_ref is required when selected_feat.design_impact_required is true.")
+    return errors
+
+
 def check_provisional_inputs(selected_feat: dict[str, Any]) -> list[str]:
     errors: list[str] = []
     raw_provisional_refs = selected_feat.get("provisional_refs")
@@ -142,6 +158,8 @@ def check_optional_refs(bundle: dict[str, Any], package: Any) -> list[str]:
         errors.append("need_assessment.integration_context_sufficient must be true for tech-to-impl input.")
     if need_assessment.get("stateful_design_present") is not True:
         errors.append("need_assessment.stateful_design_present must be true for tech-to-impl input.")
+    if package.surface_map_ref and not isinstance(package.surface_map_ref, str):
+        errors.append("surface_map_ref must be a string when provided.")
     return errors
 
 

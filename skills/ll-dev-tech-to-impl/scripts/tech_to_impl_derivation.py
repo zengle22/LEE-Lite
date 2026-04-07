@@ -36,6 +36,7 @@ def build_refs(package: Any) -> dict[str, str | None]:
         "feat_ref": package.feat_ref,
         "tech_ref": tech_ref,
         "impl_ref": impl_ref,
+        "surface_map_ref": package.surface_map_ref,
         "arch_ref": package.arch_ref,
         "api_ref": package.api_ref,
     }

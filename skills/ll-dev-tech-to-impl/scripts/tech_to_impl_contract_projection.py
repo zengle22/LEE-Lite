@@ -438,6 +438,13 @@ def _expected_testset_ref(feature: dict[str, Any]) -> str | None:
 def _discover_optional_authority_refs(repo_root: Path, feature: dict[str, Any]) -> dict[str, str | None]:
     expected_ui_ref = _expected_ui_ref(feature)
     expected_testset_ref = _expected_testset_ref(feature)
+    surface_map_ref = str(feature.get("surface_map_ref") or "").strip() or _first_existing_ref(
+        repo_root,
+        [
+            f"ssot/surface-map/**/*{feature.get('feat_ref') or ''}*.md",
+            f"ssot/surface-map/**/*{feature.get('feat_ref') or ''}*.json",
+        ],
+    )
     ui_ref = _first_existing_ref(
         repo_root,
         [
@@ -452,7 +459,7 @@ def _discover_optional_authority_refs(repo_root: Path, feature: dict[str, Any]) 
             f"ssot/testset/*{feature.get('feat_ref') or ''}*",
         ],
     )
-    return {"ui_ref": ui_ref, "testset_ref": testset_ref}
+    return {"surface_map_ref": surface_map_ref or None, "ui_ref": ui_ref, "testset_ref": testset_ref}
 
 
 def resolve_selected_upstream_refs(
@@ -468,6 +475,7 @@ def resolve_selected_upstream_refs(
         "epic_ref": next((item for item in source_refs if item.startswith("EPIC-")), ""),
         "feat_ref": refs["feat_ref"],
         "tech_ref": refs["tech_ref"],
+        "surface_map_ref": refs.get("surface_map_ref") or discovered["surface_map_ref"],
         "arch_ref": refs["arch_ref"],
         "api_ref": refs["api_ref"],
         "ui_ref": str(feature.get("ui_ref") or "").strip() or discovered["ui_ref"],
@@ -585,6 +593,7 @@ def _upstream_impacts(
     engineering_baseline = _is_engineering_baseline(feature)
     axis_id = str(feature.get("axis_id") or feature.get("slice_id") or "").strip().lower()
     ui_ref = selected_upstream_refs["ui_ref"]
+    surface_map_ref = selected_upstream_refs.get("surface_map_ref")
     if engineering_baseline and axis_id == "miniapp-shell" and not ui_ref:
         ui_ref = "embedded_execution_contract_sufficient"
     return {
@@ -601,6 +610,12 @@ def _upstream_impacts(
         "tech": {
             "ref": selected_upstream_refs["tech_ref"],
             "impact_items": tech_focus,
+        },
+        "surface_map": {
+            "ref": surface_map_ref,
+            "impact": "Shared design ownership and update/create routing remain anchored to the frozen surface-map package."
+            if surface_map_ref
+            else "No surface-map was selected for this TECH package.",
         },
         "arch": {
             "ref": selected_upstream_refs["arch_ref"],
@@ -688,6 +703,15 @@ def _authority_binding_status(
             execution_effect="coder/tester inherit execution-bundle governance from frozen ADR refs",
             follow_up_action="attach governing ADR before execution" if not adr_refs else "none",
             expected_ref="ADR-034",
+        ),
+        _authority_binding_entry(
+            "SURFACE_MAP",
+            ref=selected_upstream_refs.get("surface_map_ref"),
+            status="bound" if selected_upstream_refs.get("surface_map_ref") else ("missing" if bool(feature.get("design_impact_required")) else "not_selected"),
+            required_for="shared design ownership and downstream update/create routing when design impact is present",
+            execution_effect="IMPL inherits surface ownership decisions from the frozen surface-map package when it is available.",
+            follow_up_action="freeze_or_rederive_surface_map_before_final_execution" if bool(feature.get("design_impact_required")) and not selected_upstream_refs.get("surface_map_ref") else "none",
+            expected_ref="surface-map package",
         ),
         _authority_binding_entry(
             "ARCH",

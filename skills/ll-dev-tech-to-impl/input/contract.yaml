@@ -71,6 +71,8 @@ forbidden_inputs:
 notes:
   - The selected TECH package must already be independently acceptable at the TECH layer before implementation planning begins.
   - `feat_ref` and `tech_ref` selection are both mandatory because IMPL now derives from frozen TECH authority, not raw FEAT notes.
+  - When `selected_feat.design_impact_required` is true, the TECH package must also carry a `surface_map_ref` so IMPL can bind to the shared design ownership layer.
+  - `surface_map_ref` is a gate and authority clue, not a new design source; it only records which shared surface-map package this TECH package was derived from.
   - `downstream_handoff` must preserve the frozen integration_context, canonical ownership, state machine, NFR, migration, and algorithm refs needed for IMPL planning.
   - IMPL must consume those refs directly and must not reinterpret them as a second design pass.
   - Provisional upstream inputs are allowed only through an explicit exception path with follow-up freeze or revision handling.

@@ -192,6 +192,19 @@ class TechPackage:
         return str(self.tech_json.get("tech_ref") or "").strip()
 
     @property
+    def surface_map_ref(self) -> str | None:
+        value = str(self.tech_json.get("surface_map_ref") or self.selected_feat.get("surface_map_ref") or "").strip()
+        return value or None
+
+    @property
+    def design_impact_required(self) -> bool:
+        value = self.tech_json.get("design_impact_required")
+        if isinstance(value, bool):
+            return value
+        selected = self.selected_feat.get("design_impact_required")
+        return bool(selected) if isinstance(selected, bool) else False
+
+    @property
     def arch_ref(self) -> str | None:
         value = str(self.tech_json.get("arch_ref") or "").strip()
         return value or None

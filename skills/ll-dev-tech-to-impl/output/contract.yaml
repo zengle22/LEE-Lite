@@ -101,4 +101,6 @@ notes:
   - The package is the canonical execution package and execution-time single entrypoint for `template.dev.feature_delivery_l2`, not final code-delivery proof.
   - `impl-task.md` must be independently actionable as a full execution contract, not just a brief that depends on sidecar files to recover scope, test mapping, or change controls.
   - `impl-bundle.md` / published IMPL markdown must expose the same execution-critical facts needed for a reader to understand touch set, task order, embedded contracts, and acceptance mapping without reopening upstream refs.
+  - When the upstream TECH package was derived from a `design_impact_required` FEAT, the candidate package must carry `surface_map_ref` through `selected_upstream_refs` and `upstream_design_refs` so the implementation authority chain remains explicit.
+  - `surface_map_ref` is an authority clue only; it does not replace TECH, ARCH, API, UI, or TESTSET authority.
 

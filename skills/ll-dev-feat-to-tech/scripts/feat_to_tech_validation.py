@@ -103,7 +103,7 @@ def validate_output_package(artifacts_dir: Path) -> tuple[list[str], dict[str, A
     api_required = bool(bundle_json.get("api_required"))
     validate_optional_outputs(errors, artifacts_dir, arch_required, api_required)
     validate_consistency_sections(errors, artifacts_dir, bundle_json)
-    validate_handoff(errors, artifacts_dir)
+    validate_handoff(errors, artifacts_dir, bundle_json)
     errors.extend(validate_document_test_report(load_json(artifacts_dir / "document-test-report.json")))
     validate_adr007_adoption(errors, bundle_json)
     validate_explicit_product_axis_resolution(errors, bundle_json)
@@ -187,6 +187,13 @@ def validate_bundle_identity(errors, bundle_json):
         errors.append("tech-design-bundle.json must include feat_ref.")
     if not str(bundle_json.get("tech_ref") or ""):
         errors.append("tech-design-bundle.json must include tech_ref.")
+    selected_feat = bundle_json.get("selected_feat") if isinstance(bundle_json.get("selected_feat"), dict) else {}
+    if selected_feat.get("design_impact_required") is True:
+        if not str(bundle_json.get("surface_map_ref") or "").strip():
+            errors.append("tech-design-bundle.json must include surface_map_ref when selected_feat.design_impact_required is true.")
+        tech_owner_ref = str(selected_feat.get("tech_owner_ref") or "").strip()
+        if tech_owner_ref and str(bundle_json.get("tech_ref") or "").strip() != tech_owner_ref:
+            errors.append("tech-design-bundle.json tech_ref must match selected_feat.tech_owner_ref when a TECH owner is bound.")
 
 
 def validate_source_refs(errors, bundle_json):
@@ -297,13 +304,16 @@ def validate_consistency_sections(errors, artifacts_dir, bundle_json):
             errors.append(f"tech_design.{key} must be non-empty.")
 
 
-def validate_handoff(errors, artifacts_dir):
+def validate_handoff(errors, artifacts_dir, bundle_json):
     handoff = load_json(artifacts_dir / "handoff-to-tech-impl.json")
     if handoff.get("target_workflow") != DOWNSTREAM_WORKFLOW:
         errors.append(f"handoff-to-tech-impl.json must target {DOWNSTREAM_WORKFLOW}.")
     for key in ["integration_context_ref", "canonical_owner_refs", "state_machine_ref", "nfr_constraints_ref", "migration_constraints_ref", "algorithm_constraint_refs"]:
         if handoff.get(key) in (None, "", []):
             errors.append(f"handoff-to-tech-impl.json must include {key}.")
+    selected_feat = bundle_json.get("selected_feat") if isinstance(bundle_json.get("selected_feat"), dict) else {}
+    if selected_feat.get("design_impact_required") is True and not str(handoff.get("surface_map_ref") or "").strip():
+        errors.append("handoff-to-tech-impl.json must include surface_map_ref when selected_feat.design_impact_required is true.")
 
 
 def validate_adr007_adoption(errors, bundle_json):

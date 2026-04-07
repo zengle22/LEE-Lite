@@ -136,6 +136,7 @@ def _build_upstream_design_refs(package: Any, feature: dict[str, Any], refs: dic
         "workflow_run_id": run_id,
         "feat_ref": refs["feat_ref"],
         "tech_ref": refs["tech_ref"],
+        "surface_map_ref": refs.get("surface_map_ref"),
         "arch_ref": refs["arch_ref"],
         "api_ref": refs["api_ref"],
         "upstream_workflow_key": str(package.tech_json.get("workflow_key") or ""),
@@ -143,6 +144,7 @@ def _build_upstream_design_refs(package: Any, feature: dict[str, Any], refs: dic
         "primary_artifacts": {
             "tech_design_bundle": "tech-design-bundle.json",
             "tech_spec": "tech-spec.md",
+            "surface_map_package": "surface-map-bundle.json" if refs.get("surface_map_ref") else None,
             "arch_design": "arch-design.md" if refs["arch_ref"] else None,
             "api_contract": "api-contract.md" if refs["api_ref"] else None,
         },
@@ -178,6 +180,7 @@ def _build_handoff(
         "feat_ref": refs["feat_ref"],
         "impl_ref": refs["impl_ref"],
         "tech_ref": refs["tech_ref"],
+        "surface_map_ref": refs.get("surface_map_ref"),
         "arch_ref": refs["arch_ref"],
         "api_ref": refs["api_ref"],
         "primary_artifact_ref": "impl-bundle.json",
@@ -208,6 +211,7 @@ def _normalized_source_refs(
         "ARCH-": str(refs.get("arch_ref") or "").strip() or None,
         "API-": str(refs.get("api_ref") or "").strip() or None,
         "UI-": str(selected_upstream_refs.get("ui_ref") or "").strip() or None,
+        "SURFACE-": str(selected_upstream_refs.get("surface_map_ref") or "").strip() or None,
         "TESTSET-": str(selected_upstream_refs.get("testset_ref") or "").strip() or None,
     }
     normalized: list[str] = []
@@ -476,6 +480,8 @@ def build_candidate_package(package: Any, run_id: str) -> dict[str, Any]:
     feature = dict(package.selected_feat)
     feature["semantic_lock"] = normalize_semantic_lock(feature.get("semantic_lock") or package.semantic_lock)
     refs = build_refs(package)
+    if package.surface_map_ref and not refs.get("surface_map_ref"):
+        refs["surface_map_ref"] = package.surface_map_ref
     assessment = assess_workstreams(feature, package)
     consistency = consistency_check(assessment)
     checkpoints = acceptance_checkpoints(feature, package, assessment)

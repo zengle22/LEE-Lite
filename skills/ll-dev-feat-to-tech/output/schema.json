@@ -43,6 +43,12 @@
     "tech_ref": {
       "type": "string"
     },
+    "surface_map_ref": {
+      "type": ["string", "null"]
+    },
+    "owner_binding_status": {
+      "type": "string"
+    },
     "arch_required": {
       "type": "boolean"
     },
@@ -159,6 +165,10 @@
         "axis_id": { "type": "string" },
         "title": { "type": "string" },
         "goal": { "type": "string" },
+        "design_impact_required": { "type": "boolean" },
+        "surface_map_ref": { "type": ["string", "null"] },
+        "tech_owner_ref": { "type": "string" },
+        "tech_action": { "type": "string", "enum": ["update", "create", ""] },
         "ui_ref": { "type": "string" },
         "testset_ref": { "type": "string" },
         "provisional_refs": {
@@ -285,6 +295,7 @@
         "target_workflow": { "type": "string" },
         "feat_ref": { "type": "string" },
         "tech_ref": { "type": "string" },
+        "surface_map_ref": { "type": ["string", "null"] },
         "arch_ref": { "type": ["string", "null"] },
         "api_ref": { "type": ["string", "null"] },
         "primary_artifact_ref": { "type": "string" },

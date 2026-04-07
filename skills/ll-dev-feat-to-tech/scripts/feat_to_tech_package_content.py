@@ -92,7 +92,14 @@ def build_design_context(package, feature, refs, assessment, revision_context=No
 
 def build_source_refs(package, refs, feature, context):
     return unique_strings(
-        [f"product.epic-to-feat::{package.run_id}", refs["feat_ref"], refs["tech_ref"], refs["epic_ref"], refs["src_ref"]]
+        [
+            f"product.epic-to-feat::{package.run_id}",
+            refs["feat_ref"],
+            refs["tech_ref"],
+            refs["epic_ref"],
+            refs["src_ref"],
+            str(feature.get("surface_map_ref") or ""),
+        ]
         + ensure_list(feature.get("source_refs"))
         + ensure_list(package.feat_json.get("source_refs"))
         + ensure_list(context["integration_context"].get("source_refs"))
@@ -147,6 +154,7 @@ def build_handoff(run_id, refs, assessment, utc_now_fn):
         "target_workflow": DOWNSTREAM_WORKFLOW,
         "feat_ref": refs["feat_ref"],
         "tech_ref": refs["tech_ref"],
+        "surface_map_ref": refs.get("surface_map_ref"),
         "arch_ref": refs["arch_ref"] if assessment["arch_required"] else None,
         "api_ref": refs["api_ref"] if assessment["api_required"] else None,
         "primary_artifact_ref": "tech-design-bundle.md",
@@ -171,6 +179,8 @@ def build_json_payload(run_id, feature, refs, source_refs, assessment, context, 
         "schema_version": "1.0.0",
         "feat_ref": refs["feat_ref"],
         "tech_ref": refs["tech_ref"],
+        "surface_map_ref": str(feature.get("surface_map_ref") or ""),
+        "owner_binding_status": str(feature.get("owner_binding_status") or ("bound" if str(feature.get("surface_map_ref") or "").strip() else "not_selected")),
         "arch_ref": refs["arch_ref"] if assessment["arch_required"] else None,
         "api_ref": refs["api_ref"] if assessment["api_required"] else None,
         "epic_freeze_ref": refs["epic_ref"],
@@ -247,6 +257,7 @@ def build_frontmatter(run_id, refs, assessment, source_refs, feature, status, re
         "schema_version": "1.0.0",
         "feat_ref": refs["feat_ref"],
         "tech_ref": refs["tech_ref"],
+        "surface_map_ref": str(feature.get("surface_map_ref") or ""),
         "arch_required": assessment["arch_required"],
         "api_required": assessment["api_required"],
         "integration_context_sufficient": assessment["integration_context_sufficient"],

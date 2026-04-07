@@ -73,6 +73,9 @@
     "tech_ref": {
       "type": "string"
     },
+    "surface_map_ref": {
+      "type": ["string", "null"]
+    },
     "arch_ref": {
       "type": ["string", "null"]
     },
@@ -115,6 +118,7 @@
         "epic_ref": { "type": "string" },
         "feat_ref": { "type": "string" },
         "tech_ref": { "type": "string" },
+        "surface_map_ref": { "type": ["string", "null"] },
         "arch_ref": { "type": ["string", "null"] },
         "api_ref": { "type": ["string", "null"] },
         "ui_ref": { "type": ["string", "null"] },
