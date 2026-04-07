@@ -9,6 +9,7 @@ src_root_id: SRC-ROOT-TODO
 feat_refs:
   - FEAT-TODO
 downstream_workflows:
+  - workflow.dev.feat_to_surface_map
   - workflow.dev.feat_to_tech
   - workflow.qa.feat_to_testset
 source_refs:
@@ -45,8 +46,10 @@ source_refs:
 - Collaboration and Timeline
 - Acceptance and Testability
 - Frozen Downstream Boundary
+- Design Impact and Candidate Surfaces
 
 [Each FEAT must also make the product interface, completed state, business deliverable, and cross-cutting capability constraints explicit so downstream TECH does not need to infer product shape.]
+[Each FEAT must also state `design_impact_required`, `candidate_design_surfaces`, and optional `ui_required` compatibility hints so downstream design derivations know whether `surface_map_package` is mandatory.]
 [Each FEAT must also expose explicit machine-readable relationship fields: upstream_feat, downstream_feat, consumes, produces, authoritative_artifact, gate_decision_dependency_feat_refs, gate_decision_dependency, admission_dependency_feat_refs, admission_dependency, and dependency_kinds.]
 
 ## Prohibited Inference Rules

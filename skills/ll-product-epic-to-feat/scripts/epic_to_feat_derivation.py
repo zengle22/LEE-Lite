@@ -1686,6 +1686,37 @@ def derive_traceability(package: Any, feat_ref: str, axis: dict[str, str]) -> li
     ]
 
 
+def feat_candidate_design_surfaces(axis: dict[str, Any]) -> list[str]:
+    text = " ".join(
+        [
+            str(axis.get("id") or ""),
+            str(axis.get("name") or ""),
+            str(axis.get("scope") or ""),
+            str(axis.get("feat_axis") or ""),
+            str(axis.get("product_surface") or ""),
+            str(axis.get("business_deliverable") or ""),
+        ]
+    ).lower()
+
+    surfaces = ["architecture", "tech"]
+    api_markers = ("api", "contract", "service", "interface", "endpoint", "queue", "job", "runner")
+    ui_markers = ("ui", "page", "screen", "dialog", "drawer", "modal", "sheet", "form", "journey", "prototype", "shell", "conversation", "miniapp", "web", "mobile", "onboarding")
+
+    if any(marker in text for marker in api_markers):
+        surfaces.append("api")
+    if any(marker in text for marker in ui_markers) or bool(axis.get("ui_required")) or bool(axis.get("requires_ui")):
+        surfaces.extend(["prototype", "ui"])
+
+    return unique_strings(surfaces)
+
+
+def feat_design_impact_required(axis: dict[str, Any]) -> bool:
+    explicit = axis.get("design_impact_required")
+    if isinstance(explicit, bool):
+        return explicit
+    return True
+
+
 def build_feat_record(package: Any, axis: dict[str, str], index: int) -> dict[str, Any]:
     src_ref = choose_src_ref(package)
     epic_ref = choose_epic_ref(package)
@@ -1698,6 +1729,9 @@ def build_feat_record(package: Any, axis: dict[str, str], index: int) -> dict[st
     non_goals = feat_non_goals(axis, package)
     constraints = feat_constraints(axis, package)
     acceptance_checks = build_acceptance_checks(feat_ref, epic_ref, axis)
+    candidate_design_surfaces = feat_candidate_design_surfaces(axis)
+    design_impact_required = feat_design_impact_required(axis)
+    ui_required = "ui" in candidate_design_surfaces or "prototype" in candidate_design_surfaces
     return {
         "feat_ref": feat_ref,
         "title": title,
@@ -1732,6 +1766,10 @@ def build_feat_record(package: Any, axis: dict[str, str], index: int) -> dict[st
         "non_goals": non_goals,
         "constraints": constraints,
         "acceptance_checks": acceptance_checks,
+        "design_impact_required": design_impact_required,
+        "candidate_design_surfaces": candidate_design_surfaces,
+        "surface_map_required_reason": "This FEAT updates shared design assets and must resolve ownership before design derivation." if design_impact_required else "No shared design asset impact was declared for this FEAT.",
+        "ui_required": ui_required,
         "identity_and_scenario": {
             "product_interface": feat_product_interface(axis),
             "completed_state": feat_completed_state(axis),

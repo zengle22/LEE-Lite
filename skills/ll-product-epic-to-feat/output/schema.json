@@ -139,13 +139,27 @@
           "admission_dependency_feat_refs",
           "admission_dependency",
           "dependency_kinds",
+          "design_impact_required",
+          "candidate_design_surfaces",
           "identity_and_scenario",
           "business_flow",
           "product_objects_and_deliverables",
           "collaboration_and_timeline",
           "acceptance_and_testability",
           "frozen_downstream_boundary"
-        ]
+        ],
+        "properties": {
+          "feat_ref": { "type": "string", "minLength": 1 },
+          "title": { "type": "string", "minLength": 1 },
+          "design_impact_required": { "type": "boolean" },
+          "candidate_design_surfaces": {
+            "type": "array",
+            "minItems": 1,
+            "items": { "type": "string", "minLength": 1 }
+          },
+          "surface_map_required_reason": { "type": "string" },
+          "ui_required": { "type": "boolean" }
+        }
       }
     }
   },

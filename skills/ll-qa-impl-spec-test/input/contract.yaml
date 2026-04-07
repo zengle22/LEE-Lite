@@ -15,6 +15,9 @@ required_payload_fields:
   - feat_ref
   - tech_ref
 optional_payload_fields:
+  - surface_map_ref
+  - prototype_ref
+  - resolved_design_refs
   - arch_ref
   - api_ref
   - ui_ref
@@ -49,3 +52,5 @@ notes:
   - repo_context should preserve touchable_paths, observable_paths, and migration_notes_ref when available.
   - risk_profile should default to product_impl / high when omitted.
   - review_profile is an optional deep-review steering object that may list personas, focus areas, or counterexample families, but it never overrides frozen authority or deep-mode trigger rules.
+  - `surface_map_ref` is the shared design ownership clue for the implementation chain.
+  - `prototype_ref` and `resolved_design_refs` are optional downstream authority hints that may be used to sanity-check surface ownership coherence.

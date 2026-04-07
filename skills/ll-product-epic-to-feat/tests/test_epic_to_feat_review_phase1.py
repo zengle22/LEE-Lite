@@ -40,10 +40,12 @@ class _Generated:
         self.defect_list: list[dict[str, str]] = []
         self.handoff = {
             "target_workflows": [
+                {"workflow": "workflow.dev.feat_to_surface_map"},
                 {"workflow": "workflow.dev.feat_to_tech"},
                 {"workflow": "workflow.qa.feat_to_testset"},
             ],
             "integration_context_ref": "integration-context.json",
+            "design_gate_required": True,
         }
         self.semantic_drift_check = {"verdict": "pass", "semantic_lock_preserved": True}
 
@@ -70,6 +72,10 @@ def _feature(feat_ref: str, title: str) -> dict[str, object]:
         "admission_dependency_feat_refs": [],
         "admission_dependency": "none",
         "dependency_kinds": [],
+        "design_impact_required": True,
+        "candidate_design_surfaces": ["architecture", "tech"],
+        "surface_map_required_reason": "This FEAT updates shared design assets and must resolve ownership before design derivation.",
+        "ui_required": False,
         "business_value": "business value",
         "identity_and_scenario": {
             "user_story": "As a user, I need this feat.",
@@ -129,7 +135,7 @@ def _minimal_feat_bundle_json() -> dict[str, object]:
         "src_root_id": "SRC-1",
         "feat_refs": ["FEAT-1", "FEAT-2"],
         "source_refs": ["product.src-to-epic::run-1", "EPIC-1", "SRC-1"],
-        "downstream_workflows": ["workflow.dev.feat_to_tech", "workflow.qa.feat_to_testset"],
+        "downstream_workflows": ["workflow.dev.feat_to_surface_map", "workflow.dev.feat_to_tech", "workflow.qa.feat_to_testset"],
         "features": features,
         "boundary_matrix": [{"feat_ref": "FEAT-1"}, {"feat_ref": "FEAT-2"}],
         "bundle_shared_non_goals": ["non-goal"],
@@ -160,10 +166,12 @@ def _minimal_handoff() -> dict[str, object]:
         "authoritative_artifact_map": [{"feat_ref": "FEAT-1", "artifact": "feat-freeze-bundle.md"}],
         "feature_dependency_map": [{"feat_ref": "FEAT-1", "upstream_feat": "", "downstream_feat": ""}],
         "target_workflows": [
+            {"workflow": "workflow.dev.feat_to_surface_map"},
             {"workflow": "workflow.dev.feat_to_tech"},
             {"workflow": "workflow.qa.feat_to_testset"},
         ],
         "integration_context_ref": "integration-context.json",
+        "design_gate_required": True,
     }
 
 
@@ -243,3 +251,17 @@ def test_validate_output_package_rejects_positive_phase1_blocker_count(tmp_path:
 
     assert result["valid"] is False
     assert any("blocker_count must be 0 for freeze-ready handoff" in error for error in errors)
+
+
+def test_validate_output_package_requires_design_surface_signals(tmp_path: Path) -> None:
+    report = build_epic_to_feat_document_test_report(_Generated())
+    _write_minimal_output_package(tmp_path, document_test_report=report)
+    bundle_path = tmp_path / "feat-freeze-bundle.json"
+    bundle = json.loads(bundle_path.read_text(encoding="utf-8"))
+    bundle["features"][0].pop("design_impact_required", None)
+    bundle_path.write_text(json.dumps(bundle, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+
+    errors, result = validate_output_package(tmp_path)
+
+    assert result["valid"] is False
+    assert any("must include design_impact_required" in error for error in errors)

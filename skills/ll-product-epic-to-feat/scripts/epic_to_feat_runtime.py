@@ -68,7 +68,7 @@ from epic_to_feat_review_phase1 import validate_review_phase1_fields
 REQUIRED_OUTPUT_FILES = ["feat-freeze-bundle.md", "feat-freeze-bundle.json", "integration-context.json", "feat-review-report.json", "feat-acceptance-report.json", "feat-defect-list.json", "document-test-report.json", "feat-freeze-gate.json", "handoff-to-feat-downstreams.json", "semantic-drift-check.json", "execution-evidence.json", "supervision-evidence.json"]
 REQUIRED_MARKDOWN_HEADINGS = ["FEAT Bundle Intent", "EPIC Context", "Canonical Glossary", "Boundary Matrix", "FEAT Inventory", "Prohibited Inference Rules", "Acceptance and Review", "Downstream Handoff", "Traceability"]
 REQUIRED_FEAT_SUBHEADINGS = ["#### Identity and Scenario", "#### Business Flow", "#### Product Objects and Deliverables", "#### Collaboration and Timeline", "#### Acceptance and Testability", "#### Frozen Downstream Boundary"]
-DOWNSTREAM_WORKFLOWS = ["workflow.dev.feat_to_tech", "workflow.qa.feat_to_testset"]
+DOWNSTREAM_WORKFLOWS = ["workflow.dev.feat_to_surface_map", "workflow.dev.feat_to_tech", "workflow.qa.feat_to_testset"]
 INTEGRATION_CONTEXT_FILENAME = "integration-context.json"
 REQUIRED_INTEGRATION_CONTEXT_FIELDS = [
     "workflow_inventory",
@@ -183,12 +183,14 @@ def build_integration_context(
         str(item.get("rule") or "").strip() for item in inference_rules if isinstance(item, dict) and str(item.get("rule") or "").strip()
     ]
     workflow_inventory = [
+        "workflow.dev.feat_to_surface_map resolves shared design asset ownership before any design derivation runs.",
         "workflow.dev.feat_to_tech consumes one frozen FEAT slice plus this integration context seed.",
         "workflow.qa.feat_to_testset consumes the same FEAT acceptance boundary.",
         "workflow.dev.tech_to_impl must inherit frozen TECH outputs instead of re-deriving product semantics.",
     ]
     module_boundaries = [
         "ll-product-epic-to-feat owns FEAT boundary decomposition only.",
+        "ll-dev-feat-to-surface-map owns design ownership mapping and update/create routing for shared design assets.",
         "ll-dev-feat-to-tech owns implementation-facing design freeze and current-system hookup decisions.",
         "ll-dev-tech-to-impl owns implementation planning only and must not redefine TECH truth.",
     ]
@@ -439,12 +441,18 @@ def build_feat_bundle(
                 "downstream_feat": feat["downstream_feat"],
                 "gate_decision_dependency_feat_refs": feat["gate_decision_dependency_feat_refs"],
                 "admission_dependency_feat_refs": feat["admission_dependency_feat_refs"],
+                "design_impact_required": feat["design_impact_required"],
+                "candidate_design_surfaces": feat["candidate_design_surfaces"],
             }
             for feat in feats
         ],
         "glossary": glossary,
         "prohibited_inference_rules": inference_rules,
         "target_workflows": [
+            {
+                "workflow": "workflow.dev.feat_to_surface_map",
+                "purpose": "resolve shared design asset ownership, update/create action, and design surface scope before any design derivation runs",
+            },
             {
                 "workflow": "workflow.dev.feat_to_tech",
                 "purpose": "derive the governed TECH package, with conditional ARCH / API companions, from the frozen FEAT slice",
@@ -454,7 +462,8 @@ def build_feat_bundle(
                 "purpose": "derive the governed TESTSET package from the same frozen FEAT acceptance boundary",
             },
         ],
-        "derivable_children": ["TECH", "TESTSET"],
+        "derivable_children": ["SURFACE_MAP", "TECH", "TESTSET"],
+        "design_gate_required": any(bool(feat.get("design_impact_required")) for feat in feats),
         "primary_artifact_ref": "feat-freeze-bundle.md",
         "supporting_artifact_refs": [
             "feat-freeze-bundle.json",
@@ -502,6 +511,7 @@ def build_feat_bundle(
         "boundary_matrix": boundary_matrix,
         "features": feats,
         "feat_track_map": feat_track_map,
+        "design_gate_required": any(bool(feat.get("design_impact_required")) for feat in feats),
         "prohibited_inference_rules": inference_rules,
         "bundle_acceptance_conventions": [
             {
@@ -960,9 +970,16 @@ def validate_output_package(artifacts_dir: Path) -> tuple[list[str], dict[str, A
                 "admission_dependency_feat_refs",
                 "admission_dependency",
                 "dependency_kinds",
+                "design_impact_required",
+                "candidate_design_surfaces",
             ]:
                 if field not in feature:
                     errors.append(f"Feature {feature.get('feat_ref') or '<unknown>'} must include {field}.")
+            if not isinstance(feature.get("design_impact_required"), bool):
+                errors.append(f"Feature {feature.get('feat_ref') or '<unknown>'} design_impact_required must be a boolean.")
+            candidate_surfaces = ensure_list(feature.get("candidate_design_surfaces"))
+            if not candidate_surfaces:
+                errors.append(f"Feature {feature.get('feat_ref') or '<unknown>'} must include at least one candidate_design_surface.")
             for field in [
                 "business_value",
                 "identity_and_scenario",
@@ -1041,6 +1058,8 @@ def validate_output_package(artifacts_dir: Path) -> tuple[list[str], dict[str, A
         errors.append("handoff-to-feat-downstreams.json must include feature_dependency_map.")
     if str(handoff.get("integration_context_ref") or "") != INTEGRATION_CONTEXT_FILENAME:
         errors.append("handoff-to-feat-downstreams.json must include integration_context_ref -> integration-context.json.")
+    if "design_gate_required" not in handoff:
+        errors.append("handoff-to-feat-downstreams.json must include design_gate_required.")
     workflows = [item.get("workflow") for item in handoff.get("target_workflows", []) if isinstance(item, dict)]
     for workflow in DOWNSTREAM_WORKFLOWS:
         if workflow not in workflows:

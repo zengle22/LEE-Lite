@@ -91,11 +91,31 @@ def validate_input(path: Path) -> int:
         raise ValueError("request payload.risk_profile must be an object when provided")
     if body.get("review_profile") is not None and not isinstance(body.get("review_profile"), dict):
         raise ValueError("request payload.review_profile must be an object when provided")
+    if body.get("surface_map_ref") is not None and not isinstance(body.get("surface_map_ref"), str):
+        raise ValueError("request payload.surface_map_ref must be a string when provided")
+    if body.get("prototype_ref") is not None and not isinstance(body.get("prototype_ref"), str):
+        raise ValueError("request payload.prototype_ref must be a string when provided")
+    if body.get("resolved_design_refs") is not None and not isinstance(body.get("resolved_design_refs"), dict):
+        raise ValueError("request payload.resolved_design_refs must be an object when provided")
     for field in ("journey_personas", "counterexample_families", "review_focus", "source_refs", "ui_refs", "testset_refs"):
         if body.get(field) is not None and not isinstance(body.get(field), list):
             raise ValueError(f"request payload.{field} must be an array when provided")
     if body.get("false_negative_challenge") is not None and not isinstance(body.get("false_negative_challenge"), bool):
         raise ValueError("request payload.false_negative_challenge must be a boolean when provided")
+    if body.get("surface_map_ref"):
+        resolved_design_refs = body.get("resolved_design_refs")
+        prototype_ref = body.get("prototype_ref")
+        if not prototype_ref and not resolved_design_refs:
+            raise ValueError("surface_map_ref requires prototype_ref or resolved_design_refs to establish a coherence check")
+        if isinstance(resolved_design_refs, dict):
+            surface_map_ref = str(resolved_design_refs.get("surface_map_ref") or "").strip()
+            if surface_map_ref and surface_map_ref != str(body.get("surface_map_ref") or "").strip():
+                raise ValueError("request payload.surface_map_ref must match resolved_design_refs.surface_map_ref when both are provided")
+    resolved_design_refs = body.get("resolved_design_refs")
+    if body.get("prototype_ref") and isinstance(resolved_design_refs, dict):
+        resolved_prototype_ref = str(resolved_design_refs.get("prototype_ref") or "").strip()
+        if resolved_prototype_ref and resolved_prototype_ref != str(body.get("prototype_ref") or "").strip():
+            raise ValueError("request payload.prototype_ref must match resolved_design_refs.prototype_ref when both are provided")
     print("[OK] Input request is valid for skill.impl-spec-test")
     return 0
 

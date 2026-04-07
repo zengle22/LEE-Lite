@@ -18,6 +18,20 @@
         "impl_package_ref": { "type": "string", "minLength": 1 },
         "feat_ref": { "type": "string", "minLength": 1 },
         "tech_ref": { "type": "string", "minLength": 1 },
+        "surface_map_ref": { "type": "string" },
+        "prototype_ref": { "type": "string" },
+        "resolved_design_refs": {
+          "type": "object",
+          "properties": {
+            "surface_map_ref": { "type": "string" },
+            "prototype_ref": { "type": "string" },
+            "ui_ref": { "type": "string" },
+            "ui_refs": { "type": "array", "items": { "type": "string" } },
+            "arch_ref": { "type": "string" },
+            "api_ref": { "type": "string" }
+          },
+          "additionalProperties": true
+        },
         "arch_ref": { "type": "string" },
         "api_ref": { "type": "string" },
         "ui_refs": { "type": "array", "items": { "type": "string" } },
