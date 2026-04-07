@@ -46,6 +46,42 @@ class FeatToTechWorkflowHarness(unittest.TestCase):
         _write_json(package_dir / "integration-context.json", integration_context)
         for name, payload in _companion_payloads(run_id, bundle_json).items():
             _write_json(package_dir / name, payload)
+        features = bundle_json.get("features") or []
+        selected_feature = features[0] if isinstance(features, list) and features else {}
+        if isinstance(selected_feature, dict) and selected_feature.get("design_impact_required") is True:
+            feat_ref = str(selected_feature.get("feat_ref") or "")
+            tech_owner_ref = str(selected_feature.get("tech_owner_ref") or "") or feat_ref.replace("FEAT-", "TECH-", 1)
+            tech_action = str(selected_feature.get("tech_action") or "update")
+            surface_map = {
+                "artifact_type": "surface_map_package",
+                "workflow_key": "dev.feat-to-surface-map",
+                "workflow_run_id": f"surface-map-{run_id}",
+                "status": "accepted",
+                "schema_version": "1.0.0",
+                "surface_map_ref": f"SURFACE-MAP-{feat_ref}",
+                "feat_ref": feat_ref,
+                "related_feat_refs": list(selected_feature.get("related_feat_refs") or []),
+                "design_impact_required": True,
+                "design_surfaces": {
+                    "tech": [
+                        {
+                            "owner": tech_owner_ref,
+                            "action": tech_action,
+                            "scope": ["implementation strategy"],
+                            "reason": "test fixture binding",
+                        }
+                    ]
+                },
+                "source_refs": [feat_ref, f"product.epic-to-feat::{run_id}"],
+                "generated_from": "feat_freeze_package",
+            }
+            surface_gate = {
+                "workflow_key": "dev.feat-to-surface-map",
+                "freeze_ready": True,
+                "decision": "pass",
+            }
+            _write_json(package_dir / "surface-map-bundle.json", surface_map)
+            _write_json(package_dir / "surface-map-freeze-gate.json", surface_gate)
         return package_dir
 
     def make_bundle_json(self, feature: dict[str, object], run_id: str = "feat-src001") -> dict[str, object]:

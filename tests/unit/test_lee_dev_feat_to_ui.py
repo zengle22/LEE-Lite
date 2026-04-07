@@ -34,4 +34,11 @@ def test_feat_to_ui_cli_is_deprecated_and_disabled() -> None:
         assert result.returncode == 1
         payload = json.loads(result.stdout)
         assert payload["deprecated"] is True
-        assert "deprecated and disabled" in payload["errors"][0]
+        assert payload["blocked_by_adr"] == ["ADR-040", "ADR-042"]
+        assert payload["replacement_path"] == [
+            "workflow.dev.feat_to_surface_map",
+            "workflow.dev.feat_to_proto",
+            "workflow.dev.proto_to_ui",
+        ]
+        assert "shared design asset" in payload["replacement_reason"]
+        assert "ADR-040 and ADR-042" in payload["errors"][0]

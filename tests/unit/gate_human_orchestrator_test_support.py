@@ -224,11 +224,15 @@ class GateHumanOrchestratorTestSupport(unittest.TestCase):
                 "status": "accepted",
                 "feat_ref": "FEAT-SRC-005-001",
                 "tech_ref": "TECH-SRC-005-001",
+                "surface_map_ref": "SURFACE-MAP-FEAT-SRC-005-001",
                 "source_refs": ["FEAT-SRC-005-001", "EPIC-SRC-005-001", "SRC-005", "ADR-011"],
                 "selected_feat": {
                     "feat_ref": "FEAT-SRC-005-001",
                     "title": "主链候选提交与交接流",
                     "goal": "冻结 governed skill 如何把 candidate package 提交为 authoritative handoff，并把候选交接正式送入 gate 消费链。",
+                    "surface_map_ref": "SURFACE-MAP-FEAT-SRC-005-001",
+                    "tech_owner_ref": "TECH-SRC-005-001",
+                    "tech_action": "update",
                 },
                 "tech_design": {
                     "design_focus": [
@@ -375,6 +379,12 @@ class GateHumanOrchestratorTestSupport(unittest.TestCase):
                 "impl_ref": "IMPL-SRC-005-001",
                 "arch_ref": "ARCH-SRC-005-001",
                 "api_ref": "API-SRC-005-001",
+                "surface_map_ref": "SURFACE-MAP-FEAT-SRC-005-001",
+                "resolved_design_refs": {
+                    "surface_map_ref": "SURFACE-MAP-FEAT-SRC-005-001",
+                    "prototype_ref": "PROTO-SRC-005-001",
+                    "ui_ref": "UI-SRC-005-001",
+                },
                 "source_refs": ["FEAT-SRC-005-001", "TECH-SRC-005-001", "EPIC-SRC-005-001", "SRC-005", "ADR-011"],
                 "selected_scope": {
                     "title": "主链候选提交与交接流",

@@ -262,6 +262,13 @@ class TestImplSpecSkillRuntime(SkillRuntimeHarness):
                         "counterexample_families": ["network_failure"],
                         "coverage_goal": "deep",
                     },
+                    "surface_map_ref": "SURFACE-MAP-1",
+                    "prototype_ref": "PROTO-1",
+                    "resolved_design_refs": {
+                        "surface_map_ref": "SURFACE-MAP-1",
+                        "prototype_ref": "PROTO-1",
+                        "ui_ref": "UI-1",
+                    },
                     "journey_personas": ["first_time_user"],
                     "counterexample_families": ["network_failure"],
                     "review_focus": ["journey"],
@@ -272,6 +279,34 @@ class TestImplSpecSkillRuntime(SkillRuntimeHarness):
         guard_script = self.repo_root / "skills" / "ll-qa-impl-spec-test" / "scripts" / "impl_spec_test_skill_guard.py"
         result = subprocess.run([sys.executable, str(guard_script), "validate-input", str(request_path)], capture_output=True, text=True)
         self.assertEqual(result.returncode, 0, result.stderr)
+
+    def test_impl_spec_skill_guard_rejects_mismatched_resolved_design_refs(self) -> None:
+        request_path = self.request_path("resolved-design-mismatch.request.json")
+        write_json(
+            request_path,
+            {
+                "api_version": "v1",
+                "command": "skill.impl-spec-test",
+                "request_id": "resolved-design-mismatch",
+                "workspace_root": self.workspace.as_posix(),
+                "actor_ref": "test-suite",
+                "trace": {"run_ref": "resolved-design-mismatch"},
+                "payload": {
+                    "impl_ref": "IMPL-1",
+                    "impl_package_ref": "IMPL-1",
+                    "feat_ref": "FEAT-1",
+                    "tech_ref": "TECH-1",
+                    "surface_map_ref": "SURFACE-MAP-1",
+                    "resolved_design_refs": {
+                        "surface_map_ref": "SURFACE-MAP-OTHER",
+                    },
+                },
+            },
+        )
+        guard_script = self.repo_root / "skills" / "ll-qa-impl-spec-test" / "scripts" / "impl_spec_test_skill_guard.py"
+        result = subprocess.run([sys.executable, str(guard_script), "validate-input", str(request_path)], capture_output=True, text=True)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("surface_map_ref", result.stderr)
 
     def test_impl_spec_skill_guard_accepts_phase2_surface_with_partial_coverage(self) -> None:
         guard_response = self.build_phase2_surface_response(verdict="pass_with_revisions", review_coverage_status="partial")

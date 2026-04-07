@@ -59,6 +59,7 @@ class TechToImplWorkflowHarness(unittest.TestCase):
             "schema_version": bundle_json["schema_version"],
             "feat_ref": bundle_json["feat_ref"],
             "tech_ref": bundle_json["tech_ref"],
+            "surface_map_ref": bundle_json.get("surface_map_ref"),
             "source_refs": bundle_json["source_refs"],
         }
         markdown = [
@@ -70,6 +71,7 @@ class TechToImplWorkflowHarness(unittest.TestCase):
             f"schema_version: {frontmatter['schema_version']}",
             f"feat_ref: {frontmatter['feat_ref']}",
             f"tech_ref: {frontmatter['tech_ref']}",
+            f"surface_map_ref: {frontmatter['surface_map_ref'] or ''}",
             "source_refs:",
             *[f"  - {item}" for item in frontmatter["source_refs"]],
             "---",
@@ -150,6 +152,7 @@ class TechToImplWorkflowHarness(unittest.TestCase):
             "schema_version": "1.0.0",
             "feat_ref": feat_ref,
             "tech_ref": tech_ref,
+            "surface_map_ref": f"SURFACE-MAP-{feat_ref.replace('FEAT-', '', 1)}",
             "arch_ref": arch_ref,
             "api_ref": api_ref,
             "arch_required": arch_required,

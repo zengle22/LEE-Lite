@@ -1166,6 +1166,39 @@ class FeatToTechWorkflowTests(FeatToTechWorkflowHarness):
             self.assertFalse(payload["ok"])
             self.assertTrue(any("Selected feat_ref not found" in error for error in payload["errors"]))
 
+    def test_validate_input_rejects_missing_surface_map_when_design_impact_required(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            repo_root = Path(temp_dir)
+            feature = {
+                "feat_ref": "FEAT-SRC-042-301",
+                "title": "design impact gate",
+                "goal": "验证 design_impact_required=true 时 surface-map 成为强门禁。",
+                "scope": ["输出技术设计包。", "要求 surface-map 先完成冻结。", "缺失时直接阻断。"],
+                "constraints": ["没有 surface-map 不得进入 TECH 派生。", "不能靠 FEAT 默认命名推导 owner。", "缺失 gate 文件也必须阻断。"],
+                "dependencies": ["depends on frozen FEAT metadata"],
+                "acceptance_checks": [
+                    {"scenario": "surface map required", "given": "design impact is true", "when": "validate input", "then": "surface-map artifacts are required"},
+                    {"scenario": "missing bundle fails", "given": "surface-map bundle removed", "when": "validate input", "then": "validation fails"},
+                    {"scenario": "missing gate fails", "given": "surface-map gate removed", "when": "validate input", "then": "validation fails"},
+                ],
+                "source_refs": ["FEAT-SRC-042-301", "EPIC-SRC-042-001", "SRC-042"],
+                "design_impact_required": True,
+                "candidate_design_surfaces": ["tech"],
+                "tech_owner_ref": "TECH-SRC-042-301",
+                "tech_action": "update",
+            }
+            bundle = self.make_bundle_json(feature, run_id="feat-missing-surface-map")
+            input_dir = self.make_feat_package(repo_root, "feat-missing-surface-map", bundle)
+            (input_dir / "surface-map-bundle.json").unlink()
+            (input_dir / "surface-map-freeze-gate.json").unlink()
+
+            result = self.run_cmd("validate-input", "--input", str(input_dir), "--feat-ref", "FEAT-SRC-042-301")
+            self.assertNotEqual(result.returncode, 0)
+            payload = json.loads(result.stdout)
+            self.assertFalse(payload["ok"])
+            self.assertTrue(any("Missing required surface-map artifact: surface-map-bundle.json" in error for error in payload["errors"]))
+            self.assertTrue(any("Missing required surface-map artifact: surface-map-freeze-gate.json" in error for error in payload["errors"]))
+
     def test_review_projection_feat_preserves_semantic_lock_without_runtime_drift(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             repo_root = Path(temp_dir)

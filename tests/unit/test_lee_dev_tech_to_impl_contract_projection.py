@@ -49,6 +49,7 @@ class TechToImplContractProjectionTests(TechToImplWorkflowHarness):
             self.assertFalse(impl_bundle["package_semantics"]["domain_truth_source"])
             self.assertEqual(impl_bundle["selected_upstream_refs"]["feat_ref"], feature["feat_ref"])
             self.assertEqual(impl_bundle["selected_upstream_refs"]["tech_ref"], bundle["tech_ref"])
+            self.assertEqual(impl_bundle["selected_upstream_refs"]["surface_map_ref"], bundle["surface_map_ref"])
             self.assertTrue(impl_bundle["authority_binding_status"])
             self.assertIsInstance(impl_bundle["authority_gap_register"], list)
             self.assertEqual(impl_bundle["conflict_policy"]["repo_discrepancy_policy"], "explicit_discrepancy_handling_required")
@@ -121,6 +122,29 @@ class TechToImplContractProjectionTests(TechToImplWorkflowHarness):
 
             validate = self.run_cmd("validate-output", "--artifacts-dir", str(artifacts_dir))
             self.assertEqual(validate.returncode, 0, validate.stderr)
+
+    def test_validate_input_requires_surface_map_when_design_impact_required(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            repo_root = Path(temp_dir)
+            feature = self._feature("FEAT-SRC-009-010")
+            feature["design_impact_required"] = True
+            bundle = self.make_bundle_json(feature, run_id="tech-impl-missing-surface-map", arch_required=False, api_required=False)
+            bundle.pop("surface_map_ref", None)
+            input_dir = self.make_tech_package(repo_root, "tech-impl-missing-surface-map", bundle)
+
+            result = self.run_cmd(
+                "validate-input",
+                "--input",
+                str(input_dir),
+                "--feat-ref",
+                feature["feat_ref"],
+                "--tech-ref",
+                bundle["tech_ref"],
+                "--repo-root",
+                str(repo_root),
+            )
+            self.assertNotEqual(result.returncode, 0)
+            self.assertIn("surface_map_ref is required", result.stdout)
 
     def test_run_structures_provisional_refs_and_suggested_steps(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:

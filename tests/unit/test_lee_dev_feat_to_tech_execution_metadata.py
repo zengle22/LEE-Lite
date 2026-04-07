@@ -8,6 +8,62 @@ from tests.unit.support_feat_to_tech import FeatToTechWorkflowHarness
 
 
 class FeatToTechExecutionMetadataTests(FeatToTechWorkflowHarness):
+    def test_selected_feat_preserves_surface_map_binding_metadata(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            repo_root = Path(temp_dir)
+            feature = {
+                "feat_ref": "FEAT-SRC-042-101",
+                "title": "surface-map 绑定透传能力",
+                "goal": "让 TECH 包显式保留 surface-map、owner 和 action 绑定信息。",
+                "scope": [
+                    "输出技术设计包。",
+                    "保留 selected_feat 中的 surface-map 绑定元数据。",
+                ],
+                "constraints": [
+                    "TECH ref 必须服从已绑定 owner。",
+                    "handoff 不能丢失 surface_map_ref。",
+                ],
+                "dependencies": ["depends on frozen FEAT metadata"],
+                "acceptance_checks": [
+                    {
+                        "scenario": "selected feat keeps surface map ref",
+                        "then": "surface_map_ref survives into TECH package",
+                    },
+                    {
+                        "scenario": "selected feat keeps bound owner",
+                        "then": "tech_owner_ref and tech_action survive into selected_feat snapshot",
+                    },
+                    {
+                        "scenario": "handoff keeps surface map",
+                        "then": "downstream handoff carries the same surface_map_ref",
+                    },
+                ],
+                "source_refs": ["FEAT-SRC-042-101", "EPIC-SRC-042-001", "SRC-042"],
+                "design_impact_required": True,
+                "candidate_design_surfaces": ["tech", "prototype", "ui"],
+                "surface_map_required_reason": "shared design asset binding required",
+                "tech_owner_ref": "TECH-COACH-PLAN-ADJUSTMENT",
+                "tech_action": "update",
+            }
+            bundle = self.make_bundle_json(feature, run_id="feat-tech-surface-map")
+            input_dir = self.make_feat_package(repo_root, "feat-tech-surface-map", bundle)
+
+            artifacts_dir = self.run_tech_flow(repo_root, input_dir, feature["feat_ref"], "tech-surface-map")
+            design = json.loads((artifacts_dir / "tech-design-bundle.json").read_text(encoding="utf-8"))
+            handoff = json.loads((artifacts_dir / "handoff-to-tech-impl.json").read_text(encoding="utf-8"))
+            expected_surface_map_ref = "SURFACE-MAP-FEAT-SRC-042-101"
+
+            self.assertEqual(design["tech_ref"], "TECH-COACH-PLAN-ADJUSTMENT")
+            self.assertEqual(design["surface_map_ref"], expected_surface_map_ref)
+            self.assertEqual(design["owner_binding_status"], "bound")
+            self.assertEqual(design["selected_feat"]["surface_map_ref"], expected_surface_map_ref)
+            self.assertEqual(design["selected_feat"]["tech_owner_ref"], "TECH-COACH-PLAN-ADJUSTMENT")
+            self.assertEqual(design["selected_feat"]["tech_action"], "update")
+            self.assertEqual(handoff["surface_map_ref"], expected_surface_map_ref)
+
+            validate = self.run_cmd("validate-output", "--artifacts-dir", str(artifacts_dir))
+            self.assertEqual(validate.returncode, 0, validate.stderr)
+
     def test_selected_feat_preserves_impl_relevant_metadata(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             repo_root = Path(temp_dir)
@@ -167,6 +223,64 @@ status: accepted
 
             self.assertEqual(design["selected_feat"]["ui_ref"], "UI-FEAT-SRC-001-102")
             self.assertIn("UI-FEAT-SRC-001-102", design["source_refs"])
+
+            validate = self.run_cmd("validate-output", "--artifacts-dir", str(artifacts_dir))
+            self.assertEqual(validate.returncode, 0, validate.stderr)
+
+    def test_selected_feat_preserves_surface_map_owner_binding(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            repo_root = Path(temp_dir)
+            feature = {
+                "feat_ref": "FEAT-SRC-042-401",
+                "title": "TECH owner binding preservation",
+                "goal": "让 TECH 包在 design impact 路径下显式保留 surface-map 与 owner 绑定元数据。",
+                "scope": [
+                    "输出技术设计包。",
+                    "从 surface-map 绑定 TECH owner。",
+                    "向下游透传 owner/action/surface_map_ref。",
+                ],
+                "constraints": [
+                    "TECH ref 不能再从 feat_ref 默认推导。",
+                    "surface_map_ref 必须进入 bundle 与 handoff。",
+                    "owner binding status 必须明确。",
+                ],
+                "dependencies": ["depends on frozen FEAT metadata"],
+                "acceptance_checks": [
+                    {
+                        "scenario": "surface map ref preserved",
+                        "then": "bundle and handoff keep the same surface_map_ref",
+                    },
+                    {
+                        "scenario": "tech owner binding preserved",
+                        "then": "tech_ref follows the bound TECH owner instead of FEAT-derived fallback",
+                    },
+                    {
+                        "scenario": "selected feat snapshot keeps owner metadata",
+                        "then": "selected_feat exposes tech_owner_ref and tech_action for downstream impl planning",
+                    },
+                ],
+                "source_refs": ["FEAT-SRC-042-401", "EPIC-SRC-042-001", "SRC-042"],
+                "design_impact_required": True,
+                "candidate_design_surfaces": ["tech"],
+                "surface_map_required_reason": "TECH owner must be resolved before implementation design.",
+                "tech_owner_ref": "TECH-COACH-PLAN-ADJUSTMENT",
+                "tech_action": "update",
+            }
+            bundle = self.make_bundle_json(feature, run_id="feat-tech-surface-binding")
+            input_dir = self.make_feat_package(repo_root, "feat-tech-surface-binding", bundle)
+
+            artifacts_dir = self.run_tech_flow(repo_root, input_dir, feature["feat_ref"], "tech-surface-binding")
+            design = json.loads((artifacts_dir / "tech-design-bundle.json").read_text(encoding="utf-8"))
+            handoff = json.loads((artifacts_dir / "handoff-to-tech-impl.json").read_text(encoding="utf-8"))
+            expected_surface_map_ref = "SURFACE-MAP-FEAT-SRC-042-401"
+
+            self.assertEqual(design["surface_map_ref"], expected_surface_map_ref)
+            self.assertEqual(design["owner_binding_status"], "bound")
+            self.assertEqual(design["tech_ref"], "TECH-COACH-PLAN-ADJUSTMENT")
+            self.assertEqual(design["selected_feat"]["surface_map_ref"], expected_surface_map_ref)
+            self.assertEqual(design["selected_feat"]["tech_owner_ref"], "TECH-COACH-PLAN-ADJUSTMENT")
+            self.assertEqual(design["selected_feat"]["tech_action"], "update")
+            self.assertEqual(handoff["surface_map_ref"], expected_surface_map_ref)
 
             validate = self.run_cmd("validate-output", "--artifacts-dir", str(artifacts_dir))
             self.assertEqual(validate.returncode, 0, validate.stderr)
