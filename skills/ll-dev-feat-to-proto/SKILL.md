@@ -29,15 +29,16 @@ When the selected FEAT belongs to a known journey (e.g. `SRC001`, `SRC002`) that
    - `ui-shell-spec.md` as a snapshot of the fixed UI Shell Source
    - `prototype/journey-model.json` as the journey-level surface + main-path map used by downstream gates and reviewers
    - a static HTML prototype
-6. The shell snapshot must record `ui_shell_version`, `ui_shell_snapshot_hash`, and `shell_change_policy`.
-7. The Journey Structural Spec must at minimum cover main chain, page map, decision points, CTA hierarchy, container hints, and error/degraded/retry paths.
-8. Generate a static HTML prototype with:
+6. Resolve the frozen `surface_map_package` first and carry its `surface_map_ref`, `prototype_owner_ref`, `prototype_action`, `ui_owner_ref`, and `ui_action` into the emitted bundle.
+7. The shell snapshot must record `ui_shell_version`, `ui_shell_snapshot_hash`, and `shell_change_policy`.
+8. The Journey Structural Spec must at minimum cover main chain, page map, decision points, CTA hierarchy, container hints, and error/degraded/retry paths.
+9. Generate a static HTML prototype with:
    - button responses
    - page-to-page navigation
    - happy path
    - key retry / skip / error journeys
-9. Emit structured review artifacts, but do not self-approve human review.
-10. Only treat the package as frozen when `python scripts/feat_to_proto.py freeze-guard --artifacts-dir <prototype-package-dir>` succeeds.
+10. Emit structured review artifacts, but do not self-approve human review.
+11. Only treat the package as frozen when `python scripts/feat_to_proto.py freeze-guard --artifacts-dir <prototype-package-dir>` succeeds.
 
 ## Files To Read
 

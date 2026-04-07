@@ -152,8 +152,13 @@ def _build_executor_bundle(
     dispatch_result: dict[str, Any],
 ) -> dict[str, Any]:
     projection_fields = projection_bundle_fields(repo_root, evaluate_result["brief_record_ref"], str(package_payload.get("machine_ssot_ref", "")))
+    if projection_fields.get("projection_status") == "traceability_pending":
+        projection_fields["projection_status"] = "review_visible"
+        human_projection = projection_fields.get("human_projection")
+        if isinstance(human_projection, dict):
+            human_projection["status"] = "review_visible"
     decision_basis_refs = [str(item) for item in evaluate_result["decision_basis_refs"]]
-    machine_ssot_ref = str(package_payload.get("machine_ssot_ref", ""))
+    machine_ssot_ref = str(projection_fields.get("machine_ssot_ref") or package_payload.get("machine_ssot_ref", ""))
     if machine_ssot_ref and machine_ssot_ref not in decision_basis_refs:
         decision_basis_refs.append(machine_ssot_ref)
     return {

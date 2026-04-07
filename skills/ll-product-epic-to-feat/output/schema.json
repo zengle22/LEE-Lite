@@ -157,6 +157,9 @@
             "minItems": 1,
             "items": { "type": "string", "minLength": 1 }
           },
+          "design_surfaces": {
+            "type": "object"
+          },
           "surface_map_required_reason": { "type": "string" },
           "ui_required": { "type": "boolean" }
         }

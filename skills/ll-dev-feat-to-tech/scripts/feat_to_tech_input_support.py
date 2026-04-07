@@ -180,7 +180,12 @@ def validate_input_package(input_value: str | Path, feat_ref: str, repo_root: Pa
                 related_feat_refs = [str(item).strip() for item in ensure_list(surface_map.get("related_feat_refs")) if str(item).strip()]
                 if mapped_feat_ref != effective_feat_ref and effective_feat_ref not in related_feat_refs:
                     errors.append(f"surface-map-bundle.json does not cover selected feat_ref: {effective_feat_ref}")
-                design_surfaces = surface_map.get("design_surfaces") if isinstance(surface_map.get("design_surfaces"), dict) else {}
+                surface_map_payload = surface_map.get("surface_map") if isinstance(surface_map.get("surface_map"), dict) else {}
+                design_surfaces = (
+                    surface_map_payload.get("design_surfaces")
+                    if isinstance(surface_map_payload.get("design_surfaces"), dict)
+                    else {}
+                )
                 tech_bindings = design_surfaces.get("tech") if isinstance(design_surfaces.get("tech"), list) else []
                 tech_binding = tech_bindings[0] if tech_bindings else None
                 if not tech_binding:
@@ -191,7 +196,10 @@ def validate_input_package(input_value: str | Path, feat_ref: str, repo_root: Pa
                     if str(tech_binding.get("action") or "").strip() not in {"update", "create"}:
                         errors.append("surface-map tech binding action must be update or create")
                     else:
-                        surface_map_ref = str(surface_map.get("surface_map_ref") or "").strip() or "surface-map-bundle.json"
+                        surface_map_ref = str(surface_map.get("surface_map_ref") or "").strip()
+                        if not surface_map_ref:
+                            errors.append("surface-map-bundle.json must include a stable surface_map_ref")
+                            surface_map_ref = ""
                         feature = dict(feature)
                         feature["surface_map_ref"] = surface_map_ref
                         feature["tech_owner_ref"] = str(tech_binding.get("owner") or "").strip()

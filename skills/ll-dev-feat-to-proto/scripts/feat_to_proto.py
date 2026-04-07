@@ -213,7 +213,14 @@ def validate_input_package(
             related_feat_refs = [str(item).strip() for item in d_list(surface_map.get("related_feat_refs")) if str(item).strip()]
             if mapped_feat_ref != feat_ref and feat_ref not in related_feat_refs:
                 errors.append(f"surface-map-bundle.json does not cover selected feat_ref: {feat_ref}")
-            design_surfaces = surface_map.get("design_surfaces") if isinstance(surface_map.get("design_surfaces"), dict) else {}
+            if not str(surface_map.get("surface_map_ref") or "").strip():
+                errors.append("surface-map-bundle.json must include a stable surface_map_ref")
+            surface_map_payload = surface_map.get("surface_map") if isinstance(surface_map.get("surface_map"), dict) else {}
+            design_surfaces = (
+                surface_map_payload.get("design_surfaces")
+                if isinstance(surface_map_payload.get("design_surfaces"), dict)
+                else {}
+            )
             prototype_candidates = d_list(design_surfaces.get("prototype"))
             ui_candidates = d_list(design_surfaces.get("ui"))
             prototype_binding = prototype_candidates[0] if prototype_candidates else None
@@ -1260,7 +1267,7 @@ def build_package(context: dict[str, Any], repo_root: Path, run_id: str, allow_u
     surface_map = context.get("surface_map") if isinstance(context.get("surface_map"), dict) else {}
     prototype_binding = context.get("prototype_binding") if isinstance(context.get("prototype_binding"), dict) else {}
     ui_binding = context.get("ui_binding") if isinstance(context.get("ui_binding"), dict) else {}
-    resolved_surface_map_ref = str(surface_map.get("surface_map_ref") or "").strip() or ("surface-map-bundle.json" if surface_map else "")
+    resolved_surface_map_ref = str(surface_map.get("surface_map_ref") or "").strip()
     units = d_list(ui_spec_context["bundle"].get("ui_specs")) if ui_spec_context else build_units(feature, feat_ref)
     pages = [_page_model(unit, index, len(units)) for index, unit in enumerate(units)]
     bundle = {

@@ -51,23 +51,28 @@ def _write_feat_package(root: Path, feat_ref: str) -> Path:
                 "surface_map_ref": f"SURFACE-MAP-{feat_ref}",
                 "feat_ref": feat_ref,
                 "related_feat_refs": [feat_ref],
-                "design_surfaces": {
-                    "prototype": [
-                        {
-                            "owner": "PROTO-COACH-MAIN",
-                            "action": "update",
-                            "scope": ["connection_flow"],
-                            "reason": "extends existing prototype shell",
-                        }
-                    ],
-                    "ui": [
-                        {
-                            "owner": "UI-COACH-SHELL",
-                            "action": "update",
-                            "scope": ["connection_card"],
-                            "reason": "extends existing ui shell",
-                        }
-                    ],
+                "surface_map": {
+                    "design_surfaces": {
+                        "prototype": [
+                            {
+                                "owner": "PROTO-COACH-MAIN",
+                                "action": "update",
+                                "scope": ["connection_flow"],
+                                "reason": "extends existing prototype shell",
+                            }
+                        ],
+                        "ui": [
+                            {
+                                "owner": "UI-COACH-SHELL",
+                                "action": "update",
+                                "scope": ["connection_card"],
+                                "reason": "extends existing ui shell",
+                            }
+                        ],
+                    },
+                    "ownership_summary": ["prototype: PROTO-COACH-MAIN (update)", "ui: UI-COACH-SHELL (update)"],
+                    "create_justification_summary": [],
+                    "owner_binding_status": "bound",
                 },
             },
             ensure_ascii=False,

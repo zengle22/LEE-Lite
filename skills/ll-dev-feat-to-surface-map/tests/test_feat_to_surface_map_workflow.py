@@ -39,6 +39,10 @@ def _write_feat_package(root: Path, feat_ref: str, *, design_impact_required: bo
                 "action": "create",
                 "scope": ["adjustment_card"],
                 "reason": "new visible surface needed for adjustment entry and diff rendering",
+                "create_signals": [
+                    "new long-lived owner",
+                    "future multi-feat reuse",
+                ],
             },
         }
     else:
@@ -99,8 +103,12 @@ def test_surface_map_cli_run_generates_freezable_package(tmp_path: Path) -> None
     assert bundle["artifact_type"] == "surface_map_package"
     assert bundle["surface_map_ref"] == f"SURFACE-MAP-{feat_ref}"
     assert bundle["design_impact_required"] is True
-    assert bundle["surface_map"]["owner_binding_status"] == "proposed"
+    assert bundle["surface_map"]["owner_binding_status"] == "bound"
     assert bundle["surface_map"]["design_surfaces"]["ui"][0]["action"] == "create"
+    assert bundle["surface_map"]["design_surfaces"]["ui"][0]["create_signals"] == [
+        "new long-lived owner",
+        "future multi-feat reuse",
+    ]
     formal_md_ref = result["formal_surface_map_md_ref"]
     formal_json_ref = result["formal_surface_map_json_ref"]
     formal_md_path = tmp_path / formal_md_ref
@@ -113,6 +121,36 @@ def test_surface_map_cli_run_generates_freezable_package(tmp_path: Path) -> None
     assert not errors, errors
     assert output_result["freeze_ready"] is True
     assert freeze_guard_command(str(artifacts_dir)) == 0
+
+
+def test_surface_map_create_requires_two_signals(tmp_path: Path) -> None:
+    feat_ref = "FEAT-SM-003"
+    pkg = _write_feat_package(tmp_path, feat_ref, design_impact_required=True, include_surfaces=True)
+    bundle_path = pkg / "feat-freeze-bundle.json"
+    bundle = json.loads(bundle_path.read_text(encoding="utf-8"))
+    bundle["features"][0]["design_surfaces"]["ui"]["create_signals"] = ["new long-lived owner"]
+    bundle_path.write_text(json.dumps(bundle, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    run = subprocess.run(
+        [
+            sys.executable,
+            "scripts/feat_to_surface_map.py",
+            "run",
+            "--input",
+            str(pkg),
+            "--feat-ref",
+            feat_ref,
+            "--repo-root",
+            str(tmp_path),
+            "--allow-update",
+        ],
+        cwd=SKILL_ROOT,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert run.returncode == 1
+    payload = json.loads(run.stdout)
+    assert any("create requires at least two create_signals" in err for err in payload["errors"])
 
 
 def test_surface_map_bypass_requires_explicit_rationale(tmp_path: Path) -> None:

@@ -56,7 +56,7 @@
         },
         "ownership_summary": { "type": "array", "items": { "type": "string" } },
         "create_justification_summary": { "type": "array", "items": { "type": "string" } },
-        "owner_binding_status": { "type": "string" },
+        "owner_binding_status": { "type": "string", "enum": ["bound", "bypassed"] },
         "bypass_rationale": { "type": ["string", "null"] }
       },
       "additionalProperties": true
@@ -81,7 +81,8 @@
         "owner": { "type": "string" },
         "action": { "type": "string", "enum": ["update", "create"] },
         "scope": { "type": "array", "items": { "type": "string" } },
-        "reason": { "type": "string" }
+        "reason": { "type": "string" },
+        "create_signals": { "type": "array", "items": { "type": "string" } }
       },
       "additionalProperties": true
     }

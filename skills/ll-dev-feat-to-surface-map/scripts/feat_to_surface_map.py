@@ -70,8 +70,11 @@ def _surface_summary_md(bundle: dict[str, Any]) -> str:
             lines.append("[none]")
         for entry in entries:
             scope = ", ".join(entry.get("scope") or [])
+            create_signals = ", ".join(entry.get("create_signals") or [])
             lines.append(f"- owner: {entry['owner']}")
             lines.append(f"  - action: {entry['action']}")
+            if create_signals:
+                lines.append(f"  - create_signals: {create_signals}")
             lines.append(f"  - scope: {scope}")
             lines.append(f"  - reason: {entry['reason']}")
     lines.extend(

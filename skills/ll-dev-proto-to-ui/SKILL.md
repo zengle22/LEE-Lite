@@ -13,3 +13,5 @@ This skill converts one approved `prototype_package` into one governed `ui_spec_
 - This workflow must reject prototype packages that are not human-approved and freeze-ready.
 - This workflow must emit a semantic source ledger for UI contract traceability.
 - This workflow must treat Journey Structural Spec and UI Shell Snapshot as first-class authorities, not as prototype-only leftovers.
+- This workflow must consume a frozen `surface_map_package` lineage and carry through `surface_map_ref`, `prototype_owner_ref`, `prototype_action`, `ui_owner_ref`, and `ui_action`.
+- `ui_ref` is compatibility-only and must resolve from `ui_owner_ref`, not be inferred from `feat_ref`.

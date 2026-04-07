@@ -1717,6 +1717,365 @@ def feat_design_impact_required(axis: dict[str, Any]) -> bool:
     return True
 
 
+def _normalize_surface_entries(raw_value: Any) -> list[dict[str, Any]]:
+    entries = raw_value if isinstance(raw_value, list) else ensure_list(raw_value)
+    normalized: list[dict[str, Any]] = []
+    for entry in entries:
+        if not isinstance(entry, dict):
+            continue
+        normalized.append(
+            {
+                "owner": str(entry.get("owner") or "").strip(),
+                "action": str(entry.get("action") or "").strip(),
+                "scope": ensure_list(entry.get("scope")),
+                "reason": str(entry.get("reason") or "").strip(),
+                "create_signals": ensure_list(entry.get("create_signals")),
+            }
+        )
+    return normalized
+
+
+def _create_signals_for(surface_name: str, axis_id: str) -> list[str]:
+    surface_defaults = {
+        "architecture": ["new long-lived owner", "new subsystem boundary"],
+        "api": ["new service or contract family", "future multi-feat reuse"],
+        "ui": ["new independent UI shell or panel family", "future multi-feat reuse"],
+        "prototype": ["new independent main flow skeleton", "future multi-feat reuse"],
+        "tech": ["new reusable implementation strategy package", "future multi-feat reuse"],
+    }
+    execution_runner_overrides = {
+        "architecture": ["new long-lived owner", "new subsystem boundary"],
+        "api": ["new service or contract family", "future multi-feat reuse"],
+        "ui": ["new independent UI shell or panel family", "future multi-feat reuse"],
+        "prototype": ["new independent main flow skeleton", "future multi-feat reuse"],
+        "tech": ["new reusable implementation strategy package", "future multi-feat reuse"],
+    }
+    if _is_execution_runner_epic_axis(axis_id):
+        return execution_runner_overrides.get(surface_name, surface_defaults.get(surface_name, ["new long-lived owner", "future multi-feat reuse"]))
+    return surface_defaults.get(surface_name, ["new long-lived owner", "future multi-feat reuse"])
+
+
+def _is_execution_runner_epic_axis(axis_id: str) -> bool:
+    return axis_id in {
+        "ready-job-emission",
+        "runner-operator-entry",
+        "runner-control-surface",
+        "execution-runner-intake",
+        "next-skill-dispatch",
+        "execution-result-feedback",
+        "runner-observability-surface",
+        "skill-adoption-e2e",
+    }
+
+
+def _execution_runner_design_surfaces(src_ref: str, feat_ref: str, axis_id: str) -> dict[str, list[dict[str, Any]]]:
+    tech_owner = feat_ref.replace("FEAT-", "TECH-", 1)
+    mapping: dict[str, dict[str, list[dict[str, Any]]]] = {
+        "ready-job-emission": {
+            "architecture": [
+                {
+                    "owner": "ARCH-EXECUTION-RUNNER-CORE",
+                    "action": "create",
+                    "scope": ["approve_to_ready_job_transition", "ready_job_authority_boundary"],
+                    "reason": "SRC-003 首次定义 execution runner 的 approve-to-ready-job 主边界。",
+                }
+            ],
+            "api": [
+                {
+                    "owner": "API-EXECUTION-RUNNER",
+                    "action": "create",
+                    "scope": ["ready_job_emission_contract"],
+                    "reason": "需要新增 ready execution job 的出件契约与 authoritative refs。",
+                }
+            ],
+            "tech": [
+                {
+                    "owner": tech_owner,
+                    "action": "create",
+                    "scope": ["ready_job_generation_rules", "approve_dispatch_persistence"],
+                    "reason": "需要单独冻结 approve 后 ready job 生成规则与落盘策略。",
+                }
+            ],
+        },
+        "runner-operator-entry": {
+            "architecture": [
+                {
+                    "owner": "ARCH-EXECUTION-RUNNER-CORE",
+                    "action": "update",
+                    "scope": ["runner_operator_entry_boundary"],
+                    "reason": "runner 用户入口流属于 execution runner 主架构的操作入口扩展。",
+                }
+            ],
+            "api": [
+                {
+                    "owner": "API-EXECUTION-RUNNER",
+                    "action": "update",
+                    "scope": ["runner_entry_invocation_contract"],
+                    "reason": "runner 用户入口需要沿用并扩展 execution runner 调用契约。",
+                }
+            ],
+            "ui": [
+                {
+                    "owner": "UI-RUNNER-OPERATOR-SHELL",
+                    "action": "create",
+                    "scope": ["runner_entry_panel", "entry_cta_cluster"],
+                    "reason": "需要新增 runner 操作入口可视壳层，供后续控制面和监控面复用。",
+                }
+            ],
+            "prototype": [
+                {
+                    "owner": "PROTO-RUNNER-OPERATOR-MAIN",
+                    "action": "create",
+                    "scope": ["runner_entry_flow"],
+                    "reason": "需要定义 runner 用户入口主流程原型，作为 UI 壳层的体验骨架。",
+                }
+            ],
+            "tech": [
+                {
+                    "owner": tech_owner,
+                    "action": "update",
+                    "scope": ["runner_entry_strategy", "operator_prompt_resolution"],
+                    "reason": f"已有 {tech_owner} 需按 ADR042 继续承接 runner 用户入口实现策略。",
+                }
+            ],
+        },
+        "runner-control-surface": {
+            "architecture": [
+                {
+                    "owner": "ARCH-EXECUTION-RUNNER-CORE",
+                    "action": "update",
+                    "scope": ["runner_control_surface_boundary"],
+                    "reason": "runner 控制面流属于 execution runner 主架构的控制面扩展。",
+                }
+            ],
+            "api": [
+                {
+                    "owner": "API-EXECUTION-RUNNER",
+                    "action": "update",
+                    "scope": ["runner_control_commands", "runner_status_projection"],
+                    "reason": "控制面需要复用并扩展 runner 控制命令与状态投影契约。",
+                }
+            ],
+            "ui": [
+                {
+                    "owner": "UI-RUNNER-OPERATOR-SHELL",
+                    "action": "update",
+                    "scope": ["runner_control_panel", "decision_controls"],
+                    "reason": "控制面是既有 runner operator shell 上的增量面板。",
+                }
+            ],
+            "prototype": [
+                {
+                    "owner": "PROTO-RUNNER-OPERATOR-MAIN",
+                    "action": "update",
+                    "scope": ["runner_control_flow"],
+                    "reason": "控制面流程是在已有 runner operator 主流程上的扩展。",
+                }
+            ],
+            "tech": [
+                {
+                    "owner": tech_owner,
+                    "action": "create",
+                    "scope": ["control_surface_state_machine", "manual_override_rules"],
+                    "reason": "控制面需要独立实现策略包来约束状态切换与人工干预。",
+                }
+            ],
+        },
+        "execution-runner-intake": {
+            "architecture": [
+                {
+                    "owner": "ARCH-EXECUTION-RUNNER-CORE",
+                    "action": "update",
+                    "scope": ["runner_intake_loop"],
+                    "reason": "自动取件流是 execution runner 核心循环的一部分。",
+                }
+            ],
+            "api": [
+                {
+                    "owner": "API-EXECUTION-RUNNER",
+                    "action": "update",
+                    "scope": ["ready_job_intake_contract"],
+                    "reason": "自动取件需要复用 ready job intake 读写契约。",
+                }
+            ],
+            "tech": [
+                {
+                    "owner": tech_owner,
+                    "action": "create",
+                    "scope": ["intake_polling_rules", "queue_claiming_strategy"],
+                    "reason": "自动取件需要单独冻结轮询、claim 与去重策略。",
+                }
+            ],
+        },
+        "next-skill-dispatch": {
+            "architecture": [
+                {
+                    "owner": "ARCH-EXECUTION-RUNNER-CORE",
+                    "action": "update",
+                    "scope": ["downstream_dispatch_boundary"],
+                    "reason": "自动派发流是 execution runner 的下游派发边界扩展。",
+                }
+            ],
+            "api": [
+                {
+                    "owner": "API-EXECUTION-RUNNER",
+                    "action": "update",
+                    "scope": ["skill_dispatch_contract"],
+                    "reason": "下游 skill 自动派发需要扩展 dispatch 契约与 next skill binding。",
+                }
+            ],
+            "tech": [
+                {
+                    "owner": tech_owner,
+                    "action": "create",
+                    "scope": ["dispatch_routing_rules", "skill_resolution_strategy"],
+                    "reason": "自动派发需要单独的路由与 skill 解析实现策略。",
+                }
+            ],
+        },
+        "execution-result-feedback": {
+            "architecture": [
+                {
+                    "owner": "ARCH-EXECUTION-RUNNER-CORE",
+                    "action": "update",
+                    "scope": ["feedback_and_retry_boundary"],
+                    "reason": "执行结果回写与重试边界属于 execution runner 核心闭环的一部分。",
+                }
+            ],
+            "api": [
+                {
+                    "owner": "API-EXECUTION-RUNNER",
+                    "action": "update",
+                    "scope": ["execution_feedback_contract", "retry_state_contract"],
+                    "reason": "结果回写与重试需要扩展执行反馈与 retry 契约。",
+                }
+            ],
+            "tech": [
+                {
+                    "owner": tech_owner,
+                    "action": "update",
+                    "scope": ["result_writeback_rules", "retry_boundary_strategy"],
+                    "reason": f"已有 {tech_owner} 需按 ADR042 继续承接回写与重试边界实现策略。",
+                }
+            ],
+        },
+        "runner-observability-surface": {
+            "architecture": [
+                {
+                    "owner": "ARCH-EXECUTION-RUNNER-CORE",
+                    "action": "update",
+                    "scope": ["runner_observability_boundary"],
+                    "reason": "运行监控流属于 execution runner 主架构的观测面扩展。",
+                }
+            ],
+            "api": [
+                {
+                    "owner": "API-EXECUTION-RUNNER",
+                    "action": "update",
+                    "scope": ["runner_metrics_projection", "runner_incident_queries"],
+                    "reason": "运行监控需要扩展 runner 指标投影与事件查询契约。",
+                }
+            ],
+            "ui": [
+                {
+                    "owner": "UI-RUNNER-OPERATOR-SHELL",
+                    "action": "update",
+                    "scope": ["runner_monitoring_panel", "incident_overview_card"],
+                    "reason": "运行监控是既有 runner operator shell 上的观测面增量。",
+                }
+            ],
+            "prototype": [
+                {
+                    "owner": "PROTO-RUNNER-OPERATOR-MAIN",
+                    "action": "update",
+                    "scope": ["runner_monitoring_flow"],
+                    "reason": "运行监控流程是在已有 runner operator 主流程上的扩展。",
+                }
+            ],
+            "tech": [
+                {
+                    "owner": tech_owner,
+                    "action": "create",
+                    "scope": ["monitoring_snapshot_rules", "incident_summary_strategy"],
+                    "reason": "运行监控需要独立实现策略来汇总 runner 状态与异常视图。",
+                }
+            ],
+        },
+        "skill-adoption-e2e": {
+            "architecture": [
+                {
+                    "owner": "ARCH-EXECUTION-RUNNER-CORE",
+                    "action": "update",
+                    "scope": ["governed_skill_integration_boundary"],
+                    "reason": "governed skill 接入与 pilot 验证流属于 execution runner 的集成边界扩展。",
+                }
+            ],
+            "api": [
+                {
+                    "owner": "API-EXECUTION-RUNNER",
+                    "action": "update",
+                    "scope": ["governed_skill_binding_contract", "pilot_validation_contract"],
+                    "reason": "接入 governed skill 需要扩展 skill binding 与 pilot 验证契约。",
+                }
+            ],
+            "tech": [
+                {
+                    "owner": tech_owner,
+                    "action": "create",
+                    "scope": ["governed_skill_registry_strategy", "pilot_validation_rules"],
+                    "reason": "governed skill 接入需要独立实现策略来处理 registry 绑定与 pilot 校验。",
+                }
+            ],
+        },
+    }
+    result = mapping.get(axis_id, {})
+    for entries in result.values():
+        for entry in entries:
+            if entry["action"] == "create" and not entry.get("create_signals"):
+                entry["create_signals"] = _create_signals_for(
+                    next(key for key, value in result.items() if entry in value),
+                    axis_id,
+                )
+    return result
+
+
+def feat_design_surfaces(package: Any, feat_ref: str, axis: dict[str, Any], candidate_design_surfaces: list[str]) -> dict[str, list[dict[str, Any]]]:
+    explicit = axis.get("design_surfaces")
+    if isinstance(explicit, dict) and explicit:
+        normalized = {
+            key: _normalize_surface_entries(explicit.get(key))
+            for key in ("architecture", "api", "ui", "prototype", "tech")
+            if explicit.get(key) is not None
+        }
+    elif _is_execution_runner_epic(package):
+        normalized = _execution_runner_design_surfaces(choose_src_ref(package), feat_ref, axis_key(axis))
+    else:
+        src_ref = choose_src_ref(package)
+        owner_defaults = {
+            "architecture": f"ARCH-{src_ref}-CORE",
+            "api": f"API-{src_ref}",
+            "ui": f"UI-{src_ref}-MAIN",
+            "prototype": f"PROTO-{src_ref}-MAIN",
+            "tech": feat_ref.replace("FEAT-", "TECH-", 1),
+        }
+        normalized = {}
+        for surface_name in candidate_design_surfaces:
+            normalized[surface_name] = [
+                {
+                    "owner": owner_defaults.get(surface_name, feat_ref.replace("FEAT-", f"{surface_name.upper()}-", 1)),
+                    "action": "create",
+                    "scope": feat_scope(axis, package)[:2] or [feat_title(axis, package)],
+                    "reason": f"{feat_title(axis, package)} 需要显式承接 {surface_name} 设计归属。",
+                    "create_signals": _create_signals_for(surface_name, axis_key(axis)),
+                }
+            ]
+    for surface_name, entries in normalized.items():
+        for entry in entries:
+            if entry.get("action") == "create" and not ensure_list(entry.get("create_signals")):
+                entry["create_signals"] = _create_signals_for(surface_name, axis_key(axis))
+    return normalized
+
+
 def build_feat_record(package: Any, axis: dict[str, str], index: int) -> dict[str, Any]:
     src_ref = choose_src_ref(package)
     epic_ref = choose_epic_ref(package)
@@ -1731,6 +2090,7 @@ def build_feat_record(package: Any, axis: dict[str, str], index: int) -> dict[st
     acceptance_checks = build_acceptance_checks(feat_ref, epic_ref, axis)
     candidate_design_surfaces = feat_candidate_design_surfaces(axis)
     design_impact_required = feat_design_impact_required(axis)
+    design_surfaces = feat_design_surfaces(package, feat_ref, axis, candidate_design_surfaces) if design_impact_required else {}
     ui_required = "ui" in candidate_design_surfaces or "prototype" in candidate_design_surfaces
     return {
         "feat_ref": feat_ref,
@@ -1768,7 +2128,8 @@ def build_feat_record(package: Any, axis: dict[str, str], index: int) -> dict[st
         "acceptance_checks": acceptance_checks,
         "design_impact_required": design_impact_required,
         "candidate_design_surfaces": candidate_design_surfaces,
-        "surface_map_required_reason": "This FEAT updates shared design assets and must resolve ownership before design derivation." if design_impact_required else "No shared design asset impact was declared for this FEAT.",
+        "surface_map_required_reason": "ADR042 requires a surface-map freeze before downstream design derivation." if design_impact_required else "No shared design asset impact was declared for this FEAT.",
+        "design_surfaces": design_surfaces,
         "ui_required": ui_required,
         "identity_and_scenario": {
             "product_interface": feat_product_interface(axis),

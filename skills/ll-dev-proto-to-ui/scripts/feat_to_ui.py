@@ -443,6 +443,12 @@ def _ui_candidate_ref(artifacts_dir: Path) -> str:
 
 
 def _ui_formal_ref(artifacts_dir: Path) -> str:
+    bundle_path = artifacts_dir / "ui-spec-bundle.json"
+    if bundle_path.exists():
+        bundle = load_json(bundle_path)
+        owner_ref = str(bundle.get("ui_owner_ref") or bundle.get("ui_ref") or "").strip()
+        if owner_ref:
+            return f"formal.ui.{slugify(owner_ref)}"
     return f"formal.ui.{artifacts_dir.name}"
 
 
@@ -486,6 +492,7 @@ def _withdraw_previous_gate_submission(repo_root: Path, manifest: dict[str, Any]
 
 def _bind_ui_candidate_record(repo_root: Path, artifacts_dir: Path, feat_ref: str) -> str:
     candidate_ref = _ui_candidate_ref(artifacts_dir)
+    bundle = load_json(artifacts_dir / "ui-spec-bundle.json") if (artifacts_dir / "ui-spec-bundle.json").exists() else {}
     bind_record(
         repo_root,
         candidate_ref,
@@ -496,6 +503,7 @@ def _bind_ui_candidate_record(repo_root: Path, artifacts_dir: Path, feat_ref: st
             "layer": "candidate",
             "target_kind": "ui",
             "feat_ref": feat_ref,
+            "ui_owner_ref": str(bundle.get("ui_owner_ref") or bundle.get("ui_ref") or "").strip(),
             "workflow_run_id": artifacts_dir.name,
             "machine_ssot_ref": rel(artifacts_dir / "ui-spec-bundle.json", repo_root),
             "source_package_ref": rel(artifacts_dir, repo_root),

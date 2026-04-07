@@ -980,6 +980,53 @@ def validate_output_package(artifacts_dir: Path) -> tuple[list[str], dict[str, A
             candidate_surfaces = ensure_list(feature.get("candidate_design_surfaces"))
             if not candidate_surfaces:
                 errors.append(f"Feature {feature.get('feat_ref') or '<unknown>'} must include at least one candidate_design_surface.")
+            if feature.get("design_impact_required") is True:
+                design_surfaces = feature.get("design_surfaces")
+                if not isinstance(design_surfaces, dict) or not design_surfaces:
+                    errors.append(f"Feature {feature.get('feat_ref') or '<unknown>'} must include design_surfaces when design_impact_required is true.")
+                else:
+                    for surface_name, entries in design_surfaces.items():
+                        if surface_name not in {"architecture", "api", "ui", "prototype", "tech"}:
+                            errors.append(
+                                f"Feature {feature.get('feat_ref') or '<unknown>'} design_surfaces contains unknown surface `{surface_name}`."
+                            )
+                            continue
+                        if not isinstance(entries, list) or not entries:
+                            errors.append(
+                                f"Feature {feature.get('feat_ref') or '<unknown>'} design_surfaces.{surface_name} must be a non-empty list."
+                            )
+                            continue
+                        for idx, entry in enumerate(entries):
+                            if not isinstance(entry, dict):
+                                errors.append(
+                                    f"Feature {feature.get('feat_ref') or '<unknown>'} design_surfaces.{surface_name}[{idx}] must be an object."
+                                )
+                                continue
+                            owner = str(entry.get("owner") or "").strip()
+                            action = str(entry.get("action") or "").strip()
+                            scope = ensure_list(entry.get("scope"))
+                            reason = str(entry.get("reason") or "").strip()
+                            create_signals = ensure_list(entry.get("create_signals"))
+                            if not owner:
+                                errors.append(
+                                    f"Feature {feature.get('feat_ref') or '<unknown>'} design_surfaces.{surface_name}[{idx}] missing owner."
+                                )
+                            if action not in {"update", "create"}:
+                                errors.append(
+                                    f"Feature {feature.get('feat_ref') or '<unknown>'} design_surfaces.{surface_name}[{idx}] action must be update or create."
+                                )
+                            if not scope:
+                                errors.append(
+                                    f"Feature {feature.get('feat_ref') or '<unknown>'} design_surfaces.{surface_name}[{idx}] missing scope."
+                                )
+                            if not reason:
+                                errors.append(
+                                    f"Feature {feature.get('feat_ref') or '<unknown>'} design_surfaces.{surface_name}[{idx}] missing reason."
+                                )
+                            if action == "create" and len(create_signals) < 2:
+                                errors.append(
+                                    f"Feature {feature.get('feat_ref') or '<unknown>'} design_surfaces.{surface_name}[{idx}] create requires at least two create_signals."
+                                )
             for field in [
                 "business_value",
                 "identity_and_scenario",

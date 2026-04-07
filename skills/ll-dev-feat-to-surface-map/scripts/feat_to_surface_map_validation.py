@@ -123,6 +123,9 @@ def validate_surface_map(errors: list[str], bundle: dict[str, Any]) -> None:
     if not isinstance(design_surfaces, dict):
         errors.append("surface_map.design_surfaces must be an object.")
         return
+    owner_binding_status = str(surface_map.get("owner_binding_status") or "").strip()
+    if owner_binding_status not in {"bound", "bypassed"}:
+        errors.append("surface_map.owner_binding_status must be bound or bypassed.")
     for surface_name in ("architecture", "api", "ui", "prototype", "tech"):
         entries = design_surfaces.get(surface_name, [])
         if not isinstance(entries, list):

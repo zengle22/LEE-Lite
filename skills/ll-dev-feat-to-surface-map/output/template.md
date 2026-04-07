@@ -5,7 +5,7 @@ schema_version: 1.0.0
 source_refs:
   - product.epic-to-feat::RUN-TODO
 feat_ref: FEAT-TODO
-surface_map_ref: surface-map-bundle.md
+surface_map_ref: SURFACE-MAP-FEAT-TODO
 ---
 
 # Surface Map Bundle for {TITLE}
@@ -30,22 +30,27 @@ surface_map_ref: surface-map-bundle.md
 ### Architecture
 
 [List architecture owner bindings or state that none are required.]
+[If action=create, list at least two create_signals.]
 
 ### API
 
 [List API owner bindings or state that none are required.]
+[If action=create, list at least two create_signals.]
 
 ### UI
 
 [List UI owner bindings or state that none are required.]
+[If action=create, list at least two create_signals.]
 
 ### Prototype
 
 [List prototype owner bindings or state that none are required.]
+[If action=create, list at least two create_signals.]
 
 ### TECH
 
 [List TECH owner bindings or state that none are required.]
+[If action=create, list at least two create_signals.]
 
 ## Ownership Summary
 

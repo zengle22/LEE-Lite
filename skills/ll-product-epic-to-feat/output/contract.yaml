@@ -50,6 +50,7 @@ notes:
   - Each FEAT must also freeze a product slice: actors, scenario, business flow, deliverables, business timeline, and downstream semantic boundary.
   - Each FEAT must also expose dedicated constraints and explicit overlap boundaries relative to adjacent FEATs.
   - Each FEAT must emit `design_impact_required` plus `candidate_design_surfaces` so downstream design derivations know whether a `surface_map_package` gate is mandatory.
+  - When `design_impact_required=true`, each FEAT must also emit machine-readable `design_surfaces` entries with `owner`, `action`, `scope`, `reason`, and `create_signals` for every `action=create` entry.
   - Each FEAT must expose explicit machine-friendly mapping fields for upstream/downstream FEAT refs, consumed and produced objects, authoritative artifact, and both prose + feat-ref gate/admission dependencies.
   - The bundle must expose a canonical glossary and bundle-level prohibited inference rules so downstream TECH / TESTSET consumers do not invent term semantics.
   - Downstream handoff must carry a compact machine snapshot of glossary, prohibited inference rules, authoritative artifact ownership, feature dependency map, `integration_context_ref`, and whether `workflow.dev.feat_to_surface_map` is required before design derivation.

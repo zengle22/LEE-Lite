@@ -2,13 +2,17 @@
 
 Review the `tech_design_package` against the selected FEAT.
 
-- Is `TECH` present and strong enough to seed downstream `tech-impl` work without re-deriving the FEAT?
-- Does `TECH` include implementation architecture, state model, module plan, unit mapping, contracts, main sequence, exception strategy, integration points, and pseudocode rather than only boundary restatement?
-- Do the runtime-view and flow diagrams appear as readable ASCII diagrams that explain how the implementation will actually work without repeating ARCH boundary rationale?
-- When `API` is emitted, does it define command-level request schema, response schema, field semantics, enum/domain, invariants, canonical refs, errors, idempotency, and compatibility rules instead of abstract contract labels?
-- Are `ARCH` and `API` emitted only when the need assessment justifies them, not as unconditional boilerplate?
-- Does `ARCH` stay on placement/topology/responsibility split while `TECH` stays on implementation-ready design detail, instead of repeating the same architecture skeleton?
-- Do the bundle-level `Optional ARCH` / `Optional API` sections stay as reference summaries instead of becoming shadow copies of the standalone `ARCH` / `API` artifacts?
-- For collaboration FEATs, does `TECH` keep decision-driven runtime re-entry routing in scope without stealing formalization semantics or materialization ownership?
-- Does the package avoid introducing new product scope, hidden dependencies, or task-level sequencing not present in the FEAT?
-- Does the cross-artifact consistency check distinguish structural pass from semantic pass, keep blocking issues separate from minor open items, and prove that contracts, boundaries, and implementation design are mutually aligned?
+- [required] Does TECH freeze implementation carriers, module responsibilities, and owner boundaries rather than only repeating FEAT scope?
+  Evidence: tech_design.implementation_carrier_view, tech_design.module_plan, selected_feat
+- [required] Are interface contracts, field semantics, and command/API meanings explicit enough for implementation and review?
+  Evidence: tech_design.interface_contracts, api artifact, design_consistency_check
+- [required] Does TECH explain the real state model and runtime flow, not just generic lifecycle text?
+  Evidence: tech_design.state_model, tech_design.main_sequence, tech_design.io_matrix_and_side_effects
+- [required] Are failure handling, retry / compensation, and degraded paths explicit for this FEAT slice?
+  Evidence: tech_design.exception_and_compensation, tech_design.minimal_code_skeleton
+- [required] Does TECH freeze concrete integration points and compatibility / migration constraints for the current system?
+  Evidence: tech_design.integration_points, integration_context, tech_design.migration_constraints
+- [required] Are canonical ownership, glossary terms, and algorithm / decision constraints explicit enough to block downstream reinterpretation?
+  Evidence: tech_design.technical_glossary_and_canonical_ownership, tech_design.algorithm_constraints
+- [aux] When ARCH or API is emitted, does it remain justified by need assessment and not duplicate TECH?
+  Evidence: need_assessment, artifact_refs, design_consistency_check

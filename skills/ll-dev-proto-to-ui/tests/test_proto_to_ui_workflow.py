@@ -63,24 +63,33 @@ def test_proto_to_ui_emits_semantic_ledger(tmp_path: Path) -> None:
                 "artifact_type": "surface_map_package",
                 "workflow_key": "dev.feat-to-surface-map",
                 "feat_ref": "FEAT-PROTO-TO-UI-001",
+                "surface_map_ref": "SURFACE-MAP-FEAT-PROTO-TO-UI-001",
                 "related_feat_refs": ["FEAT-PROTO-TO-UI-001"],
-                "design_surfaces": {
-                    "prototype": [
-                        {
-                            "owner": "PROTO-COACH-MAIN",
-                            "action": "update",
-                            "scope": ["connection_flow"],
-                            "reason": "extends existing prototype shell",
-                        }
+                "surface_map": {
+                    "design_surfaces": {
+                        "prototype": [
+                            {
+                                "owner": "PROTO-COACH-MAIN",
+                                "action": "update",
+                                "scope": ["connection_flow"],
+                                "reason": "extends existing prototype shell",
+                            }
+                        ],
+                        "ui": [
+                            {
+                                "owner": "UI-COACH-SHELL",
+                                "action": "update",
+                                "scope": ["connection_card"],
+                                "reason": "extends existing ui shell",
+                            }
+                        ],
+                    },
+                    "ownership_summary": [
+                        "prototype: PROTO-COACH-MAIN (update)",
+                        "ui: UI-COACH-SHELL (update)",
                     ],
-                    "ui": [
-                        {
-                            "owner": "UI-COACH-SHELL",
-                            "action": "update",
-                            "scope": ["connection_card"],
-                            "reason": "extends existing ui shell",
-                        }
-                    ],
+                    "create_justification_summary": [],
+                    "owner_binding_status": "bound",
                 },
             },
             ensure_ascii=False,
@@ -139,7 +148,7 @@ def test_proto_to_ui_emits_semantic_ledger(tmp_path: Path) -> None:
     assert (ui_dir / "ui-spec-bundle.json").exists()
     assert bundle["journey_structural_spec_ref"] == "journey-ux-ascii.md"
     assert bundle["ui_shell_snapshot_ref"] == "ui-shell-spec.md"
-    assert bundle["surface_map_ref"] == "surface-map-bundle.json"
+    assert bundle["surface_map_ref"] == "SURFACE-MAP-FEAT-PROTO-TO-UI-001"
     assert bundle["ui_owner_ref"] == "UI-COACH-SHELL"
     assert bundle["ui_action"] == "update"
     assert bundle["ui_ref"] == "UI-COACH-SHELL"
@@ -165,7 +174,7 @@ def test_proto_to_ui_rejects_pending_human_reviewer(tmp_path: Path) -> None:
                 "ui_shell_version": "1.0.0",
                 "ui_shell_snapshot_hash": "abc",
                 "shell_change_policy": "governance-only",
-                "surface_map_ref": "surface-map-bundle.json",
+                "surface_map_ref": "SURFACE-MAP-FEAT-BAD-REVIEW",
                 "prototype_owner_ref": "PROTO-BAD-REVIEW",
                 "prototype_action": "update",
                 "ui_owner_ref": "UI-BAD-REVIEW",

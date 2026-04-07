@@ -82,6 +82,7 @@ def normalize_surface_entries(raw_surface_map: Any) -> dict[str, list[dict[str, 
                     "action": str(entry.get("action") or "").strip(),
                     "scope": normalize_scope(entry.get("scope")),
                     "reason": str(entry.get("reason") or "").strip(),
+                    "create_signals": normalize_scope(entry.get("create_signals")),
                     "source_ref": str(entry.get("source_ref") or "").strip() or None,
                 }
             )
@@ -92,23 +93,21 @@ def build_fallback_surface_map(feature: dict[str, Any], feat_ref: str, design_im
     normalized = {key: [] for key in ("architecture", "api", "ui", "prototype", "tech")}
     base_scope = normalize_scope(feature.get("scope")) or normalize_scope(feature.get("acceptance_checks"))
     default_scope = base_scope or [str(feature.get("goal") or feature.get("title") or feat_ref).strip() or feat_ref]
-    text = " ".join(
-        str(part or "")
-        for part in [
-            feature.get("title"),
-            feature.get("goal"),
-            " ".join(normalize_scope(feature.get("scope"))),
-            " ".join(normalize_scope(feature.get("constraints"))),
-        ]
-    ).lower()
-
-    def add(surface: str, owner: str, action: str, reason: str, scope: list[str] | None = None) -> None:
+    def add(
+        surface: str,
+        owner: str,
+        action: str,
+        reason: str,
+        scope: list[str] | None = None,
+        create_signals: list[str] | None = None,
+    ) -> None:
         normalized[surface].append(
             {
                 "owner": owner,
                 "action": action,
                 "scope": scope or default_scope,
                 "reason": reason,
+                "create_signals": normalize_scope(create_signals),
                 "source_ref": None,
             }
         )
@@ -127,16 +126,6 @@ def build_fallback_surface_map(feature: dict[str, Any], feat_ref: str, design_im
     if not design_impact_required:
         return normalized
 
-    if not normalized["ui"]:
-        add("ui", f"UI-{feat_ref}", "create", "no explicit UI owner declared; create a routing placeholder for a user-facing FEAT")
-    if not normalized["prototype"]:
-        add("prototype", f"PROTO-{feat_ref}", "create", "no explicit prototype owner declared; create a placeholder for the main experience skeleton")
-    if not normalized["tech"]:
-        add("tech", f"TECH-{feat_ref}", "create", "no explicit technical owner declared; create a placeholder implementation strategy package")
-    if not normalized["architecture"] and any(token in text for token in ("boundary", "module", "integration", "state", "workflow", "orchestration")):
-        add("architecture", f"ARCH-{feat_ref}", "create", "architecture-impact inferred from FEAT scope and goal")
-    if not normalized["api"] and any(token in text for token in ("api", "contract", "endpoint", "request", "response", "interface")):
-        add("api", f"API-{feat_ref}", "create", "contract-impact inferred from FEAT scope and goal")
     return normalized
 
 
@@ -180,6 +169,7 @@ def validate_surface_entries(errors: list[str], design_surfaces: dict[str, list[
             action = str(entry.get("action") or "").strip()
             scope = normalize_scope(entry.get("scope"))
             reason = str(entry.get("reason") or "").strip()
+            create_signals = normalize_scope(entry.get("create_signals"))
             if not owner:
                 errors.append(f"surface_map.design_surfaces.{surface_name}[{idx}] missing owner.")
             if action not in {"update", "create"}:
@@ -188,6 +178,10 @@ def validate_surface_entries(errors: list[str], design_surfaces: dict[str, list[
                 errors.append(f"surface_map.design_surfaces.{surface_name}[{idx}] missing scope.")
             if not reason:
                 errors.append(f"surface_map.design_surfaces.{surface_name}[{idx}] missing reason.")
+            if action == "create" and len(create_signals) < 2:
+                errors.append(
+                    f"surface_map.design_surfaces.{surface_name}[{idx}] create requires at least two create_signals."
+                )
 
 
 def summary_lines(design_surfaces: dict[str, list[dict[str, Any]]]) -> list[str]:
@@ -203,7 +197,9 @@ def create_justification_lines(design_surfaces: dict[str, list[dict[str, Any]]])
     for surface_name in ("architecture", "api", "ui", "prototype", "tech"):
         for entry in design_surfaces.get(surface_name, []):
             if str(entry.get("action") or "") == "create":
-                lines.append(f"{surface_name}: {entry['owner']} -> {entry['reason']}")
+                signals = ", ".join(normalize_scope(entry.get("create_signals")))
+                suffix = f" | signals: {signals}" if signals else ""
+                lines.append(f"{surface_name}: {entry['owner']} -> {entry['reason']}{suffix}")
     return lines
 
 
@@ -258,8 +254,16 @@ def build_package_payload(context: dict[str, Any], run_id: str) -> dict[str, Any
     design_impact_required, design_surfaces, bypass_rationale = build_surface_map_model(feature, feat_ref)
     ownership_summary = summary_lines(design_surfaces)
     create_justification_summary = create_justification_lines(design_surfaces)
-    owner_binding_status = "bypassed" if not design_impact_required else ("proposed" if create_justification_summary else "bound")
-    source_refs = [str(ref).strip() for ref in bundle.get("source_refs") or [] if str(ref).strip()]
+    owner_binding_status = "bypassed" if not design_impact_required else "bound"
+    source_refs = []
+    upstream_run_id = str(bundle.get("workflow_run_id") or "").strip()
+    if upstream_run_id:
+        source_refs.append(f"product.epic-to-feat::{upstream_run_id}")
+    if feat_ref:
+        source_refs.append(feat_ref)
+    for ref in [str(ref).strip() for ref in bundle.get("source_refs") or [] if str(ref).strip()]:
+        if ref not in source_refs:
+            source_refs.append(ref)
     for ref in ensure_list(feature.get("source_refs")):
         ref = str(ref).strip()
         if ref and ref not in source_refs:

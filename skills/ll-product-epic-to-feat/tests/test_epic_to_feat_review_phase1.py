@@ -75,6 +75,25 @@ def _feature(feat_ref: str, title: str) -> dict[str, object]:
         "design_impact_required": True,
         "candidate_design_surfaces": ["architecture", "tech"],
         "surface_map_required_reason": "This FEAT updates shared design assets and must resolve ownership before design derivation.",
+        "design_surfaces": {
+            "architecture": [
+                {
+                    "owner": "ARCH-SRC-1-CORE",
+                    "action": "create",
+                    "scope": ["boundary"],
+                    "reason": "need a stable architecture owner",
+                    "create_signals": ["new long-lived owner", "future multi-feat reuse"],
+                }
+            ],
+            "tech": [
+                {
+                    "owner": "TECH-1",
+                    "action": "update",
+                    "scope": ["strategy"],
+                    "reason": "existing tech package continues to own implementation strategy",
+                }
+            ],
+        },
         "ui_required": False,
         "business_value": "business value",
         "identity_and_scenario": {
@@ -265,3 +284,17 @@ def test_validate_output_package_requires_design_surface_signals(tmp_path: Path)
 
     assert result["valid"] is False
     assert any("must include design_impact_required" in error for error in errors)
+
+
+def test_validate_output_package_rejects_create_without_two_signals(tmp_path: Path) -> None:
+    report = build_epic_to_feat_document_test_report(_Generated())
+    _write_minimal_output_package(tmp_path, document_test_report=report)
+    bundle_path = tmp_path / "feat-freeze-bundle.json"
+    bundle = json.loads(bundle_path.read_text(encoding="utf-8"))
+    bundle["features"][0]["design_surfaces"]["architecture"][0]["create_signals"] = ["new long-lived owner"]
+    bundle_path.write_text(json.dumps(bundle, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+
+    errors, result = validate_output_package(tmp_path)
+
+    assert result["valid"] is False
+    assert any("create requires at least two create_signals" in error for error in errors)
