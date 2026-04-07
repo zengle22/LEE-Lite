@@ -39,6 +39,9 @@ forbidden_content:
   - test-case detail
   - unstated new requirements
 notes:
+  - This artifact contract is retained only for historical compatibility; new runs must not materialize ui_spec_package from ll-dev-feat-to-ui.
+  - Active replacement path is feat_to_surface_map -> feat_to_proto -> human-reviewed prototype freeze -> proto_to_ui.
+  - Any direct invocation should return a deprecation payload instead of producing new UI artifacts.
   - One FEAT may produce one or more UI Spec markdown files. The bundle is the governed package; individual UI Spec files are its formal children.
   - Conditional pass is allowed when the package is structurally complete but still carries explicit open questions for fields, touchpoints, or validation details.
   - The package must include a package-level flow overview file so multi-page or multi-step UI Specs do not fragment into isolated single-page truths.

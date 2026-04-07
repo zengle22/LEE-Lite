@@ -45,6 +45,32 @@ OUTPUT_FILES = [
     "supervision-evidence.json",
 ]
 
+DEPRECATION_MESSAGE = (
+    "ll-dev-feat-to-ui is deprecated and disabled under ADR-040 and ADR-042; "
+    "direct FEAT-to-UI derivation is blocked because UI is now a shared design asset resolved through prototype freeze and surface-map ownership."
+)
+
+REPLACEMENT_PATH = [
+    "workflow.dev.feat_to_surface_map",
+    "workflow.dev.feat_to_proto",
+    "workflow.dev.proto_to_ui",
+]
+
+
+def deprecated_response(*, command: str, input_path: str = "", feat_ref: str = "", artifacts_dir: str = "") -> dict[str, Any]:
+    return {
+        "ok": False,
+        "deprecated": True,
+        "blocked_by_adr": ["ADR-040", "ADR-042"],
+        "errors": [DEPRECATION_MESSAGE],
+        "replacement_path": REPLACEMENT_PATH,
+        "replacement_reason": "UI is a shared design asset, so authority must be routed through prototype freeze and surface-map ownership instead of direct FEAT private derivation.",
+        "command": command,
+        "input_path": input_path,
+        "feat_ref": feat_ref,
+        "artifacts_dir": artifacts_dir,
+    }
+
 
 def utc_now() -> str:
     return datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
@@ -726,19 +752,13 @@ def build_parser() -> argparse.ArgumentParser:
 def main() -> int:
     parser = build_parser()
     args = parser.parse_args()
-    print(
-        json.dumps(
-            {
-                "ok": False,
-                "deprecated": True,
-                "errors": [
-                    "ll-dev-feat-to-ui is deprecated and disabled; use ll-dev-feat-to-proto first, then ll-dev-proto-to-ui after human-reviewed prototype freeze"
-                ],
-                "command": args.command,
-            },
-            ensure_ascii=False,
-        )
+    payload = deprecated_response(
+        command=str(args.command or ""),
+        input_path=str(getattr(args, "input", "") or ""),
+        feat_ref=str(getattr(args, "feat_ref", "") or ""),
+        artifacts_dir=str(getattr(args, "artifacts_dir", "") or ""),
     )
+    print(json.dumps(payload, ensure_ascii=False))
     return 1
 if __name__ == "__main__":
     sys.exit(main())

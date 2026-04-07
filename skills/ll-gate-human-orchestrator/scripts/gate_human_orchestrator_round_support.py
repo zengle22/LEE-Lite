@@ -439,6 +439,14 @@ def _artifact_specific_excerpt(payload: dict[str, Any]) -> list[str]:
             goal = str(selected_feat.get("goal", "")).strip()
             if goal:
                 excerpt.append(f"实现目标: {goal}")
+            surface_map_ref = str(selected_feat.get("surface_map_ref", "") or payload.get("surface_map_ref", "")).strip()
+            if surface_map_ref:
+                excerpt.append(f"归属映射: {surface_map_ref}")
+            tech_owner_ref = str(selected_feat.get("tech_owner_ref", "")).strip()
+            tech_action = str(selected_feat.get("tech_action", "")).strip()
+            if tech_owner_ref:
+                action_suffix = f" ({tech_action})" if tech_action else ""
+                excerpt.append(f"TECH owner: {tech_owner_ref}{action_suffix}")
         state_model = _first_items(payload.get("tech_design", {}), "state_model", limit=2) if isinstance(payload.get("tech_design"), dict) else []
         if state_model:
             excerpt.append(f"状态机: {_join_items(state_model)}")
@@ -453,6 +461,17 @@ def _artifact_specific_excerpt(payload: dict[str, Any]) -> list[str]:
             target_workflow = str(downstream.get("target_workflow", "")).strip()
             if target_workflow:
                 excerpt.append(f"下游交接: {target_workflow}")
+        return excerpt
+    if artifact_type == "surface_map_package":
+        feat_ref = str(payload.get("feat_ref", "")).strip()
+        if feat_ref:
+            excerpt.append(f"归属 FEAT: {feat_ref}")
+        candidate_surfaces = _first_items(payload, "candidate_design_surfaces", limit=4)
+        if candidate_surfaces:
+            excerpt.append("候选设计面: " + _join_items(candidate_surfaces))
+        bindings = _surface_binding_summaries(payload, limit=4)
+        if bindings:
+            excerpt.append("Design Ownership: " + "；".join(bindings))
         return excerpt
     if artifact_type == "test_set_candidate_package":
         selected_feat = payload.get("selected_feat")
@@ -476,6 +495,18 @@ def _artifact_specific_excerpt(payload: dict[str, Any]) -> list[str]:
             goal = str(selected_scope.get("goal", "")).strip()
             if goal:
                 excerpt.append(f"实现目标: {goal}")
+        surface_map_ref = str(payload.get("surface_map_ref", "")).strip()
+        if surface_map_ref:
+            excerpt.append(f"归属映射: {surface_map_ref}")
+        resolved_design_refs = payload.get("resolved_design_refs")
+        if isinstance(resolved_design_refs, dict):
+            resolved_pairs = []
+            for key in ("prototype_ref", "ui_ref", "surface_map_ref"):
+                value = str(resolved_design_refs.get(key, "")).strip()
+                if value:
+                    resolved_pairs.append(f"{key}={value}")
+            if resolved_pairs:
+                excerpt.append("设计引用: " + "；".join(resolved_pairs))
         workstream_assessment = payload.get("workstream_assessment")
         if isinstance(workstream_assessment, dict):
             surfaces: list[str] = []
@@ -568,11 +599,31 @@ def ssot_outline(payload: dict[str, Any]) -> list[str]:
             title = str(selected_feat.get("title", "")).strip()
             if title:
                 outline.append("Selected FEAT: " + title)
+            if str(selected_feat.get("surface_map_ref", "")).strip():
+                outline.append("design ownership: surface_map_ref / tech_owner_ref / tech_action")
         downstream = payload.get("downstream_handoff")
         if isinstance(downstream, dict):
             target_workflow = str(downstream.get("target_workflow", "")).strip()
             if target_workflow:
                 outline.append("下游工作流: " + target_workflow)
+        return outline
+    if artifact_type == "surface_map_package":
+        design_surfaces = payload.get("design_surfaces")
+        if isinstance(design_surfaces, dict):
+            sections = []
+            for name in ("architecture", "api", "ui", "prototype", "tech"):
+                bindings = design_surfaces.get(name)
+                count = len(bindings) if isinstance(bindings, list) else 0
+                if count:
+                    sections.append(f"{name}[{count}]")
+            if sections:
+                outline.append("Surface Map 主体块: " + ", ".join(sections))
+        feat_ref = str(payload.get("feat_ref", "")).strip()
+        if feat_ref:
+            outline.append("归属 FEAT: " + feat_ref)
+        related_feat_refs = _first_items(payload, "related_feat_refs", limit=4)
+        if related_feat_refs:
+            outline.append("Related FEATs: " + "；".join(related_feat_refs))
         return outline
     if artifact_type == "test_set_candidate_package":
         requirement_analysis = payload.get("requirement_analysis")
@@ -613,6 +664,8 @@ def ssot_outline(payload: dict[str, Any]) -> list[str]:
             ("implementation_steps", _count_list(payload, "implementation_steps")),
         ]
         outline.append("IMPL 主体块: " + ", ".join(f"{name}[{count}]" for name, count in impl_sections if count))
+        if str(payload.get("surface_map_ref", "")).strip():
+            outline.append("design ownership: surface_map_ref")
         selected_scope = payload.get("selected_scope")
         if isinstance(selected_scope, dict):
             nested = [
@@ -807,6 +860,7 @@ def ssot_review_points(payload: dict[str, Any]) -> list[str]:
         points.append("核对 state_model 与 interface_contracts 是否闭合，尤其 duplicate_submission、decision_return、reentry 的幂等与 fail-closed 语义。")
         points.append("核对 implementation_unit_mapping 是否把 carrier 放在统一 runtime，而不是散落到业务 skill 或 gate worker。")
         points.append("核对 downstream_handoff 是否足够支撑 tech_to_impl，不要求实现层再猜 handoff/queue 规则。")
+        points.append("核对 surface-map 归属是否显式绑定到同一个 TECH owner，避免 FEAT 私有派生重新出现。")
         return points
     if artifact_type == "test_set_candidate_package":
         points.append("核对 TESTSET 是否只覆盖主链候选提交与交接流本身，没有越界去定义 formalization、admission 或 publication。")
@@ -819,6 +873,7 @@ def ssot_review_points(payload: dict[str, Any]) -> list[str]:
         points.append("核对 implementation_steps 与冻结 touch set 是否集中在统一 carrier 上，没有扩成新的平台层或把责任散落到业务 skill。")
         points.append("核对 downstream_handoff、phase_inputs 与 acceptance_refs 是否足够支撑 feature delivery，而不是让下游再猜实现边界。")
         points.append("核对 evidence / smoke gate 是否覆盖 authoritative handoff、returned decision 与 re-entry directive，而不是只给 happy path。")
+        points.append("核对 IMPL 是否消费已解析的 surface_map_ref / prototype_ref / ui_ref，而不是在实施阶段重新发明 owner。")
         return points
     if str(payload.get("problem_statement", "")).strip():
         points.append("核对 problem_statement 是否同时说明当前失控行为、为什么必须现在收敛、以及不收敛的后果。")
@@ -1234,6 +1289,16 @@ def _tech_design_fulltext_markdown(payload: dict[str, Any]) -> str:
         goal = str(selected_feat.get("goal", "")).strip()
         if goal:
             lines.extend(["", "它要落地的 FEAT 目标是：" + goal])
+        surface_map_ref = str(selected_feat.get("surface_map_ref", "") or payload.get("surface_map_ref", "")).strip()
+        tech_owner_ref = str(selected_feat.get("tech_owner_ref", "")).strip()
+        tech_action = str(selected_feat.get("tech_action", "")).strip()
+        if surface_map_ref or tech_owner_ref:
+            lines.extend(["", "### 设计归属与权威引用", ""])
+            if surface_map_ref:
+                lines.append(f"- surface-map: `{surface_map_ref}`")
+            if tech_owner_ref:
+                suffix = f" ({tech_action})" if tech_action else ""
+                lines.append(f"- TECH owner: `{tech_owner_ref}`{suffix}")
     tech_design = payload.get("tech_design")
     if isinstance(tech_design, dict):
         design_focus = _first_items(tech_design, "design_focus", limit=2)
@@ -1343,6 +1408,18 @@ def _impl_bundle_fulltext_markdown(payload: dict[str, Any]) -> str:
         if dependencies:
             lines.extend(["", "### 与相邻对象的边界", ""])
             lines.extend(f"- {item}" for item in dependencies)
+
+    surface_map_ref = str(payload.get("surface_map_ref", "")).strip()
+    resolved_design_refs = payload.get("resolved_design_refs")
+    if surface_map_ref or isinstance(resolved_design_refs, dict):
+        lines.extend(["", "### 设计归属与已解析引用", ""])
+        if surface_map_ref:
+            lines.append(f"- surface-map: `{surface_map_ref}`")
+        if isinstance(resolved_design_refs, dict):
+            for key in ("prototype_ref", "ui_ref", "surface_map_ref"):
+                value = str(resolved_design_refs.get(key, "")).strip()
+                if value:
+                    lines.append(f"- {key}: `{value}`")
 
     workstream_assessment = payload.get("workstream_assessment")
     if isinstance(workstream_assessment, dict):

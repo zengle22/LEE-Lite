@@ -108,7 +108,9 @@ def test_route_script_blocks_high_complexity_direct_path(tmp_path: Path) -> None
     assert result.returncode == 1
     payload = json.loads(result.stdout)
     assert payload["deprecated"] is True
-    assert "deprecated and disabled" in payload["errors"][0]
+    assert payload["blocked_by_adr"] == ["ADR-040", "ADR-042"]
+    assert payload["replacement_path"][0] == "workflow.dev.feat_to_surface_map"
+    assert "shared design asset" in payload["replacement_reason"]
 
 
 def test_route_artifact_rejects_optional_path_without_bypass_rationale(tmp_path: Path) -> None:
@@ -186,7 +188,12 @@ def test_route_script_allows_low_complexity_direct_path(tmp_path: Path) -> None:
     assert result.returncode == 1
     payload = json.loads(result.stdout)
     assert payload["deprecated"] is True
-    assert "deprecated and disabled" in payload["errors"][0]
+    assert payload["blocked_by_adr"] == ["ADR-040", "ADR-042"]
+    assert payload["replacement_path"] == [
+        "workflow.dev.feat_to_surface_map",
+        "workflow.dev.feat_to_proto",
+        "workflow.dev.proto_to_ui",
+    ]
 
 
 def test_route_validate_input_accepts_formal_feat_ref(tmp_path: Path) -> None:
@@ -234,4 +241,5 @@ def test_route_validate_input_accepts_formal_feat_ref(tmp_path: Path) -> None:
     assert result.returncode == 1, result.stdout
     payload = json.loads(result.stdout)
     assert payload["deprecated"] is True
-    assert "deprecated and disabled" in payload["errors"][0]
+    assert payload["blocked_by_adr"] == ["ADR-040", "ADR-042"]
+    assert payload["replacement_path"][-1] == "workflow.dev.proto_to_ui"

@@ -46,6 +46,9 @@ forbidden_inputs:
   - epic_freeze_package
   - direct_ui_mock
 notes:
+  - This workflow is deprecated under ADR-040 and ADR-042 and must only return a deprecation response with replacement guidance.
+  - Replacement path is feat_to_surface_map -> feat_to_proto -> human-reviewed prototype freeze -> proto_to_ui.
+  - Direct FEAT-to-UI derivation is blocked because UI is treated as a shared design asset, not a FEAT-private output.
   - UI hints such as ui_units, ui_input_fields, ui_display_fields, ui_api_touchpoints, or platform are optional enrichments.
   - Optional UI hints may refine the UI Spec, but they must not override FEAT scope, goal, constraints, or acceptance boundary.
   - If a FEAT explicitly carries ui_required=false, this workflow must reject the input instead of forcing a UI Spec.

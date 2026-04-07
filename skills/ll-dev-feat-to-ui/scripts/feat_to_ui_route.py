@@ -12,13 +12,10 @@ if str(WORKSPACE_ROOT) not in sys.path:
 
 from cli.lib.ui_derivation_routing import PROTOTYPE_OPTIONAL, PROTOTYPE_REQUIRED, route_ui_derivation, validate_route_decision
 from feat_to_ui import (
+    deprecated_response,
     load_json,
     repo_root_from,
     write_json,
-)
-
-DEPRECATION_MESSAGE = (
-    "ll-dev-feat-to-ui is deprecated and disabled; use ll-dev-feat-to-proto first, then ll-dev-proto-to-ui after human-reviewed prototype freeze"
 )
 
 
@@ -54,13 +51,11 @@ def run_workflow(
     revision_request_path: str | Path | None = None,
     prototype_bypass_rationale: str | None = None,
 ) -> dict[str, object]:
-    return {
-        "ok": False,
-        "deprecated": True,
-        "errors": [DEPRECATION_MESSAGE],
-        "input_path": str(input_path),
-        "feat_ref": feat_ref,
-    }
+    return deprecated_response(
+        command="run",
+        input_path=str(input_path),
+        feat_ref=feat_ref,
+    )
 
 
 def command_run(args: argparse.Namespace) -> int:
@@ -78,32 +73,17 @@ def command_run(args: argparse.Namespace) -> int:
 
 
 def command_validate_input(args: argparse.Namespace) -> int:
-    print(
-        json.dumps(
-            {"ok": False, "deprecated": True, "errors": [DEPRECATION_MESSAGE], "input_path": args.input, "feat_ref": args.feat_ref},
-            ensure_ascii=False,
-        )
-    )
+    print(json.dumps(deprecated_response(command="validate-input", input_path=args.input, feat_ref=args.feat_ref), ensure_ascii=False))
     return 1
 
 
 def command_validate_output(args: argparse.Namespace) -> int:
-    print(
-        json.dumps(
-            {"ok": False, "deprecated": True, "errors": [DEPRECATION_MESSAGE], "artifacts_dir": args.artifacts_dir},
-            ensure_ascii=False,
-        )
-    )
+    print(json.dumps(deprecated_response(command="validate-output", artifacts_dir=args.artifacts_dir), ensure_ascii=False))
     return 1
 
 
 def command_validate_package_readiness(args: argparse.Namespace) -> int:
-    print(
-        json.dumps(
-            {"ok": False, "deprecated": True, "errors": [DEPRECATION_MESSAGE], "artifacts_dir": args.artifacts_dir},
-            ensure_ascii=False,
-        )
-    )
+    print(json.dumps(deprecated_response(command="validate-package-readiness", artifacts_dir=args.artifacts_dir), ensure_ascii=False))
     return 1
 
 
