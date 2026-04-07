@@ -1,0 +1,181 @@
+{
+  "artifact_type": "surface_map_package",
+  "workflow_key": "dev.feat-to-surface-map",
+  "workflow_run_id": "src003-adr042-bootstrap-20260407-r2",
+  "status": "accepted",
+  "schema_version": "1.0.0",
+  "feat_ref": "FEAT-SRC-003-003",
+  "surface_map_ref": "SURFACE-MAP-FEAT-SRC-003-003",
+  "selected_feat": {
+    "feat_ref": "FEAT-SRC-003-003",
+    "title": "Runner 控制面流",
+    "goal": "冻结 runner 的 CLI 控制面，让启动、claim、run、complete、fail 等动作形成可设计、可审计的用户操作边界。",
+    "scope": [
+      "定义 CLI control surface：ll loop run-execution、ll job claim、ll job run、ll job complete、ll job fail。",
+      "定义各控制命令与 runner lifecycle / job lifecycle 的映射关系。",
+      "定义控制面输出的结构化状态，而不是把操作结果留成隐式终端副作用。"
+    ],
+    "constraints": [
+      "runner control surface 必须提供统一的 CLI verbs，而不是分散在多个无治理脚本里。",
+      "control surface 必须与 runner skill entry 对齐，不能绕开 authoritative run context。",
+      "control verbs 不得直接替代 next-skill invocation 结果或篡改 execution outcome。",
+      "控制动作必须产生可追踪的 command / state evidence。"
+    ],
+    "acceptance_checks": [
+      {
+        "id": "runner-control-surface-AC-01",
+        "scenario": "CLI controls are explicit",
+        "given": "an operator reviews the runner product surface",
+        "when": "control actions are listed",
+        "then": "start, claim, run, complete, fail or equivalent control commands must be explicit and stable.",
+        "trace_hints": [
+          "CLI control",
+          "stable commands"
+        ]
+      },
+      {
+        "id": "runner-control-surface-AC-02",
+        "scenario": "Control results are structured",
+        "given": "an operator triggers a runner command",
+        "when": "the action completes",
+        "then": "the control surface must emit structured execution state rather than relying on ambiguous ad hoc logs.",
+        "trace_hints": [
+          "structured state",
+          "command result"
+        ]
+      },
+      {
+        "id": "FEAT-SRC-003-003-AC-01",
+        "scenario": "Runner control verbs are unified",
+        "given": "EPIC-SRC-003-001 needs a usable operator control surface",
+        "when": "FEAT-SRC-003-003 is reviewed for product completeness",
+        "then": "The FEAT must define one unified runner CLI control surface instead of scattering control verbs across ad-hoc scripts or undocumented commands.",
+        "trace_hints": [
+          "FEAT-SRC-003-003",
+          "runner CLI",
+          "control verbs",
+          "unified surface"
+        ]
+      }
+    ],
+    "source_refs": [
+      "EPIC-SRC-003-001",
+      "SRC-003",
+      "product.raw-to-src::adr018-raw2src-restart-20260326-r1",
+      "ADR-018",
+      "ADR-001",
+      "ADR-003",
+      "ADR-005",
+      "ADR-006",
+      "ADR-009"
+    ]
+  },
+  "design_impact_required": true,
+  "surface_map": {
+    "design_surfaces": {
+      "architecture": [
+        {
+          "owner": "ARCH-EXECUTION-RUNNER-CORE",
+          "action": "update",
+          "scope": [
+            "runner_control_surface_boundary"
+          ],
+          "reason": "runner 控制面流属于 execution runner 主架构的控制面扩展。",
+          "create_signals": [],
+          "source_ref": null
+        }
+      ],
+      "api": [
+        {
+          "owner": "API-EXECUTION-RUNNER",
+          "action": "update",
+          "scope": [
+            "runner_control_commands",
+            "runner_status_projection"
+          ],
+          "reason": "控制面需要复用并扩展 runner 控制命令与状态投影契约。",
+          "create_signals": [],
+          "source_ref": null
+        }
+      ],
+      "ui": [
+        {
+          "owner": "UI-RUNNER-OPERATOR-SHELL",
+          "action": "update",
+          "scope": [
+            "runner_control_panel",
+            "decision_controls"
+          ],
+          "reason": "控制面是既有 runner operator shell 上的增量面板。",
+          "create_signals": [],
+          "source_ref": null
+        }
+      ],
+      "prototype": [
+        {
+          "owner": "PROTO-RUNNER-OPERATOR-MAIN",
+          "action": "update",
+          "scope": [
+            "runner_control_flow"
+          ],
+          "reason": "控制面流程是在已有 runner operator 主流程上的扩展。",
+          "create_signals": [],
+          "source_ref": null
+        }
+      ],
+      "tech": [
+        {
+          "owner": "TECH-SRC-003-003",
+          "action": "create",
+          "scope": [
+            "control_surface_state_machine",
+            "manual_override_rules"
+          ],
+          "reason": "控制面需要独立实现策略包来约束状态切换与人工干预。",
+          "create_signals": [
+            "new reusable implementation strategy package",
+            "future multi-feat reuse"
+          ],
+          "source_ref": null
+        }
+      ]
+    },
+    "ownership_summary": [
+      "architecture: ARCH-EXECUTION-RUNNER-CORE (update)",
+      "api: API-EXECUTION-RUNNER (update)",
+      "ui: UI-RUNNER-OPERATOR-SHELL (update)",
+      "prototype: PROTO-RUNNER-OPERATOR-MAIN (update)",
+      "tech: TECH-SRC-003-003 (create)"
+    ],
+    "create_justification_summary": [
+      "tech: TECH-SRC-003-003 -> 控制面需要独立实现策略包来约束状态切换与人工干预。 | signals: new reusable implementation strategy package, future multi-feat reuse"
+    ],
+    "owner_binding_status": "bound",
+    "bypass_rationale": null
+  },
+  "source_refs": [
+    "product.epic-to-feat::src003-adr042-bootstrap-20260407-r2",
+    "FEAT-SRC-003-003",
+    "product.src-to-epic::adr018-src2epic-lineage-20260326-r1",
+    "EPIC-SRC-003-001",
+    "SRC-003",
+    "product.raw-to-src::adr018-raw2src-restart-20260326-r1",
+    "ADR-018",
+    "ADR-001",
+    "ADR-003",
+    "ADR-005",
+    "ADR-006",
+    "ADR-009"
+  ],
+  "downstream_handoff": {
+    "target_workflows": [
+      "workflow.dev.feat_to_tech",
+      "workflow.dev.feat_to_proto",
+      "workflow.dev.proto_to_ui",
+      "workflow.dev.tech_to_impl"
+    ],
+    "surface_map_ref": "SURFACE-MAP-FEAT-SRC-003-003",
+    "feat_ref": "FEAT-SRC-003-003"
+  },
+  "surface_map_digest": "91e87b853d44b02bf0a06ab890049d6955bf8453e905984b2ed481a3bf08e8ff"
+}

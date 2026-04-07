@@ -1,0 +1,156 @@
+{
+  "artifact_type": "surface_map_package",
+  "workflow_key": "dev.feat-to-surface-map",
+  "workflow_run_id": "src003-adr042-bootstrap-20260407-r2",
+  "status": "accepted",
+  "schema_version": "1.0.0",
+  "feat_ref": "FEAT-SRC-003-004",
+  "surface_map_ref": "SURFACE-MAP-FEAT-SRC-003-004",
+  "selected_feat": {
+    "feat_ref": "FEAT-SRC-003-004",
+    "title": "Execution Runner 自动取件流",
+    "goal": "冻结 Execution Loop Job Runner 如何从 ready queue 自动取件、claim job 并进入 running，而不是继续依赖第三会话人工接力。",
+    "scope": [
+      "定义 runner 扫描、claim、running 和防重入边界。",
+      "定义 jobs/ready 到 runner ownership 的状态转移。",
+      "定义 runner 对 job lineage、claim 证据和并发责任的记录方式。"
+    ],
+    "constraints": [
+      "Execution Loop Job Runner 必须自动消费 ready queue。",
+      "claim 语义必须是 single-owner。",
+      "runner intake 不得回退到人工接力或临时脚本触发。",
+      "claim 和 running ownership 必须留下证据。"
+    ],
+    "acceptance_checks": [
+      {
+        "id": "runner-intake-AC-01",
+        "scenario": "Ready queue is auto-consumed",
+        "given": "artifacts/jobs/ready contains a valid next-skill job",
+        "when": "Execution Loop Job Runner runs",
+        "then": "the runner must claim the job and record running ownership without human relay.",
+        "trace_hints": [
+          "jobs/ready",
+          "claim",
+          "running"
+        ]
+      },
+      {
+        "id": "runner-intake-AC-02",
+        "scenario": "Claim semantics are single-owner",
+        "given": "multiple runner invocations inspect the same ready job",
+        "when": "claim is attempted",
+        "then": "only one runner ownership record may succeed.",
+        "trace_hints": [
+          "single owner",
+          "claim",
+          "ownership"
+        ]
+      },
+      {
+        "id": "runner-intake-AC-03",
+        "scenario": "Ready queue remains the authoritative intake",
+        "given": "a downstream flow needs to start next-skill execution",
+        "when": "the start condition is resolved",
+        "then": "the FEAT must use the ready queue and runner claim path instead of directory guessing or ad hoc invocation.",
+        "trace_hints": [
+          "ready queue",
+          "runner intake",
+          "no ad hoc invocation"
+        ]
+      }
+    ],
+    "source_refs": [
+      "EPIC-SRC-003-001",
+      "SRC-003",
+      "product.raw-to-src::adr018-raw2src-restart-20260326-r1",
+      "ADR-018",
+      "ADR-001",
+      "ADR-003",
+      "ADR-005",
+      "ADR-006",
+      "ADR-009"
+    ]
+  },
+  "design_impact_required": true,
+  "surface_map": {
+    "design_surfaces": {
+      "architecture": [
+        {
+          "owner": "ARCH-EXECUTION-RUNNER-CORE",
+          "action": "update",
+          "scope": [
+            "runner_intake_loop"
+          ],
+          "reason": "自动取件流是 execution runner 核心循环的一部分。",
+          "create_signals": [],
+          "source_ref": null
+        }
+      ],
+      "api": [
+        {
+          "owner": "API-EXECUTION-RUNNER",
+          "action": "update",
+          "scope": [
+            "ready_job_intake_contract"
+          ],
+          "reason": "自动取件需要复用 ready job intake 读写契约。",
+          "create_signals": [],
+          "source_ref": null
+        }
+      ],
+      "ui": [],
+      "prototype": [],
+      "tech": [
+        {
+          "owner": "TECH-SRC-003-004",
+          "action": "create",
+          "scope": [
+            "intake_polling_rules",
+            "queue_claiming_strategy"
+          ],
+          "reason": "自动取件需要单独冻结轮询、claim 与去重策略。",
+          "create_signals": [
+            "new reusable implementation strategy package",
+            "future multi-feat reuse"
+          ],
+          "source_ref": null
+        }
+      ]
+    },
+    "ownership_summary": [
+      "architecture: ARCH-EXECUTION-RUNNER-CORE (update)",
+      "api: API-EXECUTION-RUNNER (update)",
+      "tech: TECH-SRC-003-004 (create)"
+    ],
+    "create_justification_summary": [
+      "tech: TECH-SRC-003-004 -> 自动取件需要单独冻结轮询、claim 与去重策略。 | signals: new reusable implementation strategy package, future multi-feat reuse"
+    ],
+    "owner_binding_status": "bound",
+    "bypass_rationale": null
+  },
+  "source_refs": [
+    "product.epic-to-feat::src003-adr042-bootstrap-20260407-r2",
+    "FEAT-SRC-003-004",
+    "product.src-to-epic::adr018-src2epic-lineage-20260326-r1",
+    "EPIC-SRC-003-001",
+    "SRC-003",
+    "product.raw-to-src::adr018-raw2src-restart-20260326-r1",
+    "ADR-018",
+    "ADR-001",
+    "ADR-003",
+    "ADR-005",
+    "ADR-006",
+    "ADR-009"
+  ],
+  "downstream_handoff": {
+    "target_workflows": [
+      "workflow.dev.feat_to_tech",
+      "workflow.dev.feat_to_proto",
+      "workflow.dev.proto_to_ui",
+      "workflow.dev.tech_to_impl"
+    ],
+    "surface_map_ref": "SURFACE-MAP-FEAT-SRC-003-004",
+    "feat_ref": "FEAT-SRC-003-004"
+  },
+  "surface_map_digest": "819d1323d97ded2a14b868cb8b484762061345f02cb7da4b06b832863494e0b6"
+}

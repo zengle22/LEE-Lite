@@ -1,0 +1,23 @@
+{
+  "prototype_owner_ref": "PROTO-RUNNER-OPERATOR-MAIN",
+  "related_feat_refs": [
+    "FEAT-SRC-003-002",
+    "FEAT-SRC-003-003",
+    "FEAT-SRC-003-007"
+  ],
+  "surface_map_refs": [
+    "SURFACE-MAP-FEAT-SRC-003-002",
+    "SURFACE-MAP-FEAT-SRC-003-003",
+    "SURFACE-MAP-FEAT-SRC-003-007"
+  ],
+  "source_package_refs": [
+    "artifacts/feat-to-proto/src003-adr042-proto-002-20260407-r1--feat-src-003-002",
+    "artifacts/feat-to-proto/src003-adr042-proto-003-20260407-r1--feat-src-003-003",
+    "artifacts/feat-to-proto/src003-adr042-proto-007-20260407-r1--feat-src-003-007"
+  ],
+  "merged_candidate_refs": [
+    "candidate.prototype.src003-adr042-proto-002-20260407-r1",
+    "candidate.prototype.src003-adr042-proto-003-20260407-r1",
+    "candidate.prototype.src003-adr042-proto-007-20260407-r1"
+  ]
+}

@@ -1,0 +1,153 @@
+{
+  "artifact_type": "surface_map_package",
+  "workflow_key": "dev.feat-to-surface-map",
+  "workflow_run_id": "src003-adr042-bootstrap-20260407-r2",
+  "status": "accepted",
+  "schema_version": "1.0.0",
+  "feat_ref": "FEAT-SRC-003-006",
+  "surface_map_ref": "SURFACE-MAP-FEAT-SRC-003-006",
+  "selected_feat": {
+    "feat_ref": "FEAT-SRC-003-006",
+    "title": "执行结果回写与重试边界流",
+    "goal": "冻结 runner 执行后的 done / failed / retry-reentry 结果，让自动推进链在下一跳后仍可审计、可回流。",
+    "scope": [
+      "定义 execution result、failure reason 和 retry / reentry directive 的 authoritative 结果。",
+      "定义 job 从 running 进入 done / failed / retry_return 的状态边界。",
+      "定义 runner 输出如何服务上游审计、下游继续推进和失败恢复。"
+    ],
+    "constraints": [
+      "done / failed / retry-reentry outcome 必须显式记录。",
+      "失败证据必须和 execution attempt 绑定。",
+      "retry 必须回到 execution semantics，不得改写成 publish-only 状态。",
+      "approve 不是自动推进链的终态。"
+    ],
+    "acceptance_checks": [
+      {
+        "id": "runner-intake-AC-01",
+        "scenario": "Execution outcomes are explicit",
+        "given": "runner has finished or failed a next-skill invocation",
+        "when": "the result is recorded",
+        "then": "the product flow must emit explicit done, failed, or retry/reentry outcomes with evidence.",
+        "trace_hints": [
+          "done",
+          "failed",
+          "retry",
+          "evidence"
+        ]
+      },
+      {
+        "id": "runner-intake-AC-02",
+        "scenario": "Retry returns to execution semantics",
+        "given": "a downstream execution needs another attempt",
+        "when": "the runner records the outcome",
+        "then": "the result must return through retry / reentry semantics instead of being rewritten as publish-only status.",
+        "trace_hints": [
+          "retry",
+          "reentry",
+          "execution semantics"
+        ]
+      },
+      {
+        "id": "runner-intake-AC-03",
+        "scenario": "Approve is not treated as terminal",
+        "given": "the overall product chain is reviewed",
+        "when": "the flow after gate approval is inspected",
+        "then": "the chain must continue through runner execution and result feedback rather than ending at approve itself.",
+        "trace_hints": [
+          "approve",
+          "runner",
+          "not terminal"
+        ]
+      }
+    ],
+    "source_refs": [
+      "EPIC-SRC-003-001",
+      "SRC-003",
+      "product.raw-to-src::adr018-raw2src-restart-20260326-r1",
+      "ADR-018",
+      "ADR-001",
+      "ADR-003",
+      "ADR-005",
+      "ADR-006",
+      "ADR-009"
+    ]
+  },
+  "design_impact_required": true,
+  "surface_map": {
+    "design_surfaces": {
+      "architecture": [
+        {
+          "owner": "ARCH-EXECUTION-RUNNER-CORE",
+          "action": "update",
+          "scope": [
+            "feedback_and_retry_boundary"
+          ],
+          "reason": "执行结果回写与重试边界属于 execution runner 核心闭环的一部分。",
+          "create_signals": [],
+          "source_ref": null
+        }
+      ],
+      "api": [
+        {
+          "owner": "API-EXECUTION-RUNNER",
+          "action": "update",
+          "scope": [
+            "execution_feedback_contract",
+            "retry_state_contract"
+          ],
+          "reason": "结果回写与重试需要扩展执行反馈与 retry 契约。",
+          "create_signals": [],
+          "source_ref": null
+        }
+      ],
+      "ui": [],
+      "prototype": [],
+      "tech": [
+        {
+          "owner": "TECH-SRC-003-006",
+          "action": "update",
+          "scope": [
+            "result_writeback_rules",
+            "retry_boundary_strategy"
+          ],
+          "reason": "已有 TECH-SRC-003-006 需按 ADR042 继续承接回写与重试边界实现策略。",
+          "create_signals": [],
+          "source_ref": null
+        }
+      ]
+    },
+    "ownership_summary": [
+      "architecture: ARCH-EXECUTION-RUNNER-CORE (update)",
+      "api: API-EXECUTION-RUNNER (update)",
+      "tech: TECH-SRC-003-006 (update)"
+    ],
+    "create_justification_summary": [],
+    "owner_binding_status": "bound",
+    "bypass_rationale": null
+  },
+  "source_refs": [
+    "product.epic-to-feat::src003-adr042-bootstrap-20260407-r2",
+    "FEAT-SRC-003-006",
+    "product.src-to-epic::adr018-src2epic-lineage-20260326-r1",
+    "EPIC-SRC-003-001",
+    "SRC-003",
+    "product.raw-to-src::adr018-raw2src-restart-20260326-r1",
+    "ADR-018",
+    "ADR-001",
+    "ADR-003",
+    "ADR-005",
+    "ADR-006",
+    "ADR-009"
+  ],
+  "downstream_handoff": {
+    "target_workflows": [
+      "workflow.dev.feat_to_tech",
+      "workflow.dev.feat_to_proto",
+      "workflow.dev.proto_to_ui",
+      "workflow.dev.tech_to_impl"
+    ],
+    "surface_map_ref": "SURFACE-MAP-FEAT-SRC-003-006",
+    "feat_ref": "FEAT-SRC-003-006"
+  },
+  "surface_map_digest": "46be23ba6927746aaa10305a11884fd6133d82da02e74e942231d5056160eac0"
+}

@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="zh-CN"><head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Runner 运行监控流 | 跑步大师 Prototype</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <main class="app-shell">
+    <aside class="journey-rail">
+      <div class="rail-head">
+        <p class="eyebrow">Running Coach Prototype</p>
+        <h1 id="feat-title">Runner 运行监控流</h1>
+        <p class="rail-ref" id="feat-ref">FEAT-SRC-003-007 · shell v1.0.0</p>
+      </div>
+      <section class="rail-card">
+        <div class="section-title">
+          <p class="eyebrow">Fixed Journey</p>
+          <h2>Flow Rail</h2>
+        </div>
+        <ol id="journey-nav"><li><a href="#" class="journey-link active" data-page="0">Runner 运行监控流<span>setup</span></a></li></ol>
+      </section>
+      <section class="rail-card">
+        <div class="section-title">
+          <p class="eyebrow">State Model</p>
+          <h2>Readiness</h2>
+        </div>
+        <div class="state-pills" id="state-pills"><button type="button" class="pill is-active" data-state="0">initial</button><button type="button" class="pill" data-state="1">ready</button><button type="button" class="pill" data-state="2">partial</button><button type="button" class="pill danger" data-state="3">retryable_error</button><button type="button" class="pill" data-state="4">settled</button></div>
+      </section>
+      <section class="rail-card">
+        <div class="section-title">
+          <p class="eyebrow">Authority Trace</p>
+          <h2>Refs</h2>
+        </div>
+        <ul class="source-list" id="source-refs"><li>FEAT-SRC-003-007</li><li>EPIC-SRC-003-001</li><li>SRC-003</li><li>product.raw-to-src::adr018-raw2src-restart-20260326-r1</li><li>ADR-018</li><li>ADR-001</li><li>ADR-003</li><li>ADR-005</li><li>ADR-006</li><li>ADR-009</li></ul>
+      </section>
+    </aside>
+
+    <section class="studio">
+      <header class="studio-hero">
+        <div>
+          <p class="eyebrow">Journey Structural Spec + UI Shell Source</p>
+          <h2 id="page-title">Runner 运行监控流</h2>
+          <p id="page-goal">冻结 runner 的观察面，让 ready backlog、running、failed、deadletters 与 waiting-human 成为用户可见的正式产品面。</p>
+        </div>
+        <div class="principle-chip">无伤第一，PB 第二</div>
+      </header>
+
+      <section class="shell-layout">
+        <article class="coach-mobile-shell">
+          <header class="mobile-shell-head">
+            <div>
+              <p class="shell-brand">跑步大师</p>
+              <h3 id="shell-stage">Setup</h3>
+            </div>
+            <div class="athlete-badge">Coach-guided</div>
+          </header>
+
+          <nav class="stage-tabs" id="stage-tabs"><button type="button" class="stage-tab is-active" data-mode="setup">Setup</button><button type="button" class="stage-tab " data-mode="home">Today</button><button type="button" class="stage-tab " data-mode="decision">Decision</button><button type="button" class="stage-tab " data-mode="plan">Plan</button><button type="button" class="stage-tab " data-mode="review">Review</button></nav>
+
+          <section class="readiness-strip ready" id="readiness-strip">
+      <h4>initial</h4>
+      <p>Build a trustworthy baseline.</p>
+    </section>
+
+          <section class="screen-panel">
+            <div class="panel-head">
+              <div>
+                <p class="eyebrow">Primary Screen</p>
+                <h3 id="screen-title">Runner 运行监控流</h3>
+              </div>
+              <div class="container-badge" id="container-hint">page + sticky CTA</div>
+            </div>
+            <div class="coach-copy" id="coach-copy"><strong>Setup shell</strong><p>展示默认结构与说明</p></div>
+            <div class="focus-chips" id="plan-focus"><span class="chip">Mode: setup</span><span class="chip">Family: generic</span><span class="chip">State: initial</span><span class="chip">Header</span></div>
+            <div class="micro-detail-grid">
+              <article class="detail-card">
+                <div class="wireframe-head">
+                  <h4 id="snapshot-title">Baseline Snapshot</h4>
+                  <span id="snapshot-meta">Activation context</span>
+                </div>
+                <ul id="training-snapshot"><li>Goal race and target date are required.</li><li>Training history must be credible enough to seed the first cycle.</li><li>Injury-sensitive zones drive the initial load ceiling.</li><li>Weekly time budget constrains session placement.</li></ul>
+              </article>
+              <article class="detail-card">
+                <div class="wireframe-head">
+                  <h4 id="decision-options-title">Action Posture</h4>
+                  <span id="decision-options-meta">Shell-guided choices</span>
+                </div>
+                <div id="decision-options"><div class="decision-option recommended"><strong>Activate cycle</strong><p>Proceed only when baseline and injury inputs are complete.</p></div><div class="decision-option caution"><strong>Fix missing data</strong><p>Stay in setup if the shell cannot trust the baseline.</p></div></div>
+              </article>
+            </div>
+            <div class="state-summary-card" id="state-summary">
+      <div class="summary-meta">
+        <span class="badge ">initial</span>
+        <span>用户完成主路径并满足 FEAT 成功标准。</span>
+      </div>
+      <p>冻结 runner 的观察面，让 ready backlog、running、failed、deadletters 与 waiting-human 成为用户可见的正式产品面。</p>
+    </div>
+            <div class="split-detail">
+              <article class="detail-card">
+                <h4>Flow Steps</h4>
+                <ol id="main-path"><li>进入 Runner 运行监控流</li><li>查看首屏说明</li><li>执行核心输入或选择</li><li>点击主按钮</li><li>接收校验与提交反馈</li><li>进入下一步或完成本页</li></ol>
+              </article>
+              <article class="detail-card">
+                <h4>Key Sections</h4>
+                <ul id="page-sections"><li>Header</li><li>Intro / Context</li><li>Main Content</li><li>Help / Error / Recovery Slot</li><li>Footer</li></ul>
+              </article>
+            </div>
+            <article class="wireframe-card">
+              <div class="wireframe-head">
+                <h4>ASCII Screen Shape</h4>
+                <span id="wireframe-label">setup</span>
+              </div>
+              <pre id="wireframe">+--------------------------------------------------+
+| Header: Runner 运行监控流                           |
+| Intro / Context                                  |
++--------------------------------------------------+
+| Main Content                                     |
+| Core Form / Core Decision / Core Result          |
++--------------------------------------------------+
+| Help / Error / Recovery Slot                     |
++--------------------------------------------------+
+| Footer: [返回]                          [下一步] |
++--------------------------------------------------+</pre>
+            </article>
+          </section>
+
+          <footer class="cta-dock">
+            <div class="actions-meta" id="action-hint">Journey: journey-ux-ascii.md | Shell: ui-shell-spec.md</div>
+            <div class="button-row" id="actions"><button type="button" data-action="primary" data-tone="primary">继续</button><button type="button" data-action="reset" data-tone="ghost">重置场景</button></div>
+          </footer>
+        </article>
+
+        <aside class="insight-rail">
+          <section class="insight-card">
+            <div class="section-title">
+              <p class="eyebrow">Coach Summary</p>
+              <h3>Today's Decision</h3>
+            </div>
+            <div id="decision-summary"><div class="decision-callout "><strong>Current recommendation</strong><p>展示默认结构与说明</p></div><div class="decision-callout "><strong>Container family</strong><p>page + sticky CTA</p></div><div class="decision-callout "><strong>CTA posture</strong><p>Use one forward CTA per step. Back or exit must remain subordinate.</p></div></div>
+          </section>
+
+          <section class="insight-card">
+            <div class="section-title">
+              <p class="eyebrow">Risk

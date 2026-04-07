@@ -1,33 +1,33 @@
 ---
-id: TECH-SRC-003-002
+id: TECH-SRC-003-003
 ssot_type: TECH
-tech_ref: TECH-SRC-003-002
-feat_ref: FEAT-SRC-003-002
-title: Runner 用户入口流 Technical Design Package
+tech_ref: TECH-SRC-003-003
+feat_ref: FEAT-SRC-003-003
+title: Runner 控制面流 Technical Design Package
 status: accepted
 schema_version: 1.0.0
 workflow_key: dev.feat-to-tech
-workflow_run_id: src003-adr042-tech-002-20260407-r1
-candidate_package_ref: artifacts/feat-to-tech/src003-adr042-tech-002-20260407-r1
-gate_decision_ref: artifacts/active/gates/decisions/src003-adr042-tech-002-formalize.json
+workflow_run_id: src003-adr042-tech-003-20260407-r1
+candidate_package_ref: artifacts/feat-to-tech/src003-adr042-tech-003-20260407-r1
+gate_decision_ref: artifacts/active/gates/decisions/src003-adr042-tech-003-formalize.json
 frozen_at: '2026-04-07T02:09:10Z'
 ---
 
-# Runner 用户入口流 Technical Design Package
+# Runner 控制面流 Technical Design Package
 
 
 ## Selected FEAT
 
-- feat_ref: `FEAT-SRC-003-002`
-- title: Runner 用户入口流
-- axis_id: runner-operator-entry
-- resolved_axis: runner_operator_entry
+- feat_ref: `FEAT-SRC-003-003`
+- title: Runner 控制面流
+- axis_id: runner-control-surface
+- resolved_axis: runner_control_surface
 - epic_freeze_ref: `EPIC-SRC-003-001`
 - src_root_id: `SRC-003`
-- goal: 冻结一个用户可显式调用的 Execution Loop Job Runner 入口 skill，让 operator 能从 Claude/Codex CLI 启动或恢复自动推进。
-- authoritative_artifact: runner skill entry invocation record
-- upstream_feat: FEAT-SRC-003-001
-- downstream_feat: FEAT-SRC-003-003
+- goal: 冻结 runner 的 CLI 控制面，让启动、claim、run、complete、fail 等动作形成可设计、可审计的用户操作边界。
+- authoritative_artifact: runner control action record
+- upstream_feat: FEAT-SRC-003-002
+- downstream_feat: FEAT-SRC-003-004
 - gate_decision_dependency_feat_refs: FEAT-SRC-003-001
 - admission_dependency_feat_refs: None
 
@@ -38,7 +38,7 @@ frozen_at: '2026-04-07T02:09:10Z'
   - Keyword hits: 边界.
 - api_required: True
   - API required by command-level contract surface.
-  - Keyword hits: queue, handoff.
+  - Keyword hits: handoff.
 - integration_context_sufficient: True
   - integration_context sufficient
 - stateful_design_present: True
@@ -49,15 +49,15 @@ frozen_at: '2026-04-07T02:09:10Z'
 ## TECH Design
 
 - Design focus:
-  - Freeze a concrete TECH design for Runner 用户入口流, preserving FEAT semantics while making runtime carriers and contracts implementation-ready.
+  - Freeze a concrete TECH design for Runner 控制面流, preserving FEAT semantics while making runtime carriers and contracts implementation-ready.
 - Implementation rules:
-  - Execution Loop Job Runner 必须以独立 skill 入口暴露给 Claude/Codex CLI 用户。
-  - 入口必须显式声明 start / resume 语义，而不是隐式依赖后台自动进程。
-  - 入口不得把 approve 后链路退化成手工逐个调用下游 skill。
-  - 入口调用必须保留 authoritative run context 与 lineage。
-  - Runner exposes a named skill entry: the product flow must expose a named runner skill entry instead of hiding start-up inside abstract background automation.
-  - Entry remains user-invokable: the entry must stay invokable by Claude/Codex CLI rather than requiring direct file edits or out-of-band orchestration.
-  - Runner skill entry is explicit: The FEAT must define one dedicated runner skill entry for Claude/Codex CLI instead of relying on implicit background behavior or manual downstream relays.
+  - runner control surface 必须提供统一的 CLI verbs，而不是分散在多个无治理脚本里。
+  - control surface 必须与 runner skill entry 对齐，不能绕开 authoritative run context。
+  - control verbs 不得直接替代 next-skill invocation 结果或篡改 execution outcome。
+  - 控制动作必须产生可追踪的 command / state evidence。
+  - CLI controls are explicit: start, claim, run, complete, fail or equivalent control commands must be explicit and stable.
+  - Control results are structured: the control surface must emit structured execution state rather than relying on ambiguous ad hoc logs.
+  - Runner control verbs are unified: The FEAT must define one unified runner CLI control surface instead of scattering control verbs across ad-hoc scripts or undocumented commands.
 - Non-functional requirements:
   - Preserve FEAT, EPIC, and SRC traceability across every emitted design object.
   - Do not bypass the FEAT acceptance boundary with task-level sequencing or implementation tickets.
@@ -70,17 +70,17 @@ frozen_at: '2026-04-07T02:09:10Z'
 - Formal publication、approve/handoff 的最终发布语义不在本 FEAT 内实现，本 FEAT 只保留对相邻 publication FEAT 的 authoritative boundary handoff。
 
 ```text
-[cli/commands/loop/command.py]
+[cli/commands/job/command.py]
               |
               v
-[cli/lib/runner_entry.py] --> [cli/lib/execution_runner.py]
+[cli/lib/runner_control.py] --> [cli/lib/execution_runner.py]
               |
-              +--> [cli/lib/protocol.py]
+              +--> [cli/lib/job_state.py]
 ```
 
 ### State Model
-- `runner_entry_requested` -> `runner_context_initialized` -> `runner_entry_published`
-- `runner_entry_requested(resume)` -> `runner_context_restored` -> `runner_entry_published`
+- `control_requested` -> `ownership_validated` -> `control_action_recorded` -> `runner_state_updated`
+- `ownership_validated(fail)` -> `control_rejected`
 
 ### State Machine
 - states: prepared -> executing -> recorded
@@ -88,35 +88,35 @@ frozen_at: '2026-04-07T02:09:10Z'
 - field mapping: lifecycle_state tracks runtime progression and must not be owned by IMPL
 
 ### Module Plan
-- Runner skill entry adapter：负责提供 Claude/Codex CLI 可见的 Execution Loop Job Runner 入口。
-- Runner context bootstrapper：负责初始化或恢复 authoritative runner context。
-- Entry receipt publisher：负责记录 runner invocation receipt 与 run ref。
+- Runner command router：负责解析 start/claim/run/complete/fail/resume 等 control verbs。
+- Ownership guard：负责校验 runner context 与 claimed job ownership。
+- Control evidence writer：负责记录 control action、state update 与 operator-facing receipt。
 
 ### Implementation Strategy
-- 先冻结独立 runner skill 入口和 start/resume 语义，再实现 run context bootstrap。
-- 把 operator-facing entry 和后台 queue consumption 解耦，避免入口逻辑吞掉运行时边界。
-- 最后验证 Claude/Codex CLI 能通过单一 skill 入口启动或恢复 runner。
+- 先冻结 runner CLI verbs 与状态边界，再实现 ownership guard 和 control evidence。
+- 把 control plane 与 dispatch/outcome plane 分开，避免 CLI 命令直接越权改写业务结果。
+- 最后验证 claim/run/complete/fail 都能留下 authoritative control records。
 
 ### Implementation Unit Mapping
-- `cli/lib/protocol.py` (`extend`): 定义 `ExecutionRunnerStartRequest`、`ExecutionRunnerRunRef`、`RunnerEntryReceipt` 结构。
-- `cli/lib/runner_entry.py` (`new`): 提供 runner skill start/resume 的入口适配层。
-- `cli/lib/execution_runner.py` (`new`): 管理 runner context bootstrap 与恢复逻辑。
-- `cli/commands/loop/command.py` (`new`): 暴露 `run-execution` / `resume-execution` 入口。
+- `cli/lib/protocol.py` (`extend`): 定义 `RunnerControlAction`、`RunnerStateRecord`、`JobOwnershipRef` 结构。
+- `cli/lib/runner_control.py` (`new`): 解析并执行 runner lifecycle CLI verbs。
+- `cli/lib/job_state.py` (`new`): 管理 claimed/running/completed/failed 状态与 ownership guard。
+- `cli/commands/job/command.py` (`new`): 暴露 `claim` / `run` / `complete` / `fail` 命令。
 
 ### Interface Contracts
-- `ExecutionRunnerStartRequest`: input=`runner_scope_ref`, `entry_mode`, `queue_ref?`; output=`runner_run_ref`, `runner_context_ref`, `entry_receipt_ref`; errors=`runner_scope_missing`, `runner_context_conflict`; idempotent=`yes by runner_scope_ref + entry_mode`; precondition=`runner scope is authorized`。
-- `RunnerEntryReceipt`: input=`runner_run_ref`; output=`entry_mode`, `runner_context_ref`, `started_at`; errors=`receipt_missing`; idempotent=`yes`; precondition=`runner entry already accepted`。
+- `RunnerControlAction`: input=`runner_context_ref`, `command`, `job_ref?`; output=`control_action_ref`, `runner_state_ref`; errors=`invalid_transition`, `ownership_conflict`; idempotent=`yes by runner_context_ref + command + job_ref`; precondition=`runner context active`。
+- `RunnerStateRecord`: input=`control_action_ref`; output=`state`, `job_ref`, `ownership_ref`; errors=`state_missing`; idempotent=`yes`; precondition=`control action recorded`。
 
 ### Main Sequence
-- 1. accept start/resume request from Claude/Codex CLI
-- 2. bootstrap or restore runner context
-- 3. publish runner invocation receipt
-- 4. hand off to queue consumption lifecycle
+- 1. accept runner lifecycle command
+- 2. validate runner context and ownership
+- 3. apply control-plane state transition
+- 4. publish control action record
 
 ```text
-Operator             -> Runner Skill Entry  : request start or resume
-Runner Skill Entry   -> Context Bootstrapper: initialize governed run context
-Context Bootstrapper -> Entry Receipt       : publish runner invocation receipt
+Operator         -> Runner Command Router : issue control verb
+Command Router   -> Ownership Guard       : validate run context and job ownership
+Ownership Guard  -> Control Evidence      : record control action and state transition
 ```
 
 ### Exception and Compensation
@@ -136,7 +136,7 @@ Context Bootstrapper -> Entry Receipt       : publish runner invocation receipt
 - compatibility anchor: Epic-level constraints：自动推进主链固定为：approve -> ready execution job -> runner claim -> next skill dispatch -> execution outcome。
 
 ### Input / Output Matrix and Side Effects
-- select_FEAT-SRC-003-002: inputs=feat_freeze_package, feat_ref; outputs=selected_feat snapshot; writes=none; side_effects=none; evidence=input validation; idempotency=repeatable
+- select_FEAT-SRC-003-003: inputs=feat_freeze_package, feat_ref; outputs=selected_feat snapshot; writes=none; side_effects=none; evidence=input validation; idempotency=repeatable
 - derive_design: inputs=selected_feat, integration_context; outputs=TECH/ARCH/API blocks; writes=tech-design-bundle.*; side_effects=markdown/json materialization; evidence=execution-evidence; idempotency=run_id scoped
 - handoff_downstream: inputs=frozen tech package; outputs=handoff-to-tech-impl.json; writes=handoff artifact; side_effects=downstream routing metadata; evidence=freeze gate + supervision
 
@@ -188,21 +188,22 @@ def advance_mainline_with_reentry(handoff: HandoffEnvelope) -> RuntimeTransition
 
 ## Optional ARCH
 
-- arch_ref: `ARCH-SRC-003-002`
+- arch_ref: `ARCH-SRC-003-003`
 - summary_topics:
-  - Boundary to ready-job emission: 本 FEAT 不生成 ready job，只提供 operator 可见的 runner 启动/恢复入口。
-  - Boundary to control surface: 本 FEAT 只冻结 runner skill entry 与 run context bootstrap，不定义 job claim/run/complete/fail verbs。
-  - Dedicated runner entry placement is required so Claude/Codex CLI entry, run context bootstrap, and invocation receipt stay in one authoritative surface.
+  - Boundary to operator entry: 本 FEAT 依赖 runner skill entry，但不重新定义 start/resume 入口本身。
+  - Boundary to dispatch/outcome: 本 FEAT 冻结 runner 的控制面和 state transition，不直接拥有 next-skill invocation 或 final outcome semantics。
+  - Dedicated runner control placement is required so lifecycle commands, ownership guards, and control evidence share one authoritative carrier.
 - see: `arch-design.md`
 
 ## Optional API
 
-- api_ref: `API-SRC-003-002`
+- api_ref: `API-SRC-003-003`
 - contract_surfaces:
-  - runner skill entry contract
-  - runner start/resume contract
+  - runner CLI control contract
+  - runner lifecycle command contract
 - command_refs:
-  - `ll loop run-execution`
+  - `ll job claim`
+  - `ll job run / complete / fail`
 - response_envelope:
   - success: `{ ok: true, command_ref, trace_ref, result }`
   - error: `{ ok: false, command_ref, trace_ref, error }`
@@ -233,9 +234,9 @@ def advance_mainline_with_reentry(handoff: HandoffEnvelope) -> RuntimeTransition
 ## Downstream Handoff
 
 - target_workflow: workflow.dev.tech_to_impl
-- tech_ref: `TECH-SRC-003-002`
-- arch_ref: `ARCH-SRC-003-002`
-- api_ref: `API-SRC-003-002`
+- tech_ref: `TECH-SRC-003-003`
+- arch_ref: `ARCH-SRC-003-003`
+- api_ref: `API-SRC-003-003`
 - integration_context_ref: `integration-context.json`
 - state_machine_ref: `tech-design-bundle.json#/tech_design/state_machine`
 - canonical_owner_refs: `tech-design-bundle.json#/tech_design/technical_glossary_and_canonical_ownership`
@@ -244,6 +245,6 @@ def advance_mainline_with_reentry(handoff: HandoffEnvelope) -> RuntimeTransition
 
 ## Traceability
 
-- Need Assessment: scope, dependencies, acceptance_checks <- product.epic-to-feat::src003-adr042-bootstrap-20260407-r1, FEAT-SRC-003-002, EPIC-SRC-003-001, SRC-003
-- TECH Design: goal, scope, constraints <- product.epic-to-feat::src003-adr042-bootstrap-20260407-r1, FEAT-SRC-003-002, EPIC-SRC-003-001, SRC-003
-- Cross-Artifact Consistency: dependencies, outputs, acceptance_checks <- product.epic-to-feat::src003-adr042-bootstrap-20260407-r1, FEAT-SRC-003-002, EPIC-SRC-003-001, SRC-003
+- Need Assessment: scope, dependencies, acceptance_checks <- product.epic-to-feat::src003-adr042-bootstrap-20260407-r1, FEAT-SRC-003-003, EPIC-SRC-003-001, SRC-003
+- TECH Design: goal, scope, constraints <- product.epic-to-feat::src003-adr042-bootstrap-20260407-r1, FEAT-SRC-003-003, EPIC-SRC-003-001, SRC-003
+- Cross-Artifact Consistency: dependencies, outputs, acceptance_checks <- product.epic-to-feat::src003-adr042-bootstrap-20260407-r1, FEAT-SRC-003-003, EPIC-SRC-003-001, SRC-003

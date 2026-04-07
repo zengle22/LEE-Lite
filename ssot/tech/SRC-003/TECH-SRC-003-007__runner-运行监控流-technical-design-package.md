@@ -1,33 +1,33 @@
 ---
-id: TECH-SRC-003-002
+id: TECH-SRC-003-007
 ssot_type: TECH
-tech_ref: TECH-SRC-003-002
-feat_ref: FEAT-SRC-003-002
-title: Runner 用户入口流 Technical Design Package
+tech_ref: TECH-SRC-003-007
+feat_ref: FEAT-SRC-003-007
+title: Runner 运行监控流 Technical Design Package
 status: accepted
 schema_version: 1.0.0
 workflow_key: dev.feat-to-tech
-workflow_run_id: src003-adr042-tech-002-20260407-r1
-candidate_package_ref: artifacts/feat-to-tech/src003-adr042-tech-002-20260407-r1
-gate_decision_ref: artifacts/active/gates/decisions/src003-adr042-tech-002-formalize.json
+workflow_run_id: src003-adr042-tech-007-20260407-r1
+candidate_package_ref: artifacts/feat-to-tech/src003-adr042-tech-007-20260407-r1
+gate_decision_ref: artifacts/active/gates/decisions/src003-adr042-tech-007-formalize.json
 frozen_at: '2026-04-07T02:09:10Z'
 ---
 
-# Runner 用户入口流 Technical Design Package
+# Runner 运行监控流 Technical Design Package
 
 
 ## Selected FEAT
 
-- feat_ref: `FEAT-SRC-003-002`
-- title: Runner 用户入口流
-- axis_id: runner-operator-entry
-- resolved_axis: runner_operator_entry
+- feat_ref: `FEAT-SRC-003-007`
+- title: Runner 运行监控流
+- axis_id: runner-observability-surface
+- resolved_axis: runner_observability
 - epic_freeze_ref: `EPIC-SRC-003-001`
 - src_root_id: `SRC-003`
-- goal: 冻结一个用户可显式调用的 Execution Loop Job Runner 入口 skill，让 operator 能从 Claude/Codex CLI 启动或恢复自动推进。
-- authoritative_artifact: runner skill entry invocation record
-- upstream_feat: FEAT-SRC-003-001
-- downstream_feat: FEAT-SRC-003-003
+- goal: 冻结 runner 的观察面，让 ready backlog、running、failed、deadletters 与 waiting-human 成为用户可见的正式产品面。
+- authoritative_artifact: runner observability snapshot
+- upstream_feat: FEAT-SRC-003-004, FEAT-SRC-003-005, FEAT-SRC-003-006
+- downstream_feat: None
 - gate_decision_dependency_feat_refs: FEAT-SRC-003-001
 - admission_dependency_feat_refs: None
 
@@ -35,10 +35,9 @@ frozen_at: '2026-04-07T02:09:10Z'
 
 - arch_required: True
   - ARCH required by boundary/runtime placement.
-  - Keyword hits: 边界.
 - api_required: True
   - API required by command-level contract surface.
-  - Keyword hits: queue, handoff.
+  - Keyword hits: handoff, queue, decision.
 - integration_context_sufficient: True
   - integration_context sufficient
 - stateful_design_present: True
@@ -49,15 +48,15 @@ frozen_at: '2026-04-07T02:09:10Z'
 ## TECH Design
 
 - Design focus:
-  - Freeze a concrete TECH design for Runner 用户入口流, preserving FEAT semantics while making runtime carriers and contracts implementation-ready.
+  - Freeze a concrete TECH design for Runner 运行监控流, preserving FEAT semantics while making runtime carriers and contracts implementation-ready.
 - Implementation rules:
-  - Execution Loop Job Runner 必须以独立 skill 入口暴露给 Claude/Codex CLI 用户。
-  - 入口必须显式声明 start / resume 语义，而不是隐式依赖后台自动进程。
-  - 入口不得把 approve 后链路退化成手工逐个调用下游 skill。
-  - 入口调用必须保留 authoritative run context 与 lineage。
-  - Runner exposes a named skill entry: the product flow must expose a named runner skill entry instead of hiding start-up inside abstract background automation.
-  - Entry remains user-invokable: the entry must stay invokable by Claude/Codex CLI rather than requiring direct file edits or out-of-band orchestration.
-  - Runner skill entry is explicit: The FEAT must define one dedicated runner skill entry for Claude/Codex CLI instead of relying on implicit background behavior or manual downstream relays.
+  - runner observability surface 必须覆盖 ready backlog、running、failed、deadletters、waiting-human 等关键状态。
+  - 监控面必须读取 authoritative runner state，而不是靠目录猜测或人工拼接。
+  - 监控面只负责观察和提示，不直接改写 runner control state。
+  - 观测结果必须能关联到 ready job、invocation 和 execution outcome lineage。
+  - Core queue states are visible: ready backlog, running jobs, failed jobs, deadletters, and waiting-human jobs must be visible as formal runtime states.
+  - Monitoring supports operator action: the product surface must support resume, retry, or handoff decisions instead of acting as a passive log dump.
+  - Runner observability covers critical states: The FEAT must make ready backlog, running, failed, deadletters, and waiting-human states visible from one authoritative monitoring surface.
 - Non-functional requirements:
   - Preserve FEAT, EPIC, and SRC traceability across every emitted design object.
   - Do not bypass the FEAT acceptance boundary with task-level sequencing or implementation tickets.
@@ -73,14 +72,14 @@ frozen_at: '2026-04-07T02:09:10Z'
 [cli/commands/loop/command.py]
               |
               v
-[cli/lib/runner_entry.py] --> [cli/lib/execution_runner.py]
+[cli/lib/runner_monitor.py] --> [cli/lib/job_queue.py] --> [Observability Snapshot]
               |
-              +--> [cli/lib/protocol.py]
+              +--> [cli/lib/job_outcome.py]
 ```
 
 ### State Model
-- `runner_entry_requested` -> `runner_context_initialized` -> `runner_entry_published`
-- `runner_entry_requested(resume)` -> `runner_context_restored` -> `runner_entry_published`
+- `runner_state_requested` -> `snapshot_projected` -> `status_view_published`
+- `snapshot_projected(fail)` -> `observability_unavailable`
 
 ### State Machine
 - states: prepared -> executing -> recorded
@@ -88,35 +87,35 @@ frozen_at: '2026-04-07T02:09:10Z'
 - field mapping: lifecycle_state tracks runtime progression and must not be owned by IMPL
 
 ### Module Plan
-- Runner skill entry adapter：负责提供 Claude/Codex CLI 可见的 Execution Loop Job Runner 入口。
-- Runner context bootstrapper：负责初始化或恢复 authoritative runner context。
-- Entry receipt publisher：负责记录 runner invocation receipt 与 run ref。
+- Runner status projector：负责聚合 ready backlog、running、failed、deadletters 和 waiting-human 状态。
+- Snapshot query service：负责按 runner scope 生成 authoritative observability snapshot。
+- Operator monitor presenter：负责输出 CLI 可读的 runner status/backlog view。
 
 ### Implementation Strategy
-- 先冻结独立 runner skill 入口和 start/resume 语义，再实现 run context bootstrap。
-- 把 operator-facing entry 和后台 queue consumption 解耦，避免入口逻辑吞掉运行时边界。
-- 最后验证 Claude/Codex CLI 能通过单一 skill 入口启动或恢复 runner。
+- 先冻结 ready/running/failed/deadletter/waiting-human 状态词表，再实现 status projector。
+- 监控面只消费 authoritative runner records，不允许从目录结构推断状态。
+- 最后验证 operator 能通过统一视图观察 backlog、运行态和异常态。
 
 ### Implementation Unit Mapping
-- `cli/lib/protocol.py` (`extend`): 定义 `ExecutionRunnerStartRequest`、`ExecutionRunnerRunRef`、`RunnerEntryReceipt` 结构。
-- `cli/lib/runner_entry.py` (`new`): 提供 runner skill start/resume 的入口适配层。
-- `cli/lib/execution_runner.py` (`new`): 管理 runner context bootstrap 与恢复逻辑。
-- `cli/commands/loop/command.py` (`new`): 暴露 `run-execution` / `resume-execution` 入口。
+- `cli/lib/protocol.py` (`extend`): 定义 `RunnerObservabilitySnapshot`、`RunnerStatusItem` 结构。
+- `cli/lib/runner_monitor.py` (`new`): 聚合 ready/running/failed/waiting-human 状态。
+- `cli/lib/job_queue.py` (`extend`): 提供 backlog/status 查询接口。
+- `cli/commands/loop/command.py` (`new`): 暴露 `show-status` / `show-backlog` 监控命令。
 
 ### Interface Contracts
-- `ExecutionRunnerStartRequest`: input=`runner_scope_ref`, `entry_mode`, `queue_ref?`; output=`runner_run_ref`, `runner_context_ref`, `entry_receipt_ref`; errors=`runner_scope_missing`, `runner_context_conflict`; idempotent=`yes by runner_scope_ref + entry_mode`; precondition=`runner scope is authorized`。
-- `RunnerEntryReceipt`: input=`runner_run_ref`; output=`entry_mode`, `runner_context_ref`, `started_at`; errors=`receipt_missing`; idempotent=`yes`; precondition=`runner entry already accepted`。
+- `RunnerObservabilitySnapshot`: input=`runner_scope_ref`, `status_filter?`; output=`observability_snapshot_ref`, `ready_backlog`, `running_items`, `failed_items`, `waiting_human_items`; errors=`status_projection_failed`; idempotent=`yes by runner_scope_ref + status_filter`; precondition=`runner scope exists`。
+- `RunnerStatusQuery`: input=`observability_snapshot_ref`; output=`status_items`, `lineage_refs`, `next_operator_action?`; errors=`snapshot_missing`; idempotent=`yes`; precondition=`snapshot already projected`。
 
 ### Main Sequence
-- 1. accept start/resume request from Claude/Codex CLI
-- 2. bootstrap or restore runner context
-- 3. publish runner invocation receipt
-- 4. hand off to queue consumption lifecycle
+- 1. collect ready/running/failed/deadletter/waiting-human states
+- 2. project authoritative observability snapshot
+- 3. render operator-facing backlog / status view
+- 4. expose lineage refs for diagnostics and recovery
 
 ```text
-Operator             -> Runner Skill Entry  : request start or resume
-Runner Skill Entry   -> Context Bootstrapper: initialize governed run context
-Context Bootstrapper -> Entry Receipt       : publish runner invocation receipt
+Queue / Runtime Records -> Status Projector : aggregate ready/running/failed states
+Status Projector        -> Snapshot View   : publish runner observability snapshot
+Snapshot View           -> Operator        : expose backlog and health view
 ```
 
 ### Exception and Compensation
@@ -136,7 +135,7 @@ Context Bootstrapper -> Entry Receipt       : publish runner invocation receipt
 - compatibility anchor: Epic-level constraints：自动推进主链固定为：approve -> ready execution job -> runner claim -> next skill dispatch -> execution outcome。
 
 ### Input / Output Matrix and Side Effects
-- select_FEAT-SRC-003-002: inputs=feat_freeze_package, feat_ref; outputs=selected_feat snapshot; writes=none; side_effects=none; evidence=input validation; idempotency=repeatable
+- select_FEAT-SRC-003-007: inputs=feat_freeze_package, feat_ref; outputs=selected_feat snapshot; writes=none; side_effects=none; evidence=input validation; idempotency=repeatable
 - derive_design: inputs=selected_feat, integration_context; outputs=TECH/ARCH/API blocks; writes=tech-design-bundle.*; side_effects=markdown/json materialization; evidence=execution-evidence; idempotency=run_id scoped
 - handoff_downstream: inputs=frozen tech package; outputs=handoff-to-tech-impl.json; writes=handoff artifact; side_effects=downstream routing metadata; evidence=freeze gate + supervision
 
@@ -188,21 +187,21 @@ def advance_mainline_with_reentry(handoff: HandoffEnvelope) -> RuntimeTransition
 
 ## Optional ARCH
 
-- arch_ref: `ARCH-SRC-003-002`
+- arch_ref: `ARCH-SRC-003-007`
 - summary_topics:
-  - Boundary to ready-job emission: 本 FEAT 不生成 ready job，只提供 operator 可见的 runner 启动/恢复入口。
-  - Boundary to control surface: 本 FEAT 只冻结 runner skill entry 与 run context bootstrap，不定义 job claim/run/complete/fail verbs。
-  - Dedicated runner entry placement is required so Claude/Codex CLI entry, run context bootstrap, and invocation receipt stay in one authoritative surface.
+  - Boundary to runner control: 监控面只读取 ready/running/failed/waiting-human 状态，不直接执行控制动作。
+  - Boundary to queue/runtime records: 监控面必须聚合 authoritative ready queue、running ownership、dispatch 和 outcome records，而不是扫目录猜测状态。
+  - Dedicated observability placement is required so backlog、running、failed、deadletter、waiting-human views share one authoritative query surface.
 - see: `arch-design.md`
 
 ## Optional API
 
-- api_ref: `API-SRC-003-002`
+- api_ref: `API-SRC-003-007`
 - contract_surfaces:
-  - runner skill entry contract
-  - runner start/resume contract
+  - runner observability snapshot contract
+  - runner status query contract
 - command_refs:
-  - `ll loop run-execution`
+  - `ll loop show-status / show-backlog`
 - response_envelope:
   - success: `{ ok: true, command_ref, trace_ref, result }`
   - error: `{ ok: false, command_ref, trace_ref, error }`
@@ -233,9 +232,9 @@ def advance_mainline_with_reentry(handoff: HandoffEnvelope) -> RuntimeTransition
 ## Downstream Handoff
 
 - target_workflow: workflow.dev.tech_to_impl
-- tech_ref: `TECH-SRC-003-002`
-- arch_ref: `ARCH-SRC-003-002`
-- api_ref: `API-SRC-003-002`
+- tech_ref: `TECH-SRC-003-007`
+- arch_ref: `ARCH-SRC-003-007`
+- api_ref: `API-SRC-003-007`
 - integration_context_ref: `integration-context.json`
 - state_machine_ref: `tech-design-bundle.json#/tech_design/state_machine`
 - canonical_owner_refs: `tech-design-bundle.json#/tech_design/technical_glossary_and_canonical_ownership`
@@ -244,6 +243,6 @@ def advance_mainline_with_reentry(handoff: HandoffEnvelope) -> RuntimeTransition
 
 ## Traceability
 
-- Need Assessment: scope, dependencies, acceptance_checks <- product.epic-to-feat::src003-adr042-bootstrap-20260407-r1, FEAT-SRC-003-002, EPIC-SRC-003-001, SRC-003
-- TECH Design: goal, scope, constraints <- product.epic-to-feat::src003-adr042-bootstrap-20260407-r1, FEAT-SRC-003-002, EPIC-SRC-003-001, SRC-003
-- Cross-Artifact Consistency: dependencies, outputs, acceptance_checks <- product.epic-to-feat::src003-adr042-bootstrap-20260407-r1, FEAT-SRC-003-002, EPIC-SRC-003-001, SRC-003
+- Need Assessment: scope, dependencies, acceptance_checks <- product.epic-to-feat::src003-adr042-bootstrap-20260407-r1, FEAT-SRC-003-007, EPIC-SRC-003-001, SRC-003
+- TECH Design: goal, scope, constraints <- product.epic-to-feat::src003-adr042-bootstrap-20260407-r1, FEAT-SRC-003-007, EPIC-SRC-003-001, SRC-003
+- Cross-Artifact Consistency: dependencies, outputs, acceptance_checks <- product.epic-to-feat::src003-adr042-bootstrap-20260407-r1, FEAT-SRC-003-007, EPIC-SRC-003-001, SRC-003

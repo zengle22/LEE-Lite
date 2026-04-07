@@ -1,6 +1,6 @@
 # ADR-042：FEAT 与 ARCH-UI-PROTOTYPE 解耦并引入 Surface Map 归属层基线
 
-* 状态：Draft
+* 状态：Accepted
 * 日期：2026-04-06
 * 决策者：Le Zeng
 * 适用范围：`ll-product-epic-to-feat`、`feat_freeze_package`、未来 `surface_map_package` / `surface_map_bundle`、`ll-dev-feat-to-tech`、`ll-dev-feat-to-proto`、`ll-dev-proto-to-ui`、`ui_spec_package`、`prototype_package`、`architecture` / `api` / `ui` / `prototype` / `state-model` 类共享设计资产、`impl_candidate_package`

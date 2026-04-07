@@ -1,0 +1,187 @@
+{
+  "artifact_type": "surface_map_package",
+  "workflow_key": "dev.feat-to-surface-map",
+  "workflow_run_id": "src003-adr042-bootstrap-20260407-r2",
+  "status": "accepted",
+  "schema_version": "1.0.0",
+  "feat_ref": "FEAT-SRC-003-007",
+  "surface_map_ref": "SURFACE-MAP-FEAT-SRC-003-007",
+  "selected_feat": {
+    "feat_ref": "FEAT-SRC-003-007",
+    "title": "Runner 运行监控流",
+    "goal": "冻结 runner 的观察面，让 ready backlog、running、failed、deadletters 与 waiting-human 成为用户可见的正式产品面。",
+    "scope": [
+      "定义 monitor surface：runner observability surface。",
+      "定义 ready backlog、running jobs、failed jobs、deadletters、waiting-human jobs 的最小可见集合。",
+      "定义监控面如何服务 operator 判断继续运行、恢复还是人工介入。"
+    ],
+    "constraints": [
+      "runner observability surface 必须覆盖 ready backlog、running、failed、deadletters、waiting-human 等关键状态。",
+      "监控面必须读取 authoritative runner state，而不是靠目录猜测或人工拼接。",
+      "监控面只负责观察和提示，不直接改写 runner control state。",
+      "观测结果必须能关联到 ready job、invocation 和 execution outcome lineage。"
+    ],
+    "acceptance_checks": [
+      {
+        "id": "runner-observability-surface-AC-01",
+        "scenario": "Core queue states are visible",
+        "given": "the runner is operating on execution jobs",
+        "when": "an operator inspects the monitoring surface",
+        "then": "ready backlog, running jobs, failed jobs, deadletters, and waiting-human jobs must be visible as formal runtime states.",
+        "trace_hints": [
+          "ready backlog",
+          "running",
+          "failed",
+          "deadletters",
+          "waiting-human"
+        ]
+      },
+      {
+        "id": "runner-observability-surface-AC-02",
+        "scenario": "Monitoring supports operator action",
+        "given": "a failure or stuck state exists",
+        "when": "the operator reads the monitoring surface",
+        "then": "the product surface must support resume, retry, or handoff decisions instead of acting as a passive log dump.",
+        "trace_hints": [
+          "operator action",
+          "resume",
+          "retry",
+          "handoff"
+        ]
+      },
+      {
+        "id": "FEAT-SRC-003-007-AC-01",
+        "scenario": "Runner observability covers critical states",
+        "given": "EPIC-SRC-003-001 requires operators to monitor automatic progression",
+        "when": "FEAT-SRC-003-007 is reviewed as a product surface",
+        "then": "The FEAT must make ready backlog, running, failed, deadletters, and waiting-human states visible from one authoritative monitoring surface.",
+        "trace_hints": [
+          "FEAT-SRC-003-007",
+          "backlog",
+          "running",
+          "failed",
+          "waiting-human"
+        ]
+      }
+    ],
+    "source_refs": [
+      "EPIC-SRC-003-001",
+      "SRC-003",
+      "product.raw-to-src::adr018-raw2src-restart-20260326-r1",
+      "ADR-018",
+      "ADR-001",
+      "ADR-003",
+      "ADR-005",
+      "ADR-006",
+      "ADR-009"
+    ]
+  },
+  "design_impact_required": true,
+  "surface_map": {
+    "design_surfaces": {
+      "architecture": [
+        {
+          "owner": "ARCH-EXECUTION-RUNNER-CORE",
+          "action": "update",
+          "scope": [
+            "runner_observability_boundary"
+          ],
+          "reason": "运行监控流属于 execution runner 主架构的观测面扩展。",
+          "create_signals": [],
+          "source_ref": null
+        }
+      ],
+      "api": [
+        {
+          "owner": "API-EXECUTION-RUNNER",
+          "action": "update",
+          "scope": [
+            "runner_metrics_projection",
+            "runner_incident_queries"
+          ],
+          "reason": "运行监控需要扩展 runner 指标投影与事件查询契约。",
+          "create_signals": [],
+          "source_ref": null
+        }
+      ],
+      "ui": [
+        {
+          "owner": "UI-RUNNER-OPERATOR-SHELL",
+          "action": "update",
+          "scope": [
+            "runner_monitoring_panel",
+            "incident_overview_card"
+          ],
+          "reason": "运行监控是既有 runner operator shell 上的观测面增量。",
+          "create_signals": [],
+          "source_ref": null
+        }
+      ],
+      "prototype": [
+        {
+          "owner": "PROTO-RUNNER-OPERATOR-MAIN",
+          "action": "update",
+          "scope": [
+            "runner_monitoring_flow"
+          ],
+          "reason": "运行监控流程是在已有 runner operator 主流程上的扩展。",
+          "create_signals": [],
+          "source_ref": null
+        }
+      ],
+      "tech": [
+        {
+          "owner": "TECH-SRC-003-007",
+          "action": "create",
+          "scope": [
+            "monitoring_snapshot_rules",
+            "incident_summary_strategy"
+          ],
+          "reason": "运行监控需要独立实现策略来汇总 runner 状态与异常视图。",
+          "create_signals": [
+            "new reusable implementation strategy package",
+            "future multi-feat reuse"
+          ],
+          "source_ref": null
+        }
+      ]
+    },
+    "ownership_summary": [
+      "architecture: ARCH-EXECUTION-RUNNER-CORE (update)",
+      "api: API-EXECUTION-RUNNER (update)",
+      "ui: UI-RUNNER-OPERATOR-SHELL (update)",
+      "prototype: PROTO-RUNNER-OPERATOR-MAIN (update)",
+      "tech: TECH-SRC-003-007 (create)"
+    ],
+    "create_justification_summary": [
+      "tech: TECH-SRC-003-007 -> 运行监控需要独立实现策略来汇总 runner 状态与异常视图。 | signals: new reusable implementation strategy package, future multi-feat reuse"
+    ],
+    "owner_binding_status": "bound",
+    "bypass_rationale": null
+  },
+  "source_refs": [
+    "product.epic-to-feat::src003-adr042-bootstrap-20260407-r2",
+    "FEAT-SRC-003-007",
+    "product.src-to-epic::adr018-src2epic-lineage-20260326-r1",
+    "EPIC-SRC-003-001",
+    "SRC-003",
+    "product.raw-to-src::adr018-raw2src-restart-20260326-r1",
+    "ADR-018",
+    "ADR-001",
+    "ADR-003",
+    "ADR-005",
+    "ADR-006",
+    "ADR-009"
+  ],
+  "downstream_handoff": {
+    "target_workflows": [
+      "workflow.dev.feat_to_tech",
+      "workflow.dev.feat_to_proto",
+      "workflow.dev.proto_to_ui",
+      "workflow.dev.tech_to_impl"
+    ],
+    "surface_map_ref": "SURFACE-MAP-FEAT-SRC-003-007",
+    "feat_ref": "FEAT-SRC-003-007"
+  },
+  "surface_map_digest": "f418092ad56287603a91196228c4cc57a0688ba2d1c00c229cb098a20c2fb0d5"
+}

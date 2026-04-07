@@ -69,6 +69,9 @@ source_refs:
 
 - owner: `ARCH-<REF>` or `N/A`
 - action: `update | create`
+- create_signals:
+  - `<required when action=create>`
+  - `<required when action=create>`
 - scope:
   - `<affected boundary or subsystem>`
   - `<affected state/data/runtime flow>`
@@ -78,6 +81,9 @@ source_refs:
 
 - owner: `API-<REF>` or `N/A`
 - action: `update | create`
+- create_signals:
+  - `<required when action=create>`
+  - `<required when action=create>`
 - scope:
   - `<affected contract or endpoint family>`
   - `<affected command / query / response surface>`
@@ -87,6 +93,9 @@ source_refs:
 
 - owner: `UI-<REF>` or `N/A`
 - action: `update | create`
+- create_signals:
+  - `<required when action=create>`
+  - `<required when action=create>`
 - scope:
   - `<affected page / panel / shell / information architecture>`
   - `<affected interaction or rendering surface>`
@@ -96,6 +105,9 @@ source_refs:
 
 - owner: `PROTO-<REF>` or `N/A`
 - action: `update | create`
+- create_signals:
+  - `<required when action=create>`
+  - `<required when action=create>`
 - scope:
   - `<affected main journey or state transition>`
   - `<affected skeleton flow or review-visible experience path>`
@@ -105,6 +117,9 @@ source_refs:
 
 - owner: `TECH-<REF>` or `N/A`
 - action: `update | create`
+- create_signals:
+  - `<required when action=create>`
+  - `<required when action=create>`
 - scope:
   - `<affected implementation strategy or execution logic package>`
   - `<affected touch set / state machine / integration strategy>`
