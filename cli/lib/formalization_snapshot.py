@@ -302,13 +302,13 @@ def formal_tech_output_path(workspace_root: Path, assigned_id: str, title: str, 
 def formal_ui_output_path(workspace_root: Path, assigned_id: str, title: str, source_refs: list[str]) -> Path:
     src_ref = next((ref for ref in source_refs if str(ref).startswith("SRC-")), "")
     if src_ref:
-        return workspace_root / "ssot" / "ui" / src_ref / f"{assigned_id}__{slugify(title)}.md"
-    return workspace_root / "ssot" / "ui" / f"{assigned_id}__{slugify(title)}.md"
+        return workspace_root / "ssot" / "ui" / src_ref / f"{assigned_id}.md"
+    return workspace_root / "ssot" / "ui" / f"{assigned_id}.md"
 
 
 def formal_prototype_output_path(workspace_root: Path, assigned_id: str, title: str, source_refs: list[str]) -> Path:
     src_ref = next((ref for ref in source_refs if str(ref).startswith("SRC-")), "")
-    folder_name = f"{assigned_id}__{normalized_publication_slug(title, assigned_id)}"
+    folder_name = assigned_id
     if src_ref:
         return workspace_root / "ssot" / "prototype" / src_ref / folder_name / "index.html"
     return workspace_root / "ssot" / "prototype" / folder_name / "index.html"

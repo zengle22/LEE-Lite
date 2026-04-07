@@ -12,6 +12,7 @@ from cli.lib.formalization_snapshot import (
     extract_first_heading,
     extract_src_ref,
     metadata_for,
+    normalize_list,
     parse_frontmatter,
 )
 from cli.lib.fs import load_json, read_text, to_canonical_path
@@ -72,6 +73,10 @@ def _render_child_markdown(
     frozen_at: str,
     source_refs: list[str],
     body: str,
+    surface_map_ref: str,
+    related_feat_refs: list[str],
+    last_updated_by: list[str],
+    open_deltas: list[str],
 ) -> str:
     frontmatter: dict[str, Any] = {
         "id": assigned_id,
@@ -79,6 +84,7 @@ def _render_child_markdown(
         f"{child_kind}_ref": assigned_id,
         "tech_ref": tech_ref,
         "feat_ref": feat_ref,
+        "surface_map_ref": surface_map_ref,
         "title": title,
         "status": "accepted",
         "schema_version": "1.0.0",
@@ -88,6 +94,9 @@ def _render_child_markdown(
         "gate_decision_ref": decision_ref,
         "frozen_at": frozen_at,
         "source_refs": source_refs,
+        "related_feat_refs": related_feat_refs,
+        "last_updated_by": last_updated_by,
+        "open_deltas": open_deltas,
     }
     header = yaml.safe_dump(frontmatter, allow_unicode=True, sort_keys=False).strip()
     body_text = body.strip()
@@ -117,6 +126,10 @@ def _materialize_optional_child(
     _, body = parse_frontmatter(markdown_text)
     title = _child_title(snapshot["title"], assigned_id, child_kind, body)
     child_formal_ref = f"formal.{child_kind}.{slugify(assigned_id)}"
+    related_feat_refs = [feat_ref] if feat_ref else []
+    last_updated_by = [feat_ref] if feat_ref else []
+    open_deltas = [item for item in normalize_list((snapshot["candidate_json"].get("selected_feat") or {}).get("scope")) if item][:3]
+    surface_map_ref = str(snapshot["candidate_json"].get("surface_map_ref") or "").strip()
 
     existing = _existing_formal_record(workspace_root, child_formal_ref)
     target_path: Path | None = None
@@ -147,6 +160,10 @@ def _materialize_optional_child(
             frozen_at=frozen_at,
             source_refs=snapshot["source_refs"],
             body=body,
+            surface_map_ref=surface_map_ref,
+            related_feat_refs=related_feat_refs,
+            last_updated_by=last_updated_by,
+            open_deltas=open_deltas,
         ),
         overwrite=True,
     )
@@ -168,6 +185,10 @@ def _materialize_optional_child(
                 f"{child_kind}_ref": assigned_id,
                 "tech_ref": tech_ref,
                 "feat_ref": feat_ref,
+                "surface_map_ref": surface_map_ref,
+                "related_feat_refs": related_feat_refs,
+                "last_updated_by": last_updated_by,
+                "open_deltas": open_deltas,
                 "source_package_ref": snapshot["candidate_package_ref"],
             },
         ),

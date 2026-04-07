@@ -131,11 +131,17 @@ def render_formal_tech_markdown(
     frozen_at: str,
 ) -> str:
     candidate_json = snapshot["candidate_json"]
+    feat_ref = str(candidate_json.get("feat_ref") or "").strip()
+    related_feat_refs = normalize_list(candidate_json.get("related_feat_refs")) or ([feat_ref] if feat_ref else [])
+    last_updated_by = [feat_ref] if feat_ref else []
+    open_deltas = normalize_list((candidate_json.get("selected_feat") or {}).get("scope"))[:3]
     frontmatter = {
         "id": assigned_id,
         "ssot_type": "TECH",
         "tech_ref": str(candidate_json.get("tech_ref") or assigned_id).strip() or assigned_id,
-        "feat_ref": str(candidate_json.get("feat_ref") or "").strip(),
+        "tech_owner_ref": str(candidate_json.get("tech_ref") or assigned_id).strip() or assigned_id,
+        "feat_ref": feat_ref,
+        "surface_map_ref": str(candidate_json.get("surface_map_ref") or "").strip(),
         "title": snapshot["title"],
         "status": "accepted",
         "schema_version": "1.0.0",
@@ -144,6 +150,9 @@ def render_formal_tech_markdown(
         "candidate_package_ref": snapshot["candidate_package_ref"],
         "gate_decision_ref": decision_ref,
         "frozen_at": frozen_at,
+        "related_feat_refs": related_feat_refs,
+        "last_updated_by": last_updated_by,
+        "open_deltas": open_deltas,
     }
     header = yaml.safe_dump(frontmatter, allow_unicode=True, sort_keys=False).strip()
     return f"---\n{header}\n---\n\n{snapshot['body'].strip()}\n"

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from datetime import datetime, timezone
+import json
 from pathlib import Path
 import re
 import shutil
@@ -15,6 +16,14 @@ from cli.lib.formalization_materialize_common import (
     materialize_generic,
     materialize_handoff,
     resolve_src_target_path,
+)
+from cli.lib.formalization_owner_merge import (
+    build_merged_prototype_payloads,
+    collect_prototype_owner_contributions,
+    collect_ui_owner_contributions,
+    _load_optional_json,
+    render_merged_formal_ui_markdown,
+    render_proto_js,
 )
 from cli.lib.formalization_render import (
     render_formal_epic_markdown,
@@ -47,6 +56,7 @@ from cli.lib.formalization_snapshot import (
     metadata_for,
     extract_src_ref,
     next_epic_id,
+    normalize_list,
     read_candidate_snapshot,
     run_ref_for,
 )
@@ -301,6 +311,10 @@ def materialize_tech(
     candidate_json = snapshot["candidate_json"]
     assigned_id = str(candidate_json.get("tech_ref") or "").strip() or str(candidate["artifact_ref"]).replace("candidate.", "TECH-", 1)
     title = ensure_publication_title(str(candidate_json.get("title") or snapshot["title"]), "tech", assigned_id)
+    feat_ref = str(candidate_json.get("feat_ref") or "").strip()
+    related_feat_refs = normalize_list(candidate_json.get("related_feat_refs")) or ([feat_ref] if feat_ref else [])
+    last_updated_by = [feat_ref] if feat_ref else []
+    open_deltas = normalize_list((candidate_json.get("selected_feat") or {}).get("scope"))[:3]
     existing = existing_formal_record(workspace_root, formal_ref)
     target_path: Path | None = None
     if existing:
@@ -366,7 +380,11 @@ def materialize_tech(
             assigned_id=assigned_id,
             extra_metadata={
                 "tech_ref": assigned_id,
-                "feat_ref": str(candidate_json.get("feat_ref") or "").strip(),
+                "feat_ref": feat_ref,
+                "surface_map_ref": str(candidate_json.get("surface_map_ref") or "").strip(),
+                "related_feat_refs": related_feat_refs,
+                "last_updated_by": last_updated_by,
+                "open_deltas": open_deltas,
                 "arch_ref": str(candidate_json.get("arch_ref") or "").strip(),
                 "api_ref": str(candidate_json.get("api_ref") or "").strip(),
                 "materialized_formal_refs": supporting["materialized_formal_refs"],
@@ -401,17 +419,45 @@ def materialize_ui(
     snapshot = read_candidate_snapshot(workspace_root, source_path, candidate)
     candidate_json = snapshot["candidate_json"]
     feat_ref = str(candidate_json.get("feat_ref") or "").strip()
-    assigned_id = str(candidate_json.get("ui_ref") or "").strip() or (f"UI-{feat_ref}" if feat_ref else formal_ref.split(".")[-1].upper())
+    assigned_id = (
+        str(candidate_json.get("ui_owner_ref") or "").strip()
+        or str(candidate_json.get("ui_ref") or "").strip()
+        or (f"UI-{feat_ref}" if feat_ref else formal_ref.split(".")[-1].upper())
+    )
     title = ensure_publication_title(str(candidate_json.get("title") or snapshot["title"]), "ui", assigned_id)
     existing = existing_formal_record(workspace_root, formal_ref)
     target_path: Path | None = None
     if existing:
         existing_path = canonical_to_path(str(existing.get("managed_artifact_ref", "")), workspace_root)
         if existing_path.exists() and compliant_ui_path(existing_path, workspace_root):
-            target_path = existing_path
+            target_path = formal_ui_output_path(workspace_root, assigned_id, title, snapshot["source_refs"])
     if target_path is None:
         target_path = formal_ui_output_path(workspace_root, assigned_id, title, snapshot["source_refs"])
     frozen_at = datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
+    src_ref = extract_src_ref(snapshot["source_refs"], "")
+    contributions = collect_ui_owner_contributions(workspace_root, assigned_id, src_ref, str(candidate.get("artifact_ref") or "").strip())
+    merged_content, merged_metadata = render_merged_formal_ui_markdown(
+        assigned_id,
+        contributions or [
+            {
+                "candidate_ref": str(candidate.get("artifact_ref") or "").strip(),
+                "workflow_run_id": snapshot["workflow_run_id"],
+                "run_ref": str(candidate.get("trace", {}).get("run_ref") or "").strip(),
+                "candidate_package_ref": snapshot["candidate_package_ref"],
+                "source_package_ref": snapshot["candidate_package_ref"],
+                "source_refs": snapshot.get("source_refs") or [],
+                "feat_ref": feat_ref,
+                "title": title,
+                "surface_map_ref": str(candidate_json.get("surface_map_ref") or "").strip(),
+                "ui_action": str(candidate_json.get("ui_action") or "").strip(),
+                "body": snapshot["body"].strip(),
+                "ui_docs": [],
+            }
+        ],
+        decision_ref,
+        frozen_at,
+        snapshot,
+    )
     write_result = governed_write(
         workspace_root,
         trace=trace,
@@ -419,7 +465,7 @@ def materialize_ui(
         artifact_ref=formal_ref,
         workspace_path=to_canonical_path(target_path, workspace_root),
         requested_mode="promote",
-        content=render_formal_ui_markdown(snapshot, assigned_id, decision_ref, frozen_at),
+        content=merged_content,
         overwrite=True,
     )
     published_ref = write_result["managed_artifact_ref"]
@@ -456,7 +502,12 @@ def materialize_ui(
             assigned_id=assigned_id,
             extra_metadata={
                 "ui_ref": assigned_id,
+                "ui_owner_ref": str(candidate_json.get("ui_owner_ref") or assigned_id).strip(),
                 "feat_ref": feat_ref,
+                "related_feat_refs": merged_metadata["related_feat_refs"],
+                "surface_map_refs": merged_metadata["surface_map_refs"],
+                "merged_candidate_refs": merged_metadata["merged_candidate_refs"],
+                "source_package_refs": merged_metadata["source_package_refs"],
                 "source_package_ref": snapshot["candidate_package_ref"],
             },
         ),
@@ -481,7 +532,11 @@ def materialize_prototype(
 ) -> dict[str, Any]:
     bundle = _load_prototype_bundle(source_path)
     feat_ref = str(bundle.get("feat_ref") or candidate.get("metadata", {}).get("feat_ref") or "").strip()
-    assigned_id = f"PROTOTYPE-{feat_ref}" if feat_ref else formal_ref.split(".")[-1].upper()
+    assigned_id = (
+        str(bundle.get("prototype_owner_ref") or "").strip()
+        or str(bundle.get("prototype_ref") or "").strip()
+        or (f"PROTOTYPE-{feat_ref}" if feat_ref else formal_ref.split(".")[-1].upper())
+    )
     title = ensure_publication_title(str(bundle.get("feat_title") or feat_ref or source_path.parent.name), "prototype", assigned_id)
     source_refs = [str(ref).strip() for ref in (bundle.get("source_refs") or []) if str(ref).strip()]
     existing = existing_formal_record(workspace_root, formal_ref)
@@ -489,18 +544,52 @@ def materialize_prototype(
     if existing:
         existing_path = canonical_to_path(str(existing.get("managed_artifact_ref", "")), workspace_root)
         if existing_path.exists() and compliant_prototype_path(existing_path, workspace_root):
-            existing_assigned_id = assigned_id_from_path(existing_path.parent) or assigned_id
-            normalized_existing_target = formal_prototype_output_path(workspace_root, existing_assigned_id, title, source_refs)
+            existing_assigned_id = assigned_id_from_path(existing_path.parent) or ""
+            preferred_assigned_id = assigned_id or existing_assigned_id
+            normalized_existing_target = formal_prototype_output_path(
+                workspace_root,
+                preferred_assigned_id,
+                title,
+                source_refs,
+            )
             if existing_path == normalized_existing_target:
                 target_path = existing_path
             else:
                 target_path = normalized_existing_target
-            assigned_id = existing_assigned_id
+            assigned_id = preferred_assigned_id
     if target_path is None:
         target_path = formal_prototype_output_path(workspace_root, assigned_id, title, source_refs)
 
+    contributions = collect_prototype_owner_contributions(
+        workspace_root,
+        assigned_id,
+        extract_src_ref(source_refs, ""),
+        str(candidate.get("artifact_ref") or "").strip(),
+    )
+    merged_mock_data, merged_journey_model, merged_metadata = build_merged_prototype_payloads(
+        assigned_id,
+        contributions or [
+            {
+                "candidate_ref": str(candidate.get("artifact_ref") or "").strip(),
+                "workflow_run_id": str(bundle.get("workflow_run_id") or candidate.get("trace", {}).get("run_ref") or "").strip(),
+                "run_ref": str(candidate.get("trace", {}).get("run_ref") or "").strip(),
+                "source_dir": source_path.parent,
+                "source_package_ref": str(candidate.get("metadata", {}).get("source_package_ref") or "").strip(),
+                "feat_ref": feat_ref,
+                "feat_title": str(bundle.get("feat_title") or "").strip(),
+                "source_refs": source_refs,
+                "surface_map_ref": str(bundle.get("surface_map_ref") or "").strip(),
+                "prototype_action": str(bundle.get("prototype_action") or "").strip(),
+                "ui_owner_ref": str(bundle.get("ui_owner_ref") or "").strip(),
+                "ui_action": str(bundle.get("ui_action") or "").strip(),
+                "bundle": bundle,
+                "mock_data": _load_optional_json(source_path.parent / "mock-data.json"),
+                "journey_model": _load_optional_json(source_path.parent / "journey-model.json"),
+            }
+        ],
+    )
     target_dir = target_path.parent
-    source_dir = source_path.parent
+    source_dir = contributions[-1]["source_dir"] if contributions else source_path.parent
     if target_dir.exists():
         shutil.rmtree(target_dir)
     target_dir.mkdir(parents=True, exist_ok=True)
@@ -512,6 +601,34 @@ def materialize_prototype(
         else:
             shutil.copy2(child, destination)
         copied_refs.append(to_canonical_path(destination, workspace_root))
+
+    mock_data_json_path = target_dir / "mock-data.json"
+    mock_data_json_path.write_text(json.dumps(merged_mock_data, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    copied_refs.append(to_canonical_path(mock_data_json_path, workspace_root))
+    (target_dir / "mock-data.js").write_text(render_proto_js("LEE_PROTO_DATA", merged_mock_data), encoding="utf-8")
+    copied_refs.append(to_canonical_path(target_dir / "mock-data.js", workspace_root))
+    journey_model_json_path = target_dir / "journey-model.json"
+    journey_model_json_path.write_text(json.dumps(merged_journey_model, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    copied_refs.append(to_canonical_path(journey_model_json_path, workspace_root))
+    (target_dir / "journey-model.js").write_text(render_proto_js("LEE_JOURNEY_MODEL", merged_journey_model), encoding="utf-8")
+    copied_refs.append(to_canonical_path(target_dir / "journey-model.js", workspace_root))
+    owner_manifest_path = target_dir / "owner-publication-manifest.json"
+    owner_manifest_path.write_text(
+        json.dumps(
+            {
+                "prototype_owner_ref": assigned_id,
+                "related_feat_refs": merged_metadata["related_feat_refs"],
+                "surface_map_refs": merged_metadata["surface_map_refs"],
+                "source_package_refs": merged_metadata["source_package_refs"],
+                "merged_candidate_refs": merged_metadata["merged_candidate_refs"],
+            },
+            ensure_ascii=False,
+            indent=2,
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    copied_refs.append(to_canonical_path(owner_manifest_path, workspace_root))
 
     published_ref = to_canonical_path(target_path, workspace_root)
     frozen_at = datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
@@ -547,11 +664,16 @@ def materialize_prototype(
             "candidate_package_ref": str(candidate.get("metadata", {}).get("source_package_ref") or ""),
             "source_package_ref": str(candidate.get("metadata", {}).get("source_package_ref") or ""),
             "workflow_lineage_ref": str(candidate.get("metadata", {}).get("source_package_ref") or ""),
-            "source_refs": source_refs,
+            "source_refs": merged_metadata["source_refs"],
             "source_kind": "prototype_package",
             "assigned_id": assigned_id,
             "prototype_ref": assigned_id,
+            "prototype_owner_ref": str(bundle.get("prototype_owner_ref") or assigned_id).strip(),
             "feat_ref": feat_ref,
+            "related_feat_refs": merged_metadata["related_feat_refs"],
+            "surface_map_refs": merged_metadata["surface_map_refs"],
+            "source_package_refs": merged_metadata["source_package_refs"],
+            "merged_candidate_refs": merged_metadata["merged_candidate_refs"],
             "copied_refs": copied_refs,
         },
         lineage=[candidate["artifact_ref"], decision_ref],
