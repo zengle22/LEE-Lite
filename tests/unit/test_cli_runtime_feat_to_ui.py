@@ -49,6 +49,25 @@ class CliRuntimeFeatToUiTest(unittest.TestCase):
     def run_cli(self, *argv: str) -> int:
         return main(list(argv))
 
+    def materialize(self, request_name: str, response_name: str, candidate_ref: str, decision_name: str) -> dict:
+        decision_path = self.workspace / "artifacts" / "active" / "gates" / "decisions" / decision_name
+        write_json(decision_path, {"decision_type": "approve", "candidate_ref": candidate_ref})
+        materialize_request = self.build_request(
+            "gate.materialize",
+            {
+                "gate_decision_ref": f"artifacts/active/gates/decisions/{decision_name}",
+                "candidate_ref": candidate_ref,
+            },
+        )
+        materialize_req = self.request_path(request_name)
+        write_json(materialize_req, materialize_request)
+        materialize_response = self.response_path(response_name)
+        self.assertEqual(
+            self.run_cli("gate", "materialize", "--request", str(materialize_req), "--response-out", str(materialize_response)),
+            0,
+        )
+        return read_json(materialize_response)
+
     def test_gate_materialize_feat_to_ui_candidate_promotes_formal_ui_markdown(self) -> None:
         run_dir = "src001-ui-20260331--feat-src-001-001"
         package_dir = self.workspace / "artifacts" / "feat-to-ui" / run_dir
@@ -78,28 +97,15 @@ class CliRuntimeFeatToUiTest(unittest.TestCase):
                 "lineage": ["FEAT-SRC-001-001"],
             },
         )
-        decision_path = self.workspace / "artifacts" / "active" / "gates" / "decisions" / "gate-decision-ui.json"
-        write_json(decision_path, {"decision_type": "approve", "candidate_ref": candidate_ref})
-
-        materialize_request = self.build_request(
-            "gate.materialize",
-            {
-                "gate_decision_ref": "artifacts/active/gates/decisions/gate-decision-ui.json",
-                "candidate_ref": candidate_ref,
-            },
+        payload = self.materialize(
+            "gate-materialize-feat-ui.json",
+            "gate-materialize-feat-ui.response.json",
+            candidate_ref,
+            "gate-decision-ui.json",
         )
-        materialize_req = self.request_path("gate-materialize-feat-ui.json")
-        write_json(materialize_req, materialize_request)
-        materialize_response = self.response_path("gate-materialize-feat-ui.response.json")
-        self.assertEqual(
-            self.run_cli("gate", "materialize", "--request", str(materialize_req), "--response-out", str(materialize_response)),
-            0,
-        )
-
-        payload = read_json(materialize_response)
         self.assertEqual(payload["data"]["formal_ref"], f"formal.ui.{run_dir}")
         self.assertEqual(payload["data"]["assigned_id"], "UI-FEAT-SRC-001-001")
-        formal_path = self.workspace / "ssot" / "ui" / "SRC-001" / "UI-FEAT-SRC-001-001__homepage-advice-panel.md"
+        formal_path = self.workspace / "ssot" / "ui" / "SRC-001" / "UI-FEAT-SRC-001-001.md"
         self.assertTrue(formal_path.exists())
         formal_content = formal_path.read_text(encoding="utf-8")
         self.assertIn("ssot_type: UI", formal_content)
@@ -107,8 +113,77 @@ class CliRuntimeFeatToUiTest(unittest.TestCase):
         self.assertIn("Approved UI content.", formal_content)
 
         registry_record = read_json(self.workspace / "artifacts" / "registry" / f"formal-ui-{run_dir}.json")
-        self.assertEqual(registry_record["managed_artifact_ref"], "ssot/ui/SRC-001/UI-FEAT-SRC-001-001__homepage-advice-panel.md")
+        self.assertEqual(registry_record["managed_artifact_ref"], "ssot/ui/SRC-001/UI-FEAT-SRC-001-001.md")
         self.assertEqual(registry_record["metadata"]["target_kind"], "ui")
+
+    def test_gate_materialize_feat_to_ui_candidate_merges_multiple_feat_slices_by_owner(self) -> None:
+        owner_ref = "UI-RUNNER-OPERATOR-SHELL"
+        run_specs = [
+            ("src001-ui-20260407-r1--feat-src-001-001", "FEAT-SRC-001-001", "Entry Flow", "SURFACE-MAP-FEAT-SRC-001-001"),
+            ("src001-ui-20260407-r1--feat-src-001-002", "FEAT-SRC-001-002", "Control Flow", "SURFACE-MAP-FEAT-SRC-001-002"),
+            ("src001-ui-20260407-r1--feat-src-999-999", "FEAT-SRC-999-999", "Dirty Flow", "SURFACE-MAP-FEAT-SRC-999-999"),
+        ]
+        for run_dir, feat_ref, title, surface_map_ref in run_specs:
+            package_dir = self.workspace / "artifacts" / "proto-to-ui" / run_dir
+            package_dir.mkdir(parents=True, exist_ok=True)
+            spec_name = f"[UI-{feat_ref}]__ui_spec.md"
+            (package_dir / spec_name).write_text(
+                f"# UI Spec {title}\n\n- feat_ref: {feat_ref}\n\n## Page Goal\n{title} goal.\n",
+                encoding="utf-8",
+            )
+            write_json(
+                package_dir / "ui-spec-bundle.json",
+                {
+                    "artifact_type": "ui_spec_package",
+                    "workflow_key": "dev.proto-to-ui",
+                    "workflow_run_id": run_dir,
+                    "title": f"UI Spec Bundle for {feat_ref}",
+                    "status": "pass",
+                    "feat_ref": feat_ref,
+                    "ui_ref": owner_ref,
+                    "ui_owner_ref": owner_ref,
+                    "ui_action": "update",
+                    "ui_spec_refs": [spec_name],
+                    "surface_map_ref": surface_map_ref,
+                    "source_refs": [feat_ref, "EPIC-SRC-001-001", "SRC-001"] if feat_ref != "FEAT-SRC-999-999" else [feat_ref, "EPIC-SRC-999-001"],
+                },
+            )
+            candidate_ref = f"candidate.ui.{run_dir}"
+            write_json(
+                self.workspace / "artifacts" / "registry" / f"candidate-ui-{run_dir}.json",
+                {
+                    "artifact_ref": candidate_ref,
+                    "managed_artifact_ref": f"artifacts/proto-to-ui/{run_dir}/ui-spec-bundle.md",
+                    "status": "committed",
+                    "trace": {"run_ref": run_dir, "workflow_key": "dev.proto-to-ui"},
+                    "metadata": {"layer": "candidate", "target_kind": "ui"},
+                    "lineage": [feat_ref],
+                },
+            )
+            (package_dir / "ui-spec-bundle.md").write_text(f"# UI Spec Bundle for {feat_ref}\n", encoding="utf-8")
+
+        self.materialize(
+            "gate-materialize-merged-ui-seed.json",
+            "gate-materialize-merged-ui-seed.response.json",
+            "candidate.ui.src001-ui-20260407-r1--feat-src-001-001",
+            "gate-decision-ui-merged-seed.json",
+        )
+        payload = self.materialize(
+            "gate-materialize-merged-ui.json",
+            "gate-materialize-merged-ui.response.json",
+            "candidate.ui.src001-ui-20260407-r1--feat-src-001-002",
+            "gate-decision-ui-merged.json",
+        )
+        self.assertEqual(payload["data"]["assigned_id"], owner_ref)
+
+        formal_path = self.workspace / "ssot" / "ui" / "SRC-001" / f"{owner_ref}.md"
+        self.assertTrue(formal_path.exists())
+        formal_content = formal_path.read_text(encoding="utf-8")
+        self.assertIn("FEAT-SRC-001-001", formal_content)
+        self.assertIn("FEAT-SRC-001-002", formal_content)
+        self.assertIn("UI Spec Entry Flow", formal_content)
+        self.assertIn("UI Spec Control Flow", formal_content)
+        self.assertNotIn("FEAT-SRC-999-999", formal_content)
 
     def test_execution_return_rejects_deprecated_feat_to_ui_route(self) -> None:
         run_dir = "src001-ui-20260331--feat-src-001-001"

@@ -125,6 +125,13 @@ class GateTechSupportingPublicationTest(unittest.TestCase):
             tech_record["metadata"]["materialized_formal_refs"],
             ["formal.arch.arch-src-001-301", "formal.api.api-src-001-301"],
         )
+        self.assertEqual(tech_record["metadata"]["surface_map_ref"], "")
+        self.assertEqual(tech_record["metadata"]["related_feat_refs"], ["FEAT-SRC-001-301"])
+        self.assertEqual(tech_record["metadata"]["last_updated_by"], ["FEAT-SRC-001-301"])
+        self.assertEqual(tech_record["metadata"]["open_deltas"], [])
+        self.assertIn("related_feat_refs:", formal_tech_path.read_text(encoding="utf-8"))
+        self.assertIn("last_updated_by:", formal_arch_path.read_text(encoding="utf-8"))
+        self.assertIn("open_deltas:", formal_api_path.read_text(encoding="utf-8"))
 
         dispatch_request = self.build_request(
             "gate.dispatch",
