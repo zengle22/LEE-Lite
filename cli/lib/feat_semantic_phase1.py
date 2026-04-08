@@ -8,7 +8,7 @@ from cli.lib.workflow_semantic_coverage import build_semantic_coverage
 from cli.lib.workflow_semantic_diff import build_diff_view
 from cli.lib.workflow_semantic_dimensions import load_semantic_dimensions
 from cli.lib.workflow_semantic_projection import build_review_views
-from cli.lib.workflow_semantic_validators import compact_text, is_placeholder
+from cli.lib.workflow_semantic_validators import is_placeholder
 
 
 def build_feat_semantic_artifacts(dimensions_path: str, bundle: dict[str, Any], defects: list[dict[str, Any]], handoff: dict[str, Any], semantic_drift_check: dict[str, Any]) -> dict[str, Any]:
@@ -42,14 +42,7 @@ def build_feat_semantic_artifacts(dimensions_path: str, bundle: dict[str, Any], 
         "acceptance_and_testability": ["feat-freeze-bundle.json#/features/*/acceptance_and_testability"],
         "design_surface_routing": ["handoff-to-feat-downstreams.json#/design_gate_required", "feat-freeze-bundle.json#/features/*/design_surfaces"],
     }
-    l3_judgments = {
-        key: {
-            "decision": "pass" if statuses[key] == "explicit" and not findings else "revise",
-            "summary": "Feature bundle remains semantically explicit for this dimension." if statuses[key] == "explicit" and not findings else "; ".join(findings[:2]) or f"{key} needs stronger semantic evidence.",
-        }
-        for key in statuses
-    }
-    coverage = build_semantic_coverage(dimensions, statuses, evidence=evidence, notes={"flow_and_journey": findings, "edge_cases_and_boundary": findings}, l3_judgments=l3_judgments)
+    coverage = build_semantic_coverage(dimensions, statuses, evidence=evidence, notes={"flow_and_journey": findings, "edge_cases_and_boundary": findings})
     review_views = build_review_views(
         narrative=[
             f"Generated {len(features)} FEAT slices for {bundle.get('epic_freeze_ref') or 'upstream EPIC'}.",
@@ -74,10 +67,6 @@ def build_feat_semantic_artifacts(dimensions_path: str, bundle: dict[str, Any], 
             "semantic_ready": coverage["semantic_pass"],
             "open_semantic_gaps": coverage["open_semantic_gaps"],
         },
-        "l3_review": {
-            "decision": "pass" if coverage["semantic_pass"] and not findings else "revise",
-            "summary": "FEAT bundle is semantically ready for downstream consumers." if coverage["semantic_pass"] and not findings else "; ".join(findings[:3]) or "FEAT bundle still has semantic gaps.",
-            "dimensions": [item["id"] for item in coverage["dimensions"] if item["status"] != "explicit"],
-            "source_excerpt": compact_text([item.get("title") for item in defects])[:280],
-        },
+        # ADR-043 L3 is an AI review layer and must be supplied by supervisor prompts + persisted artifacts.
+        "l3_review": {},
     }

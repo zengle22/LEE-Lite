@@ -41,14 +41,7 @@ def build_tech_semantic_artifacts(dimensions_path: str, bundle: dict[str, Any], 
         "ownership_and_constraints": ["tech-design-bundle.json#/tech_design/technical_glossary_and_canonical_ownership", "tech-design-bundle.json#/tech_design/algorithm_constraints"],
         "optional_arch_api_projection": ["tech-design-bundle.json#/need_assessment", "tech-design-bundle.json#/artifact_refs"],
     }
-    l3_judgments = {
-        key: {
-            "decision": "pass" if statuses[key] == "explicit" and not finding_details else "revise",
-            "summary": "TECH semantics stay implementation-facing for this dimension." if statuses[key] == "explicit" and not finding_details else "; ".join(finding_details[:2]) or f"{key} needs stronger implementation-facing evidence.",
-        }
-        for key in statuses
-    }
-    coverage = build_semantic_coverage(dimensions, statuses, evidence=evidence, notes={"state_and_runtime_flow": finding_details}, l3_judgments=l3_judgments)
+    coverage = build_semantic_coverage(dimensions, statuses, evidence=evidence, notes={"state_and_runtime_flow": finding_details})
     review_views = build_review_views(
         narrative=[
             f"TECH package for {bundle.get('feat_ref') or 'selected FEAT'} freezes implementation carriers, state flow, contracts, integration points, and ownership.",
@@ -73,9 +66,6 @@ def build_tech_semantic_artifacts(dimensions_path: str, bundle: dict[str, Any], 
             "semantic_ready": coverage["semantic_pass"] and bool(design_consistency.get("semantic_passed", False)),
             "open_semantic_gaps": coverage["open_semantic_gaps"],
         },
-        "l3_review": {
-            "decision": "pass" if coverage["semantic_pass"] and not finding_details else "revise",
-            "summary": "TECH package is semantically ready for downstream implementation." if coverage["semantic_pass"] and not finding_details else "; ".join(finding_details[:3]) or "TECH package still has semantic gaps.",
-            "dimensions": [item["id"] for item in coverage["dimensions"] if item["status"] != "explicit"],
-        },
+        # ADR-043 L3 is an AI review layer and must be supplied by supervisor prompts + persisted artifacts.
+        "l3_review": {},
     }
