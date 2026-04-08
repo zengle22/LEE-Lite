@@ -62,6 +62,111 @@ def rel(path: Path, repo_root: Path) -> str:
         return path.resolve().as_posix()
 
 
+def _shift_markdown_headings(markdown: str, shift: int) -> str:
+    if shift <= 0:
+        return markdown
+    shifted: list[str] = []
+    for line in markdown.splitlines():
+        stripped = line.lstrip()
+        if not stripped.startswith("#"):
+            shifted.append(line)
+            continue
+        hashes = 0
+        for ch in stripped:
+            if ch == "#":
+                hashes += 1
+            else:
+                break
+        if hashes and stripped[hashes : hashes + 1] == " ":
+            new_level = min(6, hashes + shift)
+            leading_spaces = len(line) - len(stripped)
+            shifted.append((" " * leading_spaces) + ("#" * new_level) + stripped[hashes:])
+        else:
+            shifted.append(line)
+    return "\n".join(shifted)
+
+
+def _resolve_ref_to_path(ref: str, *, input_dir: Path, repo_root: Path) -> Path | None:
+    cleaned = str(ref or "").strip()
+    if not cleaned:
+        return None
+    candidate = Path(cleaned)
+    if candidate.is_absolute():
+        return candidate if candidate.exists() else None
+    input_candidate = (input_dir / candidate).resolve()
+    if input_candidate.exists():
+        return input_candidate
+    repo_candidate = (repo_root / candidate).resolve()
+    if repo_candidate.exists():
+        return repo_candidate
+    return None
+
+
+def _normalize_ui_spec_filename(ref: str, *, feat_ref: str, index: int) -> str:
+    name = Path(str(ref or "").strip()).name
+    if name.lower().endswith(".md") and name:
+        return name
+    if feat_ref:
+        return f"[UI-{feat_ref}-{index:03d}]__ui_spec.md"
+    return f"[UI-SPEC-{index:03d}]__ui_spec.md"
+
+
+def _render_expanded_ui_spec_bundle_markdown(
+    *,
+    feat_ref: str,
+    ui_owner_ref: str,
+    ui_action: str,
+    ui_spec_refs: list[str],
+    source_refs: list[str],
+    journey_structural_spec_ref: str,
+    ui_shell_snapshot_ref: str,
+    surface_map_ref: str,
+    journey_text: str,
+    shell_text: str,
+    ui_spec_texts: dict[str, str],
+) -> str:
+    lines: list[str] = [
+        f"# UI Spec Bundle for {feat_ref}",
+        "",
+        f"- ui_ref: {ui_owner_ref}",
+        f"- ui_action: {ui_action}",
+        f"- ui_spec_count: {len(ui_spec_refs)}",
+        f"- journey_structural_spec_ref: {journey_structural_spec_ref}",
+        f"- ui_shell_snapshot_ref: {ui_shell_snapshot_ref}",
+        f"- surface_map_ref: {surface_map_ref}",
+    ]
+    if source_refs:
+        lines.extend(["", "## Source Refs", *[f"- {ref}" for ref in source_refs]])
+    lines.extend(
+        [
+            "",
+            "## UI Spec Refs",
+            *([f"- {ref}" for ref in ui_spec_refs] if ui_spec_refs else ["- (none)"]),
+            "",
+            "## Journey Structural Spec (Embedded)",
+            "",
+            _shift_markdown_headings(journey_text.strip(), 1) if journey_text.strip() else "_Missing journey structural spec content._",
+            "",
+            "## UI Shell Snapshot (Embedded)",
+            "",
+            _shift_markdown_headings(shell_text.strip(), 1) if shell_text.strip() else "_Missing ui shell snapshot content._",
+            "",
+            "## UI Specs (Embedded)",
+        ]
+    )
+    if not ui_spec_refs:
+        lines.extend(["", "_No UI spec documents resolved._"])
+        return "\n".join(lines).rstrip() + "\n"
+    for ref in ui_spec_refs:
+        content = (ui_spec_texts.get(ref) or "").strip()
+        lines.extend(["", f"### {ref}", ""])
+        if content:
+            lines.append(_shift_markdown_headings(content, 1))
+        else:
+            lines.append("_Missing UI spec content._")
+    return "\n".join(lines).rstrip() + "\n"
+
+
 JOURNEY_REQUIRED_SECTIONS = (
     "## 1. Journey Main Chain",
     "## 2. Page Map",
@@ -126,8 +231,8 @@ def validate_input_package(input_path: str | Path) -> tuple[list[str], dict[str,
     gate = load_json(input_dir / "prototype-freeze-gate.json")
     if bundle.get("artifact_type") != "prototype_package":
         errors.append("artifact_type must be prototype_package")
-    if not bundle.get("pages"):
-        errors.append("prototype package must contain at least one page")
+    if not bundle.get("pages") and not bundle.get("ui_spec_refs"):
+        errors.append("prototype package must contain at least one page or ui_spec_refs")
     for key in (
         "journey_structural_spec_ref",
         "ui_shell_snapshot_ref",
@@ -219,6 +324,7 @@ def _build_document_test(run_id: str, ledger_errors: list[str], review_decision:
 
 def build_package(context: dict[str, Any], repo_root: Path, run_id: str, allow_update: bool) -> dict[str, Any]:
     bundle = context["bundle"]
+    input_dir: Path = context["input_dir"]
     feat_ref = str(bundle.get("feat_ref") or "")
     feat_title = str(bundle.get("feat_title") or "").strip()
     source_refs = [str(ref).strip() for ref in (bundle.get("source_refs") or []) if str(ref).strip()]
@@ -227,14 +333,39 @@ def build_package(context: dict[str, Any], repo_root: Path, run_id: str, allow_u
         return {"ok": False, "errors": [f"output directory already exists: {output_dir}"]}
     output_dir.mkdir(parents=True, exist_ok=True)
     pages = bundle.get("pages") or []
+    requested_ui_spec_refs = [str(item).strip() for item in (bundle.get("ui_spec_refs") or []) if str(item).strip()]
     ui_spec_refs: list[str] = []
-    for page in pages:
-        page = dict(page)
-        page["journey_structural_spec_ref"] = str(bundle.get("journey_structural_spec_ref") or "")
-        page["ui_shell_snapshot_ref"] = str(bundle.get("ui_shell_snapshot_ref") or "")
-        name = f"[UI-{feat_ref}-{page['page_id']}]__ui_spec.md"
-        write_text(output_dir / name, _ui_spec_markdown(page, feat_ref))
-        ui_spec_refs.append(name)
+    ui_spec_missing: list[str] = []
+    ui_spec_texts: dict[str, str] = {}
+    ui_spec_sources: list[dict[str, str]] = []
+    if requested_ui_spec_refs:
+        for index, ref in enumerate(requested_ui_spec_refs, start=1):
+            resolved = _resolve_ref_to_path(ref, input_dir=input_dir, repo_root=repo_root)
+            if resolved is None:
+                ui_spec_missing.append(ref)
+                continue
+            name = _normalize_ui_spec_filename(ref, feat_ref=feat_ref, index=index)
+            content = resolved.read_text(encoding="utf-8")
+            write_text(output_dir / name, content)
+            ui_spec_refs.append(name)
+            ui_spec_texts[name] = content
+            ui_spec_sources.append({"requested_ref": ref, "resolved_ref": rel(resolved, repo_root), "local_ref": name})
+    else:
+        for page in pages:
+            page = dict(page)
+            page["journey_structural_spec_ref"] = str(bundle.get("journey_structural_spec_ref") or "")
+            page["ui_shell_snapshot_ref"] = str(bundle.get("ui_shell_snapshot_ref") or "")
+            name = f"[UI-{feat_ref}-{page['page_id']}]__ui_spec.md"
+            content = _ui_spec_markdown(page, feat_ref)
+            write_text(output_dir / name, content)
+            ui_spec_refs.append(name)
+            ui_spec_texts[name] = content
+            ui_spec_sources.append({"requested_ref": name, "resolved_ref": rel(output_dir / name, repo_root), "local_ref": name})
+
+    journey_ref = _resolve_ref_to_path(str(bundle.get("journey_structural_spec_ref") or ""), input_dir=input_dir, repo_root=repo_root)
+    shell_ref = _resolve_ref_to_path(str(bundle.get("ui_shell_snapshot_ref") or ""), input_dir=input_dir, repo_root=repo_root)
+    journey_text = journey_ref.read_text(encoding="utf-8") if journey_ref and journey_ref.exists() else ""
+    shell_text = shell_ref.read_text(encoding="utf-8") if shell_ref and shell_ref.exists() else ""
     ledger = build_ui_semantic_ledger(
         from_prototype=[
             {"semantic_area": "layout", "refs": [f"prototype/index.html#{page['page_id']}"]} for page in pages
@@ -259,8 +390,14 @@ def build_package(context: dict[str, Any], repo_root: Path, run_id: str, allow_u
         ],
     )
     ledger_errors = validate_ui_semantic_ledger(ledger)
-    review_decision = "revise" if ledger_errors else "pass"
-    document_test = _build_document_test(run_id or feat_ref, ledger_errors, review_decision)
+    completeness_errors: list[str] = []
+    if ui_spec_missing:
+        completeness_errors.append(f"unresolved ui_spec_refs: {', '.join(ui_spec_missing)}")
+    if not ui_spec_refs:
+        completeness_errors.append("no ui_spec_refs resolved; ui-spec bundle must embed at least one UI spec document")
+    all_errors = [*ledger_errors, *completeness_errors]
+    review_decision = "revise" if all_errors else "pass"
+    document_test = _build_document_test(run_id or feat_ref, all_errors, review_decision)
     ui_owner_ref = str(bundle.get("ui_owner_ref") or "").strip()
     ui_action = str(bundle.get("ui_action") or "").strip()
     related_feat_refs = [str(item).strip() for item in (bundle.get("related_feat_refs") or []) if str(item).strip()]
@@ -309,6 +446,8 @@ def build_package(context: dict[str, Any], repo_root: Path, run_id: str, allow_u
             "ui_owner_ref": ui_owner_ref,
             "ui_action": ui_action,
             "ui_spec_refs": ui_spec_refs,
+            "ui_spec_source_refs": ui_spec_sources,
+            "ui_spec_unresolved_refs": ui_spec_missing,
             "source_package_ref": str(context["input_dir"]),
             "source_refs": source_refs,
             "ui_spec_count": len(ui_spec_refs),
@@ -322,29 +461,67 @@ def build_package(context: dict[str, Any], repo_root: Path, run_id: str, allow_u
     )
     write_text(
         output_dir / "ui-spec-bundle.md",
-        "\n".join(
-            [
-                f"# UI Spec Bundle for {feat_ref}",
-                "",
-                f"- ui_ref: {ui_owner_ref}",
-                f"- ui_action: {ui_action}",
-                f"- ui_spec_count: {len(ui_spec_refs)}",
-                f"- journey_structural_spec_ref: {bundle.get('journey_structural_spec_ref', '')}",
-                f"- ui_shell_snapshot_ref: {bundle.get('ui_shell_snapshot_ref', '')}",
-                f"- surface_map_ref: {bundle.get('surface_map_ref', '')}",
-            ]
+        _render_expanded_ui_spec_bundle_markdown(
+            feat_ref=feat_ref,
+            ui_owner_ref=ui_owner_ref,
+            ui_action=ui_action,
+            ui_spec_refs=ui_spec_refs,
+            source_refs=source_refs,
+            journey_structural_spec_ref=str(bundle.get("journey_structural_spec_ref") or ""),
+            ui_shell_snapshot_ref=str(bundle.get("ui_shell_snapshot_ref") or ""),
+            surface_map_ref=str(bundle.get("surface_map_ref") or ""),
+            journey_text=journey_text,
+            shell_text=shell_text,
+            ui_spec_texts=ui_spec_texts,
         ),
     )
-    write_text(output_dir / "ui-flow-map.md", "\n".join(["# UI Flow Map", "", *[f"{index+1}. {page['title']}" for index, page in enumerate(pages)]]))
+    if pages:
+        flow_items = [f"{index+1}. {page['title']}" for index, page in enumerate(pages)]
+    else:
+        flow_items = [f"{index+1}. {ref}" for index, ref in enumerate(ui_spec_refs)]
+    write_text(output_dir / "ui-flow-map.md", "\n".join(["# UI Flow Map", "", *flow_items]))
     write_json(output_dir / "ui-semantic-source-ledger.json", ledger)
-    write_json(output_dir / "ui-spec-completeness-report.json", {"gate_name": "UI Spec Implementation Readiness Check", "decision": "fail" if ledger_errors else "pass", "checked_at": utc_now(), "ledger_errors": ledger_errors})
-    write_json(output_dir / "ui-spec-review-report.json", {"workflow_key": "dev.proto-to-ui", "decision": review_decision, "reviewed_at": utc_now(), "summary": "semantic source ledger valid" if not ledger_errors else "semantic source ledger requires revision"})
+    write_json(
+        output_dir / "ui-spec-completeness-report.json",
+        {
+            "gate_name": "UI Spec Completeness Check",
+            "decision": "fail" if all_errors else "pass",
+            "checked_at": utc_now(),
+            "ledger_errors": ledger_errors,
+            "completeness_errors": completeness_errors,
+            "unresolved_ui_spec_refs": ui_spec_missing,
+            "resolved_ui_spec_refs": ui_spec_refs,
+        },
+    )
+    write_json(
+        output_dir / "ui-spec-review-report.json",
+        {
+            "workflow_key": "dev.proto-to-ui",
+            "decision": review_decision,
+            "reviewed_at": utc_now(),
+            "summary": "ui spec package ready for gate review" if not all_errors else "ui spec package requires revision",
+        },
+    )
     write_json(output_dir / "document-test-report.json", document_test)
-    write_json(output_dir / "ui-spec-defect-list.json", [{"severity": "P1", "type": "semantic_ledger", "title": error} for error in ledger_errors])
-    write_json(output_dir / "ui-spec-freeze-gate.json", {"workflow_key": "dev.proto-to-ui", "freeze_ready": not ledger_errors, "checked_at": utc_now(), "checks": {"semantic_source_ledger_valid": not ledger_errors}})
+    defect_list: list[dict[str, str]] = [{"severity": "P1", "type": "semantic_ledger", "title": error} for error in ledger_errors]
+    defect_list.extend([{"severity": "P1", "type": "completeness", "title": error} for error in completeness_errors])
+    write_json(output_dir / "ui-spec-defect-list.json", defect_list)
+    write_json(
+        output_dir / "ui-spec-freeze-gate.json",
+        {
+            "workflow_key": "dev.proto-to-ui",
+            "freeze_ready": not all_errors,
+            "checked_at": utc_now(),
+            "checks": {
+                "semantic_source_ledger_valid": not ledger_errors,
+                "ui_spec_completeness_valid": not completeness_errors,
+                "ui_spec_refs_resolved": not ui_spec_missing,
+            },
+        },
+    )
     write_json(output_dir / "execution-evidence.json", {"workflow_key": "dev.proto-to-ui", "run_id": run_id or feat_ref, "generated_at": utc_now(), "artifacts_dir": str(output_dir)})
     write_json(output_dir / "supervision-evidence.json", {"workflow_key": "dev.proto-to-ui", "run_id": run_id or feat_ref, "review_completed_at": utc_now(), "decision": review_decision})
-    return {"ok": not ledger_errors, "artifacts_dir": str(output_dir), "errors": ledger_errors}
+    return {"ok": not all_errors, "artifacts_dir": str(output_dir), "errors": all_errors}
 
 
 def validate_output_package(artifacts_dir: Path) -> tuple[list[str], dict[str, Any]]:
@@ -359,6 +536,13 @@ def validate_output_package(artifacts_dir: Path) -> tuple[list[str], dict[str, A
     for key in ("journey_structural_spec_ref", "ui_shell_snapshot_ref", "surface_map_ref", "ui_ref", "ui_owner_ref", "ui_action"):
         if not str(bundle.get(key) or "").strip():
             errors.append(f"ui-spec bundle missing {key}")
+    for ref in [str(item).strip() for item in (bundle.get("ui_spec_refs") or []) if str(item).strip()]:
+        path = artifacts_dir / ref
+        if not path.exists():
+            errors.append(f"ui-spec bundle references missing ui spec doc: {ref}")
+            continue
+        if not path.read_text(encoding="utf-8").strip():
+            errors.append(f"ui spec doc is empty: {ref}")
     if str(bundle.get("ui_ref") or "").strip() != str(bundle.get("ui_owner_ref") or "").strip():
         errors.append("ui-spec bundle ui_ref must equal ui_owner_ref")
     return errors, {"ledger": ledger, "report": report, "bundle": bundle}
@@ -366,6 +550,13 @@ def validate_output_package(artifacts_dir: Path) -> tuple[list[str], dict[str, A
 
 def validate_package_readiness(artifacts_dir: Path) -> tuple[bool, list[str]]:
     errors, _ = validate_output_package(artifacts_dir)
+    if not errors:
+        completeness = load_json(artifacts_dir / "ui-spec-completeness-report.json")
+        if str(completeness.get("decision") or "").strip() != "pass":
+            errors.append("ui spec completeness report did not pass")
+        gate = load_json(artifacts_dir / "ui-spec-freeze-gate.json")
+        if gate.get("freeze_ready") is not True:
+            errors.append("ui spec freeze gate is not ready")
     return (not errors, errors)
 
 
