@@ -154,9 +154,16 @@
 
 * `package_dir_ref`：被收口的上游包目录（如 `artifacts/feat-to-tech/run-73`）
 * `decided_by.role/ref`：定案角色（对齐 3.8）
-* `ssot_updates`：自然语义更新描述（建议在文本中显式引用 finding_id，并给出目标 `ssot/...` 路径与内容）
+* `ssot_updates`：自然语义更新描述（建议在文本中显式引用 finding_id，并给出目标 `ssot/...` 路径与内容块）
+* `auto_release_holds`（可选）：当 reconcile report 生成且 `blocking_items=[]` 时，自动释放引用该 report 的 `waiting-human` jobs（把人工步骤压到最少）
 
-> 说明：为了让解析/结构化可机械化落地，`ssot_updates` 建议以“自然语言说明 + 明确目标文件 + 完整内容块”的形式提供；skill 会把它结构化为写文件操作并生成 patch receipt。后续可以进一步升级为纯自然语言到结构化 patch 的 LLM 解析器，但不得破坏 3.6 的权威字段关系。
+> 说明：为了让解析/结构化可机械化落地，`ssot_updates` 推荐以“自然语言说明 +（可省略的）目标文件 + 内容块”的形式提供；skill 会把它结构化为写文件操作并生成 patch receipt。后续可以升级为纯自然语言到结构化 patch 的 LLM 解析器，但不得破坏 3.6 的权威字段关系。
+>
+> 机械化解析规则（已实现）：
+>
+> 1. **finding_id 必须显式出现**；否则无法挂接审计证据。
+> 2. `path: ssot/...` **可省略**：若该 finding 在 `spec-backport-queue.target_ssot_paths` 或 `spec-findings.proposed_ssot_targets` 中只解析出 **唯一** `ssot/...` 文件路径，则自动选择；否则拒绝并要求显式给 path。
+> 3. 支持 `yaml-patch`：当内容块使用 ```yaml-patch 时，会对目标 YAML 做 deep-merge patch（适合“补字段/改默认值”，避免整文件替换）。
 
 ### 4.4.3 输出与审计证据
 

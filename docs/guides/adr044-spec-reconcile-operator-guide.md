@@ -96,6 +96,20 @@ python -m cli.ll skill spec-reconcile --request req.spec-reconcile.json --respon
 * `scope_cut` → 必须有 `scope_kind` + `affected_refs`（且 affected_refs 非空）
 * `local_assumption` 且 impact 命中关键域（core_user_flow/state_machine/api_contract/acceptance_testset）→ 不允许 `deferred` 放行
 
+### 3.3 reconcile-as-apply（可选：自然语义 `ssot_updates` 自动回写 SSOT）
+
+当你希望 reconcile 同时完成 “回写 SSOT + 产出审计证据 + 解除 hold”，可在 payload 中加入：
+
+* `decided_by`（至少包含 `role`）
+* `ssot_updates`（按 finding_id 分段的文本）
+* `auto_release_holds: true`（可选：report 无 blocking 时自动释放等待该 report 的 hold jobs）
+
+`ssot_updates` 的机械化解析要点：
+
+* 每段必须显式引用 `finding_id`（例如 `GAP-104:`）
+* `path: ssot/...` 可以省略：若能从 queue/findings 推断出唯一落点文件则自动选择；否则会拒绝并要求显式给 path
+* 支持 `yaml-patch`：使用 ```yaml-patch 内容块会以 deep-merge 方式补丁 YAML（适合“补字段/改默认值”，无需整文件替换）
+
 ---
 
 ## 4) 解除 hold，恢复 runner 自动推进
