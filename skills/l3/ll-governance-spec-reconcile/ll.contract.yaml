@@ -6,3 +6,24 @@ inputs:
 outputs:
   - spec_reconcile_report_ref
 
+# CLI-enforced input contract (ADR-044).
+# If `forbid_extra: true`, any unknown payload key will be rejected at the
+# `python -m cli.ll skill spec-reconcile` boundary.
+input_payload:
+  required:
+    - package_dir_ref
+  optional:
+    - queue_ref
+    - allow_update
+    - decisions
+    - decided_by
+    - ssot_updates
+  forbid_extra: true
+  types:
+    package_dir_ref: string
+    queue_ref: string
+    allow_update: boolean
+    decisions: array
+    decided_by: object
+    ssot_updates: string
+

@@ -9,6 +9,7 @@ from cli.lib.failure_capture_skill import run_failure_capture
 from cli.lib.gate_human_orchestrator_skill import run_gate_human_orchestrator
 from cli.lib.impl_spec_test_runtime import execute_impl_spec_test_skill
 from cli.lib.protocol import CommandContext, run_with_protocol
+from cli.lib.skill_contract_enforcement import enforce_ll_contract_payload
 from cli.lib.spec_reconcile_skill import run_spec_reconcile
 from cli.lib.test_exec_runtime import execute_test_exec_skill
 
@@ -20,6 +21,11 @@ def _skill_handler(ctx: CommandContext):
         "unsupported skill action",
     )
     if ctx.action == "spec-reconcile":
+        enforce_ll_contract_payload(
+            ctx.workspace_root,
+            skill_dir_ref="skills/l3/ll-governance-spec-reconcile",
+            payload=ctx.payload,
+        )
         result = run_spec_reconcile(
             workspace_root=ctx.workspace_root,
             trace=ctx.trace,
