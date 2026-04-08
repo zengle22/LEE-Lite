@@ -11,7 +11,9 @@ from pathlib import Path
 from typing import Any
 
 from raw_to_src_bridge import acceptance_review, semantic_review
+from raw_to_src_cli_integration import commit_frz_package_markdown
 from raw_to_src_common import WORKFLOW_KEY, find_duplicate_src, render_candidate_markdown
+from raw_to_src_frz import build_frz_package, write_frz_package
 from raw_to_src_gate_integration import create_gate_ready_package, submit_gate_pending
 from raw_to_src_review_phase1 import build_raw_to_src_document_test_report, validate_review_phase1_fields
 from raw_to_src_records import (
@@ -584,6 +586,31 @@ def supervisor_review(
     document_test_report_path = artifacts_dir / "document-test-report.json"
     write_json(document_test_report_path, document_test_report)
 
+    frz_package_ref = ""
+    frz_registry_record_ref = ""
+    frz_package_dir_ref = ""
+    frz = build_frz_package(run_id=run_id, candidate=candidate, document=document if isinstance(document, dict) else None)
+    frz_write = write_frz_package(artifacts_dir, frz)
+    frz_package_dir_ref = str(frz_write.package_dir.resolve().relative_to(repo_root.resolve()).as_posix())
+    frz_package_ref = str(frz_write.index_md.resolve().relative_to(repo_root.resolve()).as_posix())
+    frz_commit = commit_frz_package_markdown(
+        repo_root=repo_root,
+        artifacts_dir=artifacts_dir,
+        run_id=run_id,
+        frz_markdown=frz_write.index_md.read_text(encoding="utf-8"),
+    )
+    frz_registry_record_ref = str(frz_commit["response"]["data"].get("registry_record_ref", "")).strip()
+    supervisor_stages.append(
+        stage(
+            "frz_package_compilation",
+            "completed",
+            "Pre-SSOT FRZ package compiled and committed.",
+            "supervisor",
+            input_refs=[str(artifacts_dir / "src-candidate.json")],
+            output_refs=[frz_package_dir_ref, str(frz_commit["response_path"])],
+        )
+    )
+
     handoff = build_handoff_proposal(run_id, action, target_skill, candidate_path, artifacts_dir)
     handoff_ref = None
     handoff_submission_ref = None
@@ -652,6 +679,7 @@ def supervisor_review(
         authoritative_handoff_ref=authoritative_handoff_ref,
         gate_pending_ref=gate_pending_ref,
         revision_request_ref=revision_request_ref,
+        frz_package_ref=frz_package_ref,
     )
     combined_stages = execution["stage_results"] + supervisor_stages
     run_state = build_run_state(run_id, stage_state, action, combined_stages, revision_request_ref=revision_request_ref)
@@ -678,6 +706,8 @@ def supervisor_review(
         authoritative_handoff_ref=authoritative_handoff_ref,
         gate_pending_ref=gate_pending_ref,
         revision_request_ref=revision_request_ref,
+        frz_package_ref=frz_package_ref,
+        frz_registry_record_ref=frz_registry_record_ref,
     )
 
     write_json(artifacts_dir / "job-proposal.json", job)

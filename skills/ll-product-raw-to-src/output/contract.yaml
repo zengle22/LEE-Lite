@@ -6,6 +6,10 @@ required_runtime_artifacts:
   - package-manifest.json
   - src-candidate.md
   - src-candidate.json
+  - frz-package/index.md
+  - frz-package/freeze.yaml
+  - frz-package/evidence.yaml
+  - frz-package/frz-package.json
   - semantic-inventory.json
   - source-provenance-map.json
   - source-snapshot.json

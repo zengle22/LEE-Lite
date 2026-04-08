@@ -9,6 +9,8 @@ import re
 from copy import deepcopy
 from typing import Any
 
+from raw_to_src_frz import compute_msc_missing_dimensions
+
 
 ACCEPTANCE_DIMENSIONS = [
     "functional_closure",
@@ -1089,6 +1091,15 @@ def semantic_review(candidate: dict[str, Any], duplicate_path: Any, document: di
                 "severity": "P1",
                 "type": "compression_report_missing",
                 "description": "SRC candidate is missing omission_and_compression_report, so compressed or omitted semantics are not explicit.",
+            }
+        )
+    msc_missing = compute_msc_missing_dimensions(candidate)
+    if msc_missing:
+        findings.append(
+            {
+                "severity": "P1",
+                "type": "frz_msc_incomplete",
+                "description": f"Pre-SSOT FRZ MSC is incomplete; missing: {', '.join(msc_missing)}.",
             }
         )
     findings.extend(_bundle_density_findings(candidate))

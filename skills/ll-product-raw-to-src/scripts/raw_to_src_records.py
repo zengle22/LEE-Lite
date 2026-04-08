@@ -170,6 +170,7 @@ def build_result_summary(
     authoritative_handoff_ref: str | None = None,
     gate_pending_ref: str | None = None,
     revision_request_ref: str = "",
+    frz_package_ref: str = "",
 ) -> dict[str, Any]:
     summary = {
         "workflow_key": WORKFLOW_KEY,
@@ -187,6 +188,8 @@ def build_result_summary(
         "authoritative_handoff_ref": authoritative_handoff_ref or "",
         "gate_pending_ref": gate_pending_ref or "",
     }
+    if frz_package_ref:
+        summary["frz_package_ref"] = frz_package_ref
     if revision_request_ref:
         summary["revision_request_ref"] = revision_request_ref
     return summary
@@ -238,6 +241,8 @@ def build_package_manifest(
     authoritative_handoff_ref: str | None = None,
     gate_pending_ref: str | None = None,
     revision_request_ref: str = "",
+    frz_package_ref: str = "",
+    frz_registry_record_ref: str = "",
 ) -> dict[str, Any]:
     manifest = {
         "artifacts_dir": str(artifacts_dir),
@@ -268,6 +273,10 @@ def build_package_manifest(
         "authoritative_handoff_ref": authoritative_handoff_ref or "",
         "gate_pending_ref": gate_pending_ref or "",
     }
+    if frz_package_ref:
+        manifest["frz_package_ref"] = frz_package_ref
+    if frz_registry_record_ref:
+        manifest["frz_registry_record_ref"] = frz_registry_record_ref
     if revision_request_ref:
         manifest["revision_request_ref"] = revision_request_ref
     return manifest

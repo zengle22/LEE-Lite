@@ -57,6 +57,10 @@ def validate_output_package(artifacts_dir: Path) -> tuple[list[str], dict[str, A
         "patch-lineage.json",
         "src-candidate.json",
         "src-candidate.md",
+        "frz-package/frz-package.json",
+        "frz-package/index.md",
+        "frz-package/freeze.yaml",
+        "frz-package/evidence.yaml",
         "semantic-inventory.json",
         "source-provenance-map.json",
         "contradiction-register.json",
@@ -84,6 +88,19 @@ def validate_output_package(artifacts_dir: Path) -> tuple[list[str], dict[str, A
             errors.append("source-semantic-findings.json must contain findings.")
         if "acceptance_findings" not in acceptance_report:
             errors.append("acceptance-report.json must contain acceptance_findings.")
+    if (artifacts_dir / "frz-package" / "frz-package.json").exists():
+        frz = read_json(artifacts_dir / "frz-package" / "frz-package.json")
+        msc = frz.get("msc") or {}
+        if "valid" not in msc:
+            errors.append("frz-package.json must contain msc.valid.")
+        elif not bool(msc.get("valid")):
+            recommended_action = ""
+            if (artifacts_dir / "proposed-next-actions.json").exists():
+                proposed = read_json(artifacts_dir / "proposed-next-actions.json")
+                recommended_action = str(proposed.get("recommended_action") or "")
+            if recommended_action == "next_skill":
+                missing = msc.get("missing") or []
+                errors.append(f"FRZ MSC incomplete; missing dimensions: {', '.join(missing) if missing else 'unknown'}.")
     if (artifacts_dir / "document-test-report.json").exists():
         document_test_report = read_json(artifacts_dir / "document-test-report.json")
         errors.extend(validate_document_test_report(document_test_report))

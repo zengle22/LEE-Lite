@@ -12,6 +12,7 @@ Use this skill when a raw requirement, ADR, business opportunity, or frozen busi
 - Workflow key: `product.raw-to-src`
 - Inputs: `adr`, `raw_requirement`, `business_opportunity`, `business_opportunity_freeze`
 - Primary output: one `SRC candidate` package under `artifacts/raw-to-src/<run_id>`
+- Pre-SSOT output: one `FRZ package` under `artifacts/raw-to-src/<run_id>/frz-package/` (generated automatically; referenced by `package-manifest.json` and `result-summary.json`)
 - Formal flow boundary: skill emits `candidate + evidence + proposed actions`, then submits an authoritative handoff into gate pending; external gate still owns decision, review, and downstream materialization
 - Upstream authority: raw source only, never an already-frozen SSOT object
 
@@ -54,6 +55,7 @@ The runner preserves the ADR-002 dual-loop model as stage outputs:
 9. `semantic_fix_loop`
 10. `semantic_recheck`
 11. `freeze_readiness_assessment`
+12. `frz_package_compilation`
 
 ## Guardrails
 

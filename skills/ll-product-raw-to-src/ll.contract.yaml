@@ -42,6 +42,10 @@ output:
     - package-manifest.json
     - src-candidate.md
     - src-candidate.json
+    - frz-package/index.md
+    - frz-package/freeze.yaml
+    - frz-package/evidence.yaml
+    - frz-package/frz-package.json
     - structural-report.json
     - source-semantic-findings.json
     - document-test-report.json

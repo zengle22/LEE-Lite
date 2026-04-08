@@ -67,3 +67,56 @@ def commit_candidate_markdown(
         "response_path": response_path,
         "response": response,
     }
+
+
+def commit_frz_package_markdown(
+    repo_root: Path,
+    artifacts_dir: Path,
+    run_id: str,
+    frz_markdown: str,
+) -> dict[str, Any]:
+    implementation_root = Path(__file__).resolve().parents[3]
+    if str(implementation_root) not in sys.path:
+        sys.path.insert(0, str(implementation_root))
+    from cli.ll import main as cli_main
+
+    staging_path = repo_root / ".workflow" / "runs" / run_id / "generated" / "raw-to-src" / "frz-package" / "index.md"
+    staging_path.parent.mkdir(parents=True, exist_ok=True)
+    staging_path.write_text(frz_markdown, encoding="utf-8")
+
+    request_path = artifacts_dir / "_cli" / "frz-artifact-commit.request.json"
+    response_path = artifacts_dir / "_cli" / "frz-artifact-commit.response.json"
+    payload = {
+        "api_version": "v1",
+        "command": "artifact.commit",
+        "request_id": f"req-raw-to-src-{run_id}-frz-package-commit",
+        "workspace_root": repo_root.as_posix(),
+        "actor_ref": "ll-product-raw-to-src",
+        "trace": {"run_ref": run_id, "workflow_key": "product.raw-to-src"},
+        "payload": {
+            "artifact_ref": f"raw-to-src.{run_id}.frz-package",
+            "workspace_path": f"artifacts/raw-to-src/{run_id}/frz-package/index.md",
+            "requested_mode": "commit",
+            "content_ref": staging_path.relative_to(repo_root).as_posix(),
+        },
+    }
+    _write_json(request_path, payload)
+
+    exit_code = cli_main(
+        [
+            "artifact",
+            "commit",
+            "--request",
+            str(request_path),
+            "--response-out",
+            str(response_path),
+        ]
+    )
+    response = json.loads(response_path.read_text(encoding="utf-8"))
+    if exit_code != 0 or response.get("status_code") != "OK":
+        raise RuntimeError(f"raw-to-src frz package commit failed: {response.get('status_code')} {response.get('message')}")
+    return {
+        "request_path": request_path,
+        "response_path": response_path,
+        "response": response,
+    }
