@@ -12,6 +12,7 @@ from typing import Any
 
 SCHEMA_VERSION = "0.1.0"
 REPORT_ARTIFACT_TYPE = "spec_reconcile_report"
+PATCH_RECEIPT_ARTIFACT_TYPE = "ssot_patch_receipt"
 
 
 def _load_json(path: Path) -> dict[str, Any]:
@@ -49,6 +50,45 @@ def _resolve_repo_root(args: argparse.Namespace, request: dict[str, Any], reques
 def _resolve_dir(repo_root: Path, ref_value: str) -> Path:
     candidate = Path(ref_value)
     return candidate.resolve() if candidate.is_absolute() else (repo_root / candidate).resolve()
+
+
+def _extract_target_ssot_paths_from_patch_receipts(repo_root: Path, patch_refs: list[str]) -> list[str]:
+    targets: list[str] = []
+    for patch_ref in patch_refs:
+        patch_ref_value = str(patch_ref or "").strip()
+        if not patch_ref_value:
+            continue
+        path = _resolve_dir(repo_root, patch_ref_value)
+        if not path.exists():
+            continue
+        try:
+            payload = _load_json(path)
+        except Exception:
+            continue
+        if not isinstance(payload, dict):
+            continue
+        if str(payload.get("artifact_type") or "").strip() != PATCH_RECEIPT_ARTIFACT_TYPE:
+            continue
+
+        applied_updates = payload.get("applied_updates")
+        if isinstance(applied_updates, list):
+            for item in applied_updates:
+                if not isinstance(item, dict):
+                    continue
+                ssot_path = str(item.get("ssot_path") or "").strip()
+                if ssot_path.startswith("ssot/") and ssot_path not in targets:
+                    targets.append(ssot_path)
+
+        changed_files = payload.get("changed_files")
+        if isinstance(changed_files, list):
+            for item in changed_files:
+                if not isinstance(item, dict):
+                    continue
+                changed_path = str(item.get("path") or "").strip().replace("\\", "/")
+                if changed_path.startswith("ssot/") and changed_path not in targets:
+                    targets.append(changed_path)
+
+    return targets
 
 
 def _as_str_list(value: object) -> list[str]:
@@ -181,7 +221,19 @@ def _update_queue(
         status = outcome if outcome in {"pending", "in_progress", "backported", "rejected", "deferred"} else "pending"
         owner = str(decision.get("owner") or "").strip()
         existing = item_by_id.get(finding_id, {})
-        target_paths = _as_str_list(existing.get("target_ssot_paths")) or _as_str_list(finding.get("proposed_ssot_targets"))
+
+        target_paths = _as_str_list(existing.get("target_ssot_paths"))
+        if status == "backported":
+            patch_refs = _as_str_list(decision.get("ssot_patch_refs"))
+            patch_targets = _extract_target_ssot_paths_from_patch_receipts(repo_root, patch_refs)
+            if patch_targets:
+                target_paths = _as_str_list(existing.get("target_ssot_paths")) or patch_targets
+                for item in patch_targets:
+                    if item not in target_paths:
+                        target_paths.append(item)
+        if not target_paths:
+            target_paths = _as_str_list(finding.get("proposed_ssot_targets"))
+
         existing_source = str(existing.get("source_artifact_ref") or "").strip()
         item = {
             "finding_id": finding_id,

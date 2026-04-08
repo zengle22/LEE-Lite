@@ -117,6 +117,55 @@ def test_authority_chain_queue_preserves_existing_plan_over_findings_proposal(tm
     assert queue["items"][0]["target_ssot_paths"] == ["ssot/api_contract/API-011.yaml#planned"]
 
 
+def test_authority_chain_queue_derives_plan_from_patch_receipts_when_backported(tmp_path: Path) -> None:
+    runtime = _load_spec_reconcile_runtime_module()
+    queue_ref = "artifacts/reports/governance/spec-backport/spec-backport-queue.json"
+    spec_findings_ref = "artifacts/feat-to-tech/run-9/spec-findings.json"
+    report_ref = "artifacts/feat-to-tech/run-9/spec-reconcile-report.json"
+
+    patch_ref = "artifacts/reports/governance/spec-backport/patch-receipts/20260408T000000Z--GAP-200.json"
+    _write_json(
+        tmp_path / patch_ref,
+        {
+            "artifact_type": "ssot_patch_receipt",
+            "schema_version": "0.1.0",
+            "status": "applied",
+            "finding_id": "GAP-200",
+            "applied_updates": [{"finding_id": "GAP-200", "ssot_path": "ssot/api_contract/API-200.yaml", "content_format": "yaml"}],
+            "changed_files": [{"path": "ssot/api_contract/API-200.yaml", "before_sha256": "", "after_sha256": "x", "changed": True}],
+        },
+    )
+
+    findings_payload = {
+        "trace": {"workflow_key": "dev.feat-to-tech", "run_ref": "run-9"},
+        "lineage": [spec_findings_ref],
+        "findings": [
+            {
+                "finding_id": "GAP-200",
+                "type": "spec_gap",
+                "title": "Missing api defaults",
+                "description": "defaults missing",
+                "affects_future_work": "yes",
+                "must_backport": True,
+                "status": "open",
+                "proposed_ssot_targets": [],
+            }
+        ],
+    }
+    decisions = [{"finding_id": "GAP-200", "outcome": "backported", "ssot_patch_refs": [patch_ref], "rationale": ""}]
+    runtime._update_queue(
+        repo_root=tmp_path,
+        queue_ref=queue_ref,
+        spec_findings_ref=spec_findings_ref,
+        findings_payload=findings_payload,
+        decisions=decisions,
+        report_ref=report_ref,
+    )
+    queue = json.loads((tmp_path / queue_ref).read_text(encoding="utf-8"))
+    assert queue["items"][0]["finding_id"] == "GAP-200"
+    assert "ssot/api_contract/API-200.yaml" in queue["items"][0]["target_ssot_paths"]
+
+
 def test_scope_cut_is_not_backport_queue_tracked_in_phase0(tmp_path: Path) -> None:
     runtime = _load_spec_reconcile_runtime_module()
     queue_ref = "artifacts/reports/governance/spec-backport/spec-backport-queue.json"
