@@ -64,6 +64,7 @@ from cli.lib.formalization_tech_support import materialize_tech_supporting_artif
 from cli.lib.fs import canonical_to_path, load_json, to_canonical_path, write_json
 from cli.lib.managed_gateway import governed_write
 from cli.lib.registry_store import bind_record, resolve_registry_record, slugify
+from cli.lib.spec_reconcile_enforcement import evaluate_spec_reconcile_hold
 
 
 def _load_prototype_bundle(source_path: Path) -> dict[str, Any]:
@@ -72,6 +73,18 @@ def _load_prototype_bundle(source_path: Path) -> dict[str, Any]:
     bundle = load_json(bundle_path)
     ensure(str(bundle.get("artifact_type") or "") == "prototype_package", "PRECONDITION_FAILED", "prototype bundle must be prototype_package")
     return bundle
+
+
+def ensure_spec_reconcile_ready_for_materialization(workspace_root: Path, *, candidate: dict[str, Any]) -> None:
+    metadata = candidate.get("metadata") if isinstance(candidate.get("metadata"), dict) else {}
+    source_package_ref = str(metadata.get("source_package_ref") or "").strip()
+    spec_reconcile = evaluate_spec_reconcile_hold(workspace_root, source_package_ref=source_package_ref)
+    if not spec_reconcile.get("in_scope", False):
+        return
+    if not spec_reconcile.get("hold", False):
+        return
+    blocking_items = list(spec_reconcile.get("blocking_items") or [])
+    ensure(False, "PRECONDITION_FAILED", "spec reconcile blocks formal materialization", blocking_items[:10])
 
 
 def materialize_src(
@@ -940,6 +953,7 @@ def materialize_formal(
     decision = load_json(canonical_to_path(decision_ref, workspace_root))
     ensure(decision.get("decision_type") in {"approve", "handoff"}, "PRECONDITION_FAILED", "decision_not_approvable")
     candidate = resolve_registry_record(workspace_root, candidate_ref)
+    ensure_spec_reconcile_ready_for_materialization(workspace_root, candidate=candidate)
     source_path = candidate_source_path(workspace_root, candidate)
     effective_target_kind = infer_target_formal_kind(candidate, source_path, target_formal_kind)
     run_ref = run_ref_for(candidate, source_path)

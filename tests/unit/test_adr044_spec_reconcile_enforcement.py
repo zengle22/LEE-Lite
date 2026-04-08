@@ -6,6 +6,7 @@ from pathlib import Path
 import pytest
 
 from cli.lib.errors import CommandError
+from cli.lib.formalization_materialize import ensure_spec_reconcile_ready_for_materialization
 from cli.lib.job_queue import release_hold_job
 from cli.lib.ready_job_dispatch import build_feat_downstream_dispatch, build_tech_downstream_dispatch
 from cli.lib.registry_store import bind_record
@@ -295,3 +296,75 @@ def test_release_hold_job_allows_spec_reconcile_when_blocking_items_empty(tmp_pa
     released = release_hold_job(tmp_path, job_ref, actor_ref="operator.test")
     assert released["status"] == "ready"
     assert (tmp_path / released["job_ref"]).exists()
+
+
+def test_materialization_gate_skips_out_of_scope_candidates(tmp_path: Path) -> None:
+    candidate = {"metadata": {"source_package_ref": "artifacts/some-other-workflow/run-1"}}
+    ensure_spec_reconcile_ready_for_materialization(tmp_path, candidate=candidate)
+
+
+def test_materialization_gate_blocks_when_findings_missing(tmp_path: Path) -> None:
+    package_ref = "artifacts/feat-to-tech/run-71"
+    (tmp_path / package_ref).mkdir(parents=True, exist_ok=True)
+    candidate = {"metadata": {"source_package_ref": package_ref}}
+    with pytest.raises(CommandError) as excinfo:
+        ensure_spec_reconcile_ready_for_materialization(tmp_path, candidate=candidate)
+    assert excinfo.value.status_code == "PRECONDITION_FAILED"
+    assert "spec reconcile blocks formal materialization" in excinfo.value.message
+
+
+def test_materialization_gate_blocks_when_report_has_blocking_items(tmp_path: Path) -> None:
+    package_ref = "artifacts/feat-to-tech/run-72"
+    package_dir = tmp_path / package_ref
+    package_dir.mkdir(parents=True, exist_ok=True)
+    _write_json(
+        package_dir / "spec-findings.json",
+        {
+            "artifact_type": "spec_findings",
+            "schema_version": "0.1.0",
+            "status": "open",
+            "trace": {"workflow_key": "dev.feat-to-tech", "run_ref": "run-72"},
+            "findings": [],
+        },
+    )
+    _write_json(
+        package_dir / "spec-reconcile-report.json",
+        {
+            "artifact_type": "spec_reconcile_report",
+            "schema_version": "0.1.0",
+            "status": "produced",
+            "trace": {"workflow_key": "governance.spec-reconcile", "run_ref": "r-72"},
+            "blocking_items": ["missing decisions for findings: GAP-001"],
+        },
+    )
+    candidate = {"metadata": {"source_package_ref": package_ref}}
+    with pytest.raises(CommandError):
+        ensure_spec_reconcile_ready_for_materialization(tmp_path, candidate=candidate)
+
+
+def test_materialization_gate_allows_clean_reconcile_report(tmp_path: Path) -> None:
+    package_ref = "artifacts/feat-to-tech/run-73"
+    package_dir = tmp_path / package_ref
+    package_dir.mkdir(parents=True, exist_ok=True)
+    _write_json(
+        package_dir / "spec-findings.json",
+        {
+            "artifact_type": "spec_findings",
+            "schema_version": "0.1.0",
+            "status": "open",
+            "trace": {"workflow_key": "dev.feat-to-tech", "run_ref": "run-73"},
+            "findings": [],
+        },
+    )
+    _write_json(
+        package_dir / "spec-reconcile-report.json",
+        {
+            "artifact_type": "spec_reconcile_report",
+            "schema_version": "0.1.0",
+            "status": "produced",
+            "trace": {"workflow_key": "governance.spec-reconcile", "run_ref": "r-73"},
+            "blocking_items": [],
+        },
+    )
+    candidate = {"metadata": {"source_package_ref": package_ref}}
+    ensure_spec_reconcile_ready_for_materialization(tmp_path, candidate=candidate)
