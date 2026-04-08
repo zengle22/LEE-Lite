@@ -10,6 +10,7 @@ import sys
 from pathlib import Path
 from typing import Any
 
+from cli.lib.feat_semantic_phase1 import build_feat_semantic_artifacts
 from epic_to_feat_common import dump_json, load_json, parse_markdown_frontmatter, render_markdown
 from epic_to_feat_review_phase1 import build_epic_to_feat_document_test_report, validate_review_phase1_fields
 
@@ -60,12 +61,41 @@ def _commit_markdown(repo_root: Path, artifacts_dir: Path, run_id: str, markdown
     return {"request_path": request_path, "response_path": response_path, "response": response}
 
 
+def _load_l3_review(artifacts_dir: Path) -> tuple[dict[str, Any], Path]:
+    path = artifacts_dir / "l3-review.json"
+    payload = load_json(path) if path.exists() else {}
+    return payload if isinstance(payload, dict) else {}, path
+
+
+def _persist_l3_review(artifacts_dir: Path, l3_review: dict[str, Any]) -> Path | None:
+    if not isinstance(l3_review, dict) or not l3_review:
+        return None
+    path = artifacts_dir / "l3-review.json"
+    dump_json(path, l3_review)
+    return path
+
+
 def write_executor_outputs(output_dir: Path, repo_root: Path, package: Any, generated: Any, command_name: str) -> None:
     output_dir.mkdir(parents=True, exist_ok=True)
     run_id = output_dir.name
     revision_context = generated.json_payload.get("revision_context") if isinstance(generated.json_payload.get("revision_context"), dict) else {}
     revision_request_ref = str(revision_context.get("revision_request_ref") or "").strip()
     document_test_report = build_epic_to_feat_document_test_report(generated)
+    semantic = build_feat_semantic_artifacts(
+        str(Path(__file__).resolve().parents[1] / "output" / "semantic-dimensions.json"),
+        generated.json_payload,
+        list(generated.defect_list),
+        dict(generated.handoff),
+        dict(generated.semantic_drift_check),
+    )
+    for key in ("semantic_dimensions_ref", "semantic_coverage", "semantic_pass", "review_views", "l3_review"):
+        generated.json_payload[key] = semantic[key]
+        if isinstance(generated.review_report, dict):
+            generated.review_report[key] = semantic[key]
+        if isinstance(generated.acceptance_report, dict):
+            generated.acceptance_report[key] = semantic[key]
+    if isinstance(generated.handoff, dict):
+        generated.handoff.update(semantic.get("handoff_updates") or {})
     markdown_text = render_markdown(generated.frontmatter, generated.markdown_body)
     cli_commit = _commit_markdown(repo_root, output_dir, run_id, markdown_text, "feat-freeze-executor-commit")
     dump_json(output_dir / "feat-freeze-bundle.json", generated.json_payload)
@@ -155,6 +185,7 @@ def build_supervision_evidence(artifacts_dir: Path, generated: Any) -> dict[str,
     revision_context = generated.json_payload.get("revision_context") if isinstance(generated.json_payload.get("revision_context"), dict) else {}
     revision_request_ref = str(revision_context.get("revision_request_ref") or "").strip()
     revision_summary = str(revision_context.get("summary") or "").strip()
+    current_bundle = load_json(artifacts_dir / "feat-freeze-bundle.json")
     findings = [
         {
             "title": "FEAT boundary preserved" if decision == "pass" else "FEAT boundary needs revision",
@@ -164,10 +195,13 @@ def build_supervision_evidence(artifacts_dir: Path, generated: Any) -> dict[str,
     findings.extend({"title": defect["title"], "detail": defect["detail"]} for defect in generated.defect_list)
     if revision_summary:
         findings.append({"title": "Revision context absorbed", "detail": revision_summary})
+    l3_review, l3_review_path = _load_l3_review(artifacts_dir)
     return {
         "skill_id": "ll-product-epic-to-feat",
         "run_id": generated.frontmatter["workflow_run_id"],
         "role": "supervisor",
+        "semantic_pass": bool(current_bundle.get("semantic_pass", False)),
+        "open_semantic_gaps": list((current_bundle.get("semantic_coverage") or {}).get("open_semantic_gaps") or []),
         "reviewed_inputs": [str(artifacts_dir / "feat-freeze-bundle.md"), str(artifacts_dir / "feat-freeze-bundle.json")],
         "reviewed_outputs": [str(artifacts_dir / "feat-freeze-bundle.md"), str(artifacts_dir / "feat-freeze-bundle.json")],
         "semantic_findings": findings,
@@ -181,6 +215,8 @@ def build_supervision_evidence(artifacts_dir: Path, generated: Any) -> dict[str,
         "created_at": generated.acceptance_report["created_at"],
         "document_test_report_ref": str(artifacts_dir / "document-test-report.json"),
         "document_test_outcome": document_test_report["test_outcome"],
+        **({"l3_review": l3_review} if isinstance(l3_review, dict) and l3_review else {}),
+        **({"l3_review_artifact_ref": str(l3_review_path)} if isinstance(l3_review, dict) and l3_review else {}),
         **({"revision_request_ref": revision_request_ref} if revision_request_ref else {}),
     }
 
@@ -189,13 +225,28 @@ def build_gate_result(generated: Any, supervision_evidence: dict[str, Any]) -> d
     document_test_report = build_epic_to_feat_document_test_report(generated)
     review_phase1_ready = not validate_review_phase1_fields(document_test_report)
     document_test_non_blocking = document_test_report["test_outcome"] == "no_blocking_defect_found"
-    pass_gate = supervision_evidence["decision"] == "pass" and not generated.defect_list and document_test_non_blocking and review_phase1_ready
+    semantic_pass = bool(supervision_evidence.get("semantic_pass", generated.json_payload.get("semantic_pass", False)))
+    l3_review = supervision_evidence.get("l3_review") if isinstance(supervision_evidence.get("l3_review"), dict) else {}
+    l3_decision = str(l3_review.get("decision") or "").strip().lower()
+    l3_review_present = l3_decision in {"pass", "revise", "reject"}
+    l3_review_pass = l3_decision == "pass"
+    pass_gate = (
+        supervision_evidence["decision"] == "pass"
+        and not generated.defect_list
+        and document_test_non_blocking
+        and review_phase1_ready
+        and semantic_pass
+    )
     revision_context = generated.json_payload.get("revision_context") if isinstance(generated.json_payload.get("revision_context"), dict) else {}
     revision_request_ref = str(revision_context.get("revision_request_ref") or supervision_evidence.get("revision_request_ref") or "").strip()
     return {
         "workflow_key": "product.epic-to-feat",
         "decision": "pass" if pass_gate else "revise",
         "freeze_ready": pass_gate,
+        "semantic_pass": semantic_pass,
+        "open_semantic_gaps": list(supervision_evidence.get("open_semantic_gaps") or (generated.json_payload.get("semantic_coverage") or {}).get("open_semantic_gaps") or []),
+        "l3_review_present": l3_review_present,
+        "l3_review_pass": l3_review_pass,
         "epic_freeze_ref": generated.frontmatter["epic_freeze_ref"],
         "src_root_id": generated.frontmatter["src_root_id"],
         "feat_refs": generated.frontmatter["feat_refs"],
@@ -211,6 +262,7 @@ def build_gate_result(generated: Any, supervision_evidence: dict[str, Any]) -> d
             "document_test_report_present": document_test_report["test_outcome"] in {"no_blocking_defect_found", "blocking_defect_found", "inconclusive", "not_applicable"},
             "document_test_non_blocking": document_test_non_blocking,
             "review_phase1_ready": review_phase1_ready,
+            "semantic_pass": semantic_pass,
             **({"revision_request_present": True} if revision_request_ref else {}),
         },
         "created_at": generated.acceptance_report["created_at"],
@@ -234,6 +286,16 @@ def update_supervisor_outputs(artifacts_dir: Path, repo_root: Path, generated: A
     dump_json(artifacts_dir / "feat-acceptance-report.json", generated.acceptance_report)
     dump_json(artifacts_dir / "feat-defect-list.json", generated.defect_list)
     dump_json(artifacts_dir / "document-test-report.json", document_test_report)
+    _persist_l3_review(artifacts_dir, supervision.get("l3_review") if isinstance(supervision, dict) else {})
+    handoff_path = artifacts_dir / "handoff-to-feat-downstreams.json"
+    if handoff_path.exists():
+        handoff_payload = load_json(handoff_path)
+        if isinstance(handoff_payload, dict):
+            semantic_pass = bool(updated_json.get("semantic_pass", False))
+            # The external human gate runs after this freeze gate and may later attach L3 evidence.
+            handoff_payload["semantic_ready"] = bool(semantic_pass)
+            handoff_payload["open_semantic_gaps"] = list((updated_json.get("semantic_coverage") or {}).get("open_semantic_gaps") or [])
+            dump_json(handoff_path, handoff_payload)
     dump_json(artifacts_dir / "supervision-evidence.json", supervision)
     dump_json(artifacts_dir / "feat-freeze-gate.json", gate)
     manifest = load_json(artifacts_dir / "package-manifest.json")

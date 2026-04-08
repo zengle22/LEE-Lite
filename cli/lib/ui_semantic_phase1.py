@@ -33,19 +33,7 @@ def build_ui_semantic_artifacts(dimensions_path: str, bundle: dict[str, Any], pa
         "source_ledger_and_inference_disclosure": ["ui-semantic-source-ledger.json", "ui-spec-review-report.json"],
         "owner_diff_projection": ["ui-flow-map.md", "ui-spec-review-report.json"],
     }
-    coverage = build_semantic_coverage(
-        dimensions,
-        statuses,
-        evidence=evidence,
-        notes={"source_ledger_and_inference_disclosure": ledger_errors},
-        l3_judgments={
-            key: {
-                "decision": "pass" if statuses[key] == "explicit" and not ledger_errors else "revise",
-                "summary": "UI spec is implementation-facing and traceable for this dimension." if statuses[key] == "explicit" and not ledger_errors else "; ".join(ledger_errors[:2]) or f"{key} still needs stronger semantic disclosure.",
-            }
-            for key in statuses
-        },
-    )
+    coverage = build_semantic_coverage(dimensions, statuses, evidence=evidence, notes={"source_ledger_and_inference_disclosure": ledger_errors})
     review_views = build_review_views(
         narrative=[
             f"UI spec package for {bundle.get('feat_ref') or 'selected FEAT'} turns prototype semantics into implementation-facing page contracts.",
@@ -66,9 +54,6 @@ def build_ui_semantic_artifacts(dimensions_path: str, bundle: dict[str, Any], pa
         "semantic_coverage": coverage,
         "semantic_pass": coverage["semantic_pass"] and not ledger_errors,
         "review_views": review_views,
-        "l3_review": {
-            "decision": "pass" if coverage["semantic_pass"] and not ledger_errors else "revise",
-            "summary": "UI spec is semantically ready for implementation." if coverage["semantic_pass"] and not ledger_errors else "; ".join(ledger_errors[:3]) or "UI spec still has semantic coverage gaps.",
-            "dimensions": [item["id"] for item in coverage["dimensions"] if item["status"] != "explicit"],
-        },
+        # ADR-043 L3 is an AI review layer and must be supplied by supervisor prompts + persisted artifacts.
+        "l3_review": {},
     }
