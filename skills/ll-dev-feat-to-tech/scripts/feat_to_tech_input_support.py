@@ -181,11 +181,14 @@ def validate_input_package(input_value: str | Path, feat_ref: str, repo_root: Pa
                 if mapped_feat_ref != effective_feat_ref and effective_feat_ref not in related_feat_refs:
                     errors.append(f"surface-map-bundle.json does not cover selected feat_ref: {effective_feat_ref}")
                 surface_map_payload = surface_map.get("surface_map") if isinstance(surface_map.get("surface_map"), dict) else {}
+                # Accept both the canonical nested payload and older top-level fixture shape.
                 design_surfaces = (
                     surface_map_payload.get("design_surfaces")
                     if isinstance(surface_map_payload.get("design_surfaces"), dict)
                     else {}
                 )
+                if not design_surfaces and isinstance(surface_map.get("design_surfaces"), dict):
+                    design_surfaces = surface_map.get("design_surfaces") or {}
                 tech_bindings = design_surfaces.get("tech") if isinstance(design_surfaces.get("tech"), list) else []
                 tech_binding = tech_bindings[0] if tech_bindings else None
                 if not tech_binding:

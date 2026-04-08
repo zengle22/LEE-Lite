@@ -185,6 +185,7 @@ def build_supervision_evidence(artifacts_dir: Path, generated: Any) -> dict[str,
     revision_context = generated.json_payload.get("revision_context") if isinstance(generated.json_payload.get("revision_context"), dict) else {}
     revision_request_ref = str(revision_context.get("revision_request_ref") or "").strip()
     revision_summary = str(revision_context.get("summary") or "").strip()
+    current_bundle = load_json(artifacts_dir / "feat-freeze-bundle.json")
     findings = [
         {
             "title": "FEAT boundary preserved" if decision == "pass" else "FEAT boundary needs revision",
@@ -199,6 +200,8 @@ def build_supervision_evidence(artifacts_dir: Path, generated: Any) -> dict[str,
         "skill_id": "ll-product-epic-to-feat",
         "run_id": generated.frontmatter["workflow_run_id"],
         "role": "supervisor",
+        "semantic_pass": bool(current_bundle.get("semantic_pass", False)),
+        "open_semantic_gaps": list((current_bundle.get("semantic_coverage") or {}).get("open_semantic_gaps") or []),
         "reviewed_inputs": [str(artifacts_dir / "feat-freeze-bundle.md"), str(artifacts_dir / "feat-freeze-bundle.json")],
         "reviewed_outputs": [str(artifacts_dir / "feat-freeze-bundle.md"), str(artifacts_dir / "feat-freeze-bundle.json")],
         "semantic_findings": findings,
@@ -222,7 +225,7 @@ def build_gate_result(generated: Any, supervision_evidence: dict[str, Any]) -> d
     document_test_report = build_epic_to_feat_document_test_report(generated)
     review_phase1_ready = not validate_review_phase1_fields(document_test_report)
     document_test_non_blocking = document_test_report["test_outcome"] == "no_blocking_defect_found"
-    semantic_pass = bool(generated.json_payload.get("semantic_pass", False))
+    semantic_pass = bool(supervision_evidence.get("semantic_pass", generated.json_payload.get("semantic_pass", False)))
     l3_review = supervision_evidence.get("l3_review") if isinstance(supervision_evidence.get("l3_review"), dict) else {}
     l3_decision = str(l3_review.get("decision") or "").strip().lower()
     l3_review_present = l3_decision in {"pass", "revise", "reject"}
@@ -241,7 +244,7 @@ def build_gate_result(generated: Any, supervision_evidence: dict[str, Any]) -> d
         "decision": "pass" if pass_gate else "revise",
         "freeze_ready": pass_gate,
         "semantic_pass": semantic_pass,
-        "open_semantic_gaps": list((generated.json_payload.get("semantic_coverage") or {}).get("open_semantic_gaps") or []),
+        "open_semantic_gaps": list(supervision_evidence.get("open_semantic_gaps") or (generated.json_payload.get("semantic_coverage") or {}).get("open_semantic_gaps") or []),
         "l3_review_present": l3_review_present,
         "l3_review_pass": l3_review_pass,
         "epic_freeze_ref": generated.frontmatter["epic_freeze_ref"],

@@ -306,6 +306,8 @@ def build_supervision_evidence(artifacts_dir: Path, generated: Any) -> dict[str,
         "skill_id": "ll-dev-feat-to-tech",
         "run_id": generated.run_id,
         "role": "supervisor",
+        "semantic_pass": bool(current_bundle.get("semantic_pass", False)),
+        "open_semantic_gaps": list((current_bundle.get("semantic_coverage") or {}).get("open_semantic_gaps") or []),
         "reviewed_inputs": [str(artifacts_dir / "tech-design-bundle.md"), str(artifacts_dir / "tech-design-bundle.json")],
         "reviewed_outputs": [str(artifacts_dir / "tech-spec.md")],
         "semantic_findings": findings,
@@ -323,7 +325,15 @@ def build_gate_result(generated: Any, supervision_evidence: dict[str, Any]) -> d
     consistency = generated.json_payload["design_consistency_check"]
     revision_context = generated.json_payload.get("revision_context") or {}
     semantic_gate = supervision_evidence.get("semantic_gate") or generated.semantic_drift_check
-    semantic_fields = gate_semantic_fields(bundle_payload=generated.json_payload, supervision_evidence=supervision_evidence)
+    bundle_payload = dict(generated.json_payload)
+    if "semantic_pass" in supervision_evidence:
+        bundle_payload["semantic_pass"] = supervision_evidence.get("semantic_pass")
+    if "open_semantic_gaps" in supervision_evidence:
+        bundle_payload["semantic_coverage"] = {
+            **(bundle_payload.get("semantic_coverage") or {}),
+            "open_semantic_gaps": list(supervision_evidence.get("open_semantic_gaps") or []),
+        }
+    semantic_fields = gate_semantic_fields(bundle_payload=bundle_payload, supervision_evidence=supervision_evidence)
     blocking_findings = [
         {
             "severity": item.get("severity"),
