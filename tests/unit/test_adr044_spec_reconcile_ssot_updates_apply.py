@@ -4,6 +4,7 @@ import json
 from pathlib import Path
 
 import pytest
+import yaml
 
 from cli.lib.errors import CommandError
 from cli.lib.ssot_backport_apply import (
@@ -108,6 +109,32 @@ def test_apply_ssot_updates_splits_anchor_in_paths(tmp_path: Path) -> None:
         updates=updates,
     )
     assert (tmp_path / "ssot" / "module_spec" / "MOD-2.yaml").exists()
+
+
+def test_apply_ssot_updates_supports_yaml_patch_mode(tmp_path: Path) -> None:
+    target = tmp_path / "ssot" / "module_spec" / "MOD-3.yaml"
+    target.parent.mkdir(parents=True, exist_ok=True)
+    target.write_text("a: 1\nnested:\n  x: 1\nlist:\n  - 1\n", encoding="utf-8")
+
+    updates = [
+        ParsedSsotUpdate(
+            finding_id="GAP-203",
+            ssot_path="ssot/module_spec/MOD-3.yaml",
+            content="nested:\n  x: 2\n  y: 3\nlist:\n  - 2\n",
+            content_format="yaml-patch",
+        )
+    ]
+    apply_ssot_updates(
+        tmp_path,
+        trace={"workflow_key": "governance.spec-reconcile", "run_ref": "r-4"},
+        request_id="req-4",
+        decided_by={"role": "ssot_owner", "ref": "alice"},
+        updates=updates,
+    )
+    payload = yaml.safe_load(target.read_text(encoding="utf-8"))
+    assert payload["a"] == 1
+    assert payload["nested"] == {"x": 2, "y": 3}
+    assert payload["list"] == [2]
 
 
 def test_apply_ssot_updates_rejects_paths_outside_ssot(tmp_path: Path) -> None:

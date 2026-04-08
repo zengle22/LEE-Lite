@@ -9,6 +9,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
+import yaml
+
 from cli.lib.errors import CommandError, ensure
 from cli.lib.fs import to_canonical_path, write_json, write_text
 
@@ -117,6 +119,36 @@ def _sha256_bytes(value: bytes) -> str:
     return hashlib.sha256(value).hexdigest()
 
 
+def _deep_merge(base: Any, patch: Any) -> Any:
+    if isinstance(base, dict) and isinstance(patch, dict):
+        merged = dict(base)
+        for key, value in patch.items():
+            if key in merged:
+                merged[key] = _deep_merge(merged[key], value)
+            else:
+                merged[key] = value
+        return merged
+    return patch
+
+
+def _apply_yaml_patch(existing_bytes: bytes, patch_text: str) -> bytes:
+    existing_obj: Any = {}
+    if existing_bytes:
+        existing_obj = yaml.safe_load(existing_bytes.decode("utf-8"))
+    if existing_obj is None:
+        existing_obj = {}
+    patch_obj = yaml.safe_load(patch_text or "")
+    ensure(isinstance(patch_obj, dict), "INVALID_REQUEST", "yaml-patch content must be a YAML mapping/object")
+    if existing_obj is None:
+        existing_obj = {}
+    ensure(isinstance(existing_obj, dict), "INVALID_REQUEST", "target YAML must be a mapping/object for yaml-patch")
+    merged = _deep_merge(existing_obj, patch_obj)
+    rendered = yaml.safe_dump(merged, allow_unicode=True, sort_keys=False)
+    if not rendered.endswith("\n"):
+        rendered += "\n"
+    return rendered.encode("utf-8")
+
+
 def apply_ssot_updates(
     workspace_root: Path,
     *,
@@ -152,11 +184,16 @@ def apply_ssot_updates(
 
             before_bytes = target_path.read_bytes() if target_path.exists() else b""
             before_sha = _sha256_bytes(before_bytes) if before_bytes else ""
-            content = update.content
-            if content and not content.endswith("\n"):
-                content += "\n"
-            write_text(target_path, content, mode="w")
-            after_bytes = target_path.read_bytes()
+            content_format = str(update.content_format or "").strip().lower()
+            if content_format in {"yaml-patch", "yml-patch"}:
+                after_bytes = _apply_yaml_patch(before_bytes, update.content)
+                write_text(target_path, after_bytes.decode("utf-8"), mode="w")
+            else:
+                content = update.content
+                if content and not content.endswith("\n"):
+                    content += "\n"
+                write_text(target_path, content, mode="w")
+                after_bytes = target_path.read_bytes()
             after_sha = _sha256_bytes(after_bytes)
             changed_files.append(
                 {
