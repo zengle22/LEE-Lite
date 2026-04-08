@@ -12,7 +12,7 @@ from typing import Any
 
 from cli.lib.workflow_document_test import build_document_test_report, build_fixability_section
 from feat_to_tech_common import dump_json, load_json, parse_markdown_frontmatter, render_markdown
-from feat_to_tech_semantic_runtime import attach_executor_semantics, gate_semantic_fields, load_l3_review, update_handoff_semantic_ready
+from feat_to_tech_semantic_runtime import attach_executor_semantics, gate_semantic_fields, load_l3_review, persist_l3_review, update_handoff_semantic_ready
 from feat_to_tech_validation import recompute_semantic_gate
 
 def _write_json(path: Path, payload: dict[str, Any]) -> None:
@@ -340,8 +340,6 @@ def build_gate_result(generated: Any, supervision_evidence: dict[str, Any]) -> d
         "supervision_evidence_present": True,
         "tech_present": True,
         "semantic_pass": semantic_fields["semantic_pass"],
-        "l3_review_present": semantic_fields["l3_review_present"],
-        "l3_review_pass": semantic_fields["l3_review_pass"],
         "optional_outputs_match_assessment": True,
         "integration_sufficiency_passed": generated.json_payload["integration_sufficiency_check"]["passed"],
         "stateful_design_present": generated.json_payload["need_assessment"]["stateful_design_present"],
@@ -361,6 +359,8 @@ def build_gate_result(generated: Any, supervision_evidence: dict[str, Any]) -> d
         "freeze_ready": freeze_ready,
         "semantic_pass": semantic_fields["semantic_pass"],
         "open_semantic_gaps": list(semantic_fields["open_semantic_gaps"]),
+        "l3_review_present": semantic_fields["l3_review_present"],
+        "l3_review_pass": semantic_fields["l3_review_pass"],
         "feat_ref": generated.json_payload["feat_ref"],
         "tech_ref": generated.json_payload["tech_ref"],
         "arch_required": generated.json_payload["arch_required"],
@@ -429,6 +429,7 @@ def update_supervisor_outputs(
     dump_json(artifacts_dir / "semantic-drift-check.json", semantic_gate)
     dump_json(artifacts_dir / "supervision-evidence.json", supervision)
     dump_json(artifacts_dir / "tech-freeze-gate.json", gate)
+    persist_l3_review(artifacts_dir, supervision.get("l3_review") if isinstance(supervision, dict) else {}, dump_json)
     handoff_path = artifacts_dir / "handoff-to-tech-impl.json"
     if handoff_path.exists():
         handoff_payload = load_json(handoff_path)

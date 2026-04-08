@@ -31,6 +31,14 @@ def load_l3_review(artifacts_dir: Path, load_json) -> tuple[dict[str, Any], Path
     return payload if isinstance(payload, dict) else {}, path
 
 
+def persist_l3_review(artifacts_dir: Path, l3_review: dict[str, Any], dump_json) -> Path | None:
+    if not isinstance(l3_review, dict) or not l3_review:
+        return None
+    path = artifacts_dir / "l3-review.json"
+    dump_json(path, l3_review)
+    return path
+
+
 def gate_semantic_fields(*, bundle_payload: dict[str, Any], supervision_evidence: dict[str, Any]) -> dict[str, Any]:
     semantic_pass = bool(bundle_payload.get("semantic_pass", False))
     open_gaps = list((bundle_payload.get("semantic_coverage") or {}).get("open_semantic_gaps") or [])
@@ -46,6 +54,7 @@ def gate_semantic_fields(*, bundle_payload: dict[str, Any], supervision_evidence
 
 def update_handoff_semantic_ready(*, handoff_payload: dict[str, Any], bundle_payload: dict[str, Any], supervision: dict[str, Any]) -> None:
     fields = gate_semantic_fields(bundle_payload=bundle_payload, supervision_evidence=supervision)
-    handoff_payload["semantic_ready"] = bool(fields["semantic_pass"] and fields["l3_review_pass"])
+    # This handoff is emitted before the external human gate runs, so L3 is advisory here.
+    handoff_payload["semantic_ready"] = bool(fields["semantic_pass"])
     handoff_payload["open_semantic_gaps"] = list(fields["open_semantic_gaps"])
 
