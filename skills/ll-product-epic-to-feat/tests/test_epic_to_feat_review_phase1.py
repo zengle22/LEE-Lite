@@ -40,7 +40,6 @@ class _Generated:
         self.defect_list: list[dict[str, str]] = []
         self.handoff = {
             "target_workflows": [
-                {"workflow": "workflow.dev.feat_to_surface_map"},
                 {"workflow": "workflow.dev.feat_to_tech"},
                 {"workflow": "workflow.qa.feat_to_testset"},
             ],
@@ -154,7 +153,7 @@ def _minimal_feat_bundle_json() -> dict[str, object]:
         "src_root_id": "SRC-1",
         "feat_refs": ["FEAT-1", "FEAT-2"],
         "source_refs": ["product.src-to-epic::run-1", "EPIC-1", "SRC-1"],
-        "downstream_workflows": ["workflow.dev.feat_to_surface_map", "workflow.dev.feat_to_tech", "workflow.qa.feat_to_testset"],
+        "downstream_workflows": ["workflow.dev.feat_to_tech", "workflow.qa.feat_to_testset"],
         "features": features,
         "boundary_matrix": [{"feat_ref": "FEAT-1"}, {"feat_ref": "FEAT-2"}],
         "bundle_shared_non_goals": ["non-goal"],
@@ -185,7 +184,6 @@ def _minimal_handoff() -> dict[str, object]:
         "authoritative_artifact_map": [{"feat_ref": "FEAT-1", "artifact": "feat-freeze-bundle.md"}],
         "feature_dependency_map": [{"feat_ref": "FEAT-1", "upstream_feat": "", "downstream_feat": ""}],
         "target_workflows": [
-            {"workflow": "workflow.dev.feat_to_surface_map"},
             {"workflow": "workflow.dev.feat_to_tech"},
             {"workflow": "workflow.qa.feat_to_testset"},
         ],
@@ -214,6 +212,30 @@ def _write_minimal_output_package(artifacts_dir: Path, *, document_test_report: 
     _write_json(artifacts_dir / "feat-freeze-gate.json", {"epic_freeze_ref": "EPIC-1", "checks": {"review_phase1_ready": True}})
     _write_json(artifacts_dir / "execution-evidence.json", {"run_id": "run-1"})
     _write_json(artifacts_dir / "supervision-evidence.json", {"decision": "pass"})
+
+    surface_map_ref = "SURFACE-MAP-FEAT-1"
+    bundle_ref = f"surface-map-bundle__{surface_map_ref}.json"
+    _write_json(
+        artifacts_dir / bundle_ref,
+        {
+            "artifact_type": "surface_map_package",
+            "schema_version": "1.0.0",
+            "workflow_key": "dev.feat-to-surface-map",
+            "workflow_run_id": "run-1",
+            "status": "accepted",
+            "feat_ref": "FEAT-1",
+            "surface_map_ref": surface_map_ref,
+        },
+    )
+    _write_json(
+        artifacts_dir / "surface-map-index.json",
+        {
+            "artifact_type": "surface_map_index",
+            "schema_version": "1.0.0",
+            "surface_map_ref": surface_map_ref,
+            "entries": [{"feat_ref": "FEAT-1", "surface_map_ref": surface_map_ref, "bundle_ref": bundle_ref}],
+        },
+    )
 
 
 def test_build_epic_to_feat_document_test_report_emits_phase1_fields() -> None:

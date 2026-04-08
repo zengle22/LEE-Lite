@@ -553,14 +553,36 @@ def derive_semantic_inventory(document: dict[str, Any], candidate: dict[str, Any
     semantic_lock = candidate.get("semantic_lock") or {}
     body = str(document.get("body", ""))
     commands = [item["name"] for item in operator_surface_inventory if item.get("entry_kind") == "cli_control_surface"]
+
+    title_text = str(candidate.get("title") or "")
+    problem_text = str(candidate.get("problem_statement") or "")
+    hint_text = f"{title_text} {problem_text} {body}".lower()
+
+    core_objects: list[str] = []
+    if any(token in hint_text for token in ["payment", "\u652f\u4ed8", "checkout"]):
+        core_objects.append("payment_attempt")
+    if any(token in hint_text for token in ["retry", "\u91cd\u8bd5"]):
+        core_objects.extend(["retry_policy", "retry_message"])
+    if any(token in hint_text for token in ["failure code", "\u5931\u8d25\u7801"]):
+        core_objects.append("failure_code")
+    if not core_objects and title_text.strip():
+        core_objects.append(title_text.strip())
+    core_objects = _dedupe_strings(core_objects)
+
     runtime_objects = _normalize_list(semantic_lock.get("allowed_capabilities"))
     if str(semantic_lock.get("domain_type") or "").strip().lower() == "execution_runner_rule":
         runtime_objects = _normalize_list(runtime_objects + ["ready execution job", "claimed execution job", "next-skill invocation", "execution outcome"])
+    elif not runtime_objects and core_objects:
+        runtime_objects = _dedupe_strings(core_objects + ["user_visible_message"])
+
+    if not commands and any(token in hint_text for token in ["retry", "\u91cd\u8bd5"]):
+        commands = ["render_retry_message", "retry_payment"]
     monitor_surface_names = [item["name"] for item in operator_surface_inventory if item.get("entry_kind") == "monitor_surface"]
     observability_details = _matching_lines(body, ["ready backlog", "running jobs", "failed jobs", "deadletters", "waiting-human jobs"])
     observability = _normalize_list(monitor_surface_names + observability_details) or (["runner observability surface"] if "execution loop job runner" in body.lower() else [])
     entry_points = [item["name"] for item in operator_surface_inventory if item.get("entry_kind") in {"skill_entry", "cli_control_surface"}]
     return {
+        "core_objects": core_objects,
         "actors": _normalize_list(candidate.get("target_users")),
         "product_surfaces": _normalize_list(candidate.get("target_capability_objects")) + _normalize_list(candidate.get("expected_outcomes")),
         "operator_surfaces": _normalize_list(entry_points + monitor_surface_names),
@@ -1663,6 +1685,23 @@ def enrich_high_fidelity_candidate(candidate: dict[str, Any], document: dict[str
     working.update(projector_bundle)
     working = _project_generic_raw_requirement_fields(working)
     projector_selection = working.get("projector_selection") or {}
+    if str(projector_selection.get("bundle_kind") or "").strip().lower() == "generic":
+        contracts = working.get("structured_object_contracts")
+        if not isinstance(contracts, list) or not contracts:
+            object_name = "feature_subject"
+            title_text = str(working.get("title") or "")
+            hint_text = f"{title_text} {working.get('problem_statement') or ''}".lower()
+            if any(token in hint_text for token in ["payment", "\u652f\u4ed8", "checkout"]):
+                object_name = "payment_attempt"
+            elif any(token in hint_text for token in ["retry", "\u91cd\u8bd5"]):
+                object_name = "retry_policy"
+            working["structured_object_contracts"] = [
+                {
+                    "object": object_name,
+                    "required_fields": ["status", "states", "allowed_transitions"],
+                    "notes": "Generic raw-requirement scaffold for FRZ MSC anchoring.",
+                }
+            ]
     if projector_selection.get("bundle_kind") == "training-plan":
         working = _project_training_plan_phase1_fields(document, working)
     elif projector_selection.get("bundle_kind") == "onboarding":

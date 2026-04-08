@@ -77,6 +77,11 @@ def _load_prototype_bundle(source_path: Path) -> dict[str, Any]:
 
 def ensure_spec_reconcile_ready_for_materialization(workspace_root: Path, *, candidate: dict[str, Any]) -> None:
     metadata = candidate.get("metadata") if isinstance(candidate.get("metadata"), dict) else {}
+    # ADR-044 spec reconcile gates *spec* materialization. Prototype promotion is intentionally
+    # allowed to proceed even when spec reconcile artifacts are absent in the source package.
+    target_kind = str(metadata.get("target_kind") or "").strip().lower()
+    if target_kind == "prototype":
+        return
     source_package_ref = str(metadata.get("source_package_ref") or "").strip()
     spec_reconcile = evaluate_spec_reconcile_hold(workspace_root, source_package_ref=source_package_ref)
     if not spec_reconcile.get("in_scope", False):
@@ -125,9 +130,6 @@ def materialize_src(
             "candidate_package_ref": snapshot["candidate_package_ref"],
             "gate_decision_ref": decision_ref,
             "source_refs": snapshot["source_refs"],
-            "frz_id": str((snapshot.get("candidate_json") or {}).get("frz_id") or "").strip(),
-            "frz_package_ref": str((snapshot.get("candidate_json") or {}).get("frz_package_ref") or "").strip(),
-            "frz_registry_record_ref": str((snapshot.get("candidate_json") or {}).get("frz_registry_record_ref") or "").strip(),
             "workflow_lineage_ref": snapshot["workflow_lineage_ref"],
             "materialized_by": materialized_by,
             "materialized_at": frozen_at,
@@ -618,25 +620,75 @@ def materialize_prototype(
             shutil.copy2(child, destination)
         copied_refs.append(to_canonical_path(destination, workspace_root))
 
+    package_root = source_dir.parent
+    resolved_root = package_root.resolve()
+    structural_ref = str(bundle.get("journey_structural_spec_ref") or bundle.get("journey_ascii_ref") or "").strip()
+    shell_ref = str(bundle.get("ui_shell_snapshot_ref") or bundle.get("ui_shell_ref") or "").strip()
+
+    def copy_from_package(relative_ref: str, target_name: str, *, required: bool) -> None:
+        if not relative_ref:
+            return
+        candidate_path = (package_root / relative_ref).resolve()
+        try:
+            candidate_path.relative_to(resolved_root)
+        except ValueError:
+            ensure(False, "PRECONDITION_FAILED", f"prototype package ref escapes package root: {relative_ref}")
+        if required:
+            ensure(candidate_path.exists(), "PRECONDITION_FAILED", f"required prototype package file missing: {relative_ref}")
+        if not candidate_path.exists():
+            return
+        destination = target_dir / target_name
+        shutil.copy2(candidate_path, destination)
+        copied_refs.append(to_canonical_path(destination, workspace_root))
+
+    # Copy structural/shell snapshots when refs are explicitly provided, otherwise best-effort.
+    copy_from_package(structural_ref or ("journey-ux-ascii.md" if (package_root / "journey-ux-ascii.md").exists() else ""), "journey-ux-ascii.md", required=bool(structural_ref))
+    copy_from_package(shell_ref or ("ui-shell-spec.md" if (package_root / "ui-shell-spec.md").exists() else ""), "ui-shell-spec.md", required=bool(shell_ref))
+
+    # Always attempt to snapshot key package inputs when present.
+    copy_from_package("prototype-bundle.json", "prototype-bundle.snapshot.json", required=False)
+    copy_from_package("package-manifest.json", "package-manifest.snapshot.json", required=False)
+
+    src_ref = extract_src_ref(source_refs, "")
+    journey_id = str(merged_journey_model.get("journey_id") or bundle.get("journey_id") or assigned_id).strip() or assigned_id
+
     mock_data_json_path = target_dir / "mock-data.json"
+    merged_mock_data["journey_id"] = journey_id
     mock_data_json_path.write_text(json.dumps(merged_mock_data, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     copied_refs.append(to_canonical_path(mock_data_json_path, workspace_root))
     (target_dir / "mock-data.js").write_text(render_proto_js("LEE_PROTO_DATA", merged_mock_data), encoding="utf-8")
     copied_refs.append(to_canonical_path(target_dir / "mock-data.js", workspace_root))
     journey_model_json_path = target_dir / "journey-model.json"
+    merged_journey_model["journey_id"] = journey_id
+    for item in merged_journey_model.get("journey_surface_inventory") or []:
+        if isinstance(item, dict) and not str(item.get("journey_id") or "").strip():
+            item["journey_id"] = journey_id
     journey_model_json_path.write_text(json.dumps(merged_journey_model, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     copied_refs.append(to_canonical_path(journey_model_json_path, workspace_root))
     (target_dir / "journey-model.js").write_text(render_proto_js("LEE_JOURNEY_MODEL", merged_journey_model), encoding="utf-8")
     copied_refs.append(to_canonical_path(target_dir / "journey-model.js", workspace_root))
+    frozen_at = datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
     owner_manifest_path = target_dir / "owner-publication-manifest.json"
     owner_manifest_path.write_text(
         json.dumps(
             {
+                "schema_version": "1.0.0",
                 "prototype_owner_ref": assigned_id,
+                "journey_id": journey_id,
+                "src_ref": src_ref,
+                "feat_ref": feat_ref,
+                "ui_owner_ref": str(bundle.get("ui_owner_ref") or "").strip(),
+                "journey_structural_spec_ref": "journey-ux-ascii.md",
+                "ui_shell_snapshot_ref": "ui-shell-spec.md",
+                "ui_shell_source_ref": str(bundle.get("ui_shell_source_ref") or "").strip(),
+                "ui_shell_version": str(bundle.get("ui_shell_version") or "").strip(),
+                "ui_shell_snapshot_hash": str(bundle.get("ui_shell_snapshot_hash") or "").strip(),
                 "related_feat_refs": merged_metadata["related_feat_refs"],
                 "surface_map_refs": merged_metadata["surface_map_refs"],
                 "source_package_refs": merged_metadata["source_package_refs"],
                 "merged_candidate_refs": merged_metadata["merged_candidate_refs"],
+                "materialized_at": frozen_at,
+                "materialized_by": materialized_by,
             },
             ensure_ascii=False,
             indent=2,
@@ -647,7 +699,6 @@ def materialize_prototype(
     copied_refs.append(to_canonical_path(owner_manifest_path, workspace_root))
 
     published_ref = to_canonical_path(target_path, workspace_root)
-    frozen_at = datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
     materialized_ssot_ref = "artifacts/active/ssot/materialized-prototype.json"
     write_json(
         workspace_root / materialized_ssot_ref,

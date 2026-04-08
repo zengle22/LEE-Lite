@@ -109,14 +109,8 @@ def test_surface_map_cli_run_generates_freezable_package(tmp_path: Path) -> None
         "new long-lived owner",
         "future multi-feat reuse",
     ]
-    formal_md_ref = result["formal_surface_map_md_ref"]
-    formal_json_ref = result["formal_surface_map_json_ref"]
-    formal_md_path = tmp_path / formal_md_ref
-    formal_json_path = tmp_path / formal_json_ref
-    assert formal_md_path.exists()
-    assert formal_json_path.exists()
-    assert "ssot_type: SURFACE_MAP" in formal_md_path.read_text(encoding="utf-8")
-    assert json.loads(formal_json_path.read_text(encoding="utf-8"))["feat_ref"] == feat_ref
+    assert result.get("formal_surface_map_md_ref") in (None, "")
+    assert result.get("formal_surface_map_json_ref") in (None, "")
     errors, output_result = validate_output_package(artifacts_dir)
     assert not errors, errors
     assert output_result["freeze_ready"] is True

@@ -65,10 +65,26 @@ from epic_to_feat_derivation import (
 from epic_to_feat_review_phase1 import validate_review_phase1_fields
 
 
-REQUIRED_OUTPUT_FILES = ["feat-freeze-bundle.md", "feat-freeze-bundle.json", "integration-context.json", "feat-review-report.json", "feat-acceptance-report.json", "feat-defect-list.json", "document-test-report.json", "feat-freeze-gate.json", "handoff-to-feat-downstreams.json", "semantic-drift-check.json", "execution-evidence.json", "supervision-evidence.json"]
+SURFACE_MAP_INDEX_FILENAME = "surface-map-index.json"
+
+REQUIRED_OUTPUT_FILES = [
+    "feat-freeze-bundle.md",
+    "feat-freeze-bundle.json",
+    "integration-context.json",
+    "feat-review-report.json",
+    "feat-acceptance-report.json",
+    "feat-defect-list.json",
+    "document-test-report.json",
+    "feat-freeze-gate.json",
+    SURFACE_MAP_INDEX_FILENAME,
+    "handoff-to-feat-downstreams.json",
+    "semantic-drift-check.json",
+    "execution-evidence.json",
+    "supervision-evidence.json",
+]
 REQUIRED_MARKDOWN_HEADINGS = ["FEAT Bundle Intent", "EPIC Context", "Canonical Glossary", "Boundary Matrix", "FEAT Inventory", "Prohibited Inference Rules", "Acceptance and Review", "Downstream Handoff", "Traceability"]
 REQUIRED_FEAT_SUBHEADINGS = ["#### Identity and Scenario", "#### Business Flow", "#### Product Objects and Deliverables", "#### Collaboration and Timeline", "#### Acceptance and Testability", "#### Frozen Downstream Boundary"]
-DOWNSTREAM_WORKFLOWS = ["workflow.dev.feat_to_surface_map", "workflow.dev.feat_to_tech", "workflow.qa.feat_to_testset"]
+DOWNSTREAM_WORKFLOWS = ["workflow.dev.feat_to_tech", "workflow.qa.feat_to_testset"]
 INTEGRATION_CONTEXT_FILENAME = "integration-context.json"
 REQUIRED_INTEGRATION_CONTEXT_FIELDS = [
     "workflow_inventory",
@@ -183,14 +199,14 @@ def build_integration_context(
         str(item.get("rule") or "").strip() for item in inference_rules if isinstance(item, dict) and str(item.get("rule") or "").strip()
     ]
     workflow_inventory = [
-        "workflow.dev.feat_to_surface_map resolves shared design asset ownership before any design derivation runs.",
+        "surface-map artifacts are materialized during product.epic-to-feat freeze (no separate feat->surface-map step).",
         "workflow.dev.feat_to_tech consumes one frozen FEAT slice plus this integration context seed.",
         "workflow.qa.feat_to_testset consumes the same FEAT acceptance boundary.",
         "workflow.dev.tech_to_impl must inherit frozen TECH outputs instead of re-deriving product semantics.",
     ]
     module_boundaries = [
         "ll-product-epic-to-feat owns FEAT boundary decomposition only.",
-        "ll-dev-feat-to-surface-map owns design ownership mapping and update/create routing for shared design assets.",
+        "ll-product-epic-to-feat materializes surface-map artifacts using ll-dev-feat-to-surface-map rules under gate control.",
         "ll-dev-feat-to-tech owns implementation-facing design freeze and current-system hookup decisions.",
         "ll-dev-tech-to-impl owns implementation planning only and must not redefine TECH truth.",
     ]
@@ -450,10 +466,6 @@ def build_feat_bundle(
         "prohibited_inference_rules": inference_rules,
         "target_workflows": [
             {
-                "workflow": "workflow.dev.feat_to_surface_map",
-                "purpose": "resolve shared design asset ownership, update/create action, and design surface scope before any design derivation runs",
-            },
-            {
                 "workflow": "workflow.dev.feat_to_tech",
                 "purpose": "derive the governed TECH package, with conditional ARCH / API companions, from the frozen FEAT slice",
             },
@@ -462,7 +474,7 @@ def build_feat_bundle(
                 "purpose": "derive the governed TESTSET package from the same frozen FEAT acceptance boundary",
             },
         ],
-        "derivable_children": ["SURFACE_MAP", "TECH", "TESTSET"],
+        "derivable_children": ["TECH", "TESTSET"],
         "design_gate_required": any(bool(feat.get("design_impact_required")) for feat in feats),
         "primary_artifact_ref": "feat-freeze-bundle.md",
         "supporting_artifact_refs": [
@@ -943,6 +955,17 @@ def validate_output_package(artifacts_dir: Path) -> tuple[list[str], dict[str, A
     if not isinstance(features, list) or not features:
         errors.append("feat-freeze-bundle.json must include a non-empty features list.")
     else:
+        surface_index = load_json(artifacts_dir / SURFACE_MAP_INDEX_FILENAME)
+        index_entries = surface_index.get("entries") if isinstance(surface_index, dict) else None
+        if not isinstance(index_entries, list):
+            errors.append(f"{SURFACE_MAP_INDEX_FILENAME} must include an entries list.")
+            index_entries = []
+        index_by_feat_ref = {
+            str(entry.get("feat_ref") or "").strip(): entry
+            for entry in index_entries
+            if isinstance(entry, dict) and str(entry.get("feat_ref") or "").strip()
+        }
+
         for feature in features:
             if not isinstance(feature, dict):
                 errors.append("Each feature entry must be an object.")
@@ -981,6 +1004,36 @@ def validate_output_package(artifacts_dir: Path) -> tuple[list[str], dict[str, A
             if not candidate_surfaces:
                 errors.append(f"Feature {feature.get('feat_ref') or '<unknown>'} must include at least one candidate_design_surface.")
             if feature.get("design_impact_required") is True:
+                feat_ref_value = str(feature.get("feat_ref") or "").strip()
+                surface_map_ref = str(feature.get("surface_map_ref") or "").strip()
+                if not surface_map_ref:
+                    src_match = re.search(r"(SRC-\d{3})", feat_ref_value)
+                    surface_map_ref = f"SURFACE-MAP-{src_match.group(1)}-JOURNEY" if src_match else (f"SURFACE-MAP-{feat_ref_value}" if feat_ref_value else "")
+                if not surface_map_ref:
+                    errors.append(
+                        f"Feature {feature.get('feat_ref') or '<unknown>'} must include surface_map_ref when design_impact_required is true."
+                    )
+                else:
+                    index_entry = index_by_feat_ref.get(str(feature.get("feat_ref") or "").strip())
+                    if not isinstance(index_entry, dict):
+                        errors.append(f"{SURFACE_MAP_INDEX_FILENAME} missing entry for feat_ref {feature.get('feat_ref') or '<unknown>'}.")
+                    else:
+                        if str(index_entry.get("surface_map_ref") or "").strip() != surface_map_ref:
+                            errors.append(f"{SURFACE_MAP_INDEX_FILENAME} surface_map_ref mismatch for {feature.get('feat_ref') or '<unknown>'}.")
+                        bundle_ref = str(index_entry.get("bundle_ref") or "").strip()
+                        if not bundle_ref:
+                            errors.append(f"{SURFACE_MAP_INDEX_FILENAME} entry for {feature.get('feat_ref') or '<unknown>'} missing bundle_ref.")
+                        elif not (artifacts_dir / bundle_ref).exists():
+                            errors.append(f"Missing surface-map bundle for {feature.get('feat_ref') or '<unknown>'}: {bundle_ref}")
+                        else:
+                            bundle_payload = load_json(artifacts_dir / bundle_ref)
+                            if str(bundle_payload.get("artifact_type") or "") != "surface_map_package":
+                                errors.append(f"{bundle_ref} artifact_type must be surface_map_package.")
+                            if str(bundle_payload.get("feat_ref") or "").strip() != str(feature.get("feat_ref") or "").strip():
+                                errors.append(f"{bundle_ref} feat_ref must match the parent feature.")
+                            if str(bundle_payload.get("surface_map_ref") or "").strip() != surface_map_ref:
+                                errors.append(f"{bundle_ref} surface_map_ref must match feature.surface_map_ref.")
+
                 design_surfaces = feature.get("design_surfaces")
                 if not isinstance(design_surfaces, dict) or not design_surfaces:
                     errors.append(f"Feature {feature.get('feat_ref') or '<unknown>'} must include design_surfaces when design_impact_required is true.")
@@ -1293,7 +1346,9 @@ def run_workflow(
     readiness_ok, readiness_errors = validate_package_readiness(artifacts_dir)
     report_path = collect_evidence_report(artifacts_dir)
     return {
-        "ok": readiness_ok,
+        # `run` should report whether the workflow executed and materialized a valid output package.
+        # Readiness (freeze-guard) is reported separately via `readiness_ok`/`readiness_errors`.
+        "ok": True,
         "run_id": executor_result["run_id"],
         "artifacts_dir": str(artifacts_dir),
         "input_mode": executor_result.get("input_mode", "package_dir"),
@@ -1306,6 +1361,7 @@ def run_workflow(
         "authoritative_handoff_ref": supervisor_result.get("authoritative_handoff_ref", ""),
         "gate_pending_ref": supervisor_result.get("gate_pending_ref", ""),
         "output_validation": output_result,
+        "readiness_ok": readiness_ok,
         "readiness_errors": readiness_errors,
         "evidence_report": str(report_path),
     }

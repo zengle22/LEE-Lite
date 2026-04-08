@@ -3,7 +3,7 @@ from __future__ import annotations
 import yaml
 
 from cli.lib.test_exec_execution import _coverage_expansion_targets
-from _test_exec_skill_support import SkillRuntimeHarness, python_command, python_file_command, read_json, write_json, write_yaml
+from ._test_exec_skill_support import SkillRuntimeHarness, python_command, python_file_command, read_json, write_json, write_yaml
 
 
 class TestCliExecSkillRuntime(SkillRuntimeHarness):

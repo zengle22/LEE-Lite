@@ -18,8 +18,6 @@ from feat_to_surface_map_common import (  # noqa: E402
     build_freeze_gate,
     build_package_payload,
     build_review_report,
-    formal_surface_map_paths,
-    load_json,
     resolve_input_dir,
     resolve_repo_root,
     stable_digest,
@@ -102,38 +100,6 @@ def _surface_summary_md(bundle: dict[str, Any]) -> str:
     return "\n".join(lines)
 
 
-def _formal_surface_map_markdown(bundle: dict[str, Any]) -> str:
-    selected = bundle["selected_feat"]
-    surface_map = bundle["surface_map"]
-    related_owner_refs = []
-    for surface_name in ("architecture", "api", "ui", "prototype", "tech"):
-        for entry in surface_map["design_surfaces"].get(surface_name) or []:
-            owner = str(entry.get("owner") or "").strip()
-            if owner and owner not in related_owner_refs:
-                related_owner_refs.append(owner)
-    frontmatter = [
-        "---",
-        f"id: {bundle['surface_map_ref']}",
-        "ssot_type: SURFACE_MAP",
-        f"surface_map_ref: {bundle['surface_map_ref']}",
-        f"feat_ref: {bundle['feat_ref']}",
-        f"title: Surface Map for {selected['title']}",
-        f"status: {bundle['status']}",
-        f"schema_version: {bundle['schema_version']}",
-        f"workflow_key: {bundle['workflow_key']}",
-        f"workflow_run_id: {bundle['workflow_run_id']}",
-        f"design_impact_required: {str(bundle['design_impact_required']).lower()}",
-        f"owner_binding_status: {surface_map['owner_binding_status']}",
-        "related_owner_refs:",
-        *[f"  - {owner}" for owner in related_owner_refs],
-        "source_refs:",
-        *[f"  - {ref}" for ref in bundle.get("source_refs") or []],
-        "---",
-        "",
-    ]
-    return "\n".join(frontmatter) + _surface_summary_md(bundle) + "\n"
-
-
 def _manifest(run_id: str, feat_ref: str, bundle: dict[str, Any], artifacts_dir: Path, repo_root: Path) -> dict[str, Any]:
     return {
         "artifact_type": "surface_map_package",
@@ -151,16 +117,6 @@ def _manifest(run_id: str, feat_ref: str, bundle: dict[str, Any], artifacts_dir:
             "surface_map_defect_list": "surface-map-defect-list.json",
             "surface_map_freeze_gate": "surface-map-freeze-gate.json",
         },
-    }
-
-
-def _materialize_formal_surface_map(repo_root: Path, bundle: dict[str, Any]) -> dict[str, str]:
-    formal_md_path, formal_json_path = formal_surface_map_paths(repo_root, bundle)
-    write_text(formal_md_path, _formal_surface_map_markdown(bundle))
-    write_json(formal_json_path, bundle)
-    return {
-        "formal_surface_map_md_ref": _artifact_rel(formal_md_path, repo_root),
-        "formal_surface_map_json_ref": _artifact_rel(formal_json_path, repo_root),
     }
 
 
@@ -237,17 +193,16 @@ def build_package(context: dict[str, Any], repo_root: Path, run_id: str, allow_u
             },
         )
         return {"ok": False, "errors": output_errors, "artifacts_dir": str(output_dir), "freeze_ready": False, "review_report": review_report, "gate": gate}
-    formal_refs = _materialize_formal_surface_map(repo_root, bundle)
-    manifest = load_json(output_dir / "package-manifest.json")
-    manifest.update(formal_refs)
-    write_json(output_dir / "package-manifest.json", manifest)
     return {
         "ok": True,
         "artifacts_dir": str(output_dir),
         "freeze_ready": gate["freeze_ready"],
         "review_report": review_report,
         "gate": gate,
-        **formal_refs,
+        # NOTE: The dev.feat-to-surface-map skill should only materialize artifacts.
+        # Formal SSOT materialization happens later under epic-to-feat gate control.
+        "formal_surface_map_md_ref": None,
+        "formal_surface_map_json_ref": None,
     }
 
 

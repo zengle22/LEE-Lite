@@ -14,7 +14,7 @@ if str(WORKSPACE_ROOT) not in sys.path:
 
 from cli.lib.registry_store import bind_record
 from cli.lib.workflow_revision import load_revision_request, materialize_revision_request, normalize_revision_context
-from feat_to_ui_document_test import build_document_test, validate_document_test
+from feat_to_ui_document_checks import build_document_test, validate_document_test
 from feat_to_ui_gate_integration import create_gate_ready_package, create_handoff_proposal, submit_gate_pending
 from feat_to_ui_spec import assess_unit, build_units, d_list, first, render_spec, s_list, slugify
 

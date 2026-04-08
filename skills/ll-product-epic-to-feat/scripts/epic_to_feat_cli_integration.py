@@ -20,6 +20,158 @@ def _write_json(path: Path, payload: dict[str, Any]) -> None:
     path.write_text(json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
 
 
+def _surface_map_summary_md(bundle: dict[str, Any]) -> str:
+    selected = bundle.get("selected_feat") if isinstance(bundle.get("selected_feat"), dict) else {}
+    surface_map = bundle.get("surface_map") if isinstance(bundle.get("surface_map"), dict) else {}
+    design_surfaces = surface_map.get("design_surfaces") if isinstance(surface_map.get("design_surfaces"), dict) else {}
+    lines: list[str] = [
+        f"# Surface Map Bundle ({bundle.get('surface_map_ref') or 'SURFACE-MAP'})",
+        "",
+        "## Selected FEAT",
+        "",
+        f"- feat_ref: {selected.get('feat_ref') or bundle.get('feat_ref') or ''}",
+        f"- title: {selected.get('title') or ''}",
+        f"- goal: {selected.get('goal') or ''}",
+        "",
+        "## Design Impact",
+        "",
+        f"- design_impact_required: {str(bool(bundle.get('design_impact_required'))).lower()}",
+        f"- owner_binding_status: {surface_map.get('owner_binding_status') or ''}",
+        f"- bypass_rationale: {surface_map.get('bypass_rationale') or ''}",
+        "",
+        "## Surface Map",
+        "",
+    ]
+    for surface_name in ("architecture", "api", "ui", "prototype", "tech"):
+        entries = design_surfaces.get(surface_name) or []
+        lines.append(f"### {surface_name.title()}")
+        if not isinstance(entries, list) or not entries:
+            lines.append("[none]")
+            lines.append("")
+            continue
+        for entry in entries:
+            if not isinstance(entry, dict):
+                continue
+            owner = str(entry.get("owner") or "").strip()
+            action = str(entry.get("action") or "").strip()
+            scope = entry.get("scope") if isinstance(entry.get("scope"), list) else []
+            reason = str(entry.get("reason") or "").strip()
+            lines.append(f"- {owner} ({action})")
+            if scope:
+                lines.append(f"  - scope: {', '.join(str(item) for item in scope if str(item).strip())}")
+            if reason:
+                lines.append(f"  - reason: {reason}")
+        lines.append("")
+    return "\n".join(lines).rstrip() + "\n"
+
+
+def _maybe_write_surface_map_artifacts(output_dir: Path, repo_root: Path, generated: Any) -> dict[str, Any]:
+    json_payload = generated.json_payload if isinstance(getattr(generated, "json_payload", None), dict) else {}
+    feats = json_payload.get("features")
+    if not isinstance(feats, list) or not feats:
+        return {}
+
+    design_impact_feats = [item for item in feats if isinstance(item, dict) and bool(item.get("design_impact_required"))]
+    if not design_impact_feats:
+        return {}
+
+    # repo_root can point to a *target* workspace (often a temp repo in unit tests).
+    # The surface-map helper modules live alongside this implementation repo, so
+    # we must import them from the implementation root, not the target repo_root.
+    implementation_root = Path(__file__).resolve().parents[3]
+    surface_map_scripts_dir = implementation_root / "skills" / "ll-dev-feat-to-surface-map" / "scripts"
+    if str(surface_map_scripts_dir) not in sys.path:
+        sys.path.insert(0, str(surface_map_scripts_dir))
+    from feat_to_surface_map_common import build_freeze_gate, build_package_payload, build_review_report  # type: ignore
+    from feat_to_surface_map_validation import validate_bundle_payload  # type: ignore
+
+    run_id = output_dir.name
+    feat_refs = [str(item.get("feat_ref") or "").strip() for item in feats if isinstance(item, dict) and str(item.get("feat_ref") or "").strip()]
+
+    index_entries: list[dict[str, str]] = []
+    canonical_surface_map_ref = ""
+    canonical_written = False
+
+    for feature in design_impact_feats:
+        feat_ref = str(feature.get("feat_ref") or "").strip()
+        if not feat_ref:
+            continue
+
+        context = {
+            "bundle": json_payload,
+            "feature": feature,
+            "selected_feat_ref": feat_ref,
+            "feat_ref": feat_ref,
+        }
+        bundle = build_package_payload(context, run_id)
+        bundle["related_feat_refs"] = [ref for ref in feat_refs if ref and ref != feat_ref]
+
+        validation_errors: list[str] = []
+        validate_bundle_payload(validation_errors, bundle)
+        review_report = build_review_report(run_id, feat_ref, validation_errors)
+        gate = build_freeze_gate(review_report, validation_errors)
+        defects = [{"severity": "P1", "title": error, "type": "validation"} for error in validation_errors]
+
+        surface_map_ref = str(bundle.get("surface_map_ref") or "").strip() or "SURFACE-MAP"
+        if not canonical_surface_map_ref:
+            canonical_surface_map_ref = surface_map_ref
+
+        # Keep a canonical set of surface-map artifacts for debugging and for the
+        # package-manifest references (first design-impact feature wins).
+        if not canonical_written:
+            fixed_files = {
+                "surface-map-bundle.json": bundle,
+                "surface-map-bundle.md": _surface_map_summary_md(bundle),
+                "surface-map-review-report.json": review_report,
+                "surface-map-defect-list.json": defects,
+                "surface-map-freeze-gate.json": gate,
+            }
+            for filename, payload in fixed_files.items():
+                if filename.endswith(".md"):
+                    (output_dir / filename).write_text(str(payload), encoding="utf-8")
+                else:
+                    dump_json(output_dir / filename, payload)
+            canonical_written = True
+
+        id_bundle_json = f"surface-map-bundle__{feat_ref}.json"
+        id_bundle_md = f"surface-map-bundle__{feat_ref}.md"
+        id_gate_json = f"surface-map-freeze-gate__{feat_ref}.json"
+        dump_json(output_dir / id_bundle_json, bundle)
+        (output_dir / id_bundle_md).write_text(_surface_map_summary_md(bundle), encoding="utf-8")
+        dump_json(output_dir / id_gate_json, gate)
+
+        index_entries.append(
+            {
+                "feat_ref": feat_ref,
+                "surface_map_ref": surface_map_ref,
+                "bundle_ref": id_bundle_json,
+            }
+        )
+
+    if not index_entries:
+        return {}
+
+    dump_json(
+        output_dir / "surface-map-index.json",
+        {
+            "artifact_type": "surface_map_index",
+            "schema_version": "1.0.0",
+            "surface_map_ref": canonical_surface_map_ref,
+            "entries": index_entries,
+        },
+    )
+
+    return {
+        "surface_map_ref": canonical_surface_map_ref,
+        "surface_map_index_ref": str(output_dir / "surface-map-index.json"),
+        "surface_map_bundle_ref": str(output_dir / "surface-map-bundle.json"),
+        "surface_map_bundle_md_ref": str(output_dir / "surface-map-bundle.md"),
+        "surface_map_review_report_ref": str(output_dir / "surface-map-review-report.json"),
+        "surface_map_defect_list_ref": str(output_dir / "surface-map-defect-list.json"),
+        "surface_map_freeze_gate_ref": str(output_dir / "surface-map-freeze-gate.json"),
+    }
+
+
 def _canonical_ref(path: Path, repo_root: Path) -> str:
     try:
         return path.resolve().relative_to(repo_root.resolve()).as_posix()
@@ -106,6 +258,18 @@ def write_executor_outputs(output_dir: Path, repo_root: Path, package: Any, gene
     dump_json(output_dir / "document-test-report.json", document_test_report)
     dump_json(output_dir / "handoff-to-feat-downstreams.json", generated.handoff)
     dump_json(output_dir / "semantic-drift-check.json", generated.semantic_drift_check)
+    surface_map_manifest = _maybe_write_surface_map_artifacts(output_dir, repo_root, generated)
+    if not surface_map_manifest:
+        dump_json(
+            output_dir / "surface-map-index.json",
+            {
+                "artifact_type": "surface_map_index",
+                "schema_version": "1.0.0",
+                "surface_map_ref": "",
+                "entries": [],
+            },
+        )
+        surface_map_manifest = {"surface_map_index_ref": str(output_dir / "surface-map-index.json")}
     spec_findings_path = output_dir / "spec-findings.json"
     dump_json(
         spec_findings_path,
@@ -138,6 +302,7 @@ def write_executor_outputs(output_dir: Path, repo_root: Path, package: Any, gene
             "status": generated.json_payload["status"],
             "cli_executor_commit_ref": str(cli_commit["response_path"]),
             "spec_findings_ref": _canonical_ref(spec_findings_path, repo_root),
+            **surface_map_manifest,
             **({"revision_request_ref": revision_request_ref} if revision_request_ref else {}),
         },
     )
@@ -161,6 +326,7 @@ def write_executor_outputs(output_dir: Path, repo_root: Path, package: Any, gene
                     "feat-acceptance-report.json",
                     "feat-defect-list.json",
                     "document-test-report.json",
+                    "surface-map-index.json",
                     "handoff-to-feat-downstreams.json",
                     "semantic-drift-check.json",
                 ],
@@ -177,6 +343,24 @@ def write_executor_outputs(output_dir: Path, repo_root: Path, package: Any, gene
             **({"revision_request_ref": revision_request_ref} if revision_request_ref else {}),
         },
     )
+
+    if surface_map_manifest:
+        execution = load_json(output_dir / "execution-evidence.json")
+        structural = execution.get("structural_results") if isinstance(execution.get("structural_results"), dict) else {}
+        draft_files = structural.get("draft_output_files") if isinstance(structural.get("draft_output_files"), list) else []
+        for name in [
+            "surface-map-bundle.json",
+            "surface-map-bundle.md",
+            "surface-map-review-report.json",
+            "surface-map-defect-list.json",
+            "surface-map-freeze-gate.json",
+            "surface-map-index.json",
+        ]:
+            if name not in draft_files:
+                draft_files.append(name)
+        structural["draft_output_files"] = draft_files
+        execution["structural_results"] = structural
+        dump_json(output_dir / "execution-evidence.json", execution)
 
 
 def build_supervision_evidence(artifacts_dir: Path, generated: Any) -> dict[str, Any]:

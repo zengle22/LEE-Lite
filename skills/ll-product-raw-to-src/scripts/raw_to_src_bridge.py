@@ -101,6 +101,7 @@ DOWNSTREAM_LAYER_GUARD_PHRASES = (
 DOWNSTREAM_LAYER_DRIFT_MARKERS = (
     "拆分",
     "分解",
+    "展开",
     "实现设计",
     "实现细节",
     "任务拆分",
@@ -1041,6 +1042,50 @@ def semantic_review(candidate: dict[str, Any], duplicate_path: Any, document: di
         findings.append({"severity": "P1", "type": "duplicate_title", "description": f"Duplicate SRC title already exists at {duplicate_path}"})
     if _problem_statement_mentions_downstream_layer_drift(candidate["problem_statement"]):
         findings.append({"severity": "P1", "type": "layer_boundary", "description": "Problem statement drifts into downstream artifact layers."})
+
+    projector_selection = candidate.get("projector_selection") if isinstance(candidate.get("projector_selection"), dict) else {}
+    bundle_kind = str(projector_selection.get("bundle_kind") or "").strip().lower()
+    source_kind = str(candidate.get("source_kind") or "").strip().lower()
+    input_type = str(candidate.get("input_type") or "").strip().lower()
+    source_refs = candidate.get("source_refs") or []
+
+    # ADR-022: For generic bundle inference without explicit facet markers, default to "retry"
+    # even if the package is structurally valid. This is non-blocking for phase-1 gating.
+    if bundle_kind == "generic":
+        sections = document.get("sections") if isinstance(document, dict) else {}
+        facet_marker_sections = (
+            "用户入口与控制面",
+            "运行时对象与状态",
+            "目标能力对象",
+            "下游派生要求",
+            "Runtime Objects",
+            "Downstream Derivation",
+        )
+        facet_markers_present = False
+        if isinstance(sections, dict):
+            for section_name in facet_marker_sections:
+                if str(sections.get(section_name) or "").strip():
+                    facet_markers_present = True
+                    break
+        if not facet_markers_present:
+            findings.append(
+                {
+                    "severity": "P2",
+                    "type": "generic_bundle_requires_facet_markers",
+                    "description": "Generic bundle inferred without explicit facet markers; stronger facet markers are required before freeze-ready routing (ADR-022).",
+                }
+            )
+
+    # If the raw input is explicitly tied to ADR/governance changes but we only inferred the
+    # generic bundle, fail closed and ask for a stronger facet bundle (ADR-022).
+    if input_type != "adr" and bundle_kind == "generic" and any(str(ref).strip().upper().startswith("ADR-") for ref in source_refs):
+        findings.append(
+            {
+                "severity": "P2",
+                "type": "generic_bundle_insufficient_for_adr_source",
+                "description": "Raw input is anchored to ADR/governance refs, but projector_selection only produced the generic bundle; stronger facet markers are required.",
+            }
+        )
     semantic_lock = candidate.get("semantic_lock") or {}
     if semantic_lock:
         required_fields = ["domain_type", "one_sentence_truth", "primary_object", "lifecycle_stage", "inheritance_rule"]
@@ -1367,14 +1412,18 @@ def acceptance_review(candidate: dict[str, Any], source_review: dict[str, Any]) 
             dimensions["semantic_preservation"] = {"status": "revise", "note": "Machine-contract sections or semantic inventory are too thin for stable downstream derivation."}
         if any(item["type"] in {"downstream_actionability_insufficient"} for item in source_findings):
             dimensions["feature_completeness"] = {"status": "revise", "note": "Downstream inheritance requirements are still too thin for stable consumption."}
-        acceptance_findings.append(
-            {
-                "severity": "P1",
-                "type": "semantic_findings_unresolved",
-                "description": "Semantic findings remain unresolved at acceptance review.",
-                "linked_semantic_finding_types": [item["type"] for item in source_findings],
-            }
-        )
+        blocker_like = any(str(item.get("severity") or "").strip().upper() in {"P0", "P1"} for item in source_findings)
+        # Do not escalate non-blocking semantic hints (e.g. ADR-022 "generic bundle requires facets")
+        # into an additional P1 acceptance finding; keep retry routing driven by the semantic finding itself.
+        if blocker_like:
+            acceptance_findings.append(
+                {
+                    "severity": "P1",
+                    "type": "semantic_findings_unresolved",
+                    "description": "Semantic findings remain unresolved at acceptance review.",
+                    "linked_semantic_finding_types": [item["type"] for item in source_findings],
+                }
+            )
     report = {
         "decision": "approve" if not source_findings and not acceptance_findings else "revise",
         "dimensions": dimensions,

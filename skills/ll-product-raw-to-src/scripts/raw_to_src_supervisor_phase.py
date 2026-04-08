@@ -173,7 +173,12 @@ def _normalize_object_token(value: Any) -> str:
 
 
 def _repair_problem_statement(working: dict[str, Any]) -> None:
+    import re
+
     title = str(working.get("title") or "").strip() or "this SRC"
+    # Avoid re-introducing downstream layer tokens (EPIC/FEAT/TASK) via the title itself.
+    title = re.sub(r"(?i)\b(epic|feat|task)\b", "", title)
+    title = re.sub(r"\s+", " ", title).strip() or "this SRC"
     working["problem_statement"] = (
         f"当前主链在《{title}》进入 implementation start 前仍缺一层独立的实施前压力测试边界，"
         "需要一份正式需求源只负责检测跨文档冲突、失败路径缺口和修复目标，"
@@ -600,30 +605,6 @@ def supervisor_review(
         frz_markdown=frz_write.index_md.read_text(encoding="utf-8"),
     )
     frz_registry_record_ref = str(frz_commit["response"]["data"].get("registry_record_ref", "")).strip()
-
-    # Persist FRZ lineage back into src-candidate.json so formal materialization and downstream workflows
-    # can preserve pre-ssot anchors without having to guess the FRZ package location.
-    candidate_json_path = artifacts_dir / "src-candidate.json"
-    if candidate_json_path.exists():
-        try:
-            candidate_payload = read_json(candidate_json_path)
-            if isinstance(candidate_payload, dict):
-                candidate_payload["frz_id"] = str(frz.get("frz_id") or "").strip()
-                candidate_payload["frz_package_ref"] = frz_package_ref
-                candidate_payload["frz_registry_record_ref"] = frz_registry_record_ref
-                candidate_payload["frz_msc"] = frz.get("msc") or {}
-
-                freeze_payload = frz.get("freeze") or {}
-                anchor_ids: list[str] = []
-                for collection_key in ("core_journeys", "domain_model", "state_machine", "known_unknowns"):
-                    for item in freeze_payload.get(collection_key) or []:
-                        if isinstance(item, dict) and str(item.get("id") or "").strip():
-                            anchor_ids.append(str(item["id"]).strip())
-                candidate_payload["frz_anchor_ids"] = sorted({item for item in anchor_ids if item})
-                write_json(candidate_json_path, candidate_payload)
-        except Exception:
-            # FRZ lineage is additive metadata; do not block handoff on best-effort persistence failures.
-            pass
     supervisor_stages.append(
         stage(
             "frz_package_compilation",

@@ -370,6 +370,43 @@ Phase 1 实现允许：
 
 若任一 gate 不通过，`proto-to-ui` 必须把该 package 视为不可进入 UI Spec 派生链。
 
+## 4.5 Prototype SSOT 正式目录与文件名规范（Journey 格式）
+
+为避免 `ssot/prototype` 的路径与文件名随标题漂移，本 ADR 要求 prototype 正式发布采用固定文件名 + id-only 目录。
+
+### 4.5.1 归属键（id-only）
+
+* 正式 SSOT 目录以 `prototype_owner_ref` 作为唯一定位键（不在路径中拼接 title / slug）。
+* `prototype_owner_ref` 的语义是“journey owner id”（允许多个 FEAT 归属到同一 owner，并进行 owner 级合并发布）。
+
+### 4.5.2 推荐目录结构（固定文件名）
+
+```text
+ssot/prototype/
+  SRC-003/
+    PROTO-SRC-003-001/
+      index.html
+      app.js
+      styles.css
+      runtime-smoke-dom.html
+      mock-data.json
+      mock-data.js
+      journey-model.json
+      journey-model.js
+      journey-ux-ascii.md
+      ui-shell-spec.md
+      owner-publication-manifest.json
+      prototype-bundle.snapshot.json
+      package-manifest.snapshot.json
+```
+
+其中：
+
+* `index.html` 是可运行视图入口（便于 review / 点验）。
+* `journey-ux-ascii.md` 与 `journey-model.json` 是结构真相源（可审计、可被下游消费）。
+* `ui-shell-spec.md` 是壳层 authority 的运行时快照（必须保留用于审计）。
+* `prototype-bundle.snapshot.json` / `package-manifest.snapshot.json` 固定保留候选包快照，便于追溯本次发布输入。
+
 ---
 
 # 5. 设计约束

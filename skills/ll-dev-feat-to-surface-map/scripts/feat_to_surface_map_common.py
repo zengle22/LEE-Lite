@@ -41,6 +41,24 @@ def ensure_list(value: Any) -> list[Any]:
     return [value]
 
 
+def extract_src_ref_from_feat_ref(feat_ref: str) -> str:
+    """
+    Best-effort extraction of the concise SRC-XXX ref from a FEAT ref.
+
+    Expected formats:
+    - FEAT-SRC-003-001 -> SRC-003
+    - (fallback) any string containing SRC-003 -> SRC-003
+    """
+    match = re.search(r"(SRC-\d{3})", str(feat_ref or "").strip())
+    return match.group(1) if match else ""
+
+
+def journey_prototype_owner_ref_from_feat_ref(feat_ref: str) -> str:
+    src_ref = extract_src_ref_from_feat_ref(feat_ref)
+    src_suffix = src_ref if src_ref else "SRC-000"
+    return f"PROTO-{src_suffix}-JOURNEY"
+
+
 def resolve_repo_root(repo_root: str | Path | None) -> Path:
     return Path(repo_root).resolve() if repo_root else Path.cwd().resolve()
 
@@ -126,6 +144,17 @@ def build_fallback_surface_map(feature: dict[str, Any], feat_ref: str, design_im
     if not design_impact_required:
         return normalized
 
+    # Ensure the prototype owner binding is stable for downstream prototype SSOT paths.
+    # When the upstream FEAT doesn't declare a prototype_ref explicitly, bind it to the
+    # journey-level prototype owner: PROTO-<SRC-XXX>-JOURNEY.
+    if not normalized["prototype"]:
+        add(
+            "prototype",
+            journey_prototype_owner_ref_from_feat_ref(feat_ref),
+            "update",
+            "journey prototype owner binding derived from feat_ref lineage",
+        )
+
     return normalized
 
 
@@ -152,6 +181,20 @@ def build_surface_map_model(feature: dict[str, Any], feat_ref: str) -> tuple[boo
         design_surfaces = normalize_surface_entries(raw_design_surfaces)
     else:
         design_surfaces = build_fallback_surface_map(feature, feat_ref, design_impact_required)
+
+    if design_impact_required and not design_surfaces.get("prototype"):
+        design_surfaces = dict(design_surfaces)
+        design_surfaces.setdefault("prototype", [])
+        design_surfaces["prototype"].append(
+            {
+                "owner": journey_prototype_owner_ref_from_feat_ref(feat_ref),
+                "action": "update",
+                "scope": normalize_scope(feature.get("scope")) or [str(feature.get("goal") or feature.get("title") or feat_ref).strip() or feat_ref],
+                "reason": "journey prototype owner binding derived from feat_ref lineage",
+                "create_signals": [],
+                "source_ref": None,
+            }
+        )
 
     return design_impact_required, design_surfaces, bypass_rationale
 
@@ -268,7 +311,8 @@ def build_package_payload(context: dict[str, Any], run_id: str) -> dict[str, Any
         ref = str(ref).strip()
         if ref and ref not in source_refs:
             source_refs.append(ref)
-    surface_map_ref = f"SURFACE-MAP-{feat_ref}"
+    src_ref = extract_src_ref_from_feat_ref(feat_ref)
+    surface_map_ref = f"SURFACE-MAP-{src_ref}-JOURNEY" if src_ref else f"SURFACE-MAP-{feat_ref}"
     selected_feat = {
         "feat_ref": feat_ref,
         "title": str(feature.get("title") or "").strip(),

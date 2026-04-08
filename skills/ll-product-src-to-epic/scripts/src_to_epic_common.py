@@ -19,10 +19,6 @@ REQUIRED_INPUT_FILES = [
     "package-manifest.json",
     "src-candidate.md",
     "src-candidate.json",
-    "frz-package/frz-package.json",
-    "frz-package/freeze.yaml",
-    "frz-package/evidence.yaml",
-    "frz-package/index.md",
     "structural-report.json",
     "source-semantic-findings.json",
     "acceptance-report.json",
@@ -218,7 +214,6 @@ class SrcPackage:
     src_candidate: dict[str, Any]
     src_frontmatter: dict[str, Any]
     src_markdown_body: str
-    frz_package: dict[str, Any]
     source_semantic_findings: dict[str, Any]
     acceptance_report: dict[str, Any]
     execution_evidence: dict[str, Any]
@@ -245,7 +240,6 @@ def load_src_package(artifacts_dir: Path) -> SrcPackage:
         src_candidate=load_json(artifacts_dir / "src-candidate.json"),
         src_frontmatter=frontmatter,
         src_markdown_body=body,
-        frz_package=load_json(artifacts_dir / "frz-package" / "frz-package.json"),
         source_semantic_findings=load_json(artifacts_dir / "source-semantic-findings.json"),
         acceptance_report=load_json(artifacts_dir / "acceptance-report.json"),
         execution_evidence=load_json(artifacts_dir / "execution-evidence.json"),
@@ -272,14 +266,6 @@ def validate_input_package(input_value: str | Path, repo_root: Path) -> tuple[li
     manifest_status = str(package.manifest.get("status", "")).strip()
     if manifest_status != "freeze_ready":
         errors.append(f"package-manifest.json status must be freeze_ready, got: {manifest_status or '<missing>'}")
-
-    # ADR-045: FRZ MSC must be valid for a freeze-ready SRC package to be eligible for downstream derivation.
-    msc = package.frz_package.get("msc") if isinstance(package.frz_package, dict) else {}
-    if not isinstance(msc, dict) or "valid" not in msc:
-        errors.append("frz-package/frz-package.json must include msc.valid.")
-    elif not bool(msc.get("valid")):
-        missing = msc.get("missing") or []
-        errors.append(f"FRZ MSC incomplete; missing dimensions: {', '.join(missing) if missing else 'unknown'}.")
 
     workflow_key = str(package.result_summary.get("workflow_key") or package.src_candidate.get("workflow_key") or "")
     if workflow_key != "product.raw-to-src":
