@@ -9,6 +9,7 @@ from typing import Any
 from cli.lib.errors import ensure
 from cli.lib.fs import canonical_to_path, load_json, write_json
 from cli.lib.registry_store import resolve_registry_record, slugify
+from cli.lib.spec_reconcile_enforcement import evaluate_spec_reconcile_hold
 from cli.lib.ui_derivation_routing import route_ui_derivation
 
 
@@ -149,6 +150,7 @@ def build_feat_downstream_dispatch(
         ensure(feat_ref, "PRECONDITION_FAILED", f"formal FEAT record missing feat_ref: {child_formal_ref}")
         published_ref = str(child_record.get("managed_artifact_ref") or "").strip()
         source_package_ref = str(metadata.get("source_package_ref") or "").strip()
+        spec_reconcile = evaluate_spec_reconcile_hold(workspace_root, source_package_ref=source_package_ref)
         authoritative_input_ref = child_formal_ref
         input_refs = [decision_ref, child_formal_ref]
         ui_target_skill, ui_target_kind, ui_route = _resolve_ui_dispatch_target(
@@ -165,6 +167,7 @@ def build_feat_downstream_dispatch(
         for target_skill, target_kind, target_route in dispatch_targets:
             slug = f"{slugify(feat_ref)}-{slugify(target_skill)}"
             handoff_ref = f"artifacts/active/handoffs/{Path(decision_ref).stem}-{slug}.json"
+            progression_mode = "hold" if spec_reconcile["hold"] else "auto-continue"
             handoff_payload = _base_handoff(
                 trace=trace,
                 decision_ref=decision_ref,
@@ -174,14 +177,23 @@ def build_feat_downstream_dispatch(
                 target_kind=target_kind,
                 source_package_ref=source_package_ref,
                 authoritative_input_ref=authoritative_input_ref,
-                progression_mode="auto-continue",
+                progression_mode=progression_mode,
             )
             handoff_payload["feat_ref"] = feat_ref
+            if spec_reconcile["in_scope"]:
+                handoff_payload["spec_findings_ref"] = spec_reconcile["spec_findings_ref"]
+                handoff_payload["spec_reconcile_report_ref"] = spec_reconcile["spec_reconcile_report_ref"]
+            if spec_reconcile["hold"]:
+                handoff_payload["hold_reason"] = "spec_reconcile_required"
+                handoff_payload["required_preconditions"] = [spec_reconcile["spec_reconcile_report_ref"]]
+                handoff_payload["blocking_items"] = list(spec_reconcile.get("blocking_items") or [])
             if isinstance(target_route, dict):
                 handoff_payload["ui_derivation_route"] = target_route
             write_json(canonical_to_path(handoff_ref, workspace_root), handoff_payload)
 
-            job_ref = f"artifacts/jobs/ready/{Path(decision_ref).stem}-{slug}.json"
+            job_dir = "artifacts/jobs/waiting-human" if spec_reconcile["hold"] else "artifacts/jobs/ready"
+            job_status = "waiting-human" if spec_reconcile["hold"] else "ready"
+            job_ref = f"{job_dir}/{Path(decision_ref).stem}-{slug}.json"
             job_payload = _base_job(
                 trace=trace,
                 decision_ref=decision_ref,
@@ -195,11 +207,20 @@ def build_feat_downstream_dispatch(
                 input_refs=input_refs,
                 queue_path=job_ref,
                 slug=slug,
-                progression_mode="auto-continue",
-                status="ready",
+                progression_mode=progression_mode,
+                status=job_status,
             )
             job_payload["feat_ref"] = feat_ref
-            job_payload["reason"] = f"Approved FEAT {feat_ref} is ready for downstream {target_kind} derivation."
+            if spec_reconcile["in_scope"]:
+                job_payload["spec_findings_ref"] = spec_reconcile["spec_findings_ref"]
+                job_payload["spec_reconcile_report_ref"] = spec_reconcile["spec_reconcile_report_ref"]
+            if spec_reconcile["hold"]:
+                job_payload["hold_reason"] = "spec_reconcile_required"
+                job_payload["required_preconditions"] = [spec_reconcile["spec_reconcile_report_ref"]]
+                job_payload["blocking_items"] = list(spec_reconcile.get("blocking_items") or [])
+                job_payload["reason"] = f"Approved FEAT {feat_ref} is held until spec reconcile completes (blocking_items must be empty)."
+            else:
+                job_payload["reason"] = f"Approved FEAT {feat_ref} is ready for downstream {target_kind} derivation."
             if isinstance(target_route, dict):
                 job_payload["ui_derivation_route"] = target_route
             write_json(canonical_to_path(job_ref, workspace_root), job_payload)
@@ -348,11 +369,15 @@ def build_tech_downstream_dispatch(
     ]
     published_ref = str(record.get("managed_artifact_ref") or "").strip()
     source_package_ref = str(metadata.get("source_package_ref") or "").strip()
+    spec_reconcile = evaluate_spec_reconcile_hold(workspace_root, source_package_ref=source_package_ref)
     handoff_ref = f"artifacts/active/handoffs/{Path(decision_ref).stem}-{slugify(tech_ref or formal_ref)}-tech-to-impl.json"
-    job_ref = f"artifacts/jobs/ready/{Path(decision_ref).stem}-{slugify(tech_ref or formal_ref)}-tech-to-impl.json"
+    job_dir = "artifacts/jobs/waiting-human" if spec_reconcile["hold"] else "artifacts/jobs/ready"
+    job_status = "waiting-human" if spec_reconcile["hold"] else "ready"
+    job_ref = f"{job_dir}/{Path(decision_ref).stem}-{slugify(tech_ref or formal_ref)}-tech-to-impl.json"
     authoritative_input_ref = formal_ref
     input_refs = [decision_ref, formal_ref, *supporting_formal_refs]
 
+    progression_mode = "hold" if spec_reconcile["hold"] else "auto-continue"
     handoff_payload = _base_handoff(
         trace=trace,
         decision_ref=decision_ref,
@@ -362,10 +387,17 @@ def build_tech_downstream_dispatch(
         target_kind="IMPL",
         source_package_ref=source_package_ref,
         authoritative_input_ref=authoritative_input_ref,
-        progression_mode="auto-continue",
+        progression_mode=progression_mode,
     )
     handoff_payload["feat_ref"] = feat_ref
     handoff_payload["tech_ref"] = tech_ref
+    if spec_reconcile["in_scope"]:
+        handoff_payload["spec_findings_ref"] = spec_reconcile["spec_findings_ref"]
+        handoff_payload["spec_reconcile_report_ref"] = spec_reconcile["spec_reconcile_report_ref"]
+    if spec_reconcile["hold"]:
+        handoff_payload["hold_reason"] = "spec_reconcile_required"
+        handoff_payload["required_preconditions"] = [spec_reconcile["spec_reconcile_report_ref"]]
+        handoff_payload["blocking_items"] = list(spec_reconcile.get("blocking_items") or [])
     if arch_ref:
         handoff_payload["arch_ref"] = arch_ref
     if api_ref:
@@ -389,11 +421,21 @@ def build_tech_downstream_dispatch(
         input_refs=input_refs,
         queue_path=job_ref,
         slug=f"{slugify(tech_ref or formal_ref)}-tech-to-impl",
-        progression_mode="auto-continue",
-        status="ready",
+        progression_mode=progression_mode,
+        status=job_status,
     )
     job_payload["feat_ref"] = feat_ref
     job_payload["tech_ref"] = tech_ref
+    if spec_reconcile["in_scope"]:
+        job_payload["spec_findings_ref"] = spec_reconcile["spec_findings_ref"]
+        job_payload["spec_reconcile_report_ref"] = spec_reconcile["spec_reconcile_report_ref"]
+    if spec_reconcile["hold"]:
+        job_payload["hold_reason"] = "spec_reconcile_required"
+        job_payload["required_preconditions"] = [spec_reconcile["spec_reconcile_report_ref"]]
+        job_payload["blocking_items"] = list(spec_reconcile.get("blocking_items") or [])
+        job_payload["reason"] = "Approved TECH is held until spec reconcile completes (blocking_items must be empty)."
+    else:
+        job_payload["reason"] = f"Approved TECH {tech_ref or formal_ref} is ready for downstream IMPL derivation."
     if arch_ref:
         job_payload["arch_ref"] = arch_ref
     if api_ref:
@@ -402,7 +444,6 @@ def build_tech_downstream_dispatch(
         job_payload["supporting_formal_refs"] = supporting_formal_refs
     if supporting_published_refs:
         job_payload["supporting_published_refs"] = supporting_published_refs
-    job_payload["reason"] = f"Approved TECH {tech_ref or formal_ref} is ready for downstream IMPL derivation."
     write_json(canonical_to_path(job_ref, workspace_root), job_payload)
     return [handoff_ref], [job_ref]
 

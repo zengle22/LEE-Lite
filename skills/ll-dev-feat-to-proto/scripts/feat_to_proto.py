@@ -42,6 +42,7 @@ SURFACE_MAP_REQUIRED_FILES = [
 ]
 OUTPUT_FILES = [
     "package-manifest.json",
+    "spec-findings.json",
     "prototype-bundle.md",
     "prototype-bundle.json",
     "journey-ux-ascii.md",
@@ -122,6 +123,79 @@ def rel(path: Path, repo_root: Path) -> str:
         return path.resolve().relative_to(repo_root.resolve()).as_posix()
     except ValueError:
         return path.resolve().as_posix()
+
+
+def _prototype_candidate_ref(artifacts_dir: Path) -> str:
+    return f"feat-to-proto.{artifacts_dir.name}.prototype-html"
+
+
+def _bind_registry_record_via_cli(
+    repo_root: Path,
+    artifacts_dir: Path,
+    *,
+    artifact_ref: str,
+    managed_artifact_ref: str,
+    trace: dict[str, Any],
+    metadata: dict[str, Any],
+    lineage: list[str],
+    status: str = "candidate",
+) -> str:
+    cli_dir = artifacts_dir / "_cli"
+    cli_dir.mkdir(parents=True, exist_ok=True)
+    request_path = cli_dir / "registry-bind-record.request.json"
+    response_path = cli_dir / "registry-bind-record.response.json"
+    request = {
+        "api_version": "v1",
+        "command": "registry.bind-record",
+        "request_id": f"req-feat-to-proto-{artifacts_dir.name}-registry-bind-record",
+        "workspace_root": repo_root.as_posix(),
+        "actor_ref": "ll-dev-feat-to-proto",
+        "trace": trace,
+        "payload": {
+            "artifact_ref": artifact_ref,
+            "managed_artifact_ref": managed_artifact_ref,
+            "status": status,
+            "metadata": metadata,
+            "lineage": lineage,
+        },
+    }
+    write_json(request_path, request)
+
+    from cli.ll import main as cli_main
+
+    exit_code = cli_main(["registry", "bind-record", "--request", str(request_path), "--response-out", str(response_path)])
+    response = load_json(response_path)
+    if exit_code != 0 or response.get("status_code") != "OK":
+        raise RuntimeError(f"registry bind-record failed: {response.get('status_code')} {response.get('message')}")
+    record_ref = response.get("data", {}).get("registry_record_ref")
+    return str(record_ref or "")
+
+
+def _bind_prototype_candidate_record(repo_root: Path, artifacts_dir: Path, feat_ref: str) -> str:
+    index_path = artifacts_dir / "prototype" / "index.html"
+    if not index_path.exists():
+        return ""
+    candidate_ref = _prototype_candidate_ref(artifacts_dir)
+    managed_ref = rel(index_path, repo_root)
+    _bind_registry_record_via_cli(
+        repo_root,
+        artifacts_dir,
+        artifact_ref=candidate_ref,
+        managed_artifact_ref=managed_ref,
+        trace={"run_ref": artifacts_dir.name, "workflow_key": "dev.feat-to-proto"},
+        metadata={
+            "source_package_ref": rel(artifacts_dir, repo_root),
+            "layer": "candidate",
+            "prototype_package_ref": rel(artifacts_dir, repo_root),
+            "machine_ssot_ref": managed_ref,
+            "workflow_run_id": artifacts_dir.name,
+            "feat_ref": feat_ref,
+            "target_kind": "prototype",
+        },
+        lineage=[feat_ref] if feat_ref else [],
+        status="candidate",
+    )
+    return candidate_ref
 
 
 def sha256_text(content: str) -> str:
@@ -1257,6 +1331,7 @@ def build_package(context: dict[str, Any], repo_root: Path, run_id: str, allow_u
     output_run_id = run_id or (f"{journey_ref}-hifi" if (journey_id and hifi_kind) else feat_ref)
     output_dir = repo_root / "artifacts" / "feat-to-proto" / f"{slugify(output_run_id)}--{slugify(journey_ref)}"
     if output_dir.exists() and not allow_update:
+        _bind_prototype_candidate_record(repo_root, output_dir, journey_ref)
         return {"ok": True, "artifacts_dir": str(output_dir), "freeze_ready": False, "notes": "existing artifacts_dir reused (use --allow-update to rebuild)"}
     output_dir.mkdir(parents=True, exist_ok=True)
     ui_shell_source_text = Path(WORKSPACE_ROOT / UI_SHELL_SOURCE_REF).read_text(encoding="utf-8")
@@ -1400,6 +1475,19 @@ def build_package(context: dict[str, Any], repo_root: Path, run_id: str, allow_u
         completeness["decision"] = "fail"
         freeze_gate["checks"]["journey_structural_spec_quality_pass"] = not journey_errors
         freeze_gate["checks"]["ui_shell_snapshot_quality_pass"] = not shell_errors
+
+    spec_findings_path = output_dir / "spec-findings.json"
+    write_json(
+        spec_findings_path,
+        {
+            "artifact_type": "spec_findings",
+            "schema_version": "0.1.0",
+            "status": "open",
+            "trace": {"workflow_key": "dev.feat-to-proto", "run_ref": run_id or feat_ref},
+            "lineage": [],
+            "findings": [],
+        },
+    )
     write_json(
         output_dir / "package-manifest.json",
         {
@@ -1413,6 +1501,7 @@ def build_package(context: dict[str, Any], repo_root: Path, run_id: str, allow_u
             "ui_shell_version": bundle["ui_shell_version"],
             "ui_shell_snapshot_hash": ui_shell_snapshot_hash,
             "shell_change_policy": bundle["shell_change_policy"],
+            "spec_findings_ref": rel(spec_findings_path, repo_root),
         },
     )
     write_json(output_dir / "prototype-bundle.json", bundle)
@@ -1449,6 +1538,8 @@ def build_package(context: dict[str, Any], repo_root: Path, run_id: str, allow_u
         write_text(prototype_dir / "index.html", _render_index_html(bundle["feat_title"]))
         write_text(prototype_dir / "styles.css", _render_styles())
         write_text(prototype_dir / "app.js", _render_app_js())
+
+    _bind_prototype_candidate_record(repo_root, output_dir, journey_ref)
 
     mock_payload = {
         "feat_ref": feat_ref,

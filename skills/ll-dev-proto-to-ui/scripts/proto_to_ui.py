@@ -18,6 +18,7 @@ from cli.lib.workflow_document_test import build_document_test_report, build_fix
 
 OUTPUT_FILES = [
     "package-manifest.json",
+    "spec-findings.json",
     "ui-spec-bundle.md",
     "ui-spec-bundle.json",
     "ui-flow-map.md",
@@ -266,6 +267,19 @@ def build_package(context: dict[str, Any], repo_root: Path, run_id: str, allow_u
     if feat_ref not in related_feat_refs:
         related_feat_refs = [feat_ref, *[item for item in related_feat_refs if item != feat_ref]]
 
+    spec_findings_path = output_dir / "spec-findings.json"
+    write_json(
+        spec_findings_path,
+        {
+            "artifact_type": "spec_findings",
+            "schema_version": "0.1.0",
+            "status": "open",
+            "trace": {"workflow_key": "dev.proto-to-ui", "run_ref": run_id or feat_ref},
+            "lineage": [],
+            "findings": [],
+        },
+    )
+
     write_json(
         output_dir / "package-manifest.json",
         {
@@ -280,6 +294,7 @@ def build_package(context: dict[str, Any], repo_root: Path, run_id: str, allow_u
             "journey_structural_spec_ref": str(bundle.get("journey_structural_spec_ref") or ""),
             "ui_shell_snapshot_ref": str(bundle.get("ui_shell_snapshot_ref") or ""),
             "surface_map_ref": str(bundle.get("surface_map_ref") or ""),
+            "spec_findings_ref": rel(spec_findings_path, repo_root),
         },
     )
     write_json(

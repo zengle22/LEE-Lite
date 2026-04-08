@@ -1,0 +1,7 @@
+schema_version: 0.1.0
+workflow_key: governance.spec-reconcile
+phases:
+  - name: reconcile
+    produces:
+      - spec-reconcile-report.json
+

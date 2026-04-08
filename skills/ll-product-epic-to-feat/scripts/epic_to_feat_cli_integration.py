@@ -19,6 +19,13 @@ def _write_json(path: Path, payload: dict[str, Any]) -> None:
     path.write_text(json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
 
 
+def _canonical_ref(path: Path, repo_root: Path) -> str:
+    try:
+        return path.resolve().relative_to(repo_root.resolve()).as_posix()
+    except ValueError:
+        return path.resolve().as_posix()
+
+
 def _commit_markdown(repo_root: Path, artifacts_dir: Path, run_id: str, markdown_text: str, request_suffix: str) -> dict[str, Any]:
     implementation_root = Path(__file__).resolve().parents[3]
     if str(implementation_root) not in sys.path:
@@ -69,6 +76,18 @@ def write_executor_outputs(output_dir: Path, repo_root: Path, package: Any, gene
     dump_json(output_dir / "document-test-report.json", document_test_report)
     dump_json(output_dir / "handoff-to-feat-downstreams.json", generated.handoff)
     dump_json(output_dir / "semantic-drift-check.json", generated.semantic_drift_check)
+    spec_findings_path = output_dir / "spec-findings.json"
+    dump_json(
+        spec_findings_path,
+        {
+            "artifact_type": "spec_findings",
+            "schema_version": "0.1.0",
+            "status": "open",
+            "trace": {"workflow_key": "product.epic-to-feat", "run_ref": package.run_id},
+            "lineage": [],
+            "findings": [],
+        },
+    )
     dump_json(
         output_dir / "package-manifest.json",
         {
@@ -88,6 +107,7 @@ def write_executor_outputs(output_dir: Path, repo_root: Path, package: Any, gene
             "supervision_evidence_ref": str(output_dir / "supervision-evidence.json"),
             "status": generated.json_payload["status"],
             "cli_executor_commit_ref": str(cli_commit["response_path"]),
+            "spec_findings_ref": _canonical_ref(spec_findings_path, repo_root),
             **({"revision_request_ref": revision_request_ref} if revision_request_ref else {}),
         },
     )

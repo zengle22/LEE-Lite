@@ -1,0 +1,8 @@
+schema_version: 0.1.0
+skill_ref: skill.governance.spec_reconcile
+workflow_key: governance.spec-reconcile
+inputs:
+  - package_dir_ref
+outputs:
+  - spec_reconcile_report_ref
+

@@ -72,8 +72,16 @@ tests/*/*/agent.md
 .workflow/*
 
 # Artifact outputs (typically generated)
-artifacts/
-artifacts/*/
+artifacts/*
+
+# Governance assets under artifacts (tracked)
+!artifacts/reports/
+artifacts/reports/*
+!artifacts/reports/governance/
+artifacts/reports/governance/*
+!artifacts/reports/governance/spec-backport/
+artifacts/reports/governance/spec-backport/*
+!artifacts/reports/governance/spec-backport/spec-backport-queue.json
 
 # LEE runtime directories
 .lee/

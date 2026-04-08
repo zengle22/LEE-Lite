@@ -9,15 +9,28 @@ from cli.lib.failure_capture_skill import run_failure_capture
 from cli.lib.gate_human_orchestrator_skill import run_gate_human_orchestrator
 from cli.lib.impl_spec_test_runtime import execute_impl_spec_test_skill
 from cli.lib.protocol import CommandContext, run_with_protocol
+from cli.lib.spec_reconcile_skill import run_spec_reconcile
 from cli.lib.test_exec_runtime import execute_test_exec_skill
 
 
 def _skill_handler(ctx: CommandContext):
     ensure(
-        ctx.action in {"impl-spec-test", "test-exec-web-e2e", "test-exec-cli", "gate-human-orchestrator", "failure-capture"},
+        ctx.action in {"impl-spec-test", "test-exec-web-e2e", "test-exec-cli", "gate-human-orchestrator", "failure-capture", "spec-reconcile"},
         "INVALID_REQUEST",
         "unsupported skill action",
     )
+    if ctx.action == "spec-reconcile":
+        result = run_spec_reconcile(
+            workspace_root=ctx.workspace_root,
+            trace=ctx.trace,
+            request_id=ctx.request["request_id"],
+            payload=ctx.payload,
+        )
+        evidence_refs = _collect_refs(result)
+        return "OK", "spec reconcile report emitted", {
+            "canonical_path": result["canonical_path"],
+            **result,
+        }, [], evidence_refs
     if ctx.action == "failure-capture":
         result = run_failure_capture(
             workspace_root=ctx.workspace_root,
