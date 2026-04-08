@@ -94,7 +94,7 @@ def collect_ui_owner_contributions(
         current_src = extract_src_ref(snapshot.get("source_refs") or [], "")
         if src_ref and current_src != src_ref:
             continue
-        ui_docs = _load_ui_spec_docs(source_path.parent, candidate_json)
+        ui_docs = _load_ui_spec_docs(workspace_root, source_path.parent, candidate_json)
         contributions.append(
             {
                 "candidate_ref": str(record.get("artifact_ref") or "").strip(),
@@ -115,13 +115,21 @@ def collect_ui_owner_contributions(
     return contributions
 
 
-def _load_ui_spec_docs(source_dir: Path, candidate_json: dict[str, Any]) -> list[dict[str, str]]:
+def _load_ui_spec_docs(workspace_root: Path, source_dir: Path, candidate_json: dict[str, Any]) -> list[dict[str, str]]:
     docs: list[dict[str, str]] = []
     refs = [str(item).strip() for item in (candidate_json.get("ui_spec_refs") or []) if str(item).strip()]
     paths: list[Path] = []
     for ref in refs:
-        candidate_path = source_dir / ref
-        if candidate_path.exists():
+        candidate_path: Path | None = None
+        if "/" in ref or ref.startswith("ssot/") or ref.startswith("artifacts/"):
+            resolved = canonical_to_path(ref, workspace_root)
+            if resolved.exists():
+                candidate_path = resolved
+        if candidate_path is None:
+            resolved = source_dir / ref
+            if resolved.exists():
+                candidate_path = resolved
+        if candidate_path is not None:
             paths.append(candidate_path)
     if not paths:
         paths = sorted(source_dir.glob("[[]UI-*__ui_spec.md"))
