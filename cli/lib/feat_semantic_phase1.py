@@ -59,7 +59,7 @@ def build_feat_semantic_artifacts(dimensions_path: str, bundle: dict[str, Any], 
         ),
     )
     return {
-        "semantic_dimensions_ref": "skills/ll-product-epic-to-feat/output/semantic-dimensions.json",
+        "semantic_dimensions_ref": "skills/ll-product-epic-to-feat/resources/semantic-dimensions.json",
         "semantic_coverage": coverage,
         "semantic_pass": coverage["semantic_pass"],
         "review_views": review_views,

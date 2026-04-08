@@ -1,0 +1,74 @@
+{
+  "artifact_type": "semantic_dimensions",
+  "schema_version": "1.0.0",
+  "core_dimensions": [
+    {
+      "id": "page_goal_and_task_flow",
+      "required": true,
+      "review_question": "Does the UI spec freeze page goals and task flow as implementation-facing contracts, not just prototype prose?",
+      "evidence_targets": [
+        "ui-spec-bundle.json",
+        "generated ui spec markdown",
+        "ui-flow-map.md"
+      ]
+    },
+    {
+      "id": "information_hierarchy_and_regions",
+      "required": true,
+      "review_question": "Are information hierarchy, layout regions, and shell framing explicit enough for implementation?",
+      "evidence_targets": [
+        "ui-semantic-source-ledger.json",
+        "journey-ux-ascii.md",
+        "ui-shell-spec.md"
+      ]
+    },
+    {
+      "id": "field_action_validation_and_feedback",
+      "required": true,
+      "review_question": "Does the UI spec make fields, actions, validation, and user feedback explicit?",
+      "evidence_targets": [
+        "generated ui spec markdown",
+        "ui-semantic-source-ledger.json"
+      ]
+    },
+    {
+      "id": "state_behaviors",
+      "required": true,
+      "review_question": "Are loading, success, degraded, and blocking state behaviors explicit at the UI contract layer?",
+      "evidence_targets": [
+        "generated ui spec markdown",
+        "ui-semantic-source-ledger.json"
+      ]
+    },
+    {
+      "id": "component_container_contracts",
+      "required": true,
+      "review_question": "Does the spec freeze component/container contracts tied to shell and shared UI owner boundaries?",
+      "evidence_targets": [
+        "ui-shell-spec.md",
+        "ui-spec-bundle.json.ui_owner_ref",
+        "surface_map_ref"
+      ]
+    },
+    {
+      "id": "source_ledger_and_inference_disclosure",
+      "required": true,
+      "review_question": "Are source traces and AI inferences disclosed clearly enough that reviewers can see what is authoritative versus inferred?",
+      "evidence_targets": [
+        "ui-semantic-source-ledger.json",
+        "ui-spec-review-report.json"
+      ]
+    }
+  ],
+  "auxiliary_dimensions": [
+    {
+      "id": "owner_diff_projection",
+      "required": false,
+      "review_question": "Does the review output show how the current UI owner changes relative to prototype input and owner baseline?",
+      "evidence_targets": [
+        "ui-spec-review-report.json",
+        "ui-flow-map.md"
+      ]
+    }
+  ]
+}

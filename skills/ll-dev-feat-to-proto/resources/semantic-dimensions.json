@@ -1,0 +1,72 @@
+{
+  "artifact_type": "semantic_dimensions",
+  "schema_version": "1.0.0",
+  "core_dimensions": [
+    {
+      "id": "journey_and_surface_slice",
+      "required": true,
+      "review_question": "Does the prototype package freeze the journey slice and mapped design surface instead of drifting into broad FEAT prose?",
+      "evidence_targets": [
+        "prototype-bundle.json#/pages",
+        "prototype-bundle.json#/surface_map_ref"
+      ]
+    },
+    {
+      "id": "entry_exit_and_initial_view",
+      "required": true,
+      "review_question": "Are entry conditions, exit conditions, and the initial user-visible frame explicit enough to start implementation-aligned review?",
+      "evidence_targets": [
+        "prototype-route-map.json",
+        "prototype-initial-view-report.json"
+      ]
+    },
+    {
+      "id": "cta_and_container_semantics",
+      "required": true,
+      "review_question": "Do CTA hierarchy and container semantics stay explicit through the journey spec and shell snapshot?",
+      "evidence_targets": [
+        "journey-ux-ascii.md",
+        "ui-shell-spec.md",
+        "prototype-review-report.json"
+      ]
+    },
+    {
+      "id": "primary_states_and_feedback",
+      "required": true,
+      "review_question": "Are primary state transitions, user feedback, and visible reactions explicit in prototype fidelity outputs?",
+      "evidence_targets": [
+        "prototype-fidelity-report.json",
+        "prototype-runtime-smoke.json"
+      ]
+    },
+    {
+      "id": "exception_retry_skip_paths",
+      "required": true,
+      "review_question": "Are degraded, retry, skip, and exception paths explicit enough that downstream UI does not invent them?",
+      "evidence_targets": [
+        "prototype-journey-reachability-report.json",
+        "prototype-placeholder-lint.json"
+      ]
+    },
+    {
+      "id": "shell_alignment_and_owner_binding",
+      "required": true,
+      "review_question": "Does the prototype remain tied to the bound surface-map owner and shell authority?",
+      "evidence_targets": [
+        "prototype-bundle.json#/prototype_owner_ref",
+        "prototype-bundle.json#/surface_map_ref"
+      ]
+    }
+  ],
+  "auxiliary_dimensions": [
+    {
+      "id": "human_review_followup",
+      "required": false,
+      "review_question": "Is human review status explicit enough that downstream freeze logic can distinguish automation coverage from approval?",
+      "evidence_targets": [
+        "prototype-review-report.json",
+        "prototype-freeze-gate.json"
+      ]
+    }
+  ]
+}
