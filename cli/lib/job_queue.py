@@ -269,3 +269,41 @@ def release_waiting_human_job(
         "status": released_job["status"],
         "queue_path": released_job.get("queue_path", released_ref),
     }
+
+
+def release_holds_for_spec_reconcile_report(
+    workspace_root: Path,
+    *,
+    report_ref: str,
+    actor_ref: str,
+) -> list[str]:
+    """Auto-release waiting-human jobs held by ADR-044 spec reconcile.
+
+    This is opt-in (called only by skill.spec-reconcile when requested).
+    """
+
+    report_ref_value = str(report_ref or "").strip().replace("\\", "/")
+    if not report_ref_value:
+        return []
+    waiting_dir = workspace_root / JOB_STATUS_DIRS["waiting-human"]
+    if not waiting_dir.exists():
+        return []
+
+    released_refs: list[str] = []
+    for path in sorted(waiting_dir.glob("*.json")):
+        job_ref = to_canonical_path(path, workspace_root)
+        _, payload = load_job_record(workspace_root, job_ref)
+        if str(payload.get("hold_reason") or "").strip() != SPEC_RECONCILE_HOLD_REASON:
+            continue
+        required = payload.get("required_preconditions")
+        required_refs = [str(item).strip().replace("\\", "/") for item in required if str(item).strip()] if isinstance(required, list) else []
+        if report_ref_value not in required_refs:
+            continue
+        result = release_hold_job(
+            workspace_root,
+            job_ref,
+            actor_ref=actor_ref,
+            note="spec reconcile auto-release (report satisfied)",
+        )
+        released_refs.append(str(result.get("job_ref") or job_ref))
+    return released_refs

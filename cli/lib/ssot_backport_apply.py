@@ -37,8 +37,9 @@ def parse_ssot_updates(text: str) -> list[ParsedSsotUpdate]:
     - One or more blocks starting with a finding id heading, e.g.:
       - GAP-104:
       - [FINDING GAP-104]
-    - Must include a target path line:
+    - Target path line is optional:
         path: ssot/...
+      When omitted, the caller must resolve the target from findings/queue.
     - Must include a fenced content block:
         ```yaml
         ...
@@ -55,8 +56,7 @@ def parse_ssot_updates(text: str) -> list[ParsedSsotUpdate]:
         if not finding_id:
             continue
         path_match = _PATH_RE.search(body)
-        ensure(bool(path_match), "INVALID_REQUEST", f"ssot_updates block {finding_id} missing path: ssot/...")
-        ssot_path = str(path_match.group("path") or "").strip()
+        ssot_path = str(path_match.group("path") or "").strip() if path_match else ""
         fence = _CODE_FENCE_RE.search(body)
         ensure(bool(fence), "INVALID_REQUEST", f"ssot_updates block {finding_id} missing fenced content ```...```")
         content_format = str(fence.group("fmt") or "").strip()
@@ -72,6 +72,45 @@ def parse_ssot_updates(text: str) -> list[ParsedSsotUpdate]:
 
     ensure(bool(updates), "INVALID_REQUEST", "ssot_updates did not contain any parseable finding blocks")
     return updates
+
+
+def resolve_ssot_update_paths(
+    updates: list[ParsedSsotUpdate],
+    *,
+    target_paths_by_finding_id: dict[str, list[str]],
+) -> list[ParsedSsotUpdate]:
+    """Fill missing ssot_path fields using a finding_id -> candidate targets map.
+
+    Candidate targets may include anchors (e.g. ssot/foo/bar.yaml#section). When
+    resolving, we keep the raw target string on ParsedSsotUpdate so receipts stay
+    auditable, but we require that the target identifies exactly one ssot file.
+    """
+
+    resolved: list[ParsedSsotUpdate] = []
+    for update in updates:
+        if str(update.ssot_path or "").strip():
+            resolved.append(update)
+            continue
+        candidates = [str(item).strip() for item in (target_paths_by_finding_id.get(update.finding_id) or []) if str(item).strip()]
+        ssot_candidates = [item for item in candidates if item.startswith("ssot/")]
+        unique_files: list[str] = []
+        for candidate in ssot_candidates:
+            file_part = candidate.split("#", 1)[0].strip()
+            if file_part and file_part not in unique_files:
+                unique_files.append(file_part)
+        ensure(bool(unique_files), "INVALID_REQUEST", f"ssot_updates block {update.finding_id} missing path and no ssot targets available")
+        ensure(len(unique_files) == 1, "INVALID_REQUEST", f"ssot_updates block {update.finding_id} missing path and has ambiguous ssot targets: {', '.join(unique_files)}")
+        # Prefer the first ssot candidate string (may contain anchor) that matches the unique file.
+        chosen = next((item for item in ssot_candidates if item.split('#', 1)[0].strip() == unique_files[0]), unique_files[0])
+        resolved.append(
+            ParsedSsotUpdate(
+                finding_id=update.finding_id,
+                ssot_path=chosen,
+                content=update.content,
+                content_format=update.content_format,
+            )
+        )
+    return resolved
 
 
 def _sha256_bytes(value: bytes) -> str:
@@ -101,11 +140,15 @@ def apply_ssot_updates(
         changed_files: list[dict[str, Any]] = []
         applied_updates: list[dict[str, Any]] = []
         for update in items:
-            target_path = (workspace_root / update.ssot_path).resolve()
+            ssot_path_value = str(update.ssot_path or "").strip()
+            ensure(bool(ssot_path_value), "INVALID_REQUEST", f"ssot_updates missing ssot_path for {finding_id}")
+            target_file = ssot_path_value.split("#", 1)[0].strip()
+            ensure(target_file.startswith("ssot/"), "INVALID_REQUEST", f"ssot_updates path must start with ssot/: {ssot_path_value}")
+            target_path = (workspace_root / target_file).resolve()
             try:
                 target_path.relative_to(ssot_root)
             except ValueError as exc:
-                raise CommandError("INVALID_REQUEST", f"ssot_updates path must stay under ssot/: {update.ssot_path}") from exc
+                raise CommandError("INVALID_REQUEST", f"ssot_updates path must stay under ssot/: {ssot_path_value}") from exc
 
             before_bytes = target_path.read_bytes() if target_path.exists() else b""
             before_sha = _sha256_bytes(before_bytes) if before_bytes else ""
@@ -126,7 +169,7 @@ def apply_ssot_updates(
             applied_updates.append(
                 {
                     "finding_id": finding_id,
-                    "ssot_path": update.ssot_path,
+                    "ssot_path": ssot_path_value,
                     "content_format": update.content_format,
                 }
             )
@@ -186,4 +229,3 @@ def merge_decisions_with_patch_receipts(
         result.append(item)
 
     return sorted(result, key=lambda item: str(item.get("finding_id") or ""))
-

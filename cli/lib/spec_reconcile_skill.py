@@ -11,7 +11,13 @@ from typing import Any
 
 from cli.lib.errors import CommandError, ensure
 from cli.lib.fs import canonical_to_path, load_json
-from cli.lib.ssot_backport_apply import apply_ssot_updates, merge_decisions_with_patch_receipts, parse_ssot_updates
+from cli.lib.job_queue import release_holds_for_spec_reconcile_report
+from cli.lib.ssot_backport_apply import (
+    apply_ssot_updates,
+    merge_decisions_with_patch_receipts,
+    parse_ssot_updates,
+    resolve_ssot_update_paths,
+)
 from cli.lib.skill_runtime_paths import resolve_skill_scripts_dir
 
 
@@ -30,7 +36,8 @@ def run_spec_reconcile(
     request_payload = _maybe_apply_ssot_updates(workspace_root, request_payload, payload=payload)
     result = _invoke_runtime(workspace_root, request_payload)
     ensure(bool(result.get("ok")), "PRECONDITION_FAILED", "spec reconcile runtime reported failure")
-    return _normalize_result(result)
+    normalized = _normalize_result(result)
+    return _maybe_auto_release_holds(workspace_root, normalized, payload=payload)
 
 
 def _build_request(
@@ -67,14 +74,56 @@ def _maybe_apply_ssot_updates(workspace_root: Path, request_payload: dict[str, A
     findings = findings_payload.get("findings")
     ensure(findings is None or isinstance(findings, list), "PRECONDITION_FAILED", "spec-findings.json findings must be an array")
     known_ids = {str(item.get("finding_id") or "").strip() for item in (findings or []) if isinstance(item, dict)}
+    proposed_targets_by_id: dict[str, list[str]] = {}
+    for item in findings or []:
+        if not isinstance(item, dict):
+            continue
+        finding_id = str(item.get("finding_id") or "").strip()
+        if not finding_id:
+            continue
+        proposed_targets = item.get("proposed_ssot_targets")
+        if isinstance(proposed_targets, list):
+            proposed_targets_by_id[finding_id] = [str(entry).strip() for entry in proposed_targets if str(entry).strip()]
 
     decided_by = request_payload.get("decided_by") if isinstance(request_payload.get("decided_by"), dict) else {}
     decided_by_slim = {"role": str(decided_by.get("role") or "").strip(), "ref": str(decided_by.get("ref") or "").strip()}
     ensure(bool(decided_by_slim["role"]), "INVALID_REQUEST", "decided_by.role is required when ssot_updates is provided")
 
-    parsed = parse_ssot_updates(ssot_updates)
-    for item in parsed:
+    parsed_raw = parse_ssot_updates(ssot_updates)
+    for item in parsed_raw:
         ensure(item.finding_id in known_ids, "INVALID_REQUEST", f"ssot_updates references unknown finding_id: {item.finding_id}")
+
+    queue_targets_by_id: dict[str, list[str]] = {}
+    queue_ref = str(request_payload.get("queue_ref") or "").strip()
+    if queue_ref:
+        queue_path = canonical_to_path(queue_ref, workspace_root)
+        if queue_path.exists():
+            queue_payload = load_json(queue_path)
+            items = queue_payload.get("items") if isinstance(queue_payload, dict) else None
+            if isinstance(items, list):
+                for entry in items:
+                    if not isinstance(entry, dict):
+                        continue
+                    finding_id = str(entry.get("finding_id") or "").strip()
+                    if not finding_id:
+                        continue
+                    targets = entry.get("target_ssot_paths")
+                    if isinstance(targets, list):
+                        queue_targets_by_id[finding_id] = [str(value).strip() for value in targets if str(value).strip()]
+
+    target_paths_by_id: dict[str, list[str]] = {}
+    for finding_id in known_ids:
+        candidates: list[str] = []
+        for source in (queue_targets_by_id.get(finding_id) or []):
+            if source and source not in candidates:
+                candidates.append(source)
+        for source in (proposed_targets_by_id.get(finding_id) or []):
+            if source and source not in candidates:
+                candidates.append(source)
+        if candidates:
+            target_paths_by_id[finding_id] = candidates
+
+    parsed = resolve_ssot_update_paths(parsed_raw, target_paths_by_finding_id=target_paths_by_id)
 
     receipt_map = apply_ssot_updates(
         workspace_root,
@@ -90,6 +139,18 @@ def _maybe_apply_ssot_updates(workspace_root: Path, request_payload: dict[str, A
     # When applying SSOT updates, keep governance side artifacts in sync.
     request_payload["allow_update"] = True
     return request_payload
+
+
+def _maybe_auto_release_holds(workspace_root: Path, result: dict[str, Any], *, payload: dict[str, Any]) -> dict[str, Any]:
+    if not bool(payload.get("auto_release_holds")):
+        return result
+    report_ref = str(result.get("spec_reconcile_report_ref") or result.get("canonical_path") or "").strip()
+    if not report_ref:
+        return result
+    released = release_holds_for_spec_reconcile_report(workspace_root, report_ref=report_ref, actor_ref="skill.spec-reconcile")
+    if released:
+        result["released_job_refs"] = released
+    return result
 
 
 def trace_from_request(request_payload: dict[str, Any]) -> dict[str, Any]:

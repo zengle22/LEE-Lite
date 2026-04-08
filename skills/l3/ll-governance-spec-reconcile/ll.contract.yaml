@@ -18,6 +18,7 @@ input_payload:
     - decisions
     - decided_by
     - ssot_updates
+    - auto_release_holds
   forbid_extra: true
   types:
     package_dir_ref: string
@@ -26,4 +27,5 @@ input_payload:
     decisions: array
     decided_by: object
     ssot_updates: string
+    auto_release_holds: boolean
 
