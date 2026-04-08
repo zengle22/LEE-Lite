@@ -112,5 +112,4 @@ python -m cli.ll gate release-hold --request <req.json> --response-out <resp.jso
 python -m cli.ll job release-hold --request <req.json> --response-out <resp.json>
 ```
 
-> release 动作本身不会校验 preconditions；是否允许继续推进以 reconcile report 的内容为审计依据。
-
+> `release-hold` 会校验 `required_preconditions` 指向的文件是否存在；当 `hold_reason=spec_reconcile_required` 时，会强制 `spec-reconcile-report.json` 存在且 `blocking_items=[]`，否则拒绝释放（避免“先放行、后补 reconcile”）。
