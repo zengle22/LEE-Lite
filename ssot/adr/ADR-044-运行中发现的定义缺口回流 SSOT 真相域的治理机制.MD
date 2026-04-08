@@ -127,6 +127,7 @@
 
 * 位置：`artifacts/reports/governance/spec-backport/spec-backport-queue.json`
 * `spec_gap` 与未确认 `local_assumption` 必须入队
+* Phase 0/1：`scope_cut` **不入队**（避免把“范围裁剪本身”误当作回写计划）；其回写与审计以 `spec-reconcile-report.json.decisions[].ssot_patch_refs` 为准
 * 队列允许 deferred，但不得无痕消失
 
 ## 4.3 `spec-reconcile-report.json`（收口清算报告）
