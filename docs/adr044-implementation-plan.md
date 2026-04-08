@@ -121,6 +121,22 @@
 
 ---
 
+## Implementation Status（main 已落库）
+
+已在 main 分支落库（commit `3c7dbef`，基于 `ssot/adr/ADR-044-*.MD` 的 Phase0/1 约束实现）：
+
+* repo-wide queue：`artifacts/reports/governance/spec-backport/spec-backport-queue.json`（空骨架也存在）
+* 新增 L3 skill：`skills/l3/ll-governance-spec-reconcile`
+* CLI carrier：`python -m cli.ll skill spec-reconcile ...`
+* dispatch enforcement：已在 `cli/lib/ready_job_dispatch.py` 对 FEAT/TECH downstream job emission 注入 `waiting-human` hold（基于 `spec-reconcile-report.json.blocking_items`）
+* workflow 输出：四条 pilot workflow 均会落 `spec-findings.json`（允许空）并在 `package-manifest.json` 写入 `spec_findings_ref`
+
+操作手册见：
+
+* `docs/guides/adr044-spec-reconcile-operator-guide.md`
+
+---
+
 ## Automation / Runner Integration（P0：自动链路怎么停/怎么续）
 
 本仓库已有稳定的 hold 机制（参见 `docs/guides/adr018-runner-operator-guide.md`）：

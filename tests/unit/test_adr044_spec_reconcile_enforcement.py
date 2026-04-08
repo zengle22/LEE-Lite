@@ -144,7 +144,8 @@ def test_feat_dispatch_holds_jobs_until_spec_reconcile_done(tmp_path: Path) -> N
     payload = json.loads(held_job_path.read_text(encoding="utf-8"))
     assert payload["status"] == "waiting-human"
     assert payload["hold_reason"] == "spec_reconcile_required"
-    assert payload["required_preconditions"] == ["spec_reconcile_report_ref"]
+    assert payload["required_preconditions"][0].startswith(package_ref)
+    assert payload["required_preconditions"][0].endswith("spec-reconcile-report.json")
     assert payload["spec_reconcile_report_ref"].endswith("spec-reconcile-report.json")
 
 
