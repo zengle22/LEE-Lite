@@ -137,6 +137,43 @@
 * recorded 仅允许 `execution_decision`
 * decision 必须包含 `decided_by.role`（对齐 3.8 权限模型）
 
+## 4.4 用户旅程（落地用法）：调研 → reconcile → 自动回写 SSOT → 解除 hold
+
+本仓库 Phase 0/1 的 reconcile 机制默认是“**治理门禁 + 审计报告**”，为了让流程可落地，本 ADR 同时定义一个可执行的“**reconcile-as-apply**”用户旅程：
+
+> 当需要更新 SSOT 主链/派生链（`ssot/`）时，用户把“更新意图”作为自然语义输入交给 reconcile skill；skill 负责解析/结构化并执行回写，产出可审计的 patch receipt，并自动生成 `spec-reconcile-report.json` 以解除 hold。
+
+### 4.4.1 触发场景
+
+* runner/job 进入 `waiting-human` 且 `hold_reason=spec_reconcile_required`
+* 或者在 freeze/materialize 前被门禁阻断（缺 reconcile 或 `blocking_items` 非空）
+
+### 4.4.2 最小输入（自然语义 `ssot_updates`）
+
+在 `skill.spec-reconcile` 的 request payload 中提供：
+
+* `package_dir_ref`：被收口的上游包目录（如 `artifacts/feat-to-tech/run-73`）
+* `decided_by.role/ref`：定案角色（对齐 3.8）
+* `ssot_updates`：自然语义更新描述（建议在文本中显式引用 finding_id，并给出目标 `ssot/...` 路径与内容）
+
+> 说明：为了让解析/结构化可机械化落地，`ssot_updates` 建议以“自然语言说明 + 明确目标文件 + 完整内容块”的形式提供；skill 会把它结构化为写文件操作并生成 patch receipt。后续可以进一步升级为纯自然语言到结构化 patch 的 LLM 解析器，但不得破坏 3.6 的权威字段关系。
+
+### 4.4.3 输出与审计证据
+
+reconcile-as-apply 成功后，必须满足：
+
+* `ssot/` 目标文件已被写入/更新（真相回流完成）
+* `spec-reconcile-report.json.decisions[].ssot_patch_refs` 填入 **patch receipt**（唯一可审计证据）
+* `spec-reconcile-report.json.blocking_items=[]`（解除 hold 的必要条件）
+
+### 4.4.4 解除 hold（继续自动推进）
+
+当 report 已产出且 `blocking_items=[]`：
+
+* `python -m cli.ll gate release-hold ...` 或 `python -m cli.ll job release-hold ...`
+
+release 动作将校验 `required_preconditions` 指向的 reconcile report 存在且无 blocking。
+
 ---
 
 # 5. 附录 A：JSON Schema（建议基线）
