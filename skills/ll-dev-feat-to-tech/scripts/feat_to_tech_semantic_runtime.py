@@ -10,7 +10,7 @@ from typing import Any
 
 from cli.lib.tech_semantic_phase1 import build_tech_semantic_artifacts
 
-_DIMENSIONS_PATH = str(Path(__file__).resolve().parents[1] / "output" / "semantic-dimensions.json")
+_DIMENSIONS_PATH = str(Path(__file__).resolve().parents[1] / "resources" / "semantic-dimensions.json")
 
 
 def attach_executor_semantics(generated: Any) -> None:

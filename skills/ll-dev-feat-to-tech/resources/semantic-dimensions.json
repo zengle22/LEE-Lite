@@ -1,0 +1,76 @@
+{
+  "artifact_type": "semantic_dimensions",
+  "schema_version": "1.0.0",
+  "core_dimensions": [
+    {
+      "id": "carrier_and_module_responsibility",
+      "required": true,
+      "review_question": "Does TECH freeze implementation carriers, module responsibilities, and owner boundaries rather than only repeating FEAT scope?",
+      "evidence_targets": [
+        "tech_design.implementation_carrier_view",
+        "tech_design.module_plan",
+        "selected_feat"
+      ]
+    },
+    {
+      "id": "contracts_and_field_semantics",
+      "required": true,
+      "review_question": "Are interface contracts, field semantics, and command/API meanings explicit enough for implementation and review?",
+      "evidence_targets": [
+        "tech_design.interface_contracts",
+        "api artifact",
+        "design_consistency_check"
+      ]
+    },
+    {
+      "id": "state_and_runtime_flow",
+      "required": true,
+      "review_question": "Does TECH explain the real state model and runtime flow, not just generic lifecycle text?",
+      "evidence_targets": [
+        "tech_design.state_model",
+        "tech_design.main_sequence",
+        "tech_design.io_matrix_and_side_effects"
+      ]
+    },
+    {
+      "id": "failure_and_compensation",
+      "required": true,
+      "review_question": "Are failure handling, retry / compensation, and degraded paths explicit for this FEAT slice?",
+      "evidence_targets": [
+        "tech_design.exception_and_compensation",
+        "tech_design.minimal_code_skeleton"
+      ]
+    },
+    {
+      "id": "integration_and_compatibility",
+      "required": true,
+      "review_question": "Does TECH freeze concrete integration points and compatibility / migration constraints for the current system?",
+      "evidence_targets": [
+        "tech_design.integration_points",
+        "integration_context",
+        "tech_design.migration_constraints"
+      ]
+    },
+    {
+      "id": "ownership_and_constraints",
+      "required": true,
+      "review_question": "Are canonical ownership, glossary terms, and algorithm / decision constraints explicit enough to block downstream reinterpretation?",
+      "evidence_targets": [
+        "tech_design.technical_glossary_and_canonical_ownership",
+        "tech_design.algorithm_constraints"
+      ]
+    }
+  ],
+  "auxiliary_dimensions": [
+    {
+      "id": "optional_arch_api_projection",
+      "required": false,
+      "review_question": "When ARCH or API is emitted, does it remain justified by need assessment and not duplicate TECH?",
+      "evidence_targets": [
+        "need_assessment",
+        "artifact_refs",
+        "design_consistency_check"
+      ]
+    }
+  ]
+}

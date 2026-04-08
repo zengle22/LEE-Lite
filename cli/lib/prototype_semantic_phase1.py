@@ -76,7 +76,7 @@ def build_prototype_semantic_artifacts(
         ),
     )
     return {
-        "semantic_dimensions_ref": "skills/ll-dev-feat-to-proto/output/semantic-dimensions.json",
+        "semantic_dimensions_ref": "skills/ll-dev-feat-to-proto/resources/semantic-dimensions.json",
         "semantic_coverage": coverage,
         "semantic_pass": coverage["semantic_pass"] and review.get("verdict") == "approved",
         "review_views": review_views,

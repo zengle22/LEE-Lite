@@ -82,7 +82,7 @@ def write_executor_outputs(output_dir: Path, repo_root: Path, package: Any, gene
     revision_request_ref = str(revision_context.get("revision_request_ref") or "").strip()
     document_test_report = build_epic_to_feat_document_test_report(generated)
     semantic = build_feat_semantic_artifacts(
-        str(Path(__file__).resolve().parents[1] / "output" / "semantic-dimensions.json"),
+        str(Path(__file__).resolve().parents[1] / "resources" / "semantic-dimensions.json"),
         generated.json_payload,
         list(generated.defect_list),
         dict(generated.handoff),

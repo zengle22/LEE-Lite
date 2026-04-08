@@ -50,7 +50,7 @@ def build_ui_semantic_artifacts(dimensions_path: str, bundle: dict[str, Any], pa
         ),
     )
     return {
-        "semantic_dimensions_ref": "skills/ll-dev-proto-to-ui/output/semantic-dimensions.json",
+        "semantic_dimensions_ref": "skills/ll-dev-proto-to-ui/resources/semantic-dimensions.json",
         "semantic_coverage": coverage,
         "semantic_pass": coverage["semantic_pass"] and not ledger_errors,
         "review_views": review_views,

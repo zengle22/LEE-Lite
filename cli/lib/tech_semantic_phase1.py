@@ -58,7 +58,7 @@ def build_tech_semantic_artifacts(dimensions_path: str, bundle: dict[str, Any], 
         ),
     )
     return {
-        "semantic_dimensions_ref": "skills/ll-dev-feat-to-tech/output/semantic-dimensions.json",
+        "semantic_dimensions_ref": "skills/ll-dev-feat-to-tech/resources/semantic-dimensions.json",
         "semantic_coverage": coverage,
         "semantic_pass": coverage["semantic_pass"] and bool(design_consistency.get("semantic_passed", False)),
         "review_views": review_views,

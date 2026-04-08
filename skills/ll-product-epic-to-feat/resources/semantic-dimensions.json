@@ -1,0 +1,76 @@
+{
+  "artifact_type": "semantic_dimensions",
+  "schema_version": "1.0.0",
+  "core_dimensions": [
+    {
+      "id": "actor_and_intent",
+      "required": true,
+      "review_question": "Does the FEAT freeze who acts, why the slice exists, and what completion means without collapsing into task or UI detail?",
+      "evidence_targets": [
+        "features[].identity_and_scenario",
+        "features[].goal",
+        "features[].business_value"
+      ]
+    },
+    {
+      "id": "flow_and_journey",
+      "required": true,
+      "review_question": "Can a downstream reader recover the main business flow, collaboration sequence, and journey handoff from FEAT alone?",
+      "evidence_targets": [
+        "features[].business_flow",
+        "features[].collaboration_and_timeline"
+      ]
+    },
+    {
+      "id": "rules_and_constraints",
+      "required": true,
+      "review_question": "Are product rules, constraints, and prohibited inference boundaries explicit enough for downstream derivation?",
+      "evidence_targets": [
+        "features[].constraints",
+        "prohibited_inference_rules",
+        "boundary_matrix"
+      ]
+    },
+    {
+      "id": "inputs_outputs_and_authority",
+      "required": true,
+      "review_question": "Does the FEAT make authoritative inputs, produced outputs, and canonical artifact ownership explicit?",
+      "evidence_targets": [
+        "features[].consumes",
+        "features[].produces",
+        "features[].authoritative_artifact"
+      ]
+    },
+    {
+      "id": "edge_cases_and_boundary",
+      "required": true,
+      "review_question": "Are exception paths, overlap boundaries, and non-responsibility edges explicit rather than left for downstream guesswork?",
+      "evidence_targets": [
+        "features[].acceptance_checks",
+        "features[].frozen_downstream_boundary",
+        "boundary_matrix"
+      ]
+    },
+    {
+      "id": "acceptance_and_testability",
+      "required": true,
+      "review_question": "Would TECH and TESTSET consumers have enough FEAT-level acceptance truth to inherit without reopening EPIC?",
+      "evidence_targets": [
+        "features[].acceptance_and_testability",
+        "features[].acceptance_checks"
+      ]
+    }
+  ],
+  "auxiliary_dimensions": [
+    {
+      "id": "design_surface_routing",
+      "required": false,
+      "review_question": "Are design impact routing hints and candidate design surfaces explicit when design derivation is required?",
+      "evidence_targets": [
+        "features[].design_impact_required",
+        "features[].candidate_design_surfaces",
+        "features[].design_surfaces"
+      ]
+    }
+  ]
+}
