@@ -6,7 +6,7 @@ from pathlib import Path
 from typing import Any
 
 from cli.lib.errors import ensure
-from cli.lib.fs import to_canonical_path
+from cli.lib.fs import canonical_to_path, load_json, to_canonical_path
 from cli.lib.job_state import (
     JOB_STATUS_DIRS,
     RUNNING_STATUSES,
@@ -20,6 +20,8 @@ from cli.lib.job_state import (
     transition_job,
     update_job,
 )
+
+SPEC_RECONCILE_HOLD_REASON = "spec_reconcile_required"
 
 
 def list_jobs(workspace_root: Path, status_filter: str | None = None) -> list[dict[str, Any]]:
@@ -49,6 +51,47 @@ def list_jobs(workspace_root: Path, status_filter: str | None = None) -> list[di
                 }
             )
     return items
+
+
+def _looks_like_file_ref(value: str) -> bool:
+    normalized = value.strip()
+    if not normalized:
+        return False
+    if normalized.endswith((".json", ".md", ".yaml", ".yml", ".txt")):
+        return True
+    if "/" in normalized or "\\" in normalized:
+        return True
+    if normalized.startswith(("artifacts/", "ssot/")):
+        return True
+    return False
+
+
+def _validate_hold_preconditions(workspace_root: Path, payload: dict[str, Any], *, job_ref: str) -> None:
+    required = payload.get("required_preconditions")
+    if not isinstance(required, list):
+        return
+    required_refs = [str(item).strip() for item in required if str(item).strip()]
+    if not required_refs:
+        return
+
+    for precondition in required_refs:
+        if not _looks_like_file_ref(precondition):
+            continue
+        path = canonical_to_path(precondition, workspace_root)
+        ensure(path.exists(), "PRECONDITION_FAILED", f"missing hold precondition artifact: {precondition}", [job_ref])
+
+    hold_reason = str(payload.get("hold_reason") or "").strip()
+    if hold_reason != SPEC_RECONCILE_HOLD_REASON:
+        return
+
+    report_ref = next((ref for ref in required_refs if ref.endswith("spec-reconcile-report.json")), "")
+    ensure(bool(report_ref), "PRECONDITION_FAILED", "spec reconcile hold requires spec-reconcile-report.json ref", [job_ref])
+    report_path = canonical_to_path(report_ref, workspace_root)
+    ensure(report_path.exists(), "PRECONDITION_FAILED", f"missing spec reconcile report: {report_ref}", [job_ref])
+    report = load_json(report_path)
+    blocking = report.get("blocking_items")
+    blocking_items = [str(item).strip() for item in blocking if str(item).strip()] if isinstance(blocking, list) else []
+    ensure(not blocking_items, "PRECONDITION_FAILED", "spec reconcile report still has blocking_items", [job_ref, *blocking_items[:5]])
 
 
 def list_ready_jobs(workspace_root: Path) -> list[dict[str, Any]]:
@@ -171,6 +214,7 @@ def release_hold_job(
 ) -> dict[str, Any]:
     _, payload = load_job_record(workspace_root, job_ref)
     ensure(str(payload.get("status") or "").strip() == "waiting-human", "PRECONDITION_FAILED", f"job is not on hold: {job_ref}")
+    _validate_hold_preconditions(workspace_root, payload, job_ref=job_ref)
     released_ref, released_job = transition_job(
         workspace_root,
         job_ref,
@@ -204,6 +248,7 @@ def release_waiting_human_job(
 ) -> dict[str, Any]:
     _, payload = load_job_record(workspace_root, job_ref)
     ensure(str(payload.get("status") or "").strip() == "waiting-human", "PRECONDITION_FAILED", f"job is not on hold: {job_ref}")
+    _validate_hold_preconditions(workspace_root, payload, job_ref=job_ref)
     released_ref, released_job = transition_job(
         workspace_root,
         job_ref,
