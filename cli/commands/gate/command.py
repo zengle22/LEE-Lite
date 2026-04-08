@@ -176,6 +176,60 @@ def _raw_to_src_package_dir(ctx: CommandContext, candidate_ref: str) -> Path | N
     return canonical_to_path(managed_artifact_ref, ctx.workspace_root).parent
 
 
+def _ui_spec_package_dir(ctx: CommandContext, candidate_ref: str, machine_ssot_ref: str) -> tuple[Path | None, dict[str, Any]]:
+    if machine_ssot_ref:
+        machine_path = canonical_to_path(machine_ssot_ref, ctx.workspace_root)
+        if machine_path.exists():
+            return machine_path.parent, load_json(machine_path)
+    if not candidate_ref:
+        return None, {}
+    try:
+        record = resolve_registry_record(ctx.workspace_root, candidate_ref)
+    except CommandError:
+        return None, {}
+    managed_artifact_ref = str(record.get("managed_artifact_ref") or "").strip()
+    if not managed_artifact_ref:
+        return None, {}
+    path = canonical_to_path(managed_artifact_ref, ctx.workspace_root)
+    if not path.exists():
+        return None, {}
+    return path.parent, load_json(path)
+
+
+def _ensure_proto_to_ui_gate_ready(ctx: CommandContext, candidate_ref: str, machine_ssot_ref: str) -> None:
+    package_dir, bundle = _ui_spec_package_dir(ctx, candidate_ref, machine_ssot_ref)
+    if package_dir is None:
+        return
+    if str(bundle.get("workflow_key") or "").strip() != "dev.proto-to-ui":
+        return
+    for name in (
+        "ui-spec-bundle.md",
+        "ui-spec-bundle.json",
+        "ui-spec-completeness-report.json",
+        "ui-spec-freeze-gate.json",
+    ):
+        ensure((package_dir / name).exists(), "PRECONDITION_FAILED", f"proto-to-ui package missing required artifact: {name}")
+    completeness = load_json(package_dir / "ui-spec-completeness-report.json")
+    ensure(
+        str(completeness.get("decision") or "").strip() == "pass",
+        "PRECONDITION_FAILED",
+        "proto-to-ui ui spec completeness report did not pass",
+    )
+    freeze_gate = load_json(package_dir / "ui-spec-freeze-gate.json")
+    ensure(freeze_gate.get("freeze_ready") is True, "PRECONDITION_FAILED", "proto-to-ui freeze gate is not ready")
+    markdown = (package_dir / "ui-spec-bundle.md").read_text(encoding="utf-8")
+    ensure("## UI Spec Refs" in markdown, "PRECONDITION_FAILED", "proto-to-ui ui-spec-bundle.md missing UI Spec Refs section")
+    ensure("## UI Specs (Embedded)" in markdown, "PRECONDITION_FAILED", "proto-to-ui ui-spec-bundle.md missing embedded UI Specs section")
+    ui_spec_refs = [str(item).strip() for item in (bundle.get("ui_spec_refs") or []) if str(item).strip()]
+    ensure(ui_spec_refs, "PRECONDITION_FAILED", "proto-to-ui ui spec bundle missing ui_spec_refs")
+    for ref in ui_spec_refs:
+        ensure(
+            f"### {ref}" in markdown,
+            "PRECONDITION_FAILED",
+            f"proto-to-ui ui-spec-bundle.md does not embed ui_spec_ref: {ref}",
+        )
+
+
 def _resolve_execution_return_dispatch(decision: dict[str, Any]) -> tuple[str, str, str]:
     candidate_ref = str(decision.get("candidate_ref") or "").strip()
     decision_target = str(decision.get("decision_target") or candidate_ref).strip()
@@ -450,6 +504,8 @@ def _evaluate_action(ctx: CommandContext):
     created_refs = [brief_record_ref, pending_human_decision_ref, decision_ref]
     write_json(_artifact_path(ctx, decision_ref), decision)
     if decision_type == "approve":
+        effective_machine_ssot_ref = str(payload.get("machine_ssot_ref") or package_payload.get("machine_ssot_ref") or "").strip()
+        _ensure_proto_to_ui_gate_ready(ctx, decision_target, effective_machine_ssot_ref)
         _ensure_raw_to_src_gate_ready(ctx, decision_target)
         materialization_payload = dict(payload)
         for field in ("target_formal_kind", "formal_artifact_ref"):
