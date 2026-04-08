@@ -12,20 +12,18 @@ from typing import Any
 
 from cli.lib.workflow_document_test import build_document_test_report, build_fixability_section
 from feat_to_tech_common import dump_json, load_json, parse_markdown_frontmatter, render_markdown
+from feat_to_tech_semantic_runtime import attach_executor_semantics, gate_semantic_fields, load_l3_review, update_handoff_semantic_ready
 from feat_to_tech_validation import recompute_semantic_gate
-
 
 def _write_json(path: Path, payload: dict[str, Any]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
-
 
 def _canonical_ref(path: Path, repo_root: Path) -> str:
     try:
         return path.resolve().relative_to(repo_root.resolve()).as_posix()
     except ValueError:
         return path.resolve().as_posix()
-
 
 def _commit_markdown(repo_root: Path, artifacts_dir: Path, run_id: str, markdown_text: str, request_suffix: str) -> dict[str, Any]:
     implementation_root = Path(__file__).resolve().parents[3]
@@ -159,7 +157,6 @@ def _document_test_report(
         fixability=fixability,
     )
 
-
 def write_executor_outputs(output_dir: Path, repo_root: Path, package: Any, generated: Any, command_name: str) -> None:
     revision_context = generated.json_payload.get("revision_context") or {}
     document_test_report = _document_test_report(generated)
@@ -178,6 +175,8 @@ def write_executor_outputs(output_dir: Path, repo_root: Path, package: Any, gene
         write_markdown(api_path, generated.api_frontmatter, generated.api_body)
     elif api_path.exists():
         api_path.unlink()
+
+    attach_executor_semantics(generated)
 
     dump_json(output_dir / "tech-design-bundle.json", generated.json_payload)
     dump_json(output_dir / "integration-context.json", generated.json_payload["integration_context"])
@@ -302,6 +301,7 @@ def build_supervision_evidence(artifacts_dir: Path, generated: Any) -> dict[str,
             "detail": "The package needs revision before freeze or downstream IMPL planning.",
         }
     document_test_report = _document_test_report(generated, defects_override=blocking_findings, semantic_drift_override=semantic_gate)
+    l3_review, l3_review_path = load_l3_review(artifacts_dir, load_json)
     return {
         "skill_id": "ll-dev-feat-to-tech",
         "run_id": generated.run_id,
@@ -314,14 +314,16 @@ def build_supervision_evidence(artifacts_dir: Path, generated: Any) -> dict[str,
         "reason": "TECH package passed semantic review." if decision == "pass" else "TECH package needs revision before freeze.",
         "document_test_report_ref": str(artifacts_dir / "document-test-report.json"),
         "document_test_outcome": document_test_report["test_outcome"],
+        **({"l3_review": l3_review} if l3_review else {}),
+        **({"l3_review_artifact_ref": str(l3_review_path)} if l3_review else {}),
         **({"revision_context": revision_context} if revision_context else {}),
     }
-
 
 def build_gate_result(generated: Any, supervision_evidence: dict[str, Any]) -> dict[str, Any]:
     consistency = generated.json_payload["design_consistency_check"]
     revision_context = generated.json_payload.get("revision_context") or {}
     semantic_gate = supervision_evidence.get("semantic_gate") or generated.semantic_drift_check
+    semantic_fields = gate_semantic_fields(bundle_payload=generated.json_payload, supervision_evidence=supervision_evidence)
     blocking_findings = [
         {
             "severity": item.get("severity"),
@@ -337,6 +339,9 @@ def build_gate_result(generated: Any, supervision_evidence: dict[str, Any]) -> d
         "execution_evidence_present": True,
         "supervision_evidence_present": True,
         "tech_present": True,
+        "semantic_pass": semantic_fields["semantic_pass"],
+        "l3_review_present": semantic_fields["l3_review_present"],
+        "l3_review_pass": semantic_fields["l3_review_pass"],
         "optional_outputs_match_assessment": True,
         "integration_sufficiency_passed": generated.json_payload["integration_sufficiency_check"]["passed"],
         "stateful_design_present": generated.json_payload["need_assessment"]["stateful_design_present"],
@@ -354,6 +359,8 @@ def build_gate_result(generated: Any, supervision_evidence: dict[str, Any]) -> d
         "workflow_key": "dev.feat-to-tech",
         "decision": "pass" if freeze_ready else "revise",
         "freeze_ready": freeze_ready,
+        "semantic_pass": semantic_fields["semantic_pass"],
+        "open_semantic_gaps": list(semantic_fields["open_semantic_gaps"]),
         "feat_ref": generated.json_payload["feat_ref"],
         "tech_ref": generated.json_payload["tech_ref"],
         "arch_required": generated.json_payload["arch_required"],
@@ -361,7 +368,6 @@ def build_gate_result(generated: Any, supervision_evidence: dict[str, Any]) -> d
         "checks": checks,
         **({"revision_context": revision_context} if revision_context else {}),
     }
-
 
 def update_supervisor_outputs(
     artifacts_dir: Path,
@@ -423,6 +429,12 @@ def update_supervisor_outputs(
     dump_json(artifacts_dir / "semantic-drift-check.json", semantic_gate)
     dump_json(artifacts_dir / "supervision-evidence.json", supervision)
     dump_json(artifacts_dir / "tech-freeze-gate.json", gate)
+    handoff_path = artifacts_dir / "handoff-to-tech-impl.json"
+    if handoff_path.exists():
+        handoff_payload = load_json(handoff_path)
+        if isinstance(handoff_payload, dict):
+            update_handoff_semantic_ready(handoff_payload=handoff_payload, bundle_payload=updated_json, supervision=supervision)
+            dump_json(handoff_path, handoff_payload)
     manifest = load_json(artifacts_dir / "package-manifest.json")
     manifest["status"] = updated_json["status"]
     manifest["cli_supervisor_commit_ref"] = str(cli_commit["response_path"])
