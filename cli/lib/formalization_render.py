@@ -15,6 +15,7 @@ def render_formal_src_markdown(
     decision_ref: str,
     frozen_at: str,
 ) -> str:
+    candidate_json = snapshot.get("candidate_json") if isinstance(snapshot.get("candidate_json"), dict) else {}
     frontmatter = {
         "id": assigned_id,
         "ssot_type": "SRC",
@@ -31,6 +32,12 @@ def render_formal_src_markdown(
         "gate_decision_ref": decision_ref,
         "frozen_at": frozen_at,
     }
+    # FRZ lineage is a governed pre-ssot anchor; persist refs in formal SRC so downstream admission
+    # can resolve the upstream FRZ package and enforce projection invariance.
+    for key in ("frz_id", "frz_package_ref", "frz_registry_record_ref"):
+        value = str(candidate_json.get(key) or "").strip()
+        if value:
+            frontmatter[key] = value
     header = yaml.safe_dump(frontmatter, allow_unicode=True, sort_keys=False).strip()
     return f"---\n{header}\n---\n\n{snapshot['body'].strip()}\n"
 

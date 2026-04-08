@@ -211,36 +211,46 @@ def derive_validation_findings(
 
 def derive_traceability(package: Any, src_root_id: str) -> list[dict[str, Any]]:
     source_refs = unique_strings(ensure_list(package.src_candidate.get("source_refs")) + (["ADR-005"] if uses_adr005_prerequisite(package) else []))
+    frz = package.frz_package if isinstance(getattr(package, "frz_package", None), dict) else {}
+    frz_id = str(frz.get("frz_id") or "").strip()
+    frz_anchor_ids: list[str] = []
+    freeze_payload = frz.get("freeze") if isinstance(frz.get("freeze"), dict) else {}
+    for collection_key in ("core_journeys", "domain_model", "state_machine", "known_unknowns"):
+        for item in (freeze_payload.get(collection_key) or []) if isinstance(freeze_payload, dict) else []:
+            if isinstance(item, dict) and str(item.get("id") or "").strip():
+                frz_anchor_ids.append(str(item["id"]).strip())
+    frz_refs = unique_strings([ref for ref in [frz_id, package.manifest.get("frz_registry_record_ref"), package.manifest.get("frz_package_ref")] if str(ref or "").strip()])
+    anchor_refs = frz_anchor_ids[:12]
     return [
         {
             "epic_section": "Epic Intent",
             "input_fields": ["problem_statement", "trigger_scenarios", "business_drivers"],
-            "source_refs": source_refs,
+            "source_refs": unique_strings(source_refs + frz_refs + anchor_refs),
         },
         {
             "epic_section": "Business Value and Problem",
             "input_fields": ["problem_statement", "business_drivers", "trigger_scenarios"],
-            "source_refs": source_refs,
+            "source_refs": unique_strings(source_refs + frz_refs + anchor_refs),
         },
         {
             "epic_section": "Actors and Roles",
             "input_fields": ["target_users", "trigger_scenarios", "bridge_context.downstream_inheritance_requirements"],
-            "source_refs": [src_root_id] + source_refs,
+            "source_refs": unique_strings([src_root_id] + source_refs + frz_refs + anchor_refs),
         },
         {
             "epic_section": "Capability Scope",
             "input_fields": ["in_scope", "governance_change_summary", "bridge_context.governance_objects"],
-            "source_refs": [src_root_id] + source_refs,
+            "source_refs": unique_strings([src_root_id] + source_refs + frz_refs + anchor_refs),
         },
         {
             "epic_section": "Constraints and Dependencies",
             "input_fields": ["key_constraints", "bridge_context.downstream_inheritance_requirements"],
-            "source_refs": [f"product.raw-to-src::{package.run_id}"] + source_refs,
+            "source_refs": unique_strings([f"product.raw-to-src::{package.run_id}"] + source_refs + frz_refs + anchor_refs),
         },
         {
             "epic_section": "Epic Success Criteria",
             "input_fields": ["business_drivers", "bridge_context.acceptance_impact", "trigger_scenarios"],
-            "source_refs": [f"product.raw-to-src::{package.run_id}"] + source_refs,
+            "source_refs": unique_strings([f"product.raw-to-src::{package.run_id}"] + source_refs + frz_refs + anchor_refs),
         },
     ]
 

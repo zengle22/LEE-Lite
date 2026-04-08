@@ -600,6 +600,30 @@ def supervisor_review(
         frz_markdown=frz_write.index_md.read_text(encoding="utf-8"),
     )
     frz_registry_record_ref = str(frz_commit["response"]["data"].get("registry_record_ref", "")).strip()
+
+    # Persist FRZ lineage back into src-candidate.json so formal materialization and downstream workflows
+    # can preserve pre-ssot anchors without having to guess the FRZ package location.
+    candidate_json_path = artifacts_dir / "src-candidate.json"
+    if candidate_json_path.exists():
+        try:
+            candidate_payload = read_json(candidate_json_path)
+            if isinstance(candidate_payload, dict):
+                candidate_payload["frz_id"] = str(frz.get("frz_id") or "").strip()
+                candidate_payload["frz_package_ref"] = frz_package_ref
+                candidate_payload["frz_registry_record_ref"] = frz_registry_record_ref
+                candidate_payload["frz_msc"] = frz.get("msc") or {}
+
+                freeze_payload = frz.get("freeze") or {}
+                anchor_ids: list[str] = []
+                for collection_key in ("core_journeys", "domain_model", "state_machine", "known_unknowns"):
+                    for item in freeze_payload.get(collection_key) or []:
+                        if isinstance(item, dict) and str(item.get("id") or "").strip():
+                            anchor_ids.append(str(item["id"]).strip())
+                candidate_payload["frz_anchor_ids"] = sorted({item for item in anchor_ids if item})
+                write_json(candidate_json_path, candidate_payload)
+        except Exception:
+            # FRZ lineage is additive metadata; do not block handoff on best-effort persistence failures.
+            pass
     supervisor_stages.append(
         stage(
             "frz_package_compilation",
