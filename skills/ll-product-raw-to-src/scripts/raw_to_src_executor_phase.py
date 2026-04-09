@@ -44,7 +44,14 @@ def freeze_input_source(input_path: Path, repo_root: Path, artifacts_dir: Path, 
     input_dir = ensure_dir(artifacts_dir / "input")
     frozen_name = f"source-input{input_path.suffix.lower()}"
     frozen_path = input_dir / frozen_name
-    shutil.copy2(input_path, frozen_path)
+
+    # Handle case where input is already in the artifacts directory
+    if input_path.resolve() == frozen_path.resolve():
+        # File is already in the right place, just read it for hash
+        frozen_path = input_path
+    else:
+        # Use copy instead of copy2 to avoid file lock issues on Windows
+        shutil.copy(input_path, frozen_path)
     digest = hashlib.sha256(frozen_path.read_bytes()).hexdigest()
     metadata = {
         "captured_by": "product.raw-to-src.executor",

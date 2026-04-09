@@ -30,7 +30,13 @@ def _freeze_source_input(input_path: Path, artifacts_dir: Path, repo_root: Path)
     input_dir.mkdir(parents=True, exist_ok=True)
     frozen_name = f"source-input{input_path.suffix.lower()}"
     frozen_path = input_dir / frozen_name
-    shutil.copy2(input_path, frozen_path)
+
+    # Handle case where input is already in the artifacts directory
+    if input_path.resolve() == frozen_path.resolve():
+        frozen_path = input_path
+    else:
+        # Use copy instead of copy2 to avoid file lock issues on Windows
+        shutil.copy(input_path, frozen_path)
 
     payload = frozen_path.read_bytes()
     content_hash = hashlib.sha256(payload).hexdigest()
