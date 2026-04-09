@@ -59,6 +59,21 @@ def output_dir_for(repo_root: Path, run_id: str) -> Path:
     return repo_root / "artifacts" / "feat-to-tech" / run_id
 
 
+def sanitize_run_id(run_id: str) -> str:
+    """
+    Sanitize a run ID for use as a filesystem path on Windows.
+
+    Replaces invalid filename characters with safe alternatives:
+    - : -> -
+    - / -> -
+    - \\ -> -
+    - < > | ? * " are also replaced
+    """
+    sanitized = run_id.replace("://", "-").replace(":", "-").replace("/", "-").replace("\\", "-")
+    sanitized = sanitized.replace("<", "-").replace(">", "-").replace("|", "-").replace("?", "-").replace("*", "-").replace('"', "-")
+    return sanitized
+
+
 def repo_relative(repo_root: Path, path: Path) -> str:
     return path.resolve().relative_to(repo_root.resolve()).as_posix()
 
@@ -132,6 +147,7 @@ def executor_run(
     feature["semantic_lock"] = derive_semantic_lock(feature, package.semantic_lock)
 
     effective_run_id = run_id or f"{package.run_id}--{effective_feat_ref.lower()}"
+    effective_run_id = sanitize_run_id(effective_run_id)
     generated = build_tech_package(package, feature, effective_feat_ref, effective_run_id, utc_now, revision_request=revision_context)
     output_dir = output_dir_for(repo_root, effective_run_id)
     if output_dir.exists() and not allow_update:
