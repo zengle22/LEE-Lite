@@ -77,6 +77,7 @@ UI_SHELL_SOURCE_REF = "skills/ll-dev-feat-to-proto/resources/ui-shell/default-ui
 PROTOTYPE_TEMPLATE_ROOT = RESOURCE_ROOT / "prototype"
 SRC001_HIFI_TEMPLATE_ROOT = RESOURCE_ROOT / "templates" / "src001-onboarding-hifi" / "prototype"
 SRC002_HIFI_TEMPLATE_ROOT = RESOURCE_ROOT / "templates" / "src002-journey-hifi" / "prototype"
+GENERIC_HIFI_TEMPLATE_ROOT = RESOURCE_ROOT / "templates" / "generic-hifi" / "prototype"
 SHELL_REQUIRED_SECTIONS = (
     "## App Shell",
     "## Container Rules",
@@ -330,13 +331,22 @@ def _journey_id_from_context(context: dict[str, Any]) -> str:
 
 
 def _hifi_kind(context: dict[str, Any]) -> str:
+    """Determine the hifi template kind for the given context.
+
+    Returns:
+        - "src001" for SRC001 journey feats 001-005
+        - "src002" for SRC002 journey feats 001-006
+        - "generic" for all other feats (default hifi template with full interactions)
+    """
     journey_id = _journey_id_from_context(context)
     feat_num = _feat_num_from_ref(str(context.get("feat_ref") or ""))
     if journey_id == "SRC001" and feat_num in {"001", "002", "003", "004", "005"}:
         return "src001"
     if journey_id == "SRC002" and feat_num in {"001", "002", "003", "004", "005", "006"}:
         return "src002"
-    return ""
+    # Default to generic hifi for ALL feats - ensures consistent high-fidelity prototypes
+    # with proper visual details, micro-interactions, and state transitions
+    return "generic"
 
 
 def _is_src002_hifi_required(context: dict[str, Any]) -> bool:
@@ -352,6 +362,8 @@ def _prototype_source_for_kind(kind: str) -> str:
         return "src001_onboarding_hifi_template"
     if kind == "src002":
         return "src002_journey_hifi_template"
+    if kind == "generic":
+        return "generic_hifi_template"
     return ""
 
 
@@ -360,6 +372,8 @@ def _template_root_for_kind(kind: str) -> Path | None:
         return SRC001_HIFI_TEMPLATE_ROOT
     if kind == "src002":
         return SRC002_HIFI_TEMPLATE_ROOT
+    if kind == "generic":
+        return GENERIC_HIFI_TEMPLATE_ROOT
     return None
 
 
@@ -931,6 +945,91 @@ def resolve_ui_spec_bundle(repo_root: Path, feat_ref: str, feat_title: str = "")
     return {"path": path.resolve(), "bundle": bundle}
 
 
+def resolve_prototype_framework_skeleton(repo_root: Path, src_root_id: str = "") -> dict[str, Any] | None:
+    """Resolve prototype framework skeleton from ssot/prototype/ directory.
+
+    This function looks for existing prototype framework skeletons in the SSOT directory
+    to inherit visual style, UI shell spec, and journey structure from established
+    prototype framework rather than using default templates.
+
+    Priority order:
+    1. Match by src_root_id (e.g., PRD-001, PRD-003)
+    2. Fall back to most recently modified prototype framework (for inheritance)
+    3. Return None if no prototype framework found
+
+    This ensures that even when src_root_id doesn't directly match (e.g.,
+    "src-root-src-004" should inherit from PRD-001), the function still finds
+    an existing prototype framework to inherit from.
+    """
+    prototype_ssot_dir = repo_root / "ssot" / "prototype"
+    if not prototype_ssot_dir.exists():
+        return None
+
+    candidates: list[tuple[float, Path, dict[str, Any]]] = []
+    fallback_candidates: list[tuple[float, Path, dict[str, Any]]] = []
+
+    # Look for prototype framework directories (e.g., PRD-001/PROTOTYPE-PRD-001-000__xxx/)
+    for proto_dir in prototype_ssot_dir.glob("*"):
+        if not proto_dir.is_dir():
+            continue
+
+        # Check if this directory matches the src_root_id
+        dir_name = proto_dir.name
+        matches_src_root = not src_root_id or dir_name.startswith(src_root_id)
+
+        # Look for ui-shell-spec.md or journey-ux-ascii.md in the prototype directory
+        ui_shell_spec = proto_dir / "ui-shell-spec.md"
+        journey_spec = proto_dir / "journey-ux-ascii.md"
+
+        if not ui_shell_spec.exists() and not journey_spec.exists():
+            # Try subdirectories (e.g., PROTOTYPE-PRD-001-000__总旅程对话式框架/)
+            for sub_dir in proto_dir.glob("*"):
+                if sub_dir.is_dir():
+                    ui_shell_spec = sub_dir / "ui-shell-spec.md"
+                    journey_spec = sub_dir / "journey-ux-ascii.md"
+                    if ui_shell_spec.exists() or journey_spec.exists():
+                        proto_dir = sub_dir
+                        break
+
+        if not ui_shell_spec.exists() and not journey_spec.exists():
+            continue
+
+        # Load metadata from ui-shell-spec.md if available
+        metadata: dict[str, Any] = {}
+        if ui_shell_spec.exists():
+            ui_shell_text = ui_shell_spec.read_text(encoding="utf-8")
+            metadata = extract_shell_metadata(ui_shell_text)
+            metadata["ui_shell_spec_path"] = str(ui_shell_spec.relative_to(repo_root))
+
+        if journey_spec.exists():
+            metadata["journey_spec_path"] = str(journey_spec.relative_to(repo_root))
+            metadata["prototype_framework_ref"] = f"ssot/prototype/{proto_dir.relative_to(prototype_ssot_dir)}"
+
+        if not metadata:
+            continue
+
+        mtime = proto_dir.stat().st_mtime
+        if matches_src_root:
+            candidates.append((mtime, proto_dir, metadata))
+        else:
+            # Collect as fallback for when no direct match is found
+            fallback_candidates.append((mtime, proto_dir, metadata))
+
+    if candidates:
+        # Return the most recent matching prototype framework
+        _, path, metadata = sorted(candidates, key=lambda item: item[0], reverse=True)[0]
+        return {"path": path.resolve(), "metadata": metadata}
+
+    if fallback_candidates:
+        # No direct match found, fall back to the most recent prototype framework
+        # This ensures inheritance from existing prototype skeletons even when
+        # src_root_id doesn't directly match (e.g., "src-root-src-004" should inherit from PRD-001)
+        _, path, metadata = sorted(fallback_candidates, key=lambda item: item[0], reverse=True)[0]
+        return {"path": path.resolve(), "metadata": metadata}
+
+    return None
+
+
 def _extract_field_options(note: str) -> list[str]:
     match = re.search(r"options\s*:\s*([^\n]+)", str(note or ""), flags=re.IGNORECASE)
     if not match:
@@ -1334,7 +1433,20 @@ def build_package(context: dict[str, Any], repo_root: Path, run_id: str, allow_u
         _bind_prototype_candidate_record(repo_root, output_dir, journey_ref)
         return {"ok": True, "artifacts_dir": str(output_dir), "freeze_ready": False, "notes": "existing artifacts_dir reused (use --allow-update to rebuild)"}
     output_dir.mkdir(parents=True, exist_ok=True)
-    ui_shell_source_text = Path(WORKSPACE_ROOT / UI_SHELL_SOURCE_REF).read_text(encoding="utf-8")
+
+    # Try to resolve prototype framework skeleton from ssot/prototype/ first
+    # This ensures we inherit visual style from existing prototype framework rather than default templates
+    src_root_id = str(feature.get("src_root_id") or "").strip()
+    prototype_framework = resolve_prototype_framework_skeleton(repo_root, src_root_id)
+
+    # Use prototype framework UI shell if available, otherwise fall back to default
+    if prototype_framework and prototype_framework.get("metadata", {}).get("ui_shell_spec_path"):
+        ui_shell_source_ref = prototype_framework["metadata"]["ui_shell_spec_path"]
+        ui_shell_source_text = Path(WORKSPACE_ROOT / ui_shell_source_ref).read_text(encoding="utf-8") if (WORKSPACE_ROOT / ui_shell_source_ref).exists() else Path(ui_shell_source_ref).read_text(encoding="utf-8")
+    else:
+        ui_shell_source_ref = UI_SHELL_SOURCE_REF
+        ui_shell_source_text = Path(WORKSPACE_ROOT / UI_SHELL_SOURCE_REF).read_text(encoding="utf-8")
+
     ui_shell_metadata = extract_shell_metadata(ui_shell_source_text)
     ui_shell_snapshot_hash = sha256_text(ui_shell_source_text)
     feat_title = first(feature.get("title"), "").strip()
@@ -1358,11 +1470,12 @@ def build_package(context: dict[str, Any], repo_root: Path, run_id: str, allow_u
         "journey_ascii_ref": JOURNEY_SPEC_REF,
         "ui_shell_snapshot_ref": UI_SHELL_SNAPSHOT_REF,
         "ui_shell_ref": UI_SHELL_SNAPSHOT_REF,
-        "ui_shell_source_ref": UI_SHELL_SOURCE_REF,
+        "ui_shell_source_ref": ui_shell_source_ref,
         "ui_shell_version": ui_shell_metadata.get("ui_shell_version", ""),
         "ui_shell_family": ui_shell_metadata.get("ui_shell_family", ""),
         "ui_shell_snapshot_hash": ui_shell_snapshot_hash,
         "shell_change_policy": ui_shell_metadata.get("shell_change_policy", ""),
+        "prototype_framework_ref": str(prototype_framework.get("metadata", {}).get("prototype_framework_ref", "")) if prototype_framework else "",
         "surface_map_ref": resolved_surface_map_ref,
         "prototype_owner_ref": str(prototype_binding.get("owner") or "").strip(),
         "prototype_action": str(prototype_binding.get("action") or "").strip(),
