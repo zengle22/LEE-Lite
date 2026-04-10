@@ -72,6 +72,161 @@ MINIMAL_ONBOARDING_FIELD_MARKERS = [
     "recent_injury_status",
 ]
 
+# Engineering baseline FEAT patterns - each FEAT owns exactly one engineering object
+ENGINEERING_BASELINE_FEAT_MAP = {
+    "repo-layout": "repo_layout_baseline",
+    "apps-api-shell": "apps_api_shell",
+    "apps-miniapp-shell": "apps_miniapp_shell",
+    "local-env-baseline": "local_env_baseline",
+    "db-migrations": "db_migrations_discipline",
+    "healthz-readyz": "healthz_readyz_contract",
+}
+
+ENGINEERING_BASELINE_MODULE_MAP = {
+    "repo_layout_baseline": [
+        "Repository layout validator: 负责验证 src/, apps/, deploy/ 等顶层目录结构。",
+        "Skeleton generator: 负责生成空壳文件和占位目录。",
+        "AGENTS/README bootstrap: 负责写入项目级文档模板。",
+    ],
+    "apps_api_shell": [
+        "API shell bootstrap: 负责生成 apps/api/ 最小可运行骨架。",
+        "Health endpoint stub: 负责生成/healthz 占位端点。",
+        "Build script placeholder: 负责生成 Makefile/scripts 占位。",
+    ],
+    "apps_miniapp_shell": [
+        "MiniApp shell bootstrap: 负责生成 apps/miniapp/ 最小可运行骨架。",
+        "UniApp config placeholder: 负责生成 manifest.json 等配置占位。",
+        "Build target stub: 负责生成构建脚本占位。",
+    ],
+    "local_env_baseline": [
+        "Docker Compose bootstrap: 负责生成 deploy/docker-compose.local.yml。",
+        "Env var template: 负责生成.env.example 模板。",
+        "Container network setup: 负责配置本地容器网络。",
+    ],
+    "db_migrations_discipline": [
+        "Migration directory structure: 负责创建 db/migrations/ 目录。",
+        "Migration naming convention: 负责定义迁移文件命名规则。",
+        "Migration runner stub: 负责生成迁移执行脚本占位。",
+    ],
+    "healthz_readyz_contract": [
+        "Healthz endpoint contract: 负责定义/healthz 响应格式。",
+        "Readyz endpoint contract: 负责定义/readyz 响应格式。",
+        "Health check integration: 负责定义容器健康检查配置。",
+    ],
+}
+
+ENGINEERING_BASELINE_STRATEGY_MAP = {
+    "repo_layout_baseline": [
+        "先验证目录结构规范，再生成空壳文件。",
+        "使用占位文件（.gitkeep）确保空目录被 git 追踪。",
+        "最后验证生成结果与预期结构一致。",
+    ],
+    "apps_api_shell": [
+        "先创建目录结构，再写入最小可运行代码。",
+        "使用语言/框架的空壳模板（如 Go module、Python venv）。",
+        "验证可运行性：确保能执行最简启动命令。",
+    ],
+    "apps_miniapp_shell": [
+        "先创建 UniApp 项目结构，再写入配置文件。",
+        "使用官方模板或手动创建 pages/, components/ 目录。",
+        "验证构建工具可识别项目。",
+    ],
+    "local_env_baseline": [
+        "先定义容器清单和服务依赖。",
+        "编写 docker-compose.yml，配置网络和卷。",
+        "验证 docker-compose up 可启动所有服务。",
+    ],
+    "db_migrations_discipline": [
+        "先创建 migrations 目录和版本追踪表。",
+        "定义迁移文件命名规则（如 V001__description.sql）。",
+        "提供迁移执行和回滚脚本占位。",
+    ],
+    "healthz_readyz_contract": [
+        "先定义健康检查响应格式（JSON/plain）。",
+        "实现/healthz 和/readyz 端点。",
+        "在 docker-compose 中配置 healthcheck。",
+    ],
+}
+
+ENGINEERING_BASELINE_UNIT_MAP = {
+    "repo_layout_baseline": [
+        "`src/lee/__init__.py` (`new`): 标记 Python 包根目录。",
+        "`apps/api/.gitkeep` (`new`): 占位 API 目录。",
+        "`apps/miniapp/.gitkeep` (`new`): 占位 MiniApp 目录。",
+        "`AGENTS.md` (`new`): 项目级 AI 助手说明。",
+    ],
+    "apps_api_shell": [
+        "`apps/api/main.go` (`new`): Go API 入口（或对应语言）。",
+        "`apps/api/go.mod` (`new`): Go 模块定义。",
+        "`apps/api/healthz.go` (`new`): 健康检查端点。",
+    ],
+    "apps_miniapp_shell": [
+        "`apps/miniapp/manifest.json` (`new`): UniApp 配置。",
+        "`apps/miniapp/pages.json` (`new`): 页面路由。",
+        "`apps/miniapp/App.vue` (`new`): 根组件。",
+    ],
+    "local_env_baseline": [
+        "`deploy/docker-compose.local.yml` (`new`): 本地开发容器编排。",
+        "`deploy/.env.example` (`new`): 环境变量模板。",
+        "`deploy/networks.yaml` (`new`): 网络配置（可选）。",
+    ],
+    "db_migrations_discipline": [
+        "`db/migrations/.gitkeep` (`new`): 迁移目录占位。",
+        "`db/migrations/README.md` (`new`): 迁移规范说明。",
+        "`db/migrations/V001__init.sql` (`new`): 初始迁移占位。",
+    ],
+    "healthz_readyz_contract": [
+        "`src/lee/health/endpoints.py` (`new`): 健康检查端点实现。",
+        "`src/lee/health/contracts.md` (`new`): 端点契约文档。",
+        "`deploy/docker-compose.local.yml#healthcheck` (`modify`): 容器健康检查配置。",
+    ],
+}
+
+ENGINEERING_BASELINE_SEQUENCE_MAP = {
+    "repo_layout_baseline": [
+        "1. validate target directory structure",
+        "2. create top-level directories (src/, apps/, deploy/)",
+        "3. create .gitkeep placeholders for empty directories",
+        "4. write AGENTS.md and README templates",
+        "5. verify structure matches expected layout",
+    ],
+    "apps_api_shell": [
+        "1. create apps/api/ directory structure",
+        "2. write language/framework bootstrap files",
+        "3. add minimal health endpoint stub",
+        "4. configure build scripts",
+        "5. verify minimal runnable state",
+    ],
+    "apps_miniapp_shell": [
+        "1. create apps/miniapp/ directory structure",
+        "2. write UniApp configuration files",
+        "3. create pages/App.vue root component",
+        "4. configure build targets",
+        "5. verify project recognized by build tools",
+    ],
+    "local_env_baseline": [
+        "1. define container inventory and dependencies",
+        "2. write docker-compose.local.yml",
+        "3. configure networks and volumes",
+        "4. create .env.example template",
+        "5. verify docker-compose up starts all services",
+    ],
+    "db_migrations_discipline": [
+        "1. create db/migrations/ directory",
+        "2. define migration file naming convention",
+        "3. create version tracking table schema",
+        "4. write migration runner stub",
+        "5. document migration workflow",
+    ],
+    "healthz_readyz_contract": [
+        "1. define health check response format",
+        "2. implement /healthz endpoint",
+        "3. implement /readyz endpoint",
+        "4. configure container healthcheck",
+        "5. verify endpoints respond correctly",
+    ],
+}
+
 
 def review_projection_axis(feature: dict[str, Any]) -> str:
     lock = feature.get("semantic_lock") or {}
@@ -542,20 +697,90 @@ def architecture_diagram(feature: dict[str, Any]) -> str:
     return _axis_text(feature, "architecture_diagram") or "\n".join(["```text", "[Boundary Placement] -> [Implementation Carrier] -> [Authoritative Output]", "```"])
 
 
+def is_engineering_baseline_feature(feature: dict[str, Any]) -> bool:
+    """Check if this is an engineering baseline FEAT (SRC003-style code bootstrap)."""
+    src_ref = str(feature.get("src_root_id") or feature.get("src_ref") or "")
+    feat_ref = str(feature.get("feat_ref") or "")
+    title = str(feature.get("title") or "").lower()
+
+    # Check for SRC-003 style engineering baseline
+    if "SRC-003" in src_ref or "SRC003" in src_ref:
+        return True
+
+    # Check for engineering baseline patterns in feat_ref or title
+    for pattern in ENGINEERING_BASELINE_FEAT_MAP.keys():
+        if pattern in feat_ref.lower() or pattern in title:
+            return True
+
+    # Check for explicit axis marking
+    axis = str(feature.get("axis_id") or "").lower()
+    if "engineering" in axis or "baseline" in axis:
+        return True
+
+    return False
+
+
+def get_engineering_baseline_type(feature: dict[str, Any]) -> str | None:
+    """Get the specific engineering baseline type for this FEAT."""
+    if not is_engineering_baseline_feature(feature):
+        return None
+
+    feat_ref = str(feature.get("feat_ref") or "")
+    title = str(feature.get("title") or "").lower()
+
+    for pattern, baseline_type in ENGINEERING_BASELINE_FEAT_MAP.items():
+        if pattern in feat_ref.lower() or pattern in title:
+            return baseline_type
+
+    return None
+
+
 def tech_runtime_view(feature: dict[str, Any]) -> str:
+    # For engineering baseline FEATs, return FEAT-specific runtime view
+    baseline_type = get_engineering_baseline_type(feature)
+    if baseline_type:
+        return "\n".join(["```text", f"[{baseline_type}/runtime.py] -> [{baseline_type}/contracts.py] -> [{baseline_type}/receipts.py]", "```"])
     return _axis_text(feature, "tech_runtime_view") or "\n".join(["```text", "[runtime.py] -> [contracts.py] -> [receipts.py]", "```"])
 
 
 def flow_diagram(feature: dict[str, Any]) -> str:
+    # For engineering baseline FEATs, return FEAT-specific flow
+    baseline_type = get_engineering_baseline_type(feature)
+    if baseline_type:
+        return "\n".join(["```text", f"bootstrap -> {baseline_type} -> verify runnable", "```"])
     return _axis_text(feature, "flow_diagram") or "\n".join(["```text", "caller -> runtime -> authoritative record", "```"])
 
 
 def implementation_strategy(feature: dict[str, Any]) -> list[str]:
+    # For engineering baseline FEATs, return FEAT-specific strategy
+    baseline_type = get_engineering_baseline_type(feature)
+    if baseline_type and baseline_type in ENGINEERING_BASELINE_STRATEGY_MAP:
+        return ENGINEERING_BASELINE_STRATEGY_MAP[baseline_type]
     return _axis_list(feature, "implementation_strategy") or ["Freeze contracts first, implement one authoritative carrier, then validate traceability and replay safety."]
 
 
+def implementation_modules(feature: dict[str, Any]) -> list[str]:
+    # For engineering baseline FEATs, return FEAT-specific modules
+    baseline_type = get_engineering_baseline_type(feature)
+    if baseline_type and baseline_type in ENGINEERING_BASELINE_MODULE_MAP:
+        return ENGINEERING_BASELINE_MODULE_MAP[baseline_type]
+    return _axis_list(feature, "implementation_modules") or ["Runtime carrier module", "Contract/validator module", "Evidence or receipt module"]
+
+
 def implementation_unit_mapping(feature: dict[str, Any]) -> list[str]:
+    # For engineering baseline FEATs, return FEAT-specific unit mapping
+    baseline_type = get_engineering_baseline_type(feature)
+    if baseline_type and baseline_type in ENGINEERING_BASELINE_UNIT_MAP:
+        return ENGINEERING_BASELINE_UNIT_MAP[baseline_type]
     return _axis_list(feature, "implementation_unit_mapping") or ["`runtime.py` (`new`): authoritative carrier", "`contracts.py` (`new`): request/response validation"]
+
+
+def main_sequence(feature: dict[str, Any]) -> list[str]:
+    # For engineering baseline FEATs, return FEAT-specific sequence
+    baseline_type = get_engineering_baseline_type(feature)
+    if baseline_type and baseline_type in ENGINEERING_BASELINE_SEQUENCE_MAP:
+        return ENGINEERING_BASELINE_SEQUENCE_MAP[baseline_type]
+    return _axis_list(feature, "main_sequence") or ["1. normalize request", "2. execute authoritative carrier", "3. persist evidence and refs", "4. return structured result"]
 
 
 def interface_contracts(feature: dict[str, Any]) -> list[str]:

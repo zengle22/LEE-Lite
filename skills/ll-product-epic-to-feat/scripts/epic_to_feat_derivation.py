@@ -109,7 +109,7 @@ def _generic_main_flow(axis: dict[str, Any]) -> list[str]:
     completed = _generic_axis_completed_state(axis)
     return [
         f"用户或系统进入 {name} 对应的产品场景，并围绕 {surface} 启动该切片。",
-        f"系统执行“{scope}”所要求的关键业务处理，并校验该切片成立所需的最小条件。",
+        f"系统执行\"{scope}\"所要求的关键业务处理，并校验该切片成立所需的最小条件。",
         f"系统产出 {deliverable}，并把结果暴露为可被上下游观察的 authoritative 产品结果。",
         f"业务完成态收敛到：{completed}",
     ]
@@ -135,7 +135,7 @@ def _generic_acceptance_checks(feat_ref: str, axis: dict[str, Any]) -> list[dict
             "scenario": f"{name} keeps its declared product boundary",
             "given": "相邻 FEAT 或下游实现尝试把额外能力并入当前切片",
             "when": f"该 FEAT 的业务边界被审查",
-            "then": f"该 FEAT 只覆盖“{scope}”及其直接完成结果，不吸收相邻产品切片、实现任务或测试执行细节。",
+            "then": f"该 FEAT 只覆盖\"{scope}\"及其直接完成结果，不吸收相邻产品切片、实现任务或测试执行细节。",
             "trace_hints": [feat_ref, name, "scope boundary", scope],
         },
         {
@@ -178,8 +178,8 @@ def _generic_constraints(axis: dict[str, Any], package: Any) -> list[str]:
     selected = select_constraints(package, [name, _generic_axis_surface(axis), deliverable], fallback_count=2)
     specialized = [
         f"{name} 必须保持为独立可验收的产品切片，不能退化为页面字段清单、接口清单或实现任务。",
-        f"{name} 的完成态必须与“{completed}”对齐，不能只输出中间态、占位态或内部处理结果。",
-        f"下游继承 {name} 时必须保留 {deliverable} 这一 authoritative product deliverable，不能自行改写产品边界。",
+        f'{name} 的完成态必须与"{completed}"对齐，不能只输出中间态、占位态或内部处理结果。',
+        f'{name} 下游继承 {name} 时必须保留 {deliverable} 这一 authoritative product deliverable，不能自行改写产品边界。',
     ]
     capabilities = _generic_axis_capability_summary(axis)
     if capabilities:
@@ -196,7 +196,7 @@ def _generic_frozen_product_shape(axis: dict[str, Any]) -> list[str]:
 
 def _generic_frozen_business_semantics(axis: dict[str, Any]) -> list[str]:
     return [
-        f"{_generic_axis_name(axis)} 的完成态必须以“{_generic_axis_completed_state(axis)}”为准，而不是以中间占位状态替代。",
+        f'{_generic_axis_name(axis)} 的完成态必须以{_generic_axis_completed_state(axis)}为准，而不是以中间占位状态替代。',
         f"下游继承 {_generic_axis_name(axis)} 时必须保留该切片的 scope 与 deliverable 边界。",
     ]
 
@@ -856,7 +856,7 @@ def feat_business_rules(axis: dict[str, str], package: Any) -> list[str]:
         return explicit
     rules = {
         "collaboration-loop": [
-            "candidate 提交后必须形成 authoritative handoff object，不能只靠目录约定或隐式上下文表示“已提交”。",
+            "candidate 提交后必须形成 authoritative handoff object，不能只靠目录约定或隐式上下文表示\"已提交\"。",
             "进入 gate 前后的责任主体必须显式可辨认。",
         ],
         "handoff-formalization": [
@@ -1368,9 +1368,218 @@ def feat_dependencies(axis: dict[str, str], package: Any | None = None) -> list[
     return dependencies.get(axis_key(axis), [])
 
 
+def _engineering_baseline_acceptance_checks(feat_ref: str, slice_id: str) -> list[dict[str, Any]]:
+    """Generate engineering baseline-specific acceptance checks with file/path/command level detail.
+
+    These checks are concrete and verifiable at the file/object/command level,
+    not generic product contract templates.
+    """
+    # Map slice IDs to specific acceptance check sets
+    slice_checks = {
+        "repo-layout-baseline": [
+            {
+                "id": f"{feat_ref}-AC-01",
+                "scenario": "Repository skeleton generator creates all baseline directories",
+                "given": "The repo skeleton generator is executed for a new project",
+                "when": "Directory structure validation is performed",
+                "then": "All baseline directories must exist: apps/, services/, packages/, contracts/, scripts/, docs/ with proper README.md in each",
+                "trace_hints": [feat_ref, "skeleton generator", "directory validator", "baseline dirs"],
+            },
+            {
+                "id": f"{feat_ref}-AC-02",
+                "scenario": "Documentation hierarchy is established",
+                "given": "The skeleton generator completes",
+                "when": "Documentation structure is reviewed",
+                "then": "docs/adr/, docs/superpowers/specs/, docs/superpowers/decisions/ directories exist with index files",
+                "trace_hints": [feat_ref, "adr directory", "specs directory", "documentation hierarchy"],
+            },
+            {
+                "id": f"{feat_ref}-AC-03",
+                "scenario": "Skeleton generator compliance is verifiable",
+                "given": "A reviewer runs the skeleton generator",
+                "when": "Output is compared against expected layout spec",
+                "then": "No deviation from the baseline layout spec; any customization must be in allowed override zones only",
+                "trace_hints": [feat_ref, "layout spec", "compliance check", "override zones"],
+            },
+        ],
+        "api-shell-runnable": [
+            {
+                "id": f"{feat_ref}-AC-01",
+                "scenario": "Health endpoints are accessible and return correct structure",
+                "given": "The API server is started locally",
+                "when": "GET /healthz and GET /readyz are called",
+                "then": "Both endpoints return 200 with {status: 'ok'} structure; /readyz includes dependency checks",
+                "trace_hints": [feat_ref, "/healthz", "/readyz", "health endpoint", "probe response"],
+            },
+            {
+                "id": f"{feat_ref}-AC-02",
+                "scenario": "Layered architecture boundary is enforced in code structure",
+                "given": "The API codebase is reviewed",
+                "when": "Import statements and directory boundaries are inspected",
+                "then": "No circular imports between layers; handlers -> services -> repositories direction is enforced; Go module boundary is explicit in go.mod",
+                "trace_hints": [feat_ref, "layered architecture", "import boundary", "go.mod"],
+            },
+            {
+                "id": f"{feat_ref}-AC-03",
+                "scenario": "API server is runnable as a standalone process",
+                "given": "Dependencies are installed",
+                "when": "The server start command is executed (e.g., go run ./cmd/server or npm start)",
+                "then": "Server starts successfully and binds to configured port without errors",
+                "trace_hints": [feat_ref, "server startup", "port binding", "runnable entrypoint"],
+            },
+        ],
+        "miniapp-shell-runnable": [
+            {
+                "id": f"{feat_ref}-AC-01",
+                "scenario": "Miniapp compiles and previews without errors",
+                "given": "Miniapp project dependencies are installed",
+                "when": "Build/preview command is executed (e.g., npm run dev, uniapp build)",
+                "then": "Build completes without errors; preview server starts and serves the miniapp shell",
+                "trace_hints": [feat_ref, "miniapp build", "preview server", "compilation"],
+            },
+            {
+                "id": f"{feat_ref}-AC-02",
+                "scenario": "API integration layer is scaffolded",
+                "given": "The miniapp shell is created",
+                "when": "API client code structure is reviewed",
+                "then": "API client module exists with configurable base URL, request/response interceptors, and error handling skeleton",
+                "trace_hints": [feat_ref, "API client", "interceptors", "error handling"],
+            },
+            {
+                "id": f"{feat_ref}-AC-03",
+                "scenario": "Navigation structure is defined",
+                "given": "The miniapp shell pages are created",
+                "when": "Page routing configuration is inspected",
+                "then": "pages.json (or equivalent) defines all baseline pages with proper navigation paths and tab bar configuration if applicable",
+                "trace_hints": [feat_ref, "pages.json", "navigation", "tab bar", "routing"],
+            },
+        ],
+        "local-env-baseline": [
+            {
+                "id": f"{feat_ref}-AC-01",
+                "scenario": "Docker Compose file defines all required services",
+                "given": "docker-compose.local.yml exists",
+                "when": "docker compose -f docker-compose.local.yml config is validated",
+                "then": "Services defined: postgres (with volume), redis (optional), and app service with correct networking and volume mounts",
+                "trace_hints": [feat_ref, "docker-compose.local.yml", "postgres service", "volume mounts"],
+            },
+            {
+                "id": f"{feat_ref}-AC-02",
+                "scenario": "Environment variables are documented and configurable",
+                "given": ".env.example or .env.template exists",
+                "when": "Environment file is reviewed",
+                "then": "All required env vars documented: DATABASE_URL, REDIS_URL, PORT, API keys placeholders; .env file is in .gitignore",
+                "trace_hints": [feat_ref, ".env.example", "DATABASE_URL", "environment variables"],
+            },
+            {
+                "id": f"{feat_ref}-AC-03",
+                "scenario": "Postgres connectivity is verifiable",
+                "given": "docker compose up is executed",
+                "when": "Application attempts database connection",
+                "then": "Connection succeeds; health check passes; database is accessible from app container",
+                "trace_hints": [feat_ref, "postgres connectivity", "health check", "container networking"],
+            },
+        ],
+        "db-migrations-discipline": [
+            {
+                "id": f"{feat_ref}-AC-01",
+                "scenario": "Empty database can be migrated from scratch",
+                "given": "Fresh empty PostgreSQL database is created",
+                "when": "Migration command is run (e.g., goose up, golang-migrate up, alembic upgrade head)",
+                "then": "All migrations execute successfully; schema matches the expected initial schema; no manual SQL required",
+                "trace_hints": [feat_ref, "empty database", "migration command", "initial schema"],
+            },
+            {
+                "id": f"{feat_ref}-AC-02",
+                "scenario": "Initial schema is version-controlled",
+                "given": "Migration files are inspected",
+                "when": "Schema structure is reviewed",
+                "then": "Core tables exist with proper constraints, indexes, and foreign keys; migration files are sequential and reversible (up/down)",
+                "trace_hints": [feat_ref, "initial schema", "migration files", "reversible migrations"],
+            },
+            {
+                "id": f"{feat_ref}-AC-03",
+                "scenario": "Migration discipline is enforced",
+                "given": "A developer needs to change schema",
+                "when": "Schema change process is reviewed",
+                "then": "All schema changes go through migration files; no direct DDL in application code; migration rollback is tested",
+                "trace_hints": [feat_ref, "migration discipline", "schema changes", "rollback tested"],
+            },
+        ],
+        "healthz-readyz-contract": [
+            {
+                "id": f"{feat_ref}-AC-01",
+                "scenario": "Liveness probe endpoint is implemented correctly",
+                "given": "Application is running",
+                "when": "GET /healthz is called",
+                "then": "Returns 200 OK with minimal latency; response includes timestamp and version; endpoint does not check external dependencies",
+                "trace_hints": [feat_ref, "/healthz", "liveness probe", "version info"],
+            },
+            {
+                "id": f"{feat_ref}-AC-02",
+                "scenario": "Readiness probe validates all critical dependencies",
+                "given": "Application is running with dependencies",
+                "when": "GET /readyz is called",
+                "then": "Returns 200 only when database, redis, and other critical deps are reachable; returns 503 when any critical dep is unavailable",
+                "trace_hints": [feat_ref, "/readyz", "readiness probe", "dependency check", "503 response"],
+            },
+            {
+                "id": f"{feat_ref}-AC-03",
+                "scenario": "Traffic scheduling integration is documented",
+                "given": "Kubernetes or load balancer configuration exists",
+                "when": "Probe configuration is reviewed",
+                "then": "Liveness probe: periodSeconds 10-30, initialDelaySeconds 5; Readiness probe: periodSeconds 5-10, failureThreshold 3; traffic only routes to ready pods",
+                "trace_hints": [feat_ref, "traffic scheduling", "probe config", "kubernetes"],
+            },
+        ],
+    }
+
+    # Return slice-specific checks or fall back to generic engineering checks
+    return slice_checks.get(slice_id, [
+        {
+            "id": f"{feat_ref}-AC-01",
+            "scenario": "Engineering baseline deliverable is concrete and verifiable",
+            "given": "The engineering baseline FEAT is implemented",
+            "when": "Deliverables are inspected",
+            "then": "Concrete artifacts exist: files, directories, runnable commands, configuration files with specific content",
+            "trace_hints": [feat_ref, "engineering baseline", "concrete artifacts"],
+        },
+        {
+            "id": f"{feat_ref}-AC-02",
+            "scenario": "Engineering boundary is enforced",
+            "given": "Downstream implementation needs engineering guidance",
+            "when": "Boundary is reviewed",
+            "then": "FEAT defines file/path/command level artifacts, not abstract product contracts",
+            "trace_hints": [feat_ref, "engineering boundary", "file level artifacts"],
+        },
+        {
+            "id": f"{feat_ref}-AC-03",
+            "scenario": "Downstream can inherit without guessing",
+            "given": "TECH/IMPL downstream consumes this FEAT",
+            "when": "Inheritance is evaluated",
+            "then": "No gap-filling required; all engineering artifacts are explicit and authoritative",
+            "trace_hints": [feat_ref, "downstream inheritance", "no gap filling"],
+        },
+    ])
+
+
 def build_acceptance_checks(feat_ref: str, epic_ref: str, axis: dict[str, str]) -> list[dict[str, Any]]:
     explicit = axis.get("acceptance_checks")
     key = axis_key(axis)
+    # Check if this is an engineering baseline slice
+    slice_id = axis.get("id", "")
+    is_engineering_baseline = slice_id.startswith("engineering-baseline-") or "engineering" in slice_id.lower() or "baseline" in slice_id.lower()
+
+    # For engineering baseline slices, use specialized concrete checks
+    if is_engineering_baseline:
+        engineering_checks = _engineering_baseline_acceptance_checks(feat_ref, slice_id)
+        if isinstance(explicit, list) and explicit:
+            if len(explicit) >= 3:
+                return explicit
+            return explicit + engineering_checks[: max(0, 3 - len(explicit))]
+        return engineering_checks
+
+    # For non-engineering slices, use the existing axis-based checks
     checks = {
         "collaboration-loop": [
             {

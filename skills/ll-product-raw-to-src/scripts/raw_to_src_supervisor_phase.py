@@ -627,7 +627,12 @@ def supervisor_review(
     gate_ready_package_ref = None
     authoritative_handoff_ref = None
     gate_pending_ref = None
-    if action == "next_skill" and handoff_ref is not None:
+    # Gate submission is triggered when:
+    # 1. action is "next_skill" (normal flow to downstream skill)
+    # 2. action is "blocked" due to review_phase1 but candidate is ready for human gate review
+    # This ensures gate-human-orchestrator is always triggered for candidate materialization
+    should_submit_gate = (action == "next_skill" or action == "blocked") and handoff_ref is not None
+    if should_submit_gate:
         registry_record_ref = str(structural_report.get("cli_candidate_registry_record_ref", "")).strip()
         candidate_ref = f"raw-to-src.{run_id}.src-candidate"
         if registry_record_ref:
