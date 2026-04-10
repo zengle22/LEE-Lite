@@ -21,7 +21,6 @@ OUTPUT_FILES = [
     "spec-findings.json",
     "ui-spec-bundle.md",
     "ui-spec-bundle.json",
-    "ui-flow-map.md",
     "ui-semantic-source-ledger.json",
     "ui-spec-completeness-report.json",
     "ui-spec-review-report.json",
@@ -124,6 +123,7 @@ def _render_expanded_ui_spec_bundle_markdown(
     journey_text: str,
     shell_text: str,
     ui_spec_texts: dict[str, str],
+    flow_items: list[str] | None = None,
 ) -> str:
     lines: list[str] = [
         f"# UI Spec Bundle for {feat_ref}",
@@ -142,6 +142,10 @@ def _render_expanded_ui_spec_bundle_markdown(
             "",
             "## UI Spec Refs",
             *([f"- {ref}" for ref in ui_spec_refs] if ui_spec_refs else ["- (none)"]),
+            "",
+            "## UI Flow Map",
+            "",
+            *(flow_items if flow_items else ["_No flow items defined._"]),
             "",
             "## Journey Structural Spec (Embedded)",
             "",
@@ -459,6 +463,10 @@ def build_package(context: dict[str, Any], repo_root: Path, run_id: str, allow_u
             "related_feat_refs": related_feat_refs,
         },
     )
+    if pages:
+        flow_items = [f"{index+1}. {page['title']}" for index, page in enumerate(pages)]
+    else:
+        flow_items = [f"{index+1}. {ref}" for index, ref in enumerate(ui_spec_refs)]
     write_text(
         output_dir / "ui-spec-bundle.md",
         _render_expanded_ui_spec_bundle_markdown(
@@ -473,13 +481,10 @@ def build_package(context: dict[str, Any], repo_root: Path, run_id: str, allow_u
             journey_text=journey_text,
             shell_text=shell_text,
             ui_spec_texts=ui_spec_texts,
+            flow_items=flow_items,
         ),
     )
-    if pages:
-        flow_items = [f"{index+1}. {page['title']}" for index, page in enumerate(pages)]
-    else:
-        flow_items = [f"{index+1}. {ref}" for index, ref in enumerate(ui_spec_refs)]
-    write_text(output_dir / "ui-flow-map.md", "\n".join(["# UI Flow Map", "", *flow_items]))
+    # Flow map is now embedded in ui-spec-bundle.md - no separate file needed per SSOT principle
     write_json(output_dir / "ui-semantic-source-ledger.json", ledger)
     write_json(
         output_dir / "ui-spec-completeness-report.json",
