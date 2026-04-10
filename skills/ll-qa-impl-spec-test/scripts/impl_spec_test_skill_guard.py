@@ -28,6 +28,26 @@ DEEP_REVIEW_REF_FIELDS = {
     "defects_ref",
 }
 
+# Recovery handling fields - required for features that involve state changes or external operations
+RECOVERY_HANDLING_REF_FIELDS = {
+    "recovery_behavior_ref",
+    "rollback_strategy_ref",
+    "degraded_mode_ref",
+    "retry_logic_ref",
+}
+
+# Features that require recovery handling validation
+RECOVERY_REQUIRED_AXIS_PATTERNS = {
+    "formalization",
+    "materialization",
+    "state_change",
+    "external_operation",
+    "db_operation",
+    "file_operation",
+    "api_call",
+    "engineering_baseline",
+}
+
 
 def _fail(message: str) -> int:
     print(f"[ERROR] {message}", file=sys.stderr)
@@ -120,6 +140,65 @@ def validate_input(path: Path) -> int:
     return 0
 
 
+def _is_recovery_handling_required(feature: dict[str, Any]) -> bool:
+    """Check if recovery handling validation is required for this feature."""
+    axis = str(feature.get("axis_id") or feature.get("derived_axis") or "").lower()
+    title = str(feature.get("title") or "").lower()
+    src_ref = str(feature.get("src_root_id") or feature.get("src_ref") or "")
+
+    # Check axis patterns
+    if any(pattern in axis for pattern in RECOVERY_REQUIRED_AXIS_PATTERNS):
+        return True
+
+    # Check for SRC-003 engineering baseline (requires recovery for db migrations, etc.)
+    if "SRC-003" in src_ref or "SRC003" in src_ref:
+        return True
+
+    # Check title patterns
+    recovery_keywords = ["migration", "rollback", "recovery", "degraded", "retry", "fallback"]
+    if any(keyword in title for keyword in recovery_keywords):
+        return True
+
+    return False
+
+
+def _validate_recovery_handling(data: dict, base_path: Path) -> list[str]:
+    """Validate recovery handling fields when required."""
+    errors = []
+    feature = data.get("feature_snapshot") or {}
+
+    if not _is_recovery_handling_required(feature):
+        return errors
+
+    # Check for recovery handling refs
+    missing_refs = []
+    for ref_field in RECOVERY_HANDLING_REF_FIELDS:
+        if ref_field not in data:
+            missing_refs.append(ref_field)
+
+    # If recovery is required but refs are missing, check if there's explicit waiver
+    if missing_refs:
+        waiver = data.get("recovery_handling_waiver")
+        if not waiver:
+            errors.append(
+                f"Recovery handling required for this feature but missing refs: {', '.join(missing_refs)}. "
+                "Either provide recovery_behavior_ref, rollback_strategy_ref, degraded_mode_ref, retry_logic_ref, "
+                "or provide recovery_handling_waiver with justification."
+            )
+        elif not isinstance(waiver, dict) or "reason" not in waiver:
+            errors.append("recovery_handling_waiver must be an object with 'reason' field")
+
+    # Validate recovery handling refs exist
+    for ref_field in RECOVERY_HANDLING_REF_FIELDS:
+        ref_value = data.get(ref_field)
+        if ref_value:
+            ref_path = _resolve_ref(base_path, str(ref_value))
+            if not ref_path.exists():
+                errors.append(f"response.data.{ref_field} does not exist: {ref_path}")
+
+    return errors
+
+
 def validate_output(path: Path) -> int:
     payload = _load_json(path)
     _ensure_fields(payload, ["api_version", "command", "request_id", "result_status", "status_code", "exit_code", "message", "data"], "response")
@@ -208,6 +287,15 @@ def validate_output(path: Path) -> int:
     }
     if set(dimension_reviews.keys()) != expected_dimensions:
         raise ValueError("dimension reviews must contain all 8 ADR-036 dimensions")
+
+    # Validate recovery handling when required
+    recovery_errors = _validate_recovery_handling(data, path)
+    if recovery_errors:
+        for error in recovery_errors:
+            print(f"[WARNING] Recovery handling: {error}", file=sys.stderr)
+        # For now, log warnings but don't block - recovery handling is a quality improvement
+        # In strict mode, this could be made into a blocking error
+
     present_deep_fields = [field for field in DEEP_REVIEW_REF_FIELDS if field in data]
     if present_deep_fields:
         missing_deep_fields = [field for field in DEEP_REVIEW_REF_FIELDS if field not in data]

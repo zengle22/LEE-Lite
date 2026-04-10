@@ -132,7 +132,99 @@ def derive_semantic_lock(feature: dict[str, Any]) -> dict[str, Any]:
     return {}
 
 
+# Engineering baseline FEAT type mapping for SRC-003 style code bootstrap
+ENGINEERING_BASELINE_FEAT_TYPES = {
+    "repo_layout_baseline": "repo_layout",
+    "apps_api_shell": "apps_api_shell",
+    "apps_miniapp_shell": "apps_miniapp_shell",
+    "local_env_baseline": "local_env",
+    "db_migrations_discipline": "db_migrations",
+    "healthz_readyz_contract": "healthz_readyz",
+}
+
+ENGINEERING_BASELINE_CODE_PATHS = {
+    "repo_layout": [
+        "src/lee/__init__.py",
+        "apps/api/.gitkeep",
+        "apps/miniapp/.gitkeep",
+        "deploy/.gitkeep",
+        "AGENTS.md",
+        "README.md",
+    ],
+    "apps_api_shell": [
+        "apps/api/main.go",
+        "apps/api/go.mod",
+        "apps/api/healthz.go",
+        "apps/api/Makefile",
+    ],
+    "apps_miniapp_shell": [
+        "apps/miniapp/manifest.json",
+        "apps/miniapp/pages.json",
+        "apps/miniapp/App.vue",
+        "apps/miniapp/uni.scss",
+    ],
+    "local_env": [
+        "deploy/docker-compose.local.yml",
+        "deploy/.env.example",
+        "deploy/networks.yaml",
+    ],
+    "db_migrations": [
+        "db/migrations/.gitkeep",
+        "db/migrations/README.md",
+        "db/migrations/V001__init.sql",
+    ],
+    "healthz_readyz": [
+        "apps/api/healthz.go",
+        "apps/api/readyz.go",
+        "deploy/docker-compose.local.yml#healthcheck",
+    ],
+}
+
+
+def is_engineering_baseline_feature(feature: dict[str, Any]) -> bool:
+    """Check if this is an engineering baseline FEAT (SRC003-style code bootstrap)."""
+    src_ref = str(feature.get("src_root_id") or feature.get("src_ref") or "")
+    feat_ref = str(feature.get("feat_ref") or "")
+    title = str(feature.get("title") or "").lower()
+    axis_id = str(feature.get("axis_id") or "").lower()
+
+    # Check for SRC-003 prefix
+    if "SRC-003" in src_ref or "SRC003" in src_ref:
+        return True
+
+    # Check for engineering baseline patterns
+    engineering_patterns = [
+        "repo-layout", "apps-api-shell", "apps-miniapp-shell",
+        "local-env-baseline", "db-migrations", "healthz-readyz",
+        "engineering", "baseline", "skeleton", "bootstrap"
+    ]
+    for pattern in engineering_patterns:
+        if pattern in feat_ref.lower() or pattern in title or pattern in axis_id:
+            return True
+
+    return False
+
+
+def get_engineering_baseline_type(feature: dict[str, Any]) -> str | None:
+    """Get the specific engineering baseline type for this FEAT."""
+    if not is_engineering_baseline_feature(feature):
+        return None
+
+    feat_ref = str(feature.get("feat_ref") or "")
+    title = str(feature.get("title") or "").lower()
+
+    for pattern, baseline_type in ENGINEERING_BASELINE_FEAT_TYPES.items():
+        if pattern in feat_ref.lower() or pattern in title:
+            return baseline_type
+
+    return None
+
+
 def feature_profile(feature: dict[str, Any]) -> str:
+    # Check for engineering baseline first
+    if is_engineering_baseline_feature(feature):
+        return "engineering_baseline"
+
     lock = derive_semantic_lock(feature)
     axis_id = str(feature.get("axis_id") or "").strip().lower()
     if axis_id in PRODUCT_PROFILE_AXIS_MAP:
@@ -258,6 +350,24 @@ def derive_test_layers(feature: dict[str, Any]) -> list[str]:
 
 def derive_recommended_coverage_scope_name(feature: dict[str, Any]) -> list[str]:
     profile = feature_profile(feature)
+
+    # Engineering baseline coverage scopes
+    if profile == "engineering_baseline":
+        baseline_type = get_engineering_baseline_type(feature)
+        if baseline_type == "repo_layout":
+            return ["repo layout skeleton coverage"]
+        if baseline_type == "apps_api_shell":
+            return ["apps/api shell runnable coverage"]
+        if baseline_type == "apps_miniapp_shell":
+            return ["apps/miniapp shell runnable coverage"]
+        if baseline_type == "local_env":
+            return ["local env docker-compose coverage"]
+        if baseline_type == "db_migrations":
+            return ["db migrations discipline coverage"]
+        if baseline_type == "healthz_readyz":
+            return ["healthz/readyz endpoint coverage"]
+        return ["engineering baseline coverage"]
+
     title = str(feature.get("title") or "").strip()
     mapping = {
         "collaboration": "mainline collaboration feature",
@@ -282,6 +392,15 @@ def derive_recommended_coverage_scope_name(feature: dict[str, Any]) -> list[str]
 
 
 def derive_feature_owned_code_paths(feature: dict[str, Any]) -> list[str]:
+    profile = feature_profile(feature)
+
+    # Engineering baseline code paths
+    if profile == "engineering_baseline":
+        baseline_type = get_engineering_baseline_type(feature)
+        if baseline_type and baseline_type in ENGINEERING_BASELINE_CODE_PATHS:
+            return ENGINEERING_BASELINE_CODE_PATHS[baseline_type]
+        return []
+
     mapping = {
         "collaboration": [
             "cli/lib/mainline_runtime.py",
