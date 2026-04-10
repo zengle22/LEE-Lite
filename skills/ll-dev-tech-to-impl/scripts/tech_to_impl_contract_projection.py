@@ -194,28 +194,70 @@ def _normalized_unit_path(unit_path: str) -> str:
 
 
 def _is_engineering_baseline(feature: dict[str, Any]) -> bool:
+    """Check if this is an engineering baseline FEAT (SRC003-style code bootstrap)."""
     resolved_axis = str(feature.get("resolved_axis") or feature.get("derived_axis") or "").strip().lower()
     normalized = re.sub(r"[^a-z0-9_]+", "_", resolved_axis.replace("-", "_").replace(" ", "_"))
     normalized = re.sub(r"_+", "_", normalized).strip("_")
-    return normalized == ENGINEERING_BASELINE_AXIS
+
+    # Direct axis match
+    if normalized == ENGINEERING_BASELINE_AXIS:
+        return True
+
+    # SRC-003 style engineering baseline detection
+    src_ref = str(feature.get("src_root_id") or feature.get("src_ref") or "")
+    feat_ref = str(feature.get("feat_ref") or "")
+    title = str(feature.get("title") or "").lower()
+    axis_id = str(feature.get("axis_id") or feature.get("slice_id") or "").lower()
+
+    # Check for SRC-003 prefix
+    if "SRC-003" in src_ref or "SRC003" in src_ref:
+        return True
+
+    # Check for engineering baseline patterns in feat_ref, title, or axis_id
+    engineering_patterns = [
+        "repo-layout", "apps-api-shell", "apps-miniapp-shell",
+        "local-env-baseline", "db-migrations", "healthz-readyz",
+        "engineering", "baseline", "skeleton", "bootstrap"
+    ]
+    for pattern in engineering_patterns:
+        if pattern in feat_ref.lower() or pattern in title or pattern in axis_id:
+            return True
+
+    return False
 
 
 def _is_allowed_engineering_baseline_repo_path(path: str) -> bool:
+    """Validate that a repo path is allowed for engineering baseline FEATs.
+
+    Allowed roots: apps/, db/, deploy/, scripts/
+    Allowed root files: README.md, AGENTS.md, Makefile, .env.example
+    Forbidden: src/, ssot/, artifacts/, .tmp/, tmp/
+    """
     normalized = _normalized_unit_path(path)
     if not normalized:
         return False
 
+    # Root-level allowed files
     if normalized in ENGINEERING_BASELINE_ALLOWED_ROOT_FILES:
         return True
 
     lowered = normalized.lower()
-    if any(lowered.startswith(prefix) for prefix in ["src/", "src/be/", "src/fe/", "ssot/", "artifacts/", ".tmp/", "tmp/"]):
+
+    # CRITICAL: Explicitly reject src/ prefix in any form
+    # This prevents paths like "src/be/deploy/...", "src/be/apps/...", etc.
+    if lowered.startswith("src/") or lowered.startswith("src\\"):
         return False
 
+    # Also reject other forbidden roots
+    if any(lowered.startswith(prefix) for prefix in ["ssot/", "ssot\\", "artifacts/", "artifacts\\", ".tmp/", ".tmp\\", "tmp/", "tmp\\"]):
+        return False
+
+    # Check for forbidden parts anywhere in the path
     parts = [part for part in lowered.split("/") if part]
     if any(part in ENGINEERING_BASELINE_FORBIDDEN_PARTS for part in parts):
         return False
 
+    # Must start with an allowed root
     return any(normalized.startswith(root) for root in ENGINEERING_BASELINE_ALLOWED_ROOTS)
 
 
