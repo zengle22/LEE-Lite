@@ -32,6 +32,56 @@ from gate_human_orchestrator_projection import (
 )
 
 
+def _fix_published_ref_path(published_ref: str, assigned_id: str, formal_ref: str) -> str:
+    """Fix published_ref to use src_root_id directory instead of assigned_id.
+
+    Expected pattern: ssot/ui/{src_root_id}/{assigned_id}__{description}.md
+    Wrong pattern: ssot/ui/{assigned_id}/{filename}.md
+
+    Extract src_root_id from formal_ref (e.g., formal.ui.SRC-004 -> SRC-004).
+    """
+    if not published_ref or not formal_ref:
+        return published_ref
+
+    # Parse formal_ref to extract src_root_id
+    # formal_ref format: formal.ui.ai-conversation-mvp-20260409--feat-src-004
+    # or formal.ui.SRC-004--...
+    formal_parts = formal_ref.split(".")
+    if len(formal_parts) < 2:
+        return published_ref
+
+    # Try to extract src_root_id from formal_ref
+    # Look for pattern like SRC-XXX in the formal_ref
+    import re
+    src_root_match = re.search(r'(SRC-\d+)', formal_ref)
+    if not src_root_match:
+        # Try to extract from the suffix part (e.g., --feat-src-004 -> SRC-004)
+        src_root_match = re.search(r'feat-(SRC-\d+)', formal_ref)
+
+    if not src_root_match:
+        return published_ref
+
+    src_root_id = src_root_match.group(1)
+
+    # Check if current published_ref has wrong structure
+    # Wrong: ssot/ui/UI-CONV-001/ui-spec-bundle.md
+    # Correct: ssot/ui/SRC-004/UI-CONV-001__ui-spec-bundle.md
+    published_parts = published_ref.split("/")
+    if len(published_parts) >= 3 and published_parts[0] == "ssot" and published_parts[1] == "ui":
+        current_dir = published_parts[2]
+        filename = published_parts[-1]
+
+        # If the directory is the assigned_id (wrong), fix it
+        if current_dir == assigned_id:
+            # Extract the base filename without extension
+            base_name = filename.rsplit(".", 1)[0] if "." in filename else filename
+            # Build correct path: ssot/ui/{src_root_id}/{assigned_id}__{base_name}.md
+            new_path = f"ssot/ui/{src_root_id}/{assigned_id}__{base_name}.md"
+            return new_path
+
+    return published_ref
+
+
 def _cli_main():
     implementation_root = Path(__file__).resolve().parents[3]
     if str(implementation_root) not in sys.path:
@@ -161,6 +211,13 @@ def _build_executor_bundle(
     machine_ssot_ref = str(projection_fields.get("machine_ssot_ref") or package_payload.get("machine_ssot_ref", ""))
     if machine_ssot_ref and machine_ssot_ref not in decision_basis_refs:
         decision_basis_refs.append(machine_ssot_ref)
+
+    # Fix published_ref to use src_root_id directory instead of assigned_id
+    raw_published_ref = evaluate_result.get("published_ref", "")
+    assigned_id = evaluate_result.get("assigned_id", "")
+    formal_ref = evaluate_result.get("formal_ref", "")
+    published_ref = _fix_published_ref_path(raw_published_ref, assigned_id, formal_ref)
+
     return {
         "artifact_type": "gate_decision_package",
         "workflow_key": "governance.gate-human-orchestrator",
@@ -178,11 +235,13 @@ def _build_executor_bundle(
         "dispatch_target": evaluate_result["dispatch_target"],
         "dispatch_target_display": dispatch_target_display(evaluate_result["dispatch_target"]),
         "projection_status_display": projection_status_display(projection_fields["projection_status"]),
-        "formal_ref": evaluate_result.get("formal_ref", ""),
-        "published_ref": evaluate_result.get("published_ref", ""),
+        "formal_ref": formal_ref,
+        "published_ref": published_ref,
         "formalization_receipt_ref": evaluate_result.get("formalization_receipt_ref", ""),
         "materialized_ssot_ref": evaluate_result.get("materialized_ssot_ref", ""),
-        "assigned_id": evaluate_result.get("assigned_id", ""),
+        "materialization_state": evaluate_result.get("materialization_state", "materialized" if evaluate_result.get("materialized_ssot_ref") else "pending"),
+        "materialized_formal_refs": evaluate_result.get("materialized_formal_refs", [published_ref] if published_ref else []),
+        "assigned_id": assigned_id,
         "materialized_handoff_ref": dispatch_result.get("materialized_handoff_ref", evaluate_result.get("materialized_handoff_ref", "")),
         "materialized_job_ref": dispatch_result.get("materialized_job_ref", ""),
         "source_refs": [
@@ -196,11 +255,13 @@ def _build_executor_bundle(
             "brief_record_ref": evaluate_result["brief_record_ref"],
             "pending_human_decision_ref": evaluate_result["pending_human_decision_ref"],
             "dispatch_receipt_ref": dispatch_result["dispatch_receipt_ref"],
-            "formal_ref": evaluate_result.get("formal_ref", ""),
-            "published_ref": evaluate_result.get("published_ref", ""),
+            "formal_ref": formal_ref,
+            "published_ref": published_ref,
             "formalization_receipt_ref": evaluate_result.get("formalization_receipt_ref", ""),
             "materialized_ssot_ref": evaluate_result.get("materialized_ssot_ref", ""),
-            "assigned_id": evaluate_result.get("assigned_id", ""),
+            "materialization_state": evaluate_result.get("materialization_state", "materialized" if evaluate_result.get("materialized_ssot_ref") else "pending"),
+            "materialized_formal_refs": evaluate_result.get("materialized_formal_refs", [published_ref] if published_ref else []),
+            "assigned_id": assigned_id,
             "materialized_handoff_ref": dispatch_result.get("materialized_handoff_ref", evaluate_result.get("materialized_handoff_ref", "")),
             "materialized_job_ref": dispatch_result.get("materialized_job_ref", ""),
             "human_projection_ref": projection_fields["human_projection_ref"],
