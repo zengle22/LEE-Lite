@@ -130,6 +130,9 @@ def run_pytest(test_paths: list[str], report_path: Path) -> tuple[int, dict[str,
         text=True,
         check=False,
     )
+    # Print output to CI logs for debugging
+    print(result.stdout, flush=True)
+    print(result.stderr, file=sys.stderr, flush=True)
     payload = {
         "command": command,
         "returncode": result.returncode,
