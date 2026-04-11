@@ -1,0 +1,20 @@
+{
+  "artifact_type": "repair_context",
+  "schema_version": "0.1.0",
+  "status": "ready_for_manual_repair",
+  "repair_mode": "manual_or_human_directed_ai",
+  "automatic_repair_allowed": false,
+  "repair_goal": "为所有QA链skill实现Python脚本，支持从FEAT/surface-map自动生成API/E2E测试计划和manifest",
+  "problem_focus": "QA链Skills缺少Python脚本实现，无法自动化生成测试资产",
+  "allowed_edit_scope": [
+    "skills/ll-qa-feat-to-apiplan/scripts/"
+  ],
+  "protected_refs": [],
+  "do_not_modify": [],
+  "repair_instructions": [
+    "Only edit the approved scope.",
+    "Do not restructure unaffected sections.",
+    "Keep the fix diff reviewable and minimal.",
+    "Re-run minimum validation after repair."
+  ]
+}

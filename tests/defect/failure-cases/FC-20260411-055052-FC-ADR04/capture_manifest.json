@@ -1,0 +1,74 @@
+{
+  "artifact_type": "failure_capture_package",
+  "schema_version": "0.1.0",
+  "status": "captured",
+  "workflow_key": "governance.failure-capture",
+  "package_kind": "failure_case",
+  "package_id": "FC-20260411-055052-FC-ADR04",
+  "triage_level": "P1",
+  "skill_id": "ll-qa-feat-to-apiplan",
+  "sku": "adr048-ssot-chain",
+  "run_id": "raw-to-src-adr048",
+  "artifact_id": "FC-ADR048-QA-001",
+  "failure_scope": "run",
+  "package_dir_ref": "tests/defect/failure-cases/FC-20260411-055052-FC-ADR04",
+  "request_ref": "artifacts/governance-failures/qa-scripts-missing/input.json",
+  "source_refs": [
+    "artifacts/governance-failures/qa-scripts-missing/input.json",
+    "skills/ll-qa-feat-to-apiplan/scripts/",
+    "artifacts/epic-to-feat/raw-to-src-adr048/feat-freeze-bundle.md"
+  ],
+  "evidence_refs": [],
+  "ref_resolution": {
+    "source_refs": {
+      "total": 3,
+      "resolved": 2,
+      "missing": 1,
+      "resolved_ratio": 0.6667,
+      "items": [
+        {
+          "ref": "artifacts/governance-failures/qa-scripts-missing/input.json",
+          "resolved_ref": "artifacts/governance-failures/qa-scripts-missing/input.json",
+          "exists": true
+        },
+        {
+          "ref": "skills/ll-qa-feat-to-apiplan/scripts/",
+          "resolved_ref": "skills/ll-qa-feat-to-apiplan/scripts",
+          "exists": false
+        },
+        {
+          "ref": "artifacts/epic-to-feat/raw-to-src-adr048/feat-freeze-bundle.md",
+          "resolved_ref": "artifacts/epic-to-feat/raw-to-src-adr048/feat-freeze-bundle.md",
+          "exists": true
+        }
+      ]
+    },
+    "evidence_refs": {
+      "total": 0,
+      "resolved": 0,
+      "missing": 0,
+      "resolved_ratio": 1.0,
+      "items": []
+    },
+    "allowed_edit_scope": {
+      "total": 1,
+      "resolved": 0,
+      "missing": 1,
+      "resolved_ratio": 0.0,
+      "items": [
+        {
+          "ref": "skills/ll-qa-feat-to-apiplan/scripts/",
+          "resolved_ref": "skills/ll-qa-feat-to-apiplan/scripts",
+          "exists": false
+        }
+      ]
+    }
+  },
+  "reproducibility_status": "captured_but_not_reproducible",
+  "files": {
+    "capture_manifest_ref": "tests/defect/failure-cases/FC-20260411-055052-FC-ADR04/capture_manifest.json",
+    "diagnosis_stub_ref": "tests/defect/failure-cases/FC-20260411-055052-FC-ADR04/diagnosis_stub.json",
+    "repair_context_ref": "tests/defect/failure-cases/FC-20260411-055052-FC-ADR04/repair_context.json",
+    "failure_case_ref": "tests/defect/failure-cases/FC-20260411-055052-FC-ADR04/failure_case.json"
+  }
+}

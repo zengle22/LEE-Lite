@@ -1,0 +1,23 @@
+{
+  "artifact_type": "failure_case",
+  "schema_version": "0.1.0",
+  "status": "open",
+  "failure_id": "FC-20260411-070902-FC-ADR04",
+  "skill_id": "ll-qa-impl-spec-test",
+  "sku": "adr048-ssot-chain",
+  "run_id": "raw-to-src-adr048",
+  "artifact_id": "FC-ADR048-IMPL-TEST-001",
+  "failure_scope": "artifact",
+  "detected_stage": "impl_spec_test_deep_review",
+  "detected_by": "adr048-ssot-chain-runner",
+  "severity": "P1",
+  "triage_level": "P1",
+  "symptom_summary": "impl-spec-test verdict=block: task-order-undefined + touch-set-missing",
+  "problem_description": "impl-spec-test对IMPL-SRC-RAW-TO-SRC-ADR048-001执行deep_spec_testing后，返回verdict=block，implementation_readiness=not_ready。两个blocker：(1) task-order-undefined: IMPL包缺少有序实现链序列定义，implementation_executability得分2/10；(2) touch-set-missing: IMPL包缺少明确的touch-set所有权映射。recommended_action=rederive_upstream, recommended_actor=upstream_owner, repair_target_artifact=IMPL。这是治理型ADR-048的IMPL包，不是实际代码实现，其blocking来自实现就绪度而非治理完整性。",
+  "failed_artifact_ref": "ssot/impl/IMPL-SRC-RAW-TO-SRC-ADR048-001__主链候选提交与交接流-implementation-task-package.md",
+  "upstream_refs": [
+    "artifacts/tech-to-impl/raw-to-src-adr048-feat-src-raw-to-src-adr048-001--001-e894a1dd/impl-bundle.md",
+    "ssot/impl/IMPL-SRC-RAW-TO-SRC-ADR048-001__主链候选提交与交接流-implementation-task-package.md"
+  ],
+  "evidence_refs": []
+}

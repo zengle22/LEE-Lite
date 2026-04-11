@@ -1,0 +1,10 @@
+{
+  "artifact_type": "diagnosis_stub",
+  "schema_version": "0.1.0",
+  "status": "stubbed",
+  "error_class": "detection_miss",
+  "root_cause_primary": "generation_freedom",
+  "expected_detector": "semantic_review",
+  "remediation_hint": "Keep the fix local to the reported artifact and preserve untouched sections.",
+  "note": "This is an initial capture-time stub, not a final diagnosis report."
+}

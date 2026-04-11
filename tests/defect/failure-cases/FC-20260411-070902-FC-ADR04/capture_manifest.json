@@ -1,0 +1,80 @@
+{
+  "artifact_type": "failure_capture_package",
+  "schema_version": "0.1.0",
+  "status": "captured",
+  "workflow_key": "governance.failure-capture",
+  "package_kind": "failure_case",
+  "package_id": "FC-20260411-070902-FC-ADR04",
+  "triage_level": "P1",
+  "skill_id": "ll-qa-impl-spec-test",
+  "sku": "adr048-ssot-chain",
+  "run_id": "raw-to-src-adr048",
+  "artifact_id": "FC-ADR048-IMPL-TEST-001",
+  "failure_scope": "artifact",
+  "package_dir_ref": "tests/defect/failure-cases/FC-20260411-070902-FC-ADR04",
+  "request_ref": "artifacts/governance-failures/impl-spec-test-block-feat001/input.json",
+  "source_refs": [
+    "artifacts/governance-failures/impl-spec-test-block-feat001/input.json",
+    "ssot/impl/IMPL-SRC-RAW-TO-SRC-ADR048-001__主链候选提交与交接流-implementation-task-package.md",
+    "artifacts/tech-to-impl/raw-to-src-adr048-feat-src-raw-to-src-adr048-001--001-e894a1dd/impl-bundle.md",
+    "ssot/impl/IMPL-SRC-RAW-TO-SRC-ADR048-001__主链候选提交与交接流-implementation-task-package.md"
+  ],
+  "evidence_refs": [],
+  "ref_resolution": {
+    "source_refs": {
+      "total": 4,
+      "resolved": 4,
+      "missing": 0,
+      "resolved_ratio": 1.0,
+      "items": [
+        {
+          "ref": "artifacts/governance-failures/impl-spec-test-block-feat001/input.json",
+          "resolved_ref": "artifacts/governance-failures/impl-spec-test-block-feat001/input.json",
+          "exists": true
+        },
+        {
+          "ref": "ssot/impl/IMPL-SRC-RAW-TO-SRC-ADR048-001__主链候选提交与交接流-implementation-task-package.md",
+          "resolved_ref": "ssot/impl/IMPL-SRC-RAW-TO-SRC-ADR048-001__主链候选提交与交接流-implementation-task-package.md",
+          "exists": true
+        },
+        {
+          "ref": "artifacts/tech-to-impl/raw-to-src-adr048-feat-src-raw-to-src-adr048-001--001-e894a1dd/impl-bundle.md",
+          "resolved_ref": "artifacts/tech-to-impl/raw-to-src-adr048-feat-src-raw-to-src-adr048-001--001-e894a1dd/impl-bundle.md",
+          "exists": true
+        },
+        {
+          "ref": "ssot/impl/IMPL-SRC-RAW-TO-SRC-ADR048-001__主链候选提交与交接流-implementation-task-package.md",
+          "resolved_ref": "ssot/impl/IMPL-SRC-RAW-TO-SRC-ADR048-001__主链候选提交与交接流-implementation-task-package.md",
+          "exists": true
+        }
+      ]
+    },
+    "evidence_refs": {
+      "total": 0,
+      "resolved": 0,
+      "missing": 0,
+      "resolved_ratio": 1.0,
+      "items": []
+    },
+    "allowed_edit_scope": {
+      "total": 1,
+      "resolved": 1,
+      "missing": 0,
+      "resolved_ratio": 1.0,
+      "items": [
+        {
+          "ref": "ssot/impl/IMPL-SRC-RAW-TO-SRC-ADR048-001__主链候选提交与交接流-implementation-task-package.md",
+          "resolved_ref": "ssot/impl/IMPL-SRC-RAW-TO-SRC-ADR048-001__主链候选提交与交接流-implementation-task-package.md",
+          "exists": true
+        }
+      ]
+    }
+  },
+  "reproducibility_status": "reproducible",
+  "files": {
+    "capture_manifest_ref": "tests/defect/failure-cases/FC-20260411-070902-FC-ADR04/capture_manifest.json",
+    "diagnosis_stub_ref": "tests/defect/failure-cases/FC-20260411-070902-FC-ADR04/diagnosis_stub.json",
+    "repair_context_ref": "tests/defect/failure-cases/FC-20260411-070902-FC-ADR04/repair_context.json",
+    "failure_case_ref": "tests/defect/failure-cases/FC-20260411-070902-FC-ADR04/failure_case.json"
+  }
+}

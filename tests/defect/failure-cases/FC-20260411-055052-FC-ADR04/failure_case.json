@@ -1,0 +1,22 @@
+{
+  "artifact_type": "failure_case",
+  "schema_version": "0.1.0",
+  "status": "open",
+  "failure_id": "FC-20260411-055052-FC-ADR04",
+  "skill_id": "ll-qa-feat-to-apiplan",
+  "sku": "adr048-ssot-chain",
+  "run_id": "raw-to-src-adr048",
+  "artifact_id": "FC-ADR048-QA-001",
+  "failure_scope": "run",
+  "detected_stage": "design_chain_to_test_chain_handoff",
+  "detected_by": "adr048-ssot-chain-runner",
+  "severity": "P1",
+  "triage_level": "P1",
+  "symptom_summary": "QA链Skills缺少Python脚本实现，无法自动化生成测试资产",
+  "problem_description": "多个QA链skill（ll-qa-feat-to-apiplan, ll-qa-api-manifest-init, ll-qa-api-spec-gen, ll-qa-prototype-to-e2eplan, ll-qa-e2e-manifest-init, ll-qa-e2e-spec-gen）只有SKILL.md定义和contract.yaml，缺少scripts/目录下的Python实现脚本。这导致ADR048 SSOT链的测试链部分无法自动执行。",
+  "failed_artifact_ref": "skills/ll-qa-feat-to-apiplan/scripts/",
+  "upstream_refs": [
+    "artifacts/epic-to-feat/raw-to-src-adr048/feat-freeze-bundle.md"
+  ],
+  "evidence_refs": []
+}
