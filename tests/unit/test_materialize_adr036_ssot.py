@@ -8,10 +8,11 @@ import pytest
 ROOT = Path(__file__).resolve().parents[2]
 SCRIPT_PATH = ROOT / "scripts" / "materialize_adr036_ssot.py"
 
-pytestmark = pytest.mark.skipif(
-    not SCRIPT_PATH.exists(),
-    reason="scripts/materialize_adr036_ssot.py not tracked in git (gitignored)",
-)
+if not SCRIPT_PATH.exists():
+    pytest.skip(
+        "scripts/materialize_adr036_ssot.py not tracked in git (gitignored)",
+        allow_module_level=True,
+    )
 
 SPEC = importlib.util.spec_from_file_location("materialize_adr036_ssot", SCRIPT_PATH)
 assert SPEC and SPEC.loader
