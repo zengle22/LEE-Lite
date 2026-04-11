@@ -3,9 +3,16 @@ from __future__ import annotations
 import importlib.util
 from pathlib import Path
 
+import pytest
 
 ROOT = Path(__file__).resolve().parents[2]
 SCRIPT_PATH = ROOT / "scripts" / "materialize_adr036_ssot.py"
+
+pytestmark = pytest.mark.skipif(
+    not SCRIPT_PATH.exists(),
+    reason="scripts/materialize_adr036_ssot.py not tracked in git (gitignored)",
+)
+
 SPEC = importlib.util.spec_from_file_location("materialize_adr036_ssot", SCRIPT_PATH)
 assert SPEC and SPEC.loader
 MODULE = importlib.util.module_from_spec(SPEC)
