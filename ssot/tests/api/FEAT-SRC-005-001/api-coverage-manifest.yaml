@@ -1,0 +1,341 @@
+api_coverage_manifest:
+  feature_id: FEAT-SRC-005-001
+  generated_at: "2026-04-10T14:00:00Z"
+  source_plan_ref: ssot/tests/api/FEAT-SRC-005-001/api-test-plan.md
+  items:
+    # CAND-SUBMIT-001: 提交候选包
+    - coverage_id: api.cand.submit.happy
+      capability: CAND-SUBMIT-001
+      scenario_type: happy_path
+      dimension: 正常路径
+      priority: P0
+      source_feat_ref: FEAT-SRC-005-001.Scope.candidate-package
+      lifecycle_status: designed
+      mapping_status: unmapped
+      evidence_status: missing
+      waiver_status: none
+      mapped_case_ids: []
+      evidence_refs: []
+      rerun_count: 0
+      last_run_id: null
+      obsolete: false
+      superseded_by: null
+
+    - coverage_id: api.cand.submit.missing-evidence
+      capability: CAND-SUBMIT-001
+      scenario_type: parameter_validation
+      dimension: 参数校验
+      priority: P0
+      source_feat_ref: FEAT-SRC-005-001.Scope.candidate-package
+      lifecycle_status: designed
+      mapping_status: unmapped
+      evidence_status: missing
+      waiver_status: none
+      mapped_case_ids: []
+      evidence_refs: []
+      rerun_count: 0
+      last_run_id: null
+      obsolete: false
+      superseded_by: null
+
+    - coverage_id: api.cand.submit.duplicate
+      capability: CAND-SUBMIT-001
+      scenario_type: idempotent
+      dimension: 幂等/重试/并发
+      priority: P0
+      source_feat_ref: FEAT-SRC-005-001.Scope.candidate-package
+      lifecycle_status: designed
+      mapping_status: unmapped
+      evidence_status: missing
+      waiver_status: none
+      mapped_case_ids: []
+      evidence_refs: []
+      rerun_count: 0
+      last_run_id: null
+      obsolete: false
+      superseded_by: null
+
+    # CAND-VALIDATE-001: 校验候选包
+    - coverage_id: api.cand.validate.happy
+      capability: CAND-VALIDATE-001
+      scenario_type: happy_path
+      dimension: 正常路径
+      priority: P0
+      source_feat_ref: FEAT-SRC-005-001.Scope.candidate-package
+      lifecycle_status: designed
+      mapping_status: unmapped
+      evidence_status: missing
+      waiver_status: none
+      mapped_case_ids: []
+      evidence_refs: []
+      rerun_count: 0
+      last_run_id: null
+      obsolete: false
+      superseded_by: null
+
+    - coverage_id: api.cand.validate.missing-field
+      capability: CAND-VALIDATE-001
+      scenario_type: parameter_validation
+      dimension: 参数校验
+      priority: P0
+      source_feat_ref: FEAT-SRC-005-001.Constraints
+      lifecycle_status: designed
+      mapping_status: unmapped
+      evidence_status: missing
+      waiver_status: none
+      mapped_case_ids: []
+      evidence_refs: []
+      rerun_count: 0
+      last_run_id: null
+      obsolete: false
+      superseded_by: null
+
+    - coverage_id: api.cand.validate.invalid-format
+      capability: CAND-VALIDATE-001
+      scenario_type: exception
+      dimension: 异常路径
+      priority: P0
+      source_feat_ref: FEAT-SRC-005-001.Constraints
+      lifecycle_status: designed
+      mapping_status: unmapped
+      evidence_status: missing
+      waiver_status: none
+      mapped_case_ids: []
+      evidence_refs: []
+      rerun_count: 0
+      last_run_id: null
+      obsolete: false
+      superseded_by: null
+
+    # HANDOFF-CREATE-001: 创建交接对象
+    - coverage_id: api.handoff.create.happy
+      capability: HANDOFF-CREATE-001
+      scenario_type: happy_path
+      dimension: 正常路径
+      priority: P0
+      source_feat_ref: FEAT-SRC-005-001.Scope.authoritative-handoff
+      lifecycle_status: designed
+      mapping_status: unmapped
+      evidence_status: missing
+      waiver_status: none
+      mapped_case_ids: []
+      evidence_refs: []
+      rerun_count: 0
+      last_run_id: null
+      obsolete: false
+      superseded_by: null
+
+    - coverage_id: api.handoff.create.state-transition
+      capability: HANDOFF-CREATE-001
+      scenario_type: state_constraint
+      dimension: 状态约束
+      priority: P0
+      source_feat_ref: FEAT-SRC-005-001.Constraints.loop-semantics
+      lifecycle_status: designed
+      mapping_status: unmapped
+      evidence_status: missing
+      waiver_status: none
+      mapped_case_ids: []
+      evidence_refs: []
+      rerun_count: 0
+      last_run_id: null
+      obsolete: false
+      superseded_by: null
+
+    - coverage_id: api.handoff.create.duplicate-create
+      capability: HANDOFF-CREATE-001
+      scenario_type: idempotent
+      dimension: 幂等/重试/并发
+      priority: P0
+      source_feat_ref: FEAT-SRC-005-001.Scope.authoritative-handoff
+      lifecycle_status: designed
+      mapping_status: unmapped
+      evidence_status: missing
+      waiver_status: none
+      mapped_case_ids: []
+      evidence_refs: []
+      rerun_count: 0
+      last_run_id: null
+      obsolete: false
+      superseded_by: null
+
+    # HANDOFF-READ-001: 读取交接对象
+    - coverage_id: api.handoff.read.happy
+      capability: HANDOFF-READ-001
+      scenario_type: happy_path
+      dimension: 正常路径
+      priority: P1
+      source_feat_ref: FEAT-SRC-005-001.Scope.authoritative-handoff
+      lifecycle_status: designed
+      mapping_status: unmapped
+      evidence_status: missing
+      waiver_status: none
+      mapped_case_ids: []
+      evidence_refs: []
+      rerun_count: 0
+      last_run_id: null
+      obsolete: false
+      superseded_by: null
+
+    - coverage_id: api.handoff.read.not-found
+      capability: HANDOFF-READ-001
+      scenario_type: exception
+      dimension: 异常路径
+      priority: P1
+      source_feat_ref: FEAT-SRC-005-001.Scope.authoritative-handoff
+      lifecycle_status: designed
+      mapping_status: unmapped
+      evidence_status: missing
+      waiver_status: none
+      mapped_case_ids: []
+      evidence_refs: []
+      rerun_count: 0
+      last_run_id: null
+      obsolete: false
+      superseded_by: null
+
+    - coverage_id: api.handoff.read.unauthorized
+      capability: HANDOFF-READ-001
+      scenario_type: authorization
+      dimension: 权限与身份
+      priority: P1
+      source_feat_ref: FEAT-SRC-005-001.Constraints
+      lifecycle_status: cut
+      mapping_status: unmapped
+      evidence_status: missing
+      waiver_status: none
+      mapped_case_ids: []
+      evidence_refs: []
+      rerun_count: 0
+      last_run_id: null
+      obsolete: false
+      superseded_by: null
+      cut_record:
+        cut_target: 权限与身份
+        cut_reason: "试点阶段无鉴权层，无法模拟不同角色"
+        source_ref: ADR-047 Section 4.1.3
+        approver: "qa-lead"
+        approved_at: "2026-04-10T14:00:00Z"
+
+    # HANDOFF-TRANSITION-001: 交接流转
+    - coverage_id: api.handoff.transition.happy
+      capability: HANDOFF-TRANSITION-001
+      scenario_type: happy_path
+      dimension: 正常路径
+      priority: P0
+      source_feat_ref: FEAT-SRC-005-001.Scope.gate-consumption
+      lifecycle_status: designed
+      mapping_status: unmapped
+      evidence_status: missing
+      waiver_status: none
+      mapped_case_ids: []
+      evidence_refs: []
+      rerun_count: 0
+      last_run_id: null
+      obsolete: false
+      superseded_by: null
+
+    - coverage_id: api.handoff.transition.invalid-state
+      capability: HANDOFF-TRANSITION-001
+      scenario_type: state_constraint
+      dimension: 状态约束
+      priority: P0
+      source_feat_ref: FEAT-SRC-005-001.Constraints.loop-semantics
+      lifecycle_status: designed
+      mapping_status: unmapped
+      evidence_status: missing
+      waiver_status: none
+      mapped_case_ids: []
+      evidence_refs: []
+      rerun_count: 0
+      last_run_id: null
+      obsolete: false
+      superseded_by: null
+
+    # GATE-EVAL-001: Gate 评估
+    - coverage_id: api.gate.eval.happy
+      capability: GATE-EVAL-001
+      scenario_type: happy_path
+      dimension: 正常路径
+      priority: P0
+      source_feat_ref: FEAT-SRC-005-001.AcceptanceChecks.submission-visible
+      lifecycle_status: designed
+      mapping_status: unmapped
+      evidence_status: missing
+      waiver_status: none
+      mapped_case_ids: []
+      evidence_refs: []
+      rerun_count: 0
+      last_run_id: null
+      obsolete: false
+      superseded_by: null
+
+    - coverage_id: api.gate.eval.incomplete-evidence
+      capability: GATE-EVAL-001
+      scenario_type: exception
+      dimension: 异常路径
+      priority: P0
+      source_feat_ref: FEAT-SRC-005-001.AcceptanceChecks.submission-visible
+      lifecycle_status: designed
+      mapping_status: unmapped
+      evidence_status: missing
+      waiver_status: none
+      mapped_case_ids: []
+      evidence_refs: []
+      rerun_count: 0
+      last_run_id: null
+      obsolete: false
+      superseded_by: null
+
+    # GATE-RECORD-001: 记录决策
+    - coverage_id: api.gate.record.happy
+      capability: GATE-RECORD-001
+      scenario_type: happy_path
+      dimension: 正常路径
+      priority: P1
+      source_feat_ref: FEAT-SRC-005-001.Scope.gate-consumption
+      lifecycle_status: designed
+      mapping_status: unmapped
+      evidence_status: missing
+      waiver_status: none
+      mapped_case_ids: []
+      evidence_refs: []
+      rerun_count: 0
+      last_run_id: null
+      obsolete: false
+      superseded_by: null
+
+    # LOOP-RESPONSIBILITY-001: Loop 责任分离
+    - coverage_id: api.loop.resp.validation
+      capability: LOOP-RESPONSIBILITY-001
+      scenario_type: happy_path
+      dimension: 正常路径
+      priority: P0
+      source_feat_ref: FEAT-SRC-005-001.AcceptanceChecks.loop-responsibility
+      lifecycle_status: designed
+      mapping_status: unmapped
+      evidence_status: missing
+      waiver_status: none
+      mapped_case_ids: []
+      evidence_refs: []
+      rerun_count: 0
+      last_run_id: null
+      obsolete: false
+      superseded_by: null
+
+    - coverage_id: api.loop.resp.overlap-detection
+      capability: LOOP-RESPONSIBILITY-001
+      scenario_type: exception
+      dimension: 异常路径
+      priority: P0
+      source_feat_ref: FEAT-SRC-005-001.Constraints.no-overlap
+      lifecycle_status: designed
+      mapping_status: unmapped
+      evidence_status: missing
+      waiver_status: none
+      mapped_case_ids: []
+      evidence_refs: []
+      rerun_count: 0
+      last_run_id: null
+      obsolete: false
+      superseded_by: null

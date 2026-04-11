@@ -1,0 +1,6 @@
+skill: ll-qa-prototype-to-e2eplan
+version: "1.0"
+adr: ADR-047
+category: qa
+chain: e2e-test
+phase: plan-generation

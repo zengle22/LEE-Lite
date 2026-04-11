@@ -1,0 +1,3 @@
+# Output Contract: ll-qa-settlement
+## Required Output: api-settlement-report.yaml and e2e-settlement-report.yaml
+## See input/contract.yaml for full schema.

@@ -1,0 +1,12 @@
+# Input Contract: ll-qa-feat-to-apiplan
+
+## Required Input
+- feat_freeze_package directory from ll-product-epic-to-feat
+- feat_ref: the specific FEAT identifier
+
+## Input Validation
+- [ ] FEAT status is `frozen`
+- [ ] FEAT contains `Scope` section with API capabilities
+- [ ] FEAT contains `Acceptance Checks` section
+- [ ] FEAT contains `Constraints` section
+- [ ] Output directory `ssot/tests/api/{feat_id}/` does not already contain an api-test-plan.md (or existing one is stale)

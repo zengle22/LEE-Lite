@@ -124,6 +124,9 @@ scripts/*.ps1
 # Cursor IDE
 .cursor/
 
+# VS Code Counter (IDE-generated stats)
+.VSCodeCounter/
+
 # Agents directory (auto-generated)
 .agents/
 

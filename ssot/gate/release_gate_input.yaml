@@ -1,0 +1,20 @@
+release_gate_input:
+  generated_at: '2026-04-10T08:35:55.740044Z'
+  api:
+    status: pass
+    uncovered_count: 0
+    failed_count: 0
+    blocked_count: 0
+    pass_rate: 0.0
+    evidence_hash: 4f53cda18c2baa0c
+    waiver_refs: []
+  e2e:
+    status: pass
+    uncovered_count: 0
+    failed_count: 0
+    blocked_count: 0
+    pass_rate: 0.0
+    evidence_hash: 4f53cda18c2baa0c
+    waiver_refs: []
+  final_decision: release
+  decision_reason: All chains passed

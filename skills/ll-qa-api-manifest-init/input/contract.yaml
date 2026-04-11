@@ -1,0 +1,28 @@
+# Input Contract: ll-qa-api-manifest-init
+
+## Required Input
+- api-test-plan.md from ll-qa-feat-to-apiplan
+
+## Input Validation
+- [ ] api-test-plan.md exists at ssot/tests/api/{feat_id}/api-test-plan.md
+- [ ] Plan contains feature_id
+- [ ] Plan contains capabilities table
+- [ ] Plan contains test dimension matrix
+- [ ] Plan contains priority matrix
+---
+# Output Contract: ll-qa-api-manifest-init
+
+## Required Output
+- ssot/tests/api/{feat_id}/api-coverage-manifest.yaml
+
+## Output Schema
+- Root key: api_coverage_manifest
+- Metadata: feature_id, generated_at, source_plan_ref
+- Items array with: coverage_id, capability, scenario_type, dimension, priority, source_feat_ref, lifecycle_status, mapping_status, evidence_status, waiver_status, mapped_case_ids, evidence_refs, rerun_count, last_run_id, obsolete, superseded_by
+- Cut items must have cut_record with: cut_target, cut_reason, source_ref, approver, approved_at
+
+## Quality Checks
+- [ ] item count = capabilities × required dimensions (after cuts)
+- [ ] All items lifecycle_status = designed or cut
+- [ ] All cut items have valid cut_record
+- [ ] Root key is api_coverage_manifest

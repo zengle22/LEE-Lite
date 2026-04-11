@@ -1,0 +1,3 @@
+# Output Contract: ll-qa-gate-evaluate
+## Required Output: ssot/tests/.artifacts/tests/settlement/release_gate_input.yaml
+## See input/contract.yaml for full schema.

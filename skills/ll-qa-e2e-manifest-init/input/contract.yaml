@@ -1,0 +1,29 @@
+# Input Contract: ll-qa-e2e-manifest-init
+
+## Required Input
+- e2e-journey-plan.md from ll-qa-prototype-to-e2eplan
+
+## Input Validation
+- [ ] e2e-journey-plan.md exists and is valid
+- [ ] Plan contains prototype_id or feature_id
+- [ ] Plan contains at least 1 main journey + 1 exception journey
+
+---
+
+# Output Contract: ll-qa-e2e-manifest-init
+
+## Required Output
+- ssot/tests/e2e/{prototype_id}/e2e-coverage-manifest.yaml
+
+## Output Schema
+- Root key: e2e_coverage_manifest
+- Metadata: prototype_id (or feature_id), derivation_mode, generated_at, source_plan_ref
+- Items array with: coverage_id, journey_id, journey_type, priority, source_prototype_ref, lifecycle_status, mapping_status, evidence_status, waiver_status, mapped_case_ids, evidence_refs, rerun_count, last_run_id, obsolete, superseded_by
+- Cut items must have cut_record
+
+## Quality Checks
+- [ ] item count >= plan journey count
+- [ ] All items lifecycle_status = designed or cut
+- [ ] All cut items have valid cut_record
+- [ ] Main journey (P0) items are never cut
+- [ ] Root key is e2e_coverage_manifest

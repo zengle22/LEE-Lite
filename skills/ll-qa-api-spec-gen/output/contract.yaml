@@ -1,0 +1,5 @@
+# Output Contract: ll-qa-api-spec-gen
+
+## Required Output
+- Multiple spec files at ssot/tests/api/{feat_id}/api-test-spec/
+- See input/contract.yaml for full output schema.

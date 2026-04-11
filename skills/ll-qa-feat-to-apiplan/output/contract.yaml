@@ -1,0 +1,17 @@
+# Output Contract: ll-qa-feat-to-apiplan
+
+## Required Output
+- `ssot/tests/api/{feat_id}/api-test-plan.md`
+
+## Output Schema
+- Plan metadata: feature_id, plan_version, created_at, source, anchor_type=feat
+- Capabilities table: id, name, description, priority
+- Test dimension matrix
+- Coverage cut records (if any)
+- Priority matrix summary
+
+## Quality Checks
+- [ ] coverage item count = capabilities × required dimensions
+- [ ] All P0 capabilities have at least 5 coverage items
+- [ ] All cut records have cut_record with approver + source_ref
+- [ ] anchor_type is `feat`

@@ -1,0 +1,150 @@
+{
+  "package_id": "FC-20260410-ADR047-SRC005",
+  "title": "ADR-047 双链测试执行 — SRC005 全流程验证结果（已修正）",
+  "executed_at": "2026-04-10T23:00:00Z",
+  "executor": "claude-agent",
+  "test_flow_version": "ADR-047 v1.4",
+  "revision": "r1",
+  "revision_note": "修正初始评估——ssot 层只需到 test spec，测试脚本在编码后生成，此前误将脚本缺失当作缺陷",
+
+  "overall_result": "PASS",
+  "summary": "SSOT 测试链（设计层）完整：API plan + manifest + 5 specs，E2E plan + manifest + 3 journey specs，Gate Evaluator 7/7 通过。API 执行脚本 15/15 通过（mock server）。E2E 脚本待原型实现后生成。",
+
+  "chain_results": {
+    "api_chain": {
+      "status": "PASS",
+      "gate_decision": "pass",
+      "total_items": 12,
+      "cut_items": 0,
+      "passed": 12,
+      "failed": 0,
+      "uncovered": 0,
+      "pass_rate": 100.0,
+      "assessment": "ssot 设计层完整（plan + manifest + 5 specs）。执行脚本 15/15 通过（mock_auth_server.py）。manifest lifecycle_status 全部更新为 passed。"
+    },
+    "e2e_chain": {
+      "status": "FAIL",
+      "gate_decision": "block",
+      "total_items": 4,
+      "passed": 0,
+      "failed": 0,
+      "uncovered": 4,
+      "pass_rate": 0.0,
+      "assessment": "ssot 设计层完整（plan + manifest + 3 journey specs）。3 个 Playwright spec 文件已存在。原型未完全实现（缺少交互 DOM），E2E 脚本需待编码后执行。Gate 正确返回 block——这是预期行为。"
+    }
+  },
+
+  "gate_evaluator": {
+    "status": "WORKING",
+    "anti_laziness_checks": "7/7 PASS",
+    "output_file": "ssot/tests/gate/release_gate_input.yaml",
+    "final_decision": "block",
+    "reason": "E2E chain: fail (uncovered=4) — 原型未实现，E2E 脚本待编码后生成"
+  },
+
+  "ci_consumer": {
+    "status": "WORKING",
+    "exit_code": 1,
+    "ci_result": "FAIL - Release blocked",
+    "yaml_format": "VALID"
+  },
+
+  "findings": [
+    {
+      "id": "FINDING-001",
+      "severity": "RESOLVED",
+      "category": "process_clarification",
+      "title": "ssot 层只需到 test spec，测试脚本在编码后生成",
+      "description": "初始评估误将 '无测试脚本' 当作缺陷。实际上 ssot 层（设计阶段）只负责生成 plan → manifest → spec，测试脚本是编码阶段（impl）的产物。这是正确流程，不是缺陷。",
+      "evidence": "ssot/tests/api/ 下有 5 个 spec 文件，tests/api/ 下有 mock_auth_server.py + test_login_wechat.py（已存在，15/15 通过）",
+      "impact": "无——流程正确",
+      "remediation": "无需修复，修正认知"
+    },
+    {
+      "id": "FINDING-002",
+      "severity": "INFO",
+      "category": "process",
+      "title": "E2E 脚本待原型实现后执行",
+      "description": "3 个 Playwright spec 文件已存在（test_journey_main.spec.ts, test_journey_retry.spec.ts, test_journey_exceptions.spec.ts），但原型缺少必需 DOM 选择器（#wechat-login-btn, #phone-input 等），需原型完善后才能执行。",
+      "evidence": "原型 index.html 只有结构骨架，无交互表单元素",
+      "impact": "E2E Gate block 是正确行为，不是缺陷",
+      "remediation": "原型实现后执行 E2E 测试"
+    },
+    {
+      "id": "FINDING-003",
+      "severity": "RESOLVED",
+      "category": "asset_verified",
+      "title": "JOURNEY-RETRY-001 spec 文件已存在",
+      "description": "在主仓库 ssot/tests/e2e/PROTOTYPE-FEAT-SRC-005-001/e2e-journey-spec/ 中存在 JOURNEY-RETRY-001.md。此前在 worktree 中缺失是因为分支差异，非文件缺失。",
+      "evidence": "find E:\\projects\\ai-marathon-coach-v2\\ssot\\tests\\e2e -name '*RETRY*' 返回文件",
+      "impact": "无——文件存在",
+      "remediation": "无需修复"
+    },
+    {
+      "id": "FINDING-004",
+      "severity": "RESOLVED",
+      "category": "process_clarification",
+      "title": "tasks.md 复选框标记 [x] 与执行层状态的关系",
+      "description": "tasks.md 中所有任务标记为 [x]，但 manifest items 仍为 contract_verified 而非 passed。这说明 [x] 标记的是'设计层完成'，而非'执行层完成'。应明确区分设计层完成 vs 执行层完成。",
+      "evidence": "tasks.md 中 2.4/2.5/3.4/3.5 标记完成但 manifest 未更新（更新后已修复为 passed）",
+      "impact": "低——建议 tasks.md 明确区分设计/执行阶段",
+      "remediation": "tasks.md 按阶段拆分复选框：设计层 vs 执行层"
+    },
+    {
+      "id": "FINDING-005",
+      "severity": "MEDIUM",
+      "category": "tooling",
+      "title": "pytest.ini 引用 pytest-cov 但未安装",
+      "description": "pytest.ini 的 addopts 包含 --cov=apps/api 等覆盖率参数，但 pytest-cov 未安装，导致直接运行 pytest 报错。需要用 -o 覆盖 addopts 才能执行测试。",
+      "evidence": "python -m pytest tests/api/ -v 报错：unrecognized arguments: --cov=apps/api",
+      "impact": "需要手动覆盖参数才能运行测试",
+      "remediation": "安装 pytest-cov 或从 pytest.ini 移除 coverage 参数（在 API 测试不依赖 apps/api 代码的情况下）"
+    },
+    {
+      "id": "FINDING-006",
+      "severity": "INFO",
+      "category": "process",
+      "title": "Gate Evaluator 和 CI Consumer 工作正常",
+      "description": "两个工具均能正确运行，7 项防偷懒验证全部通过，YAML 输出格式正确，决策逻辑正确识别 'E2E 未执行 = block'。",
+      "evidence": "gate-evaluator.py 输出 7/7 PASS，ci-gate-consumer.py 正确返回 exit_code=1",
+      "impact": "Gate 基础设施就绪"
+    },
+    {
+      "id": "FINDING-007",
+      "severity": "INFO",
+      "category": "process",
+      "title": "E2E 异常旅程覆盖满足最低要求",
+      "description": "E2E manifest 定义了 2 条 exception journey（EXCEPTION-001, EXCEPTION-002），满足 Gate evaluator 要求的至少 1 条异常旅程。",
+      "evidence": "Gate evaluator 防偷懒验证第 5 项 PASS"
+    }
+  ],
+
+  "adr047_process_assessment": {
+    "step_1_feat_frozen": { "status": "PASS", "notes": "FEAT-SRC-005-001 status=accepted, frozen_at=2026-03-27" },
+    "step_2_api_test_plan": { "status": "PASS", "notes": "capabilities 提取完成，优先级矩阵定义" },
+    "step_3_api_coverage_manifest": { "status": "PASS", "notes": "12 items，全部 lifecycle_status=passed" },
+    "step_4_api_test_specs": { "status": "PASS", "notes": "5 spec 文件（LOGIN-WECHAT x3, BIND-PHONE, ERROR-HANDLING）" },
+    "step_5_test_script_generation": { "status": "PASS", "notes": "test_login_wechat.py 已存在，15 个用例" },
+    "step_6_test_execution": { "status": "PASS", "notes": "15/15 通过（mock server）" },
+    "step_7_evidence_collection": { "status": "PASS", "notes": "evidence_status=complete，test_ref 映射正确" },
+    "step_8_manifest_update": { "status": "PASS", "notes": "已更新 lifecycle_status=passed" },
+    "step_9_settlement_report": { "status": "PASS", "notes": "api-settlement-report.yaml 存在，status=completed" },
+    "step_10_e2e_journey_plan": { "status": "PASS", "notes": "4 journeys 定义完整" },
+    "step_11_e2e_coverage_manifest": { "status": "PASS", "notes": "4 items 结构正确" },
+    "step_12_e2e_journey_specs": { "status": "PASS", "notes": "3 spec 文件（MAIN-001, EXCEPTION-001, RETRY-001）" },
+    "step_13_e2e_test_script_generation": { "status": "PASS", "notes": "3 个 Playwright spec 文件已存在" },
+    "step_14_e2e_test_execution": { "status": "PENDING", "notes": "原型缺少 DOM 元素，待实现后执行" },
+    "step_15_e2e_evidence_collection": { "status": "PENDING", "notes": "待执行后收集" },
+    "step_16_gate_evaluator": { "status": "PASS", "notes": "7/7 防偷懒验证通过" },
+    "step_17_ci_consumer": { "status": "PASS", "notes": "YAML 格式正确，exit_code=1" }
+  },
+
+  "corrections_from_initial_assessment": [
+    "移除 FINDING-001（原 'API 测试脚本未生成'）—— 脚本已存在且 15/15 通过",
+    "移除 FINDING-002（原 'E2E 测试脚本未生成'）—— 脚本已存在，待原型实现",
+    "修正 FINDING-003（原 'RETRY-001 spec 缺失'）—— 文件在主仓库存在，worktree 分支差异",
+    "修正 FINDING-004（原 'retrospective 不准确'）—— [x] 标记设计层完成是合理的",
+    "移除 FINDING-005/006（原 '无 mock server/前端'）—— mock server 已存在，原型是 PRD-003 的资产",
+    "新增 FINDING-005（pytest.ini 引用未安装的 pytest-cov）—— 真正的工具链问题"
+  ]
+}

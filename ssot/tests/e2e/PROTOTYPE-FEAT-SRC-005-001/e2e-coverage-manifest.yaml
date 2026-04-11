@@ -1,0 +1,73 @@
+e2e_coverage_manifest:
+  prototype_id: PROTOTYPE-FEAT-SRC-005-001
+  derivation_mode: api-derived
+  generated_at: "2026-04-10T14:00:00Z"
+  source_plan_ref: ssot/tests/e2e/PROTOTYPE-FEAT-SRC-005-001/e2e-journey-plan.md
+  items:
+    # JOURNEY-MAIN-001: 主旅程
+    - coverage_id: e2e.journey.main.happy
+      journey_id: JOURNEY-MAIN-001
+      journey_type: main
+      priority: P0
+      source_prototype_ref: FEAT-SRC-005-001.Scope.candidate-package-submission
+      lifecycle_status: designed
+      mapping_status: unmapped
+      evidence_status: missing
+      waiver_status: none
+      mapped_case_ids: []
+      evidence_refs: []
+      rerun_count: 0
+      last_run_id: null
+      obsolete: false
+      superseded_by: null
+
+    # JOURNEY-EXCEPTION-001: 校验失败异常旅程
+    - coverage_id: e2e.journey.exception.validation-fail
+      journey_id: JOURNEY-EXCEPTION-001
+      journey_type: exception
+      priority: P0
+      source_prototype_ref: FEAT-SRC-005-001.Constraints.candidate-validation
+      lifecycle_status: designed
+      mapping_status: unmapped
+      evidence_status: missing
+      waiver_status: none
+      mapped_case_ids: []
+      evidence_refs: []
+      rerun_count: 0
+      last_run_id: null
+      obsolete: false
+      superseded_by: null
+
+    # JOURNEY-EXCEPTION-002: 重复提交异常旅程
+    - coverage_id: e2e.journey.exception.duplicate-submit
+      journey_id: JOURNEY-EXCEPTION-002
+      journey_type: exception
+      priority: P1
+      source_prototype_ref: FEAT-SRC-005-001.Scope.authoritative-handoff
+      lifecycle_status: designed
+      mapping_status: unmapped
+      evidence_status: missing
+      waiver_status: none
+      mapped_case_ids: []
+      evidence_refs: []
+      rerun_count: 0
+      last_run_id: null
+      obsolete: false
+      superseded_by: null
+
+    # JOURNEY-RETRY-001: Gate 回流重试旅程
+    - coverage_id: e2e.journey.retry.gate-rejection
+      journey_id: JOURNEY-RETRY-001
+      journey_type: retry
+      priority: P1
+      source_prototype_ref: FEAT-SRC-005-001.Scope.gate-consumption
+      lifecycle_status: designed
+      mapping_status: unmapped
+      evidence_status: missing
+      waiver_status: none
+      mapped_case_ids: []
+      evidence_refs: []
+      rerun_count: 0
+      last_run_id: null
+      obsolete: false
+      superseded_by: null

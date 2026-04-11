@@ -1,0 +1,7 @@
+# Output Contract: ll-qa-api-manifest-init
+
+## Required Output
+- ssot/tests/api/{feat_id}/api-coverage-manifest.yaml
+
+## Schema Reference
+See input/contract.yaml for full output schema.

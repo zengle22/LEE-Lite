@@ -1,0 +1,29 @@
+# Input Contract: ll-qa-prototype-to-e2eplan
+
+## Required Input
+- Frozen prototype package from ll-dev-feat-to-proto, OR
+- Frozen FEAT from ll-product-epic-to-feat (API-derived mode)
+
+## Input Validation
+- [ ] Prototype exists with flow map / journey map (prototype-driven mode), OR
+- [ ] FEAT is frozen with Scope/Acceptance Checks (API-derived mode)
+- [ ] Output directory can be created
+
+---
+
+# Output Contract: ll-qa-prototype-to-e2eplan
+
+## Required Output
+- ssot/tests/e2e/{prototype_id}/e2e-journey-plan.md
+
+## Output Schema
+- Plan metadata (prototype_id or feature_id, derivation_mode, created_at, source, anchor_type=prototype)
+- Journey definitions table
+- Journey detail sections
+- Minimum journey count validation result
+
+## Quality Checks
+- [ ] At least 1 main journey (P0)
+- [ ] At least 1 exception journey
+- [ ] All journeys have entry_point and at least 2 user_steps
+- [ ] API-derived mode has derivation_mode annotation

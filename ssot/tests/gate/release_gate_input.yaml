@@ -1,0 +1,21 @@
+release_gate_input:
+  generated_at: '2026-04-10T14:31:03.997053+00:00'
+  api:
+    status: fail
+    uncovered_count: 18
+    failed_count: 0
+    blocked_count: 0
+    pass_rate: 0.0
+    evidence_hash: f99f896885d41598
+    waiver_refs: []
+  e2e:
+    status: fail
+    uncovered_count: 4
+    failed_count: 0
+    blocked_count: 0
+    pass_rate: 0.0
+    evidence_hash: 453a39b98df63598
+    waiver_refs: []
+  final_decision: block
+  decision_reason: 'API chain: fail (failed=0, uncovered=18, rejected_waiver=0); E2E
+    chain: fail (failed=0, uncovered=4, rejected_waiver=0)'

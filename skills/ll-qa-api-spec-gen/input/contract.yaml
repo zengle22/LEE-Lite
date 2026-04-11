@@ -1,0 +1,61 @@
+# Input Contract: ll-qa-api-spec-gen
+
+## Required Input
+- api-coverage-manifest.yaml from ll-qa-api-manifest-init
+
+## Input Validation
+- [ ] api-coverage-manifest.yaml exists and is valid YAML
+- [ ] Root key is api_coverage_manifest
+- [ ] Items array is non-empty
+- [ ] Items have lifecycle_status field
+
+---
+
+# Output Contract: ll-qa-api-spec-gen
+
+## Required Output
+- Multiple spec files at ssot/tests/api/{feat_id}/api-test-spec/
+
+## Output Schema
+Each spec file contains:
+- Spec metadata (spec_id, coverage_id_ref, capability_ref, priority)
+- Endpoint definition (method, path, status codes)
+- Request schema (headers, params, body)
+- Expected response (status, body schema, headers)
+- Assertions list
+- evidence_required list
+- anti_false_pass_checks list
+- Cleanup steps
+- source_refs
+
+## Quality Checks
+- [ ] One spec per non-cut coverage item
+- [ ] Every spec has evidence_required field
+- [ ] Every spec has anti_false_pass_checks (P0: at least 3)
+- [ ] All endpoints traceable to FEAT capabilities
+- [ ] Spec filenames are unique
+
+---
+
+# Executor Agent: ll-qa-api-spec-gen
+
+## Role
+Generate structured API test specs from coverage manifest items.
+
+## Instructions
+1. Read and validate api-coverage-manifest.yaml
+2. Filter to items with lifecycle_status=designed
+3. For each item, generate a spec with all required sections
+4. Write specs to ssot/tests/api/{feat_id}/api-test-spec/
+
+---
+
+# Supervisor Agent: ll-qa-api-spec-gen
+
+## Validation Checklist
+1. Every non-cut coverage item has a corresponding spec
+2. All specs have required sections
+3. Evidence required fields present
+4. Anti-false-pass checks present
+5. No invented endpoints
+6. Filenames are unique

@@ -1,0 +1,50 @@
+# Input Semantic Checklist: ll-qa-settlement
+
+- [ ] Updated api-coverage-manifest.yaml exists (post-execution)
+- [ ] Updated e2e-coverage-manifest.yaml exists (post-execution)
+- [ ] Manifests have lifecycle_status and evidence_status updated for executed items
+- [ ] Evidence refs are non-empty for executed items
+
+---
+
+# Output Semantic Checklist: ll-qa-settlement
+
+- [ ] api-settlement-report.yaml exists at ssot/tests/.artifacts/settlement/
+- [ ] e2e-settlement-report.yaml exists at ssot/tests/.artifacts/settlement/
+- [ ] Each report has root key (api_settlement / e2e_settlement)
+- [ ] Each report has statistics section with all counters
+- [ ] Statistics are self-consistent: executed = passed + failed + blocked
+- [ ] pass_rate = passed / max(executed, 1)
+- [ ] Gap list includes all failed/blocked/uncovered items
+- [ ] Waiver list includes all non-none waiver_status items
+- [ ] E2E report has exception_journeys subsection
+
+---
+
+# Input Contract: ll-qa-settlement
+
+## Required Input
+- Updated api-coverage-manifest.yaml (post-execution)
+- Updated e2e-coverage-manifest.yaml (post-execution)
+
+## Input Validation
+- [ ] Both manifests exist and are valid YAML
+- [ ] Items have updated lifecycle_status and evidence_status
+- [ ] Executed items have non-empty evidence_refs
+
+---
+
+# Output Contract: ll-qa-settlement
+
+## Required Output
+- ssot/tests/.artifacts/settlement/api-settlement-report.yaml
+- ssot/tests/.artifacts/settlement/e2e-settlement-report.yaml
+
+## Output Schema
+Each report contains:
+- Root key (api_settlement / e2e_settlement)
+- Metadata (feature_id or prototype_id, generated_at)
+- Statistics (total, designed, executed, passed, failed, blocked, uncovered, cut, obsolete, pass_rate)
+- gap_list (coverage_id, capability, lifecycle_status, reason)
+- waiver_list (coverage_id, waiver_status, waiver_reason)
+- E2E report additionally has exception_journeys subsection

@@ -1,0 +1,6 @@
+skill: ll-qa-settlement
+version: "1.0"
+adr: ADR-047
+category: qa
+chain: settlement
+phase: settlement-generation

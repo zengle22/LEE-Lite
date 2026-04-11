@@ -1,0 +1,56 @@
+# Input Semantic Checklist: ll-qa-gate-evaluate
+
+- [ ] api-coverage-manifest.yaml exists
+- [ ] e2e-coverage-manifest.yaml exists
+- [ ] API settlement report exists
+- [ ] E2E settlement report exists
+- [ ] Waiver records file exists
+- [ ] All files are valid YAML/JSON
+
+---
+
+# Output Semantic Checklist: ll-qa-gate-evaluate
+
+- [ ] release_gate_input.yaml exists at ssot/tests/.artifacts/tests/settlement/
+- [ ] Has gate_evaluation root key
+- [ ] evaluated_at timestamp present
+- [ ] feature_id present
+- [ ] final_decision is one of: pass, fail, conditional_pass
+- [ ] api_chain section with all metrics
+- [ ] e2e_chain section with all metrics
+- [ ] anti_laziness_checks section with all 7 checks
+- [ ] evidence_hash present (SHA-256)
+- [ ] decision_reason present and explains the decision
+
+---
+
+# Input Contract: ll-qa-gate-evaluate
+
+## Required Input
+- api-coverage-manifest.yaml
+- e2e-coverage-manifest.yaml
+- API settlement report (api-settlement-report.yaml)
+- E2E settlement report (e2e-settlement-report.yaml)
+- Waiver records (waiver.yaml)
+
+## Input Validation
+- [ ] All input files exist and are valid
+- [ ] Manifests have been updated after test execution
+- [ ] Settlement reports contain statistics
+
+---
+
+# Output Contract: ll-qa-gate-evaluate
+
+## Required Output
+- ssot/tests/.artifacts/tests/settlement/release_gate_input.yaml
+
+## Output Schema
+- gate_evaluation root key
+- evaluated_at, feature_id
+- final_decision: pass|fail|conditional_pass
+- api_chain: total, passed, failed, blocked, uncovered, pass_rate, evidence_status
+- e2e_chain: total, passed, failed, blocked, uncovered, pass_rate, exception_journeys_executed, evidence_status
+- anti_laziness_checks: 7 boolean checks
+- evidence_hash: SHA-256
+- decision_reason: explanation

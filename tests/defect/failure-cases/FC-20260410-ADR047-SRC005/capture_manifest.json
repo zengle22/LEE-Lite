@@ -1,0 +1,37 @@
+{
+  "artifact_type": "test_execution_capture",
+  "schema_version": "0.1.0",
+  "status": "captured",
+  "workflow_key": "adr047.dual-chain-execution",
+  "package_kind": "test_execution",
+  "package_id": "FC-20260410-ADR047-SRC005",
+  "triage_level": "P1",
+  "skill_id": "adr047-dual-chain-testing",
+  "sku": "dual_chain_test_execution",
+  "run_id": "adr047-pilot-execution-src005-20260410",
+  "artifact_id": "ADR047-FEAT-SRC-005-001-EXECUTION",
+  "failure_scope": "process_and_asset",
+  "package_dir_ref": "tests/defect/failure-cases/FC-20260410-ADR047-SRC005",
+  "source_refs": [
+    "ssot/feat/FEAT-SRC-005-001__主链候选提交与交接流.md",
+    "ssot/tests/api/FEAT-SRC-005-001/api-test-plan.md",
+    "ssot/tests/api/FEAT-SRC-005-001/api-coverage-manifest.yaml",
+    "ssot/tests/e2e/PROTOTYPE-FEAT-SRC-005-001/e2e-journey-plan.md",
+    "ssot/tests/e2e/PROTOTYPE-FEAT-SRC-005-001/e2e-coverage-manifest.yaml",
+    "ssot/tests/gate/gate-evaluator.py",
+    "ssot/tests/gate/ci-gate-consumer.py",
+    "ssot/tests/pilot-plan.md",
+    "ssot/tests/pilot-retrospective.md",
+    "docs/guides/adr047-dual-chain-testing-guide.md",
+    "openspec/changes/adr047-pilot-execution/tasks.md"
+  ],
+  "evidence_refs": [
+    "ssot/tests/gate/release_gate_input.yaml",
+    "ssot/tests/.artifacts/settlement/api-settlement-report.yaml",
+    "ssot/tests/.artifacts/settlement/e2e-settlement-report.yaml"
+  ],
+  "files": {
+    "capture_manifest_ref": "tests/defect/failure-cases/FC-20260410-ADR047-SRC005/capture_manifest.json",
+    "failure_case_ref": "tests/defect/failure-cases/FC-20260410-ADR047-SRC005/failure_case.json"
+  }
+}

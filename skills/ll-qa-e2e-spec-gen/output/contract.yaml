@@ -1,0 +1,3 @@
+# Output Contract: ll-qa-e2e-spec-gen
+## Required Output: ssot/tests/e2e/{prototype_id}/e2e-journey-spec/
+## See input/contract.yaml for full schema.

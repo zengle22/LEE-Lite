@@ -1,0 +1,5 @@
+# Output Contract: ll-qa-prototype-to-e2eplan
+
+## Required Output
+- ssot/tests/e2e/{prototype_id}/e2e-journey-plan.md
+- See input/contract.yaml for full output schema.

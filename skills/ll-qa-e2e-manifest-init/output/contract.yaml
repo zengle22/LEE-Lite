@@ -1,0 +1,3 @@
+# Output Contract: ll-qa-e2e-manifest-init
+## Required Output: ssot/tests/e2e/{prototype_id}/e2e-coverage-manifest.yaml
+## See input/contract.yaml for full schema.

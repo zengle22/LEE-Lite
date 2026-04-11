@@ -1,3 +1,8 @@
+---
+name: ll-governance-spec-reconcile
+description: Reconcile governance spec findings across workflow packages, produce reconcile reports, and optionally update spec backport queues and package manifests.
+---
+
 # ll-governance-spec-reconcile
 
 ADR-044 Phase 0/1 governance skill.

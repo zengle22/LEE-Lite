@@ -1,0 +1,60 @@
+# Input Semantic Checklist: ll-qa-e2e-spec-gen
+
+- [ ] e2e-coverage-manifest.yaml is valid YAML
+- [ ] Has e2e_coverage_manifest root key
+- [ ] Items array has at least one item with lifecycle_status=designed
+- [ ] Each item has coverage_id, journey_id, journey_type, priority
+
+---
+
+# Output Semantic Checklist: ll-qa-e2e-spec-gen
+
+- [ ] Spec files exist at ssot/tests/e2e/{prototype_id}/e2e-journey-spec/
+- [ ] Number of spec files = number of non-cut coverage items
+- [ ] Each spec has entry_point section
+- [ ] Each spec has user_steps list
+- [ ] Each spec has expected_ui_states
+- [ ] Each spec has expected_network_events (if API calls exist)
+- [ ] Each spec has expected_persistence
+- [ ] Each spec has evidence_required (with playwright_trace + screenshot)
+- [ ] Each spec has anti_false_pass_checks (P0: at least 3)
+- [ ] Filenames are unique
+
+---
+
+# Input Contract: ll-qa-e2e-spec-gen
+
+## Required Input
+- e2e-coverage-manifest.yaml from ll-qa-e2e-manifest-init
+
+## Input Validation
+- [ ] e2e-coverage-manifest.yaml exists and is valid YAML
+- [ ] Root key is e2e_coverage_manifest
+- [ ] Items array is non-empty
+- [ ] Items have lifecycle_status field
+
+---
+
+# Output Contract: ll-qa-e2e-spec-gen
+
+## Required Output
+- Multiple spec files at ssot/tests/e2e/{prototype_id}/e2e-journey-spec/
+
+## Output Schema
+Each spec file contains:
+- Spec metadata (spec_id, coverage_id_ref, journey_id_ref, journey_type, priority)
+- entry_point (page/URL, initial state)
+- user_steps (ordered list with UI feedback)
+- expected_ui_states (UI state assertions at checkpoints)
+- expected_network_events (API calls expected)
+- expected_persistence (data saved/changed)
+- evidence_required (playwright_trace, screenshot, network_log, console_log, storage_state)
+- anti_false_pass_checks
+- source_refs
+
+## Quality Checks
+- [ ] One spec per non-cut coverage item
+- [ ] Every spec has evidence_required with playwright_trace + screenshot
+- [ ] Every spec has anti_false_pass_checks (P0: at least 3)
+- [ ] All user steps traceable to prototype/FEAT
+- [ ] Exception journey specs include error condition and recovery path

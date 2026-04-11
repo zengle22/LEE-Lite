@@ -1,0 +1,6 @@
+skill: ll-qa-feat-to-apiplan
+version: "1.0"
+adr: ADR-047
+category: qa
+chain: api-test
+phase: plan-generation
