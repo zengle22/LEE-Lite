@@ -1,0 +1,259 @@
+api_coverage_manifest:
+  feature_id: FEAT-SRC-003-005
+  generated_at: "2026-04-11T10:00:00Z"
+  source_plan_ref: ssot/tests/api/FEAT-SRC-003-005/api-test-plan.md
+  items:
+    # DISPATCH-INV-001: 调用下游 Skill
+    - coverage_id: api.dispatch.inv.happy
+      capability: DISPATCH-INV-001
+      scenario_type: happy_path
+      dimension: 正常路径
+      priority: P0
+      source_feat_ref: FEAT-SRC-003-005.AcceptanceChecks.declared-next-skill
+      lifecycle_status: designed
+      mapping_status: unmapped
+      evidence_status: missing
+      waiver_status: none
+      mapped_case_ids: []
+      evidence_refs: []
+      rerun_count: 0
+      last_run_id: null
+      obsolete: false
+      superseded_by: null
+
+    - coverage_id: api.dispatch.inv.missing-target
+      capability: DISPATCH-INV-001
+      scenario_type: parameter_validation
+      dimension: 参数校验
+      priority: P0
+      source_feat_ref: FEAT-SRC-003-005.Constraints.target-skill
+      lifecycle_status: designed
+      mapping_status: unmapped
+      evidence_status: missing
+      waiver_status: none
+      mapped_case_ids: []
+      evidence_refs: []
+      rerun_count: 0
+      last_run_id: null
+      obsolete: false
+      superseded_by: null
+
+    - coverage_id: api.dispatch.inv.skill-not-found
+      capability: DISPATCH-INV-001
+      scenario_type: exception
+      dimension: 异常路径
+      priority: P0
+      source_feat_ref: FEAT-SRC-003-005.Scope.next-skill-target
+      lifecycle_status: designed
+      mapping_status: unmapped
+      evidence_status: missing
+      waiver_status: none
+      mapped_case_ids: []
+      evidence_refs: []
+      rerun_count: 0
+      last_run_id: null
+      obsolete: false
+      superseded_by: null
+
+    # DISPATCH-LINEAGE-001: 派发溯源
+    - coverage_id: api.dispatch.lineage.happy
+      capability: DISPATCH-LINEAGE-001
+      scenario_type: happy_path
+      dimension: 正常路径
+      priority: P0
+      source_feat_ref: FEAT-SRC-003-005.AcceptanceChecks.preserves-lineage
+      lifecycle_status: designed
+      mapping_status: unmapped
+      evidence_status: missing
+      waiver_status: none
+      mapped_case_ids: []
+      evidence_refs: []
+      rerun_count: 0
+      last_run_id: null
+      obsolete: false
+      superseded_by: null
+
+    - coverage_id: api.dispatch.lineage.boundary-edge
+      capability: DISPATCH-LINEAGE-001
+      scenario_type: boundary_value
+      dimension: 边界值
+      priority: P0
+      source_feat_ref: FEAT-SRC-003-005.Constraints
+      lifecycle_status: cut
+      mapping_status: unmapped
+      evidence_status: missing
+      waiver_status: none
+      mapped_case_ids: []
+      evidence_refs: []
+      rerun_count: 0
+      last_run_id: null
+      obsolete: false
+      superseded_by: null
+      cut_record:
+        cut_target: 边界值
+        cut_reason: "Lineage 为元数据关联，无连续边界"
+        source_ref: ADR-047 Section 4.1.3
+        approver: "qa-lead"
+        approved_at: "2026-04-11T10:00:00Z"
+
+    # PROG-CHECK-001: Progression Mode 检查
+    - coverage_id: api.prog.check.happy-auto
+      capability: PROG-CHECK-001
+      scenario_type: happy_path
+      dimension: 正常路径
+      priority: P0
+      source_feat_ref: FEAT-SRC-003-005.Scope.progression-mode
+      lifecycle_status: designed
+      mapping_status: unmapped
+      evidence_status: missing
+      waiver_status: none
+      mapped_case_ids: []
+      evidence_refs: []
+      rerun_count: 0
+      last_run_id: null
+      obsolete: false
+      superseded_by: null
+
+    - coverage_id: api.prog.check.hold-blocked
+      capability: PROG-CHECK-001
+      scenario_type: state_constraint
+      dimension: 状态约束
+      priority: P0
+      source_feat_ref: FEAT-SRC-003-005.Constraints.no-auto-dispatch-hold
+      lifecycle_status: designed
+      mapping_status: unmapped
+      evidence_status: missing
+      waiver_status: none
+      mapped_case_ids: []
+      evidence_refs: []
+      rerun_count: 0
+      last_run_id: null
+      obsolete: false
+      superseded_by: null
+
+    - coverage_id: api.prog.check.invalid-mode
+      capability: PROG-CHECK-001
+      scenario_type: parameter_validation
+      dimension: 参数校验
+      priority: P0
+      source_feat_ref: FEAT-SRC-003-005.Constraints.progression-mode
+      lifecycle_status: designed
+      mapping_status: unmapped
+      evidence_status: missing
+      waiver_status: none
+      mapped_case_ids: []
+      evidence_refs: []
+      rerun_count: 0
+      last_run_id: null
+      obsolete: false
+      superseded_by: null
+
+    # DISPATCH-FAIL-001: 派发失败回写
+    - coverage_id: api.dispatch.fail.happy
+      capability: DISPATCH-FAIL-001
+      scenario_type: happy_path
+      dimension: 正常路径
+      priority: P0
+      source_feat_ref: FEAT-SRC-003-005.Scope.dispatch-failure-writeback
+      lifecycle_status: designed
+      mapping_status: unmapped
+      evidence_status: missing
+      waiver_status: none
+      mapped_case_ids: []
+      evidence_refs: []
+      rerun_count: 0
+      last_run_id: null
+      obsolete: false
+      superseded_by: null
+
+    - coverage_id: api.dispatch.fail.writeback-side-effect
+      capability: DISPATCH-FAIL-001
+      scenario_type: data_side_effect
+      dimension: 数据副作用
+      priority: P0
+      source_feat_ref: FEAT-SRC-003-005.Constraints.outcome-writeback
+      lifecycle_status: designed
+      mapping_status: unmapped
+      evidence_status: missing
+      waiver_status: none
+      mapped_case_ids: []
+      evidence_refs: []
+      rerun_count: 0
+      last_run_id: null
+      obsolete: false
+      superseded_by: null
+
+    - coverage_id: api.dispatch.fail.upstream-failure
+      capability: DISPATCH-FAIL-001
+      scenario_type: exception
+      dimension: 异常路径
+      priority: P0
+      source_feat_ref: FEAT-SRC-003-005.Scope.dispatch-failure-writeback
+      lifecycle_status: designed
+      mapping_status: unmapped
+      evidence_status: missing
+      waiver_status: none
+      mapped_case_ids: []
+      evidence_refs: []
+      rerun_count: 0
+      last_run_id: null
+      obsolete: false
+      superseded_by: null
+
+    # INPUT-VALIDATE-001: 输入包校验
+    - coverage_id: api.input.validate.happy
+      capability: INPUT-VALIDATE-001
+      scenario_type: happy_path
+      dimension: 正常路径
+      priority: P0
+      source_feat_ref: FEAT-SRC-003-005.Constraints.authoritative-input-refs
+      lifecycle_status: designed
+      mapping_status: unmapped
+      evidence_status: missing
+      waiver_status: none
+      mapped_case_ids: []
+      evidence_refs: []
+      rerun_count: 0
+      last_run_id: null
+      obsolete: false
+      superseded_by: null
+
+    - coverage_id: api.input.validate.missing-ref
+      capability: INPUT-VALIDATE-001
+      scenario_type: parameter_validation
+      dimension: 参数校验
+      priority: P0
+      source_feat_ref: FEAT-SRC-003-005.Constraints.authoritative-input-refs
+      lifecycle_status: designed
+      mapping_status: unmapped
+      evidence_status: missing
+      waiver_status: none
+      mapped_case_ids: []
+      evidence_refs: []
+      rerun_count: 0
+      last_run_id: null
+      obsolete: false
+      superseded_by: null
+
+    - coverage_id: api.input.validate.idempotent-check
+      capability: INPUT-VALIDATE-001
+      scenario_type: idempotent
+      dimension: 幂等/重试/并发
+      priority: P0
+      source_feat_ref: FEAT-SRC-003-005.Constraints
+      lifecycle_status: cut
+      mapping_status: unmapped
+      evidence_status: missing
+      waiver_status: none
+      mapped_case_ids: []
+      evidence_refs: []
+      rerun_count: 0
+      last_run_id: null
+      obsolete: false
+      superseded_by: null
+      cut_record:
+        cut_target: 幂等/重试/并发
+        cut_reason: "纯校验操作，无并发副作用"
+        source_ref: ADR-047 Section 4.1.3
+        approver: "qa-lead"
+        approved_at: "2026-04-11T10:00:00Z"

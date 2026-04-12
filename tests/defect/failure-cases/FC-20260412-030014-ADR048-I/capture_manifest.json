@@ -1,0 +1,211 @@
+{
+  "artifact_type": "failure_capture_package",
+  "schema_version": "0.1.0",
+  "status": "captured",
+  "workflow_key": "governance.failure-capture",
+  "package_kind": "failure_case",
+  "package_id": "FC-20260412-030014-ADR048-I",
+  "triage_level": "P0",
+  "skill_id": "ll-qa-impl-spec-test",
+  "sku": "impl_spec_test_deep_review",
+  "run_id": "adr048-ssot-chain-review-20260412",
+  "artifact_id": "ADR048-IMPL-SPEC-TEST-DETECTION-GAP-001",
+  "failure_scope": "field_cluster",
+  "package_dir_ref": "tests/defect/failure-cases/FC-20260412-030014-ADR048-I",
+  "request_ref": "artifacts/governance-failures/impl-spec-test-detection-gap/input.json",
+  "source_refs": [
+    "artifacts/governance-failures/impl-spec-test-detection-gap/input.json",
+    "artifacts/reviews/ADR048-SSOT-CHAIN-REVIEW.md",
+    "ssot/adr/ADR-048-SSOT-与双链测试接入-Droid-Missions-的统一治理架构.md",
+    "ssot/feat/FEAT-SRC-RAW-TO-SRC-ADR048-001__主链候选提交与交接流.md",
+    "ssot/feat/FEAT-SRC-RAW-TO-SRC-ADR048-002__主链gate审核与裁决流.md",
+    "ssot/impl/IMPL-SRC-RAW-TO-SRC-ADR048-001__主链候选提交与交接流-implementation-task-package.md",
+    "ssot/impl/IMPL-SRC-RAW-TO-SRC-ADR048-002__主链gate审核与裁决流-implementation-task-package.md",
+    "cli/lib/impl_spec_test_runtime.py",
+    "cli/lib/impl_spec_test_semantics.py",
+    "cli/lib/impl_spec_test_support.py",
+    "cli/lib/impl_spec_test_review.py"
+  ],
+  "evidence_refs": [
+    "artifacts/reviews/ADR048-SSOT-CHAIN-REVIEW.md",
+    "artifacts/active/qa/impl-spec-tests/impl-spec-test-adr048-feat002-v2-impl-src-raw-to-src-adr048-002/dimension-reviews.json",
+    "artifacts/active/qa/impl-spec-tests/impl-spec-test-adr048-feat002-v2-impl-src-raw-to-src-adr048-002/review-coverage.json",
+    "artifacts/active/qa/impl-spec-tests/impl-spec-test-adr048-feat002-v2-impl-src-raw-to-src-adr048-002/semantic-review.json",
+    "artifacts/impl-spec-test-requests/adr048-feat002-v2-response.json",
+    "artifacts/impl-spec-test-requests/adr048-feat004-v2-response.json",
+    "artifacts/impl-spec-test-requests/adr048-feat005-v2-response.json"
+  ],
+  "ref_resolution": {
+    "source_refs": {
+      "total": 11,
+      "resolved": 11,
+      "missing": 0,
+      "resolved_ratio": 1.0,
+      "items": [
+        {
+          "ref": "artifacts/governance-failures/impl-spec-test-detection-gap/input.json",
+          "resolved_ref": "artifacts/governance-failures/impl-spec-test-detection-gap/input.json",
+          "exists": true
+        },
+        {
+          "ref": "artifacts/reviews/ADR048-SSOT-CHAIN-REVIEW.md",
+          "resolved_ref": "artifacts/reviews/ADR048-SSOT-CHAIN-REVIEW.md",
+          "exists": true
+        },
+        {
+          "ref": "ssot/adr/ADR-048-SSOT-与双链测试接入-Droid-Missions-的统一治理架构.md",
+          "resolved_ref": "ssot/adr/ADR-048-SSOT-与双链测试接入-Droid-Missions-的统一治理架构.md",
+          "exists": true
+        },
+        {
+          "ref": "ssot/feat/FEAT-SRC-RAW-TO-SRC-ADR048-001__主链候选提交与交接流.md",
+          "resolved_ref": "ssot/feat/FEAT-SRC-RAW-TO-SRC-ADR048-001__主链候选提交与交接流.md",
+          "exists": true
+        },
+        {
+          "ref": "ssot/feat/FEAT-SRC-RAW-TO-SRC-ADR048-002__主链gate审核与裁决流.md",
+          "resolved_ref": "ssot/feat/FEAT-SRC-RAW-TO-SRC-ADR048-002__主链gate审核与裁决流.md",
+          "exists": true
+        },
+        {
+          "ref": "ssot/impl/IMPL-SRC-RAW-TO-SRC-ADR048-001__主链候选提交与交接流-implementation-task-package.md",
+          "resolved_ref": "ssot/impl/IMPL-SRC-RAW-TO-SRC-ADR048-001__主链候选提交与交接流-implementation-task-package.md",
+          "exists": true
+        },
+        {
+          "ref": "ssot/impl/IMPL-SRC-RAW-TO-SRC-ADR048-002__主链gate审核与裁决流-implementation-task-package.md",
+          "resolved_ref": "ssot/impl/IMPL-SRC-RAW-TO-SRC-ADR048-002__主链gate审核与裁决流-implementation-task-package.md",
+          "exists": true
+        },
+        {
+          "ref": "cli/lib/impl_spec_test_runtime.py",
+          "resolved_ref": "cli/lib/impl_spec_test_runtime.py",
+          "exists": true
+        },
+        {
+          "ref": "cli/lib/impl_spec_test_semantics.py",
+          "resolved_ref": "cli/lib/impl_spec_test_semantics.py",
+          "exists": true
+        },
+        {
+          "ref": "cli/lib/impl_spec_test_support.py",
+          "resolved_ref": "cli/lib/impl_spec_test_support.py",
+          "exists": true
+        },
+        {
+          "ref": "cli/lib/impl_spec_test_review.py",
+          "resolved_ref": "cli/lib/impl_spec_test_review.py",
+          "exists": true
+        }
+      ]
+    },
+    "evidence_refs": {
+      "total": 7,
+      "resolved": 7,
+      "missing": 0,
+      "resolved_ratio": 1.0,
+      "items": [
+        {
+          "ref": "artifacts/reviews/ADR048-SSOT-CHAIN-REVIEW.md",
+          "resolved_ref": "artifacts/reviews/ADR048-SSOT-CHAIN-REVIEW.md",
+          "exists": true
+        },
+        {
+          "ref": "artifacts/active/qa/impl-spec-tests/impl-spec-test-adr048-feat002-v2-impl-src-raw-to-src-adr048-002/dimension-reviews.json",
+          "resolved_ref": "artifacts/active/qa/impl-spec-tests/impl-spec-test-adr048-feat002-v2-impl-src-raw-to-src-adr048-002/dimension-reviews.json",
+          "exists": true
+        },
+        {
+          "ref": "artifacts/active/qa/impl-spec-tests/impl-spec-test-adr048-feat002-v2-impl-src-raw-to-src-adr048-002/review-coverage.json",
+          "resolved_ref": "artifacts/active/qa/impl-spec-tests/impl-spec-test-adr048-feat002-v2-impl-src-raw-to-src-adr048-002/review-coverage.json",
+          "exists": true
+        },
+        {
+          "ref": "artifacts/active/qa/impl-spec-tests/impl-spec-test-adr048-feat002-v2-impl-src-raw-to-src-adr048-002/semantic-review.json",
+          "resolved_ref": "artifacts/active/qa/impl-spec-tests/impl-spec-test-adr048-feat002-v2-impl-src-raw-to-src-adr048-002/semantic-review.json",
+          "exists": true
+        },
+        {
+          "ref": "artifacts/impl-spec-test-requests/adr048-feat002-v2-response.json",
+          "resolved_ref": "artifacts/impl-spec-test-requests/adr048-feat002-v2-response.json",
+          "exists": true
+        },
+        {
+          "ref": "artifacts/impl-spec-test-requests/adr048-feat004-v2-response.json",
+          "resolved_ref": "artifacts/impl-spec-test-requests/adr048-feat004-v2-response.json",
+          "exists": true
+        },
+        {
+          "ref": "artifacts/impl-spec-test-requests/adr048-feat005-v2-response.json",
+          "resolved_ref": "artifacts/impl-spec-test-requests/adr048-feat005-v2-response.json",
+          "exists": true
+        }
+      ]
+    },
+    "allowed_edit_scope": {
+      "total": 10,
+      "resolved": 10,
+      "missing": 0,
+      "resolved_ratio": 1.0,
+      "items": [
+        {
+          "ref": "cli/lib/impl_spec_test_support.py",
+          "resolved_ref": "cli/lib/impl_spec_test_support.py",
+          "exists": true
+        },
+        {
+          "ref": "cli/lib/impl_spec_test_semantics.py",
+          "resolved_ref": "cli/lib/impl_spec_test_semantics.py",
+          "exists": true
+        },
+        {
+          "ref": "cli/lib/impl_spec_test_review.py",
+          "resolved_ref": "cli/lib/impl_spec_test_review.py",
+          "exists": true
+        },
+        {
+          "ref": "cli/lib/impl_spec_test_runtime.py",
+          "resolved_ref": "cli/lib/impl_spec_test_runtime.py",
+          "exists": true
+        },
+        {
+          "ref": "ssot/feat/FEAT-SRC-RAW-TO-SRC-ADR048-001__主链候选提交与交接流.md",
+          "resolved_ref": "ssot/feat/FEAT-SRC-RAW-TO-SRC-ADR048-001__主链候选提交与交接流.md",
+          "exists": true
+        },
+        {
+          "ref": "ssot/feat/FEAT-SRC-RAW-TO-SRC-ADR048-002__主链gate审核与裁决流.md",
+          "resolved_ref": "ssot/feat/FEAT-SRC-RAW-TO-SRC-ADR048-002__主链gate审核与裁决流.md",
+          "exists": true
+        },
+        {
+          "ref": "ssot/feat/FEAT-SRC-RAW-TO-SRC-ADR048-003__formal发布与下游准入流.md",
+          "resolved_ref": "ssot/feat/FEAT-SRC-RAW-TO-SRC-ADR048-003__formal发布与下游准入流.md",
+          "exists": true
+        },
+        {
+          "ref": "ssot/feat/FEAT-SRC-RAW-TO-SRC-ADR048-004__主链受治理io落盘与读取流.md",
+          "resolved_ref": "ssot/feat/FEAT-SRC-RAW-TO-SRC-ADR048-004__主链受治理io落盘与读取流.md",
+          "exists": true
+        },
+        {
+          "ref": "ssot/feat/FEAT-SRC-RAW-TO-SRC-ADR048-005__governed skill接入与pilot验证流.md",
+          "resolved_ref": "ssot/feat/FEAT-SRC-RAW-TO-SRC-ADR048-005__governed skill接入与pilot验证流.md",
+          "exists": true
+        },
+        {
+          "ref": "ssot/impl/IMPL-SRC-RAW-TO-SRC-ADR048-002__主链gate审核与裁决流-implementation-task-package.md",
+          "resolved_ref": "ssot/impl/IMPL-SRC-RAW-TO-SRC-ADR048-002__主链gate审核与裁决流-implementation-task-package.md",
+          "exists": true
+        }
+      ]
+    }
+  },
+  "reproducibility_status": "reproducible",
+  "files": {
+    "capture_manifest_ref": "tests/defect/failure-cases/FC-20260412-030014-ADR048-I/capture_manifest.json",
+    "diagnosis_stub_ref": "tests/defect/failure-cases/FC-20260412-030014-ADR048-I/diagnosis_stub.json",
+    "repair_context_ref": "tests/defect/failure-cases/FC-20260412-030014-ADR048-I/repair_context.json",
+    "failure_case_ref": "tests/defect/failure-cases/FC-20260412-030014-ADR048-I/failure_case.json"
+  }
+}

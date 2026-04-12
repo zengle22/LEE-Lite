@@ -2,7 +2,7 @@
 id: IMPL-SRC-RAW-TO-SRC-ADR048-002
 ssot_type: IMPL
 impl_ref: IMPL-SRC-RAW-TO-SRC-ADR048-002
-tech_ref: TECH-SRC-RAW-TO-SRC-ADR048-001
+tech_ref: TECH-SRC-RAW-TO-SRC-ADR048-002
 feat_ref: FEAT-SRC-RAW-TO-SRC-ADR048-002
 arch_ref: ARCH-SRC-RAW-TO-SRC-ADR048-002
 api_ref: API-SRC-RAW-TO-SRC-ADR048-002
@@ -17,7 +17,7 @@ package_semantics: canonical_execution_package
 authority_scope: execution_input_only
 selected_upstream_refs:
   feat_ref: FEAT-SRC-RAW-TO-SRC-ADR048-002
-  tech_ref: TECH-SRC-RAW-TO-SRC-ADR048-001
+  tech_ref: TECH-SRC-RAW-TO-SRC-ADR048-002
   authority_refs:
   - ARCH-SRC-RAW-TO-SRC-ADR048-002
   - API-SRC-RAW-TO-SRC-ADR048-002
@@ -60,7 +60,7 @@ main_sequence:
   done_when: No downstream coder/tester needs to re-open upstream TECH / ARCH / API
     documents to recover execution-critical facts.
 - step: 3
-  task: TASK-004
+  task: TASK-003
   name: Implement backend runtime, state, and persistence units
   depends_on:
   - TASK-001
@@ -77,11 +77,11 @@ main_sequence:
   done_when: Backend runtime units satisfy the frozen state machine and interface
     contracts without redefining ownership.
 - step: 4
-  task: TASK-005
+  task: TASK-004
   name: Wire integration guards and downstream handoff
   depends_on:
   - TASK-002
-  - TASK-004
+  - TASK-003
   parallel: []
   touch_points:
   - cli/lib/protocol.py
@@ -93,10 +93,10 @@ main_sequence:
   - handoff-ready package
   done_when: The main sequence executes in order and downstream handoff remains boundary-safe.
 - step: 5
-  task: TASK-007
+  task: TASK-005
   name: Collect acceptance evidence and close delivery handoff
   depends_on:
-  - TASK-005
+  - TASK-004
   parallel: []
   touch_points: []
   outputs:
@@ -127,7 +127,6 @@ non_goals:
 - decision vocabulary redefinition
 - migration / cutover / rollback
 - UI component implementation
-non_goals:
 - formal publication semantics
 - decision vocabulary
 - gate decision issuance
@@ -162,9 +161,9 @@ implementation_units:
 
 - Step 1: TASK-001 Freeze refs and repo touch points | depends_on: none | touch_points: cli/lib/protocol.py, cli/lib/registry_store.py, cli/commands/__init__.py | done_when: The implementation package states exactly where coding may occur and which upstream refs remain authoritative.
 - Step 2: TASK-002 Embed state, API, UI, and boundary contracts into implementation inputs | depends_on: TASK-001 | touch_points: cli/lib/protocol.py | done_when: No downstream coder/tester needs to re-open upstream TECH / ARCH / API documents to recover execution-critical facts.
-- Step 3: TASK-004 Implement backend runtime, state, and persistence units | depends_on: TASK-001, TASK-002 | touch_points: cli/lib/protocol.py, cli/lib/registry_store.py, cli/commands/__init__.py | done_when: Backend runtime units satisfy the frozen state machine and interface contracts without redefining ownership.
-- Step 4: TASK-005 Wire integration guards and downstream handoff | depends_on: TASK-002, TASK-004 | touch_points: cli/lib/protocol.py, cli/lib/registry_store.py, cli/commands/__init__.py | done_when: The main sequence executes in order and downstream handoff remains boundary-safe.
-- Step 5: TASK-007 Collect acceptance evidence and close delivery handoff | depends_on: TASK-005 | touch_points: none | done_when: Every acceptance check is implemented by named tasks and backed by explicit evidence artifacts.
+- Step 3: TASK-003 Implement backend runtime, state, and persistence units | depends_on: TASK-001, TASK-002 | touch_points: cli/lib/protocol.py, cli/lib/registry_store.py, cli/commands/__init__.py | done_when: Backend runtime units satisfy the frozen state machine and interface contracts without redefining ownership.
+- Step 4: TASK-004 Wire integration guards and downstream handoff | depends_on: TASK-002, TASK-003 | touch_points: cli/lib/protocol.py, cli/lib/registry_store.py, cli/commands/__init__.py | done_when: The main sequence executes in order and downstream handoff remains boundary-safe.
+- Step 5: TASK-005 Collect acceptance evidence and close delivery handoff | depends_on: TASK-004 | touch_points: none | done_when: Every acceptance check is implemented by named tasks and backed by explicit evidence artifacts.
 
 ## Implementation Unit Mapping Snapshot
 
@@ -204,7 +203,7 @@ implementation_units:
 ## Selected Upstream
 
 - feat_ref: `FEAT-SRC-RAW-TO-SRC-ADR048-002`
-- tech_ref: `TECH-SRC-RAW-TO-SRC-ADR048-001`
+- tech_ref: `TECH-SRC-RAW-TO-SRC-ADR048-002`
 - arch_ref: `ARCH-SRC-RAW-TO-SRC-ADR048-002`
 - api_ref: `API-SRC-RAW-TO-SRC-ADR048-002`
 - title: 主链gate审核与裁决流
@@ -305,9 +304,9 @@ implementation_units:
 
 - TASK-001 Freeze refs and repo touch points | depends_on: none | parallel: none | touch_points: cli/lib/protocol.py, cli/lib/registry_store.py, cli/commands/__init__.py | outputs: frozen upstream refs, repo-aware touch set, execution boundary baseline | acceptance: none | done_when: The implementation package states exactly where coding may occur and which upstream refs remain authoritative.
 - TASK-002 Embed state, API, UI, and boundary contracts into implementation inputs | depends_on: TASK-001 | parallel: none | touch_points: cli/lib/protocol.py | outputs: embedded execution contract, boundary-safe implementation baseline | acceptance: AC-001, AC-002 | done_when: No downstream coder/tester needs to re-open upstream TECH / ARCH / API documents to recover execution-critical facts.
-- TASK-004 Implement backend runtime, state, and persistence units | depends_on: TASK-001, TASK-002 | parallel: none | touch_points: cli/lib/protocol.py, cli/lib/registry_store.py, cli/commands/__init__.py | outputs: runtime units, state readers/writers, contract-aligned responses | acceptance: AC-001, AC-002 | done_when: Backend runtime units satisfy the frozen state machine and interface contracts without redefining ownership.
-- TASK-005 Wire integration guards and downstream handoff | depends_on: TASK-002, TASK-004 | parallel: none | touch_points: cli/lib/protocol.py, cli/lib/registry_store.py, cli/commands/__init__.py | outputs: integration wiring, guard behavior, handoff-ready package | acceptance: AC-002, AC-003 | done_when: The main sequence executes in order and downstream handoff remains boundary-safe.
-- TASK-007 Collect acceptance evidence and close delivery handoff | depends_on: TASK-005 | parallel: none | touch_points: none | outputs: acceptance evidence, smoke gate inputs, delivery handoff | acceptance: AC-001, AC-002, AC-003 | done_when: Every acceptance check is implemented by named tasks and backed by explicit evidence artifacts.
+- TASK-003 Implement backend runtime, state, and persistence units | depends_on: TASK-001, TASK-002 | parallel: none | touch_points: cli/lib/protocol.py, cli/lib/registry_store.py, cli/commands/__init__.py | outputs: runtime units, state readers/writers, contract-aligned responses | acceptance: AC-001, AC-002 | done_when: Backend runtime units satisfy the frozen state machine and interface contracts without redefining ownership.
+- TASK-004 Wire integration guards and downstream handoff | depends_on: TASK-002, TASK-003 | parallel: none | touch_points: cli/lib/protocol.py, cli/lib/registry_store.py, cli/commands/__init__.py | outputs: integration wiring, guard behavior, handoff-ready package | acceptance: AC-002, AC-003 | done_when: The main sequence executes in order and downstream handoff remains boundary-safe.
+- TASK-005 Collect acceptance evidence and close delivery handoff | depends_on: TASK-004 | parallel: none | touch_points: none | outputs: acceptance evidence, smoke gate inputs, delivery handoff | acceptance: AC-001, AC-002, AC-003 | done_when: Every acceptance check is implemented by named tasks and backed by explicit evidence artifacts.
 
 ## Integration Plan
 
@@ -326,9 +325,9 @@ implementation_units:
 
 ### Acceptance-to-Task Mapping
 
-- AC-001: Frozen touch set is implemented without design drift. | implemented_by: TASK-002, TASK-004, TASK-007 | evidence: The declared touch set is updated and evidence-backed: `cli/lib/protocol.py` (`extend`): 定义 `GateBriefRecord`、`GatePendingHumanDecision`、`GateDecision` 结构。, `cli/lib/registry_store.py` (`extend`): 写入 brief/decision trace、`decision_target`、`decision_basis_refs` 与 dispatch receipt。, `cli/commands/gate/command.py` (`extend`): 接入 `evaluate` / `dispatch` 语义，生成 brief record、decision object 与回交流水。.
-- AC-002: Frozen contracts and runtime sequence execute through the implementation entry. | implemented_by: TASK-002, TASK-004, TASK-005, TASK-007 | evidence: Implementation evidence proves the frozen contract hooks and state transitions are wired. `GateBriefRecord`: input=`handoff_ref`, `proposal_ref`, `evidence_refs`; output=`brief_record_ref`, `pending_human_decision_ref`, `priority`, `merge_group`, `human_projection`; errors=`invalid_state`, `brief_build_failed`; idempotent=`yes by handoff_ref + brief_round`; precondition=`handoff 已进入 gate pending`。 Main sequence evidence covers: 1. normalize handoff and proposal refs; 2. validate gate-pending state and build `gate-brief-record`; 3. persist `gate-pending-human-decision` and human-facing projection.
-- AC-003: Downstream handoff remains boundary-safe and ready for feature delivery. | implemented_by: TASK-005, TASK-007 | evidence: The implementation package exposes only the frozen pending visibility / boundary handoff behavior, keeps gate decision issuance / formal publication semantics out of scope, and hands off with smoke inputs ready. Integration evidence covers: 调用方：现有 governed skill 通过 handoff runtime 提交 candidate package，由 `cli/commands/gate/command.py` 负责 evaluate / dispatch。; 挂接点：file-handoff 发生在 candidate package 写入 runtime 之后；本 FEAT 只把 approve 决策交接为 formal publication trigger，不直接 materialize formal object。.
+- AC-001: Frozen touch set is implemented without design drift. | implemented_by: TASK-002, TASK-003, TASK-005 | evidence: The declared touch set is updated and evidence-backed: `cli/lib/protocol.py` (`extend`): 定义 `GateBriefRecord`、`GatePendingHumanDecision`、`GateDecision` 结构。, `cli/lib/registry_store.py` (`extend`): 写入 brief/decision trace、`decision_target`、`decision_basis_refs` 与 dispatch receipt。, `cli/commands/gate/command.py` (`extend`): 接入 `evaluate` / `dispatch` 语义，生成 brief record、decision object 与回交流水。.
+- AC-002: Frozen contracts and runtime sequence execute through the implementation entry. | implemented_by: TASK-002, TASK-003, TASK-004, TASK-005 | evidence: Implementation evidence proves the frozen contract hooks and state transitions are wired. `GateBriefRecord`: input=`handoff_ref`, `proposal_ref`, `evidence_refs`; output=`brief_record_ref`, `pending_human_decision_ref`, `priority`, `merge_group`, `human_projection`; errors=`invalid_state`, `brief_build_failed`; idempotent=`yes by handoff_ref + brief_round`; precondition=`handoff 已进入 gate pending`。 Main sequence evidence covers: 1. normalize handoff and proposal refs; 2. validate gate-pending state and build `gate-brief-record`; 3. persist `gate-pending-human-decision` and human-facing projection.
+- AC-003: Downstream handoff remains boundary-safe and ready for feature delivery. | implemented_by: TASK-004, TASK-005 | evidence: The implementation package exposes only the frozen pending visibility / boundary handoff behavior, keeps gate decision issuance / formal publication semantics out of scope, and hands off with smoke inputs ready. Integration evidence covers: 调用方：现有 governed skill 通过 handoff runtime 提交 candidate package，由 `cli/commands/gate/command.py` 负责 evaluate / dispatch。; 挂接点：file-handoff 发生在 candidate package 写入 runtime 之后；本 FEAT 只把 approve 决策交接为 formal publication trigger，不直接 materialize formal object。.
 
 ## Smoke Gate Subject
 

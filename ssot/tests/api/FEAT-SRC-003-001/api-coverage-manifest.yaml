@@ -1,0 +1,374 @@
+api_coverage_manifest:
+  feature_id: FEAT-SRC-003-001
+  generated_at: "2026-04-11T10:00:00Z"
+  source_plan_ref: ssot/tests/api/FEAT-SRC-003-001/api-test-plan.md
+  items:
+    # JOB-GEN-001: 批准后生成 Job
+    - coverage_id: api.job.gen.happy
+      capability: JOB-GEN-001
+      scenario_type: happy_path
+      dimension: 正常路径
+      priority: P0
+      source_feat_ref: FEAT-SRC-003-001.Scope.ready-job-generation
+      lifecycle_status: designed
+      mapping_status: unmapped
+      evidence_status: missing
+      waiver_status: none
+      mapped_case_ids: []
+      evidence_refs: []
+      rerun_count: 0
+      last_run_id: null
+      obsolete: false
+      superseded_by: null
+
+    - coverage_id: api.job.gen.invalid-progression
+      capability: JOB-GEN-001
+      scenario_type: parameter_validation
+      dimension: 参数校验
+      priority: P0
+      source_feat_ref: FEAT-SRC-003-001.Constraints
+      lifecycle_status: designed
+      mapping_status: unmapped
+      evidence_status: missing
+      waiver_status: none
+      mapped_case_ids: []
+      evidence_refs: []
+      rerun_count: 0
+      last_run_id: null
+      obsolete: false
+      superseded_by: null
+
+    - coverage_id: api.job.gen.state-transition
+      capability: JOB-GEN-001
+      scenario_type: state_constraint
+      dimension: 状态约束
+      priority: P0
+      source_feat_ref: FEAT-SRC-003-001.Constraints.approve-to-job
+      lifecycle_status: designed
+      mapping_status: unmapped
+      evidence_status: missing
+      waiver_status: none
+      mapped_case_ids: []
+      evidence_refs: []
+      rerun_count: 0
+      last_run_id: null
+      obsolete: false
+      superseded_by: null
+
+    - coverage_id: api.job.gen.upstream-failure
+      capability: JOB-GEN-001
+      scenario_type: exception
+      dimension: 异常路径
+      priority: P0
+      source_feat_ref: FEAT-SRC-003-001.Scope.revisereject-boundary
+      lifecycle_status: designed
+      mapping_status: unmapped
+      evidence_status: missing
+      waiver_status: none
+      mapped_case_ids: []
+      evidence_refs: []
+      rerun_count: 0
+      last_run_id: null
+      obsolete: false
+      superseded_by: null
+
+    - coverage_id: api.job.gen.duplicate-approval
+      capability: JOB-GEN-001
+      scenario_type: idempotent
+      dimension: 幂等/重试/并发
+      priority: P0
+      source_feat_ref: FEAT-SRC-003-001.Constraints.traceability
+      lifecycle_status: designed
+      mapping_status: unmapped
+      evidence_status: missing
+      waiver_status: none
+      mapped_case_ids: []
+      evidence_refs: []
+      rerun_count: 0
+      last_run_id: null
+      obsolete: false
+      superseded_by: null
+
+    - coverage_id: api.job.gen.side-effect
+      capability: JOB-GEN-001
+      scenario_type: data_side_effect
+      dimension: 数据副作用
+      priority: P0
+      source_feat_ref: FEAT-SRC-003-001.Constraints.auto-continue
+      lifecycle_status: designed
+      mapping_status: unmapped
+      evidence_status: missing
+      waiver_status: none
+      mapped_case_ids: []
+      evidence_refs: []
+      rerun_count: 0
+      last_run_id: null
+      obsolete: false
+      superseded_by: null
+
+    # JOB-EMIT-001: 发射 Ready Job
+    - coverage_id: api.job.emit.happy
+      capability: JOB-EMIT-001
+      scenario_type: happy_path
+      dimension: 正常路径
+      priority: P0
+      source_feat_ref: FEAT-SRC-003-001.Scope.authoritative-refs
+      lifecycle_status: designed
+      mapping_status: unmapped
+      evidence_status: missing
+      waiver_status: none
+      mapped_case_ids: []
+      evidence_refs: []
+      rerun_count: 0
+      last_run_id: null
+      obsolete: false
+      superseded_by: null
+
+    - coverage_id: api.job.emit.missing-ref
+      capability: JOB-EMIT-001
+      scenario_type: parameter_validation
+      dimension: 参数校验
+      priority: P0
+      source_feat_ref: FEAT-SRC-003-001.Constraints.authoritative-refs
+      lifecycle_status: designed
+      mapping_status: unmapped
+      evidence_status: missing
+      waiver_status: none
+      mapped_case_ids: []
+      evidence_refs: []
+      rerun_count: 0
+      last_run_id: null
+      obsolete: false
+      superseded_by: null
+
+    - coverage_id: api.job.emit.write-ready-path
+      capability: JOB-EMIT-001
+      scenario_type: data_side_effect
+      dimension: 数据副作用
+      priority: P0
+      source_feat_ref: FEAT-SRC-003-001.Constraints.write-artifacts-jobs-ready
+      lifecycle_status: designed
+      mapping_status: unmapped
+      evidence_status: missing
+      waiver_status: none
+      mapped_case_ids: []
+      evidence_refs: []
+      rerun_count: 0
+      last_run_id: null
+      obsolete: false
+      superseded_by: null
+
+    # HOLD-ROUTE-001: Hold Job 路由
+    - coverage_id: api.hold.route.happy
+      capability: HOLD-ROUTE-001
+      scenario_type: happy_path
+      dimension: 正常路径
+      priority: P0
+      source_feat_ref: FEAT-SRC-003-001.Constraints.hold-queue
+      lifecycle_status: designed
+      mapping_status: unmapped
+      evidence_status: missing
+      waiver_status: none
+      mapped_case_ids: []
+      evidence_refs: []
+      rerun_count: 0
+      last_run_id: null
+      obsolete: false
+      superseded_by: null
+
+    - coverage_id: api.hold.route.no-leak
+      capability: HOLD-ROUTE-001
+      scenario_type: exception
+      dimension: 异常路径
+      priority: P0
+      source_feat_ref: FEAT-SRC-003-001.Constraints.no-queue-leak
+      lifecycle_status: designed
+      mapping_status: unmapped
+      evidence_status: missing
+      waiver_status: none
+      mapped_case_ids: []
+      evidence_refs: []
+      rerun_count: 0
+      last_run_id: null
+      obsolete: false
+      superseded_by: null
+
+    - coverage_id: api.hold.route.boundary-edge
+      capability: HOLD-ROUTE-001
+      scenario_type: boundary_value
+      dimension: 边界值
+      priority: P0
+      source_feat_ref: FEAT-SRC-003-001.Constraints
+      lifecycle_status: cut
+      mapping_status: unmapped
+      evidence_status: missing
+      waiver_status: none
+      mapped_case_ids: []
+      evidence_refs: []
+      rerun_count: 0
+      last_run_id: null
+      obsolete: false
+      superseded_by: null
+      cut_record:
+        cut_target: 边界值
+        cut_reason: "hold 路由为离散状态转移，无连续边界"
+        source_ref: ADR-047 Section 4.1.3
+        approver: "qa-lead"
+        approved_at: "2026-04-11T10:00:00Z"
+
+    # FILTER-APPROVE-001: 过滤非 approve 决策
+    - coverage_id: api.filter.approve.happy
+      capability: FILTER-APPROVE-001
+      scenario_type: happy_path
+      dimension: 正常路径
+      priority: P0
+      source_feat_ref: FEAT-SRC-003-001.AcceptanceChecks.non-approve-excluded
+      lifecycle_status: designed
+      mapping_status: unmapped
+      evidence_status: missing
+      waiver_status: none
+      mapped_case_ids: []
+      evidence_refs: []
+      rerun_count: 0
+      last_run_id: null
+      obsolete: false
+      superseded_by: null
+
+    - coverage_id: api.filter.approve.revise-blocked
+      capability: FILTER-APPROVE-001
+      scenario_type: exception
+      dimension: 异常路径
+      priority: P0
+      source_feat_ref: FEAT-SRC-003-001.Constraints.revisereject-boundary
+      lifecycle_status: designed
+      mapping_status: unmapped
+      evidence_status: missing
+      waiver_status: none
+      mapped_case_ids: []
+      evidence_refs: []
+      rerun_count: 0
+      last_run_id: null
+      obsolete: false
+      superseded_by: null
+
+    - coverage_id: api.filter.approve.idempotent-check
+      capability: FILTER-APPROVE-001
+      scenario_type: idempotent
+      dimension: 幂等/重试/并发
+      priority: P0
+      source_feat_ref: FEAT-SRC-003-001.Constraints
+      lifecycle_status: cut
+      mapping_status: unmapped
+      evidence_status: missing
+      waiver_status: none
+      mapped_case_ids: []
+      evidence_refs: []
+      rerun_count: 0
+      last_run_id: null
+      obsolete: false
+      superseded_by: null
+      cut_record:
+        cut_target: 幂等/重试/并发
+        cut_reason: "过滤器为纯判断逻辑，无并发副作用"
+        source_ref: ADR-047 Section 4.1.3
+        approver: "qa-lead"
+        approved_at: "2026-04-11T10:00:00Z"
+
+    # PROG-VALIDATE-001: 验证 Progression Mode
+    - coverage_id: api.prog.validate.happy
+      capability: PROG-VALIDATE-001
+      scenario_type: happy_path
+      dimension: 正常路径
+      priority: P0
+      source_feat_ref: FEAT-SRC-003-001.Scope.progression-mode
+      lifecycle_status: designed
+      mapping_status: unmapped
+      evidence_status: missing
+      waiver_status: none
+      mapped_case_ids: []
+      evidence_refs: []
+      rerun_count: 0
+      last_run_id: null
+      obsolete: false
+      superseded_by: null
+
+    - coverage_id: api.prog.validate.invalid-enum
+      capability: PROG-VALIDATE-001
+      scenario_type: parameter_validation
+      dimension: 参数校验
+      priority: P0
+      source_feat_ref: FEAT-SRC-003-001.Constraints
+      lifecycle_status: designed
+      mapping_status: unmapped
+      evidence_status: missing
+      waiver_status: none
+      mapped_case_ids: []
+      evidence_refs: []
+      rerun_count: 0
+      last_run_id: null
+      obsolete: false
+      superseded_by: null
+
+    # TRACE-JOB-001: Job 溯源
+    - coverage_id: api.trace.job.happy
+      capability: TRACE-JOB-001
+      scenario_type: happy_path
+      dimension: 正常路径
+      priority: P1
+      source_feat_ref: FEAT-SRC-003-001.Constraints.traceability
+      lifecycle_status: designed
+      mapping_status: unmapped
+      evidence_status: missing
+      waiver_status: none
+      mapped_case_ids: []
+      evidence_refs: []
+      rerun_count: 0
+      last_run_id: null
+      obsolete: false
+      superseded_by: null
+
+    - coverage_id: api.trace.job.boundary-edge
+      capability: TRACE-JOB-001
+      scenario_type: boundary_value
+      dimension: 边界值
+      priority: P1
+      source_feat_ref: FEAT-SRC-003-001.Constraints
+      lifecycle_status: cut
+      mapping_status: unmapped
+      evidence_status: missing
+      waiver_status: none
+      mapped_case_ids: []
+      evidence_refs: []
+      rerun_count: 0
+      last_run_id: null
+      obsolete: false
+      superseded_by: null
+      cut_record:
+        cut_target: 边界值
+        cut_reason: "溯源为元数据关联，无数值边界"
+        source_ref: ADR-047 Section 4.1.3
+        approver: "qa-lead"
+        approved_at: "2026-04-11T10:00:00Z"
+
+    - coverage_id: api.trace.job.state-constraint
+      capability: TRACE-JOB-001
+      scenario_type: state_constraint
+      dimension: 状态约束
+      priority: P1
+      source_feat_ref: FEAT-SRC-003-001.Constraints
+      lifecycle_status: cut
+      mapping_status: unmapped
+      evidence_status: missing
+      waiver_status: none
+      mapped_case_ids: []
+      evidence_refs: []
+      rerun_count: 0
+      last_run_id: null
+      obsolete: false
+      superseded_by: null
+      cut_record:
+        cut_target: 状态约束
+        cut_reason: "溯源记录为只读追加，无状态机"
+        source_ref: ADR-047 Section 4.1.3
+        approver: "qa-lead"
+        approved_at: "2026-04-11T10:00:00Z"

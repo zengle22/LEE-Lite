@@ -60,7 +60,7 @@ main_sequence:
   done_when: No downstream coder/tester needs to re-open upstream TECH / ARCH / API
     documents to recover execution-critical facts.
 - step: 3
-  task: TASK-004
+  task: TASK-003
   name: Implement backend runtime, state, and persistence units
   depends_on:
   - TASK-001
@@ -77,11 +77,11 @@ main_sequence:
   done_when: Backend runtime units satisfy the frozen state machine and interface
     contracts without redefining ownership.
 - step: 4
-  task: TASK-005
+  task: TASK-004
   name: Wire integration guards and downstream handoff
   depends_on:
   - TASK-002
-  - TASK-004
+  - TASK-003
   parallel: []
   touch_points:
   - cli/lib/protocol.py
@@ -95,10 +95,10 @@ main_sequence:
   - handoff-ready package
   done_when: The main sequence executes in order and downstream handoff remains boundary-safe.
 - step: 5
-  task: TASK-007
+  task: TASK-005
   name: Collect acceptance evidence and close delivery handoff
   depends_on:
-  - TASK-005
+  - TASK-004
   parallel: []
   touch_points: []
   outputs:
@@ -188,9 +188,9 @@ implementation_units:
 
 - Step 1: TASK-001 Freeze refs and repo touch points | depends_on: none | touch_points: cli/lib/protocol.py, cli/lib/mainline_runtime.py, cli/lib/reentry.py, cli/commands/__init__.py, cli/commands/audit/command.py | done_when: The implementation package states exactly where coding may occur and which upstream refs remain authoritative.
 - Step 2: TASK-002 Embed state, API, UI, and boundary contracts into implementation inputs | depends_on: TASK-001 | touch_points: cli/lib/protocol.py, cli/lib/reentry.py | done_when: No downstream coder/tester needs to re-open upstream TECH / ARCH / API documents to recover execution-critical facts.
-- Step 3: TASK-004 Implement backend runtime, state, and persistence units | depends_on: TASK-001, TASK-002 | touch_points: cli/lib/protocol.py, cli/lib/mainline_runtime.py, cli/commands/__init__.py | done_when: Backend runtime units satisfy the frozen state machine and interface contracts without redefining ownership.
-- Step 4: TASK-005 Wire integration guards and downstream handoff | depends_on: TASK-002, TASK-004 | touch_points: cli/lib/protocol.py, cli/lib/mainline_runtime.py, cli/lib/reentry.py, cli/commands/__init__.py, cli/commands/audit/command.py | done_when: The main sequence executes in order and downstream handoff remains boundary-safe.
-- Step 5: TASK-007 Collect acceptance evidence and close delivery handoff | depends_on: TASK-005 | touch_points: none | done_when: Every acceptance check is implemented by named tasks and backed by explicit evidence artifacts.
+- Step 3: TASK-003 Implement backend runtime, state, and persistence units | depends_on: TASK-001, TASK-002 | touch_points: cli/lib/protocol.py, cli/lib/mainline_runtime.py, cli/commands/__init__.py | done_when: Backend runtime units satisfy the frozen state machine and interface contracts without redefining ownership.
+- Step 4: TASK-004 Wire integration guards and downstream handoff | depends_on: TASK-002, TASK-003 | touch_points: cli/lib/protocol.py, cli/lib/mainline_runtime.py, cli/lib/reentry.py, cli/commands/__init__.py, cli/commands/audit/command.py | done_when: The main sequence executes in order and downstream handoff remains boundary-safe.
+- Step 5: TASK-005 Collect acceptance evidence and close delivery handoff | depends_on: TASK-004 | touch_points: none | done_when: Every acceptance check is implemented by named tasks and backed by explicit evidence artifacts.
 
 ## Implementation Unit Mapping Snapshot
 
@@ -324,9 +324,9 @@ implementation_units:
 
 - TASK-001 Freeze refs and repo touch points | depends_on: none | parallel: none | touch_points: cli/lib/protocol.py, cli/lib/mainline_runtime.py, cli/lib/reentry.py, cli/commands/__init__.py, cli/commands/audit/command.py | outputs: frozen upstream refs, repo-aware touch set, execution boundary baseline | acceptance: none | done_when: The implementation package states exactly where coding may occur and which upstream refs remain authoritative.
 - TASK-002 Embed state, API, UI, and boundary contracts into implementation inputs | depends_on: TASK-001 | parallel: none | touch_points: cli/lib/protocol.py, cli/lib/reentry.py | outputs: embedded execution contract, boundary-safe implementation baseline | acceptance: AC-001, AC-002 | done_when: No downstream coder/tester needs to re-open upstream TECH / ARCH / API documents to recover execution-critical facts.
-- TASK-004 Implement backend runtime, state, and persistence units | depends_on: TASK-001, TASK-002 | parallel: none | touch_points: cli/lib/protocol.py, cli/lib/mainline_runtime.py, cli/commands/__init__.py | outputs: runtime units, state readers/writers, contract-aligned responses | acceptance: AC-001, AC-002 | done_when: Backend runtime units satisfy the frozen state machine and interface contracts without redefining ownership.
-- TASK-005 Wire integration guards and downstream handoff | depends_on: TASK-002, TASK-004 | parallel: none | touch_points: cli/lib/protocol.py, cli/lib/mainline_runtime.py, cli/lib/reentry.py, cli/commands/__init__.py, cli/commands/audit/command.py | outputs: integration wiring, guard behavior, handoff-ready package | acceptance: AC-002, AC-003 | done_when: The main sequence executes in order and downstream handoff remains boundary-safe.
-- TASK-007 Collect acceptance evidence and close delivery handoff | depends_on: TASK-005 | parallel: none | touch_points: none | outputs: acceptance evidence, smoke gate inputs, delivery handoff | acceptance: AC-001, AC-002, AC-003 | done_when: Every acceptance check is implemented by named tasks and backed by explicit evidence artifacts.
+- TASK-003 Implement backend runtime, state, and persistence units | depends_on: TASK-001, TASK-002 | parallel: none | touch_points: cli/lib/protocol.py, cli/lib/mainline_runtime.py, cli/commands/__init__.py | outputs: runtime units, state readers/writers, contract-aligned responses | acceptance: AC-001, AC-002 | done_when: Backend runtime units satisfy the frozen state machine and interface contracts without redefining ownership.
+- TASK-004 Wire integration guards and downstream handoff | depends_on: TASK-002, TASK-003 | parallel: none | touch_points: cli/lib/protocol.py, cli/lib/mainline_runtime.py, cli/lib/reentry.py, cli/commands/__init__.py, cli/commands/audit/command.py | outputs: integration wiring, guard behavior, handoff-ready package | acceptance: AC-002, AC-003 | done_when: The main sequence executes in order and downstream handoff remains boundary-safe.
+- TASK-005 Collect acceptance evidence and close delivery handoff | depends_on: TASK-004 | parallel: none | touch_points: none | outputs: acceptance evidence, smoke gate inputs, delivery handoff | acceptance: AC-001, AC-002, AC-003 | done_when: Every acceptance check is implemented by named tasks and backed by explicit evidence artifacts.
 
 ## Integration Plan
 
@@ -345,9 +345,9 @@ implementation_units:
 
 ### Acceptance-to-Task Mapping
 
-- AC-001: Frozen touch set is implemented without design drift. | implemented_by: TASK-002, TASK-004, TASK-007 | evidence: The declared touch set is updated and evidence-backed: `cli/lib/protocol.py` (`extend`): 定义 `HandoffEnvelope`、`PendingVisibilityRecord`、`DecisionReturnEnvelope`、`ReentryDirective` 结构。, `cli/lib/mainline_runtime.py` (`new`): 管理 authoritative submission、pending visibility、decision-return intake 与 boundary handoff record。, `cli/lib/reentry.py` (`new`): 只处理 revise / retry 的 runtime routing、directive 写回与 replay guard，不拥有 decision semantics。, `cli/commands/gate/command.py` (`extend`): 接入 submit-handoff / show-pending 路径，并把 returned decision 交给 `cli/lib/mainline_runtime.py` 消费。.
-- AC-002: Frozen contracts and runtime sequence execute through the implementation entry. | implemented_by: TASK-002, TASK-004, TASK-005, TASK-007 | evidence: Implementation evidence proves the frozen contract hooks and state transitions are wired. `HandoffEnvelope`: input=`producer_ref`, `proposal_ref`, `payload_ref`, `pending_state`, `trace_context_ref`; output=`handoff_ref`, `gate_pending_ref`, `trace_ref`, `canonical_payload_path`; errors=`invalid_state`, `missing_payload`, `duplicate_submission`; idempotent=`yes by producer_ref + proposal_ref + payload_digest`; precondition=`payload 已写入 runtime 可读位置`。 Main sequence evidence covers: 1. normalize candidate/proposal/evidence submission and producer state; 2. persist authoritative handoff object and emit gate-pending visibility; 3. route proposal into gate loop and escalate to human review when required.
-- AC-003: Downstream handoff remains boundary-safe and ready for feature delivery. | implemented_by: TASK-005, TASK-007 | evidence: The implementation package exposes only the frozen pending visibility / boundary handoff behavior, keeps gate decision issuance / formal publication semantics out of scope, and hands off with smoke inputs ready. Integration evidence covers: 调用方：producer skill 通过 `cli/commands/gate/command.py` / `cli/lib/mainline_runtime.py` 写入 authoritative handoff；gate loop 和 human review 在返回 decision object 时仍沿现有 mainline loop 挂接。; 挂接点：file-handoff 发生在 producer 提交之后；external gate 作为现有 loop 的独立阶段消费 proposal 并返回 structured decision object。.
+- AC-001: Frozen touch set is implemented without design drift. | implemented_by: TASK-002, TASK-003, TASK-005 | evidence: The declared touch set is updated and evidence-backed: `cli/lib/protocol.py` (`extend`): 定义 `HandoffEnvelope`、`PendingVisibilityRecord`、`DecisionReturnEnvelope`、`ReentryDirective` 结构。, `cli/lib/mainline_runtime.py` (`new`): 管理 authoritative submission、pending visibility、decision-return intake 与 boundary handoff record。, `cli/lib/reentry.py` (`new`): 只处理 revise / retry 的 runtime routing、directive 写回与 replay guard，不拥有 decision semantics。, `cli/commands/gate/command.py` (`extend`): 接入 submit-handoff / show-pending 路径，并把 returned decision 交给 `cli/lib/mainline_runtime.py` 消费。.
+- AC-002: Frozen contracts and runtime sequence execute through the implementation entry. | implemented_by: TASK-002, TASK-003, TASK-004, TASK-005 | evidence: Implementation evidence proves the frozen contract hooks and state transitions are wired. `HandoffEnvelope`: input=`producer_ref`, `proposal_ref`, `payload_ref`, `pending_state`, `trace_context_ref`; output=`handoff_ref`, `gate_pending_ref`, `trace_ref`, `canonical_payload_path`; errors=`invalid_state`, `missing_payload`, `duplicate_submission`; idempotent=`yes by producer_ref + proposal_ref + payload_digest`; precondition=`payload 已写入 runtime 可读位置`。 Main sequence evidence covers: 1. normalize candidate/proposal/evidence submission and producer state; 2. persist authoritative handoff object and emit gate-pending visibility; 3. route proposal into gate loop and escalate to human review when required.
+- AC-003: Downstream handoff remains boundary-safe and ready for feature delivery. | implemented_by: TASK-004, TASK-005 | evidence: The implementation package exposes only the frozen pending visibility / boundary handoff behavior, keeps gate decision issuance / formal publication semantics out of scope, and hands off with smoke inputs ready. Integration evidence covers: 调用方：producer skill 通过 `cli/commands/gate/command.py` / `cli/lib/mainline_runtime.py` 写入 authoritative handoff；gate loop 和 human review 在返回 decision object 时仍沿现有 mainline loop 挂接。; 挂接点：file-handoff 发生在 producer 提交之后；external gate 作为现有 loop 的独立阶段消费 proposal 并返回 structured decision object。.
 
 ## Smoke Gate Subject
 
@@ -393,14 +393,14 @@ implementation_units:
 
 ### State Model
 
--  ->  ->  -> 
--  ->  -> 
--  ->  -> downstream consumption
+- State transitions: `handoff_prepared` -> `handoff_submitted` -> `gate_pending_visible` -> `decision_returned`
+- Re-entry: `decision_returned(revise|retry)` -> `runtime_reentry_directive_written` -> `handoff_prepared`
+- Terminal: `decision_returned(approve|handoff|reject)` -> `boundary_handoff_recorded` -> downstream consumption
 
 ### Failure Signals
 
-- : handoff submission attempted from non-prepared state
-- : handoff envelope references non-existent payload
-- : handoff already exists for producer_ref + proposal_ref
-- : gate decision contradicts existing handoff state
-- : decision return attempted without prior handoff record
+- `invalid_state`: handoff submission attempted from non-prepared state
+- `missing_payload`: handoff envelope references non-existent payload
+- `duplicate_submission`: handoff already exists for producer_ref + proposal_ref
+- `decision_conflict`: gate decision contradicts existing handoff state
+- `handoff_missing`: decision return attempted without prior handoff record

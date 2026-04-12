@@ -1,0 +1,144 @@
+e2e_coverage_manifest:
+  feature_id: FEAT-SRC-001-001
+  generated_at: "2026-04-11T00:00:00Z"
+  source_plan_ref: ssot/tests/e2e/PROTOTYPE-FEAT-SRC-001-001/e2e-journey-plan.md
+  items:
+    # JOURNEY-MAIN-001: 主旅程 — 完整协作闭环
+    - coverage_id: e2e.journey.main.happy
+      journey_id: JOURNEY-MAIN-001
+      scenario_type: happy_path
+      dimension: 正常路径
+      priority: P0
+      source_prototype_ref: FEAT-SRC-001-001.Scope
+      lifecycle_status: designed
+      mapping_status: unmapped
+      evidence_status: missing
+      waiver_status: none
+      mapped_case_ids: []
+      evidence_refs: []
+      rerun_count: 0
+      last_run_id: null
+      obsolete: false
+      superseded_by: null
+
+    - coverage_id: e2e.journey.main.network-failure
+      journey_id: JOURNEY-MAIN-001
+      scenario_type: network_failure
+      dimension: 异常路径
+      priority: P1
+      source_prototype_ref: FEAT-SRC-001-001.Scope
+      lifecycle_status: designed
+      mapping_status: unmapped
+      evidence_status: missing
+      waiver_status: none
+      mapped_case_ids: []
+      evidence_refs: []
+      rerun_count: 0
+      last_run_id: null
+      obsolete: false
+      superseded_by: null
+
+    # JOURNEY-EXCEPTION-001: 异常旅程 — 无效状态提交
+    - coverage_id: e2e.journey.exception-state.happy
+      journey_id: JOURNEY-EXCEPTION-001
+      scenario_type: happy_path
+      dimension: 正常路径
+      priority: P0
+      source_prototype_ref: FEAT-SRC-001-001.Constraints
+      lifecycle_status: designed
+      mapping_status: unmapped
+      evidence_status: missing
+      waiver_status: none
+      mapped_case_ids: []
+      evidence_refs: []
+      rerun_count: 0
+      last_run_id: null
+      obsolete: false
+      superseded_by: null
+
+    - coverage_id: e2e.journey.exception-state.validation-error
+      journey_id: JOURNEY-EXCEPTION-001
+      scenario_type: parameter_validation
+      dimension: 参数校验
+      priority: P0
+      source_prototype_ref: FEAT-SRC-001-001.Constraints
+      lifecycle_status: designed
+      mapping_status: unmapped
+      evidence_status: missing
+      waiver_status: none
+      mapped_case_ids: []
+      evidence_refs: []
+      rerun_count: 0
+      last_run_id: null
+      obsolete: false
+      superseded_by: null
+
+    # JOURNEY-EXCEPTION-002: 异常旅程 — 回流边界违规
+    - coverage_id: e2e.journey.exception-reflow.happy
+      journey_id: JOURNEY-EXCEPTION-002
+      scenario_type: happy_path
+      dimension: 正常路径
+      priority: P0
+      source_prototype_ref: FEAT-SRC-001-001.AC-02
+      lifecycle_status: designed
+      mapping_status: unmapped
+      evidence_status: missing
+      waiver_status: none
+      mapped_case_ids: []
+      evidence_refs: []
+      rerun_count: 0
+      last_run_id: null
+      obsolete: false
+      superseded_by: null
+
+    - coverage_id: e2e.journey.exception-reflow.validation-error
+      journey_id: JOURNEY-EXCEPTION-002
+      scenario_type: parameter_validation
+      dimension: 参数校验
+      priority: P0
+      source_prototype_ref: FEAT-SRC-001-001.AC-02
+      lifecycle_status: designed
+      mapping_status: unmapped
+      evidence_status: missing
+      waiver_status: none
+      mapped_case_ids: []
+      evidence_refs: []
+      rerun_count: 0
+      last_run_id: null
+      obsolete: false
+      superseded_by: null
+
+    # JOURNEY-RETRY-001: 重试旅程 — 下游规则违规
+    - coverage_id: e2e.journey.retry.happy
+      journey_id: JOURNEY-RETRY-001
+      scenario_type: happy_path
+      dimension: 正常路径
+      priority: P1
+      source_prototype_ref: FEAT-SRC-001-001.AC-03
+      lifecycle_status: designed
+      mapping_status: unmapped
+      evidence_status: missing
+      waiver_status: none
+      mapped_case_ids: []
+      evidence_refs: []
+      rerun_count: 0
+      last_run_id: null
+      obsolete: false
+      superseded_by: null
+
+    - coverage_id: e2e.journey.retry.detection
+      journey_id: JOURNEY-RETRY-001
+      scenario_type: exception
+      dimension: 异常路径
+      priority: P1
+      source_prototype_ref: FEAT-SRC-001-001.AC-03
+      lifecycle_status: designed
+      mapping_status: unmapped
+      evidence_status: missing
+      waiver_status: none
+      mapped_case_ids: []
+      evidence_refs: []
+      rerun_count: 0
+      last_run_id: null
+      obsolete: false
+      superseded_by: null

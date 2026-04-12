@@ -1,0 +1,37 @@
+{
+  "artifact_type": "repair_context",
+  "schema_version": "0.1.0",
+  "status": "ready_for_manual_repair",
+  "repair_mode": "manual_or_human_directed_ai",
+  "automatic_repair_allowed": false,
+  "repair_goal": "First, capture this governance failure via the ll-governance-failure-capture workflow. Then, fix the ADR048 SSOT chain issues: (1) populate FEAT-001 through FEAT-005 with proper SSOT content, (2) correct IMPL upstream refs to point to domain-appropriate documents, (3) fix duplicate non_goals in IMPL-002, (4) fix task numbering gaps in IMPL-001/002, (5) fix empty state model labels in IMPL-001. Optionally, enhance impl-spec-test to catch these classes of issues in future runs.",
+  "problem_focus": "impl-spec-test passed 4 of 5 ADR048 FEATs with pass_with_revisions but missed 4 CRITICAL and 5 HIGH findings including empty FEAT documents, wrong upstream refs, duplicate YAML keys, and empty state model labels",
+  "allowed_edit_scope": [
+    "cli/lib/impl_spec_test_support.py",
+    "cli/lib/impl_spec_test_semantics.py",
+    "cli/lib/impl_spec_test_review.py",
+    "cli/lib/impl_spec_test_runtime.py",
+    "ssot/feat/FEAT-SRC-RAW-TO-SRC-ADR048-001__主链候选提交与交接流.md",
+    "ssot/feat/FEAT-SRC-RAW-TO-SRC-ADR048-002__主链gate审核与裁决流.md",
+    "ssot/feat/FEAT-SRC-RAW-TO-SRC-ADR048-003__formal发布与下游准入流.md",
+    "ssot/feat/FEAT-SRC-RAW-TO-SRC-ADR048-004__主链受治理io落盘与读取流.md",
+    "ssot/feat/FEAT-SRC-RAW-TO-SRC-ADR048-005__governed skill接入与pilot验证流.md",
+    "ssot/impl/IMPL-SRC-RAW-TO-SRC-ADR048-002__主链gate审核与裁决流-implementation-task-package.md"
+  ],
+  "protected_refs": [
+    "ssot/adr/ADR-048-SSOT-与双链测试接入-Droid-Missions-的统一治理架构.md",
+    "cli/lib/errors.py",
+    "cli/lib/fs.py"
+  ],
+  "do_not_modify": [
+    "ssot/adr/ADR-048-SSOT-与双链测试接入-Droid-Missions-的统一治理架构.md",
+    "cli/lib/errors.py",
+    "cli/lib/fs.py"
+  ],
+  "repair_instructions": [
+    "Only edit the approved scope.",
+    "Do not restructure unaffected sections.",
+    "Keep the fix diff reviewable and minimal.",
+    "Re-run minimum validation after repair."
+  ]
+}

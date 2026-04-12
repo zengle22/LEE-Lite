@@ -1,0 +1,38 @@
+{
+  "artifact_type": "failure_case",
+  "schema_version": "0.1.0",
+  "status": "open",
+  "failure_id": "FC-20260412-030014-ADR048-I",
+  "skill_id": "ll-qa-impl-spec-test",
+  "sku": "impl_spec_test_deep_review",
+  "run_id": "adr048-ssot-chain-review-20260412",
+  "artifact_id": "ADR048-IMPL-SPEC-TEST-DETECTION-GAP-001",
+  "failure_scope": "field_cluster",
+  "detected_stage": "human_post_review",
+  "detected_by": "human_final_review",
+  "severity": "critical",
+  "triage_level": "P0",
+  "symptom_summary": "impl-spec-test passed 4 of 5 ADR048 FEATs with pass_with_revisions but missed 4 CRITICAL and 5 HIGH findings including empty FEAT documents, wrong upstream refs, duplicate YAML keys, and empty state model labels",
+  "problem_description": "After the full ADR048 SSOT chain review, a human reviewer found that impl-spec-test passed FEAT-001 (v4), FEAT-002 (v2), FEAT-003, FEAT-004 (v2), and FEAT-005 (v2) all with pass_with_revisions verdicts, yet missed these critical issues: (1) C1: All 5 FEAT documents are empty 13-line skeletons with only YAML frontmatter and a title line - impl-spec-test loaded the FEAT doc but only checked status field, never verified body content exists. (2) C3: IMPL-003/004/005 all reference TECH-001/ARCH-001/API-001 which belong to FEAT-001's domain (formal publication) - impl-spec-test never validates that upstream refs point to domain-appropriate documents. (3) H2: IMPL-002 has duplicate non_goals YAML keys - impl-spec-test uses yaml.safe_load which silently takes the last value, discarding the first 4 items. (4) H3: IMPL-001/002 skip TASK-003 and TASK-006 with no explanation - impl-spec-test never validates task numbering continuity. (5) H4: IMPL-001 body has empty state model labels (only arrows, no state names) - impl-spec-test extracts from State Model Snapshot section but never validates body section quality. Root cause: impl-spec-test review dimensions (functional_logic, data_modeling, user_journey, api_contract, etc.) check internal IMPL coherence but never cross-validate upstream document quality, domain appropriateness of refs, or YAML structural integrity. The functional_logic dimension only checks impl.main_sequence, impl.completion_signals, and feat.title - but NOT feat._body length. No dimension checks cross-artifact ref validity.",
+  "failed_artifact_ref": "artifacts/reviews/ADR048-SSOT-CHAIN-REVIEW.md",
+  "upstream_refs": [
+    "ssot/adr/ADR-048-SSOT-与双链测试接入-Droid-Missions-的统一治理架构.md",
+    "ssot/feat/FEAT-SRC-RAW-TO-SRC-ADR048-001__主链候选提交与交接流.md",
+    "ssot/feat/FEAT-SRC-RAW-TO-SRC-ADR048-002__主链gate审核与裁决流.md",
+    "ssot/impl/IMPL-SRC-RAW-TO-SRC-ADR048-001__主链候选提交与交接流-implementation-task-package.md",
+    "ssot/impl/IMPL-SRC-RAW-TO-SRC-ADR048-002__主链gate审核与裁决流-implementation-task-package.md",
+    "cli/lib/impl_spec_test_runtime.py",
+    "cli/lib/impl_spec_test_semantics.py",
+    "cli/lib/impl_spec_test_support.py",
+    "cli/lib/impl_spec_test_review.py"
+  ],
+  "evidence_refs": [
+    "artifacts/reviews/ADR048-SSOT-CHAIN-REVIEW.md",
+    "artifacts/active/qa/impl-spec-tests/impl-spec-test-adr048-feat002-v2-impl-src-raw-to-src-adr048-002/dimension-reviews.json",
+    "artifacts/active/qa/impl-spec-tests/impl-spec-test-adr048-feat002-v2-impl-src-raw-to-src-adr048-002/review-coverage.json",
+    "artifacts/active/qa/impl-spec-tests/impl-spec-test-adr048-feat002-v2-impl-src-raw-to-src-adr048-002/semantic-review.json",
+    "artifacts/impl-spec-test-requests/adr048-feat002-v2-response.json",
+    "artifacts/impl-spec-test-requests/adr048-feat004-v2-response.json",
+    "artifacts/impl-spec-test-requests/adr048-feat005-v2-response.json"
+  ]
+}

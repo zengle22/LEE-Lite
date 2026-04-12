@@ -4,9 +4,9 @@ ssot_type: IMPL
 title: "主链受治理IO落盘与读取流 Implementation Task Package"
 status: execution_ready
 feat_ref: FEAT-SRC-RAW-TO-SRC-ADR048-004
-tech_ref: TECH-SRC-RAW-TO-SRC-ADR048-001
-arch_ref: ARCH-SRC-RAW-TO-SRC-ADR048-001
-api_ref: API-SRC-RAW-TO-SRC-ADR048-001
+tech_ref: TECH-SRC-RAW-TO-SRC-ADR048-004
+arch_ref: ARCH-SRC-RAW-TO-SRC-ADR048-004
+api_ref: API-SRC-RAW-TO-SRC-ADR048-004
 main_sequence:
   - step: 1
     task: TASK-001
@@ -59,7 +59,7 @@ non_goals:
   - Does not handle formal publication (separate FEAT-003)
   - Does not define FEAT/TECH derivation rules
   - Does not manage UI surface or user testing
-implementation_readiness: true
+implementation_readiness: ready
 ---
 
 # 主链受治理IO落盘与读取流 Implementation Task Package
@@ -112,6 +112,6 @@ implementation_readiness: true
 ## Selected Upstream
 
 - feat_ref: FEAT-SRC-RAW-TO-SRC-ADR048-004
-- tech_ref: TECH-SRC-RAW-TO-SRC-ADR048-001
-- arch_ref: ARCH-SRC-RAW-TO-SRC-ADR048-001
-- api_ref: API-SRC-RAW-TO-SRC-ADR048-001
+- tech_ref: TECH-SRC-RAW-TO-SRC-ADR048-004
+- arch_ref: ARCH-SRC-RAW-TO-SRC-ADR048-004
+- api_ref: API-SRC-RAW-TO-SRC-ADR048-004

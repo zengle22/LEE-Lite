@@ -4,9 +4,9 @@ ssot_type: IMPL
 title: "Governed Skill接入与Pilot验证流 Implementation Task Package"
 status: execution_ready
 feat_ref: FEAT-SRC-RAW-TO-SRC-ADR048-005
-tech_ref: TECH-SRC-RAW-TO-SRC-ADR048-001
-arch_ref: ARCH-SRC-RAW-TO-SRC-ADR048-001
-api_ref: API-SRC-RAW-TO-SRC-ADR048-001
+tech_ref: TECH-SRC-RAW-TO-SRC-ADR048-005
+arch_ref: ARCH-SRC-RAW-TO-SRC-ADR048-005
+api_ref: API-SRC-RAW-TO-SRC-ADR048-005
 main_sequence:
   - step: 1
     task: TASK-001
@@ -55,7 +55,7 @@ non_goals:
   - Does not handle gate decision or formal publication
   - Does not define FEAT/TECH derivation rules
   - Does not manage UI surface or user testing
-implementation_readiness: true
+implementation_readiness: ready
 ---
 
 # Governed Skill接入与Pilot验证流 Implementation Task Package
@@ -101,6 +101,6 @@ implementation_readiness: true
 ## Selected Upstream
 
 - feat_ref: FEAT-SRC-RAW-TO-SRC-ADR048-005
-- tech_ref: TECH-SRC-RAW-TO-SRC-ADR048-001
-- arch_ref: ARCH-SRC-RAW-TO-SRC-ADR048-001
-- api_ref: API-SRC-RAW-TO-SRC-ADR048-001
+- tech_ref: TECH-SRC-RAW-TO-SRC-ADR048-005
+- arch_ref: ARCH-SRC-RAW-TO-SRC-ADR048-005
+- api_ref: API-SRC-RAW-TO-SRC-ADR048-005

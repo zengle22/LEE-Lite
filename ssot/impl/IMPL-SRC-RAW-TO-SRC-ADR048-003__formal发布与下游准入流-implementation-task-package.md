@@ -4,9 +4,9 @@ ssot_type: IMPL
 title: "Formal发布与下游准入流 Implementation Task Package"
 status: execution_ready
 feat_ref: FEAT-SRC-RAW-TO-SRC-ADR048-003
-tech_ref: TECH-SRC-RAW-TO-SRC-ADR048-001
-arch_ref: ARCH-SRC-RAW-TO-SRC-ADR048-001
-api_ref: API-SRC-RAW-TO-SRC-ADR048-001
+tech_ref: TECH-SRC-RAW-TO-SRC-ADR048-003
+arch_ref: ARCH-SRC-RAW-TO-SRC-ADR048-003
+api_ref: API-SRC-RAW-TO-SRC-ADR048-003
 main_sequence:
   - step: 1
     task: TASK-001
@@ -59,7 +59,7 @@ non_goals:
   - Does not handle execution return routing
   - Does not define FEAT/TECH derivation rules
   - Does not manage UI surface or user testing
-implementation_readiness: true
+implementation_readiness: ready
 ---
 
 # Formal发布与下游准入流 Implementation Task Package
@@ -100,6 +100,6 @@ implementation_readiness: true
 ## Selected Upstream
 
 - feat_ref: FEAT-SRC-RAW-TO-SRC-ADR048-003
-- tech_ref: TECH-SRC-RAW-TO-SRC-ADR048-001
-- arch_ref: ARCH-SRC-RAW-TO-SRC-ADR048-001
-- api_ref: API-SRC-RAW-TO-SRC-ADR048-001
+- tech_ref: TECH-SRC-RAW-TO-SRC-ADR048-003
+- arch_ref: ARCH-SRC-RAW-TO-SRC-ADR048-003
+- api_ref: API-SRC-RAW-TO-SRC-ADR048-003

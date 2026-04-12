@@ -1,0 +1,300 @@
+api_coverage_manifest:
+  feature_id: FEAT-SRC-003-006
+  generated_at: "2026-04-11T10:00:00Z"
+  source_plan_ref: ssot/tests/api/FEAT-SRC-003-006/api-test-plan.md
+  items:
+    # OUTCOME-DONE-001: 记录 Done 结果
+    - coverage_id: api.outcome.done.happy
+      capability: OUTCOME-DONE-001
+      scenario_type: happy_path
+      dimension: 正常路径
+      priority: P0
+      source_feat_ref: FEAT-SRC-003-006.AcceptanceChecks.explicit-outcomes
+      lifecycle_status: designed
+      mapping_status: unmapped
+      evidence_status: missing
+      waiver_status: none
+      mapped_case_ids: []
+      evidence_refs: []
+      rerun_count: 0
+      last_run_id: null
+      obsolete: false
+      superseded_by: null
+
+    - coverage_id: api.outcome.done.side-effect
+      capability: OUTCOME-DONE-001
+      scenario_type: data_side_effect
+      dimension: 数据副作用
+      priority: P0
+      source_feat_ref: FEAT-SRC-003-006.Scope.execution-result
+      lifecycle_status: designed
+      mapping_status: unmapped
+      evidence_status: missing
+      waiver_status: none
+      mapped_case_ids: []
+      evidence_refs: []
+      rerun_count: 0
+      last_run_id: null
+      obsolete: false
+      superseded_by: null
+
+    # OUTCOME-FAIL-001: 记录 Failed 结果
+    - coverage_id: api.outcome.fail.happy
+      capability: OUTCOME-FAIL-001
+      scenario_type: happy_path
+      dimension: 正常路径
+      priority: P0
+      source_feat_ref: FEAT-SRC-003-006.Scope.failure-reason
+      lifecycle_status: designed
+      mapping_status: unmapped
+      evidence_status: missing
+      waiver_status: none
+      mapped_case_ids: []
+      evidence_refs: []
+      rerun_count: 0
+      last_run_id: null
+      obsolete: false
+      superseded_by: null
+
+    - coverage_id: api.outcome.fail.missing-reason
+      capability: OUTCOME-FAIL-001
+      scenario_type: parameter_validation
+      dimension: 参数校验
+      priority: P0
+      source_feat_ref: FEAT-SRC-003-006.Constraints.failure-evidence
+      lifecycle_status: designed
+      mapping_status: unmapped
+      evidence_status: missing
+      waiver_status: none
+      mapped_case_ids: []
+      evidence_refs: []
+      rerun_count: 0
+      last_run_id: null
+      obsolete: false
+      superseded_by: null
+
+    - coverage_id: api.outcome.fail.evidence-bind
+      capability: OUTCOME-FAIL-001
+      scenario_type: data_side_effect
+      dimension: 数据副作用
+      priority: P0
+      source_feat_ref: FEAT-SRC-003-006.Constraints.failure-evidence-bound
+      lifecycle_status: designed
+      mapping_status: unmapped
+      evidence_status: missing
+      waiver_status: none
+      mapped_case_ids: []
+      evidence_refs: []
+      rerun_count: 0
+      last_run_id: null
+      obsolete: false
+      superseded_by: null
+
+    # OUTCOME-RETRY-001: 记录 Retry/Reentry 结果
+    - coverage_id: api.outcome.retry.happy
+      capability: OUTCOME-RETRY-001
+      scenario_type: happy_path
+      dimension: 正常路径
+      priority: P0
+      source_feat_ref: FEAT-SRC-003-006.Scope.retry-reentry
+      lifecycle_status: designed
+      mapping_status: unmapped
+      evidence_status: missing
+      waiver_status: none
+      mapped_case_ids: []
+      evidence_refs: []
+      rerun_count: 0
+      last_run_id: null
+      obsolete: false
+      superseded_by: null
+
+    - coverage_id: api.outcome.retry.execution-return
+      capability: OUTCOME-RETRY-001
+      scenario_type: state_constraint
+      dimension: 状态约束
+      priority: P0
+      source_feat_ref: FEAT-SRC-003-006.Constraints.retry-to-execution
+      lifecycle_status: designed
+      mapping_status: unmapped
+      evidence_status: missing
+      waiver_status: none
+      mapped_case_ids: []
+      evidence_refs: []
+      rerun_count: 0
+      last_run_id: null
+      obsolete: false
+      superseded_by: null
+
+    - coverage_id: api.outcome.retry.boundary-edge
+      capability: OUTCOME-RETRY-001
+      scenario_type: boundary_value
+      dimension: 边界值
+      priority: P0
+      source_feat_ref: FEAT-SRC-003-006.Constraints
+      lifecycle_status: cut
+      mapping_status: unmapped
+      evidence_status: missing
+      waiver_status: none
+      mapped_case_ids: []
+      evidence_refs: []
+      rerun_count: 0
+      last_run_id: null
+      obsolete: false
+      superseded_by: null
+      cut_record:
+        cut_target: 边界值
+        cut_reason: "Retry directive 为离散枚举，无边界概念"
+        source_ref: ADR-047 Section 4.1.3
+        approver: "qa-lead"
+        approved_at: "2026-04-11T10:00:00Z"
+
+    # FAILURE-BIND-001: 失败证据绑定
+    - coverage_id: api.failure.bind.happy
+      capability: FAILURE-BIND-001
+      scenario_type: happy_path
+      dimension: 正常路径
+      priority: P0
+      source_feat_ref: FEAT-SRC-003-006.Constraints.failure-evidence-bound
+      lifecycle_status: designed
+      mapping_status: unmapped
+      evidence_status: missing
+      waiver_status: none
+      mapped_case_ids: []
+      evidence_refs: []
+      rerun_count: 0
+      last_run_id: null
+      obsolete: false
+      superseded_by: null
+
+    - coverage_id: api.failure.bind.unbound-evidence
+      capability: FAILURE-BIND-001
+      scenario_type: exception
+      dimension: 异常路径
+      priority: P0
+      source_feat_ref: FEAT-SRC-003-006.Constraints.failure-evidence-bound
+      lifecycle_status: designed
+      mapping_status: unmapped
+      evidence_status: missing
+      waiver_status: none
+      mapped_case_ids: []
+      evidence_refs: []
+      rerun_count: 0
+      last_run_id: null
+      obsolete: false
+      superseded_by: null
+
+    # STATE-TRANSITION-001: 状态转移
+    - coverage_id: api.state.transition.running-to-done
+      capability: STATE-TRANSITION-001
+      scenario_type: state_constraint
+      dimension: 状态约束
+      priority: P0
+      source_feat_ref: FEAT-SRC-003-006.Scope.state-boundary
+      lifecycle_status: designed
+      mapping_status: unmapped
+      evidence_status: missing
+      waiver_status: none
+      mapped_case_ids: []
+      evidence_refs: []
+      rerun_count: 0
+      last_run_id: null
+      obsolete: false
+      superseded_by: null
+
+    - coverage_id: api.state.transition.running-to-failed
+      capability: STATE-TRANSITION-001
+      scenario_type: state_constraint
+      dimension: 状态约束
+      priority: P0
+      source_feat_ref: FEAT-SRC-003-006.Scope.state-boundary
+      lifecycle_status: designed
+      mapping_status: unmapped
+      evidence_status: missing
+      waiver_status: none
+      mapped_case_ids: []
+      evidence_refs: []
+      rerun_count: 0
+      last_run_id: null
+      obsolete: false
+      superseded_by: null
+
+    - coverage_id: api.state.transition.invalid-transition
+      capability: STATE-TRANSITION-001
+      scenario_type: exception
+      dimension: 异常路径
+      priority: P0
+      source_feat_ref: FEAT-SRC-003-006.Constraints.state-boundary
+      lifecycle_status: designed
+      mapping_status: unmapped
+      evidence_status: missing
+      waiver_status: none
+      mapped_case_ids: []
+      evidence_refs: []
+      rerun_count: 0
+      last_run_id: null
+      obsolete: false
+      superseded_by: null
+
+    # CHAIN-CONTINUE-001: 链路持续性验证
+    - coverage_id: api.chain.continue.happy
+      capability: CHAIN-CONTINUE-001
+      scenario_type: happy_path
+      dimension: 正常路径
+      priority: P1
+      source_feat_ref: FEAT-SRC-003-006.AcceptanceChecks.approve-not-terminal
+      lifecycle_status: designed
+      mapping_status: unmapped
+      evidence_status: missing
+      waiver_status: none
+      mapped_case_ids: []
+      evidence_refs: []
+      rerun_count: 0
+      last_run_id: null
+      obsolete: false
+      superseded_by: null
+
+    - coverage_id: api.chain.continue.boundary-edge
+      capability: CHAIN-CONTINUE-001
+      scenario_type: boundary_value
+      dimension: 边界值
+      priority: P1
+      source_feat_ref: FEAT-SRC-003-006.Constraints
+      lifecycle_status: cut
+      mapping_status: unmapped
+      evidence_status: missing
+      waiver_status: none
+      mapped_case_ids: []
+      evidence_refs: []
+      rerun_count: 0
+      last_run_id: null
+      obsolete: false
+      superseded_by: null
+      cut_record:
+        cut_target: 边界值
+        cut_reason: "链路持续性为验证规则，无连续边界"
+        source_ref: ADR-047 Section 4.1.3
+        approver: "qa-lead"
+        approved_at: "2026-04-11T10:00:00Z"
+
+    - coverage_id: api.chain.continue.state-constraint
+      capability: CHAIN-CONTINUE-001
+      scenario_type: state_constraint
+      dimension: 状态约束
+      priority: P1
+      source_feat_ref: FEAT-SRC-003-006.Constraints
+      lifecycle_status: cut
+      mapping_status: unmapped
+      evidence_status: missing
+      waiver_status: none
+      mapped_case_ids: []
+      evidence_refs: []
+      rerun_count: 0
+      last_run_id: null
+      obsolete: false
+      superseded_by: null
+      cut_record:
+        cut_target: 状态约束
+        cut_reason: "验证规则类能力，无独立状态机"
+        source_ref: ADR-047 Section 4.1.3
+        approver: "qa-lead"
+        approved_at: "2026-04-11T10:00:00Z"

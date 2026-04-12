@@ -1,0 +1,10 @@
+{
+  "artifact_type": "diagnosis_stub",
+  "schema_version": "0.1.0",
+  "status": "stubbed",
+  "error_class": "structure_error",
+  "root_cause_primary": "detection_weakness",
+  "expected_detector": "impl_spec_testing",
+  "remediation_hint": "Add cross-artifact validation to impl-spec-test: (1) Verify FEAT/TECH/ARCH/API documents have non-empty body content (minimum line count or word count threshold). (2) Validate that upstream refs point to domain-appropriate documents (e.g., IMPL-004 should not reference TECH-001 if TECH-001 is titled for a different domain). (3) Add YAML structural integrity checks: detect duplicate keys, type mismatches. (4) Validate task numbering continuity in main_sequence. (5) Validate body sections are fully rendered (no empty labels, no orphan arrows).",
+  "note": "This is an initial capture-time stub, not a final diagnosis report."
+}

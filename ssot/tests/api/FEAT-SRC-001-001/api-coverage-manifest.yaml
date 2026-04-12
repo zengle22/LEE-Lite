@@ -1,0 +1,516 @@
+api_coverage_manifest:
+  feature_id: FEAT-SRC-001-001
+  generated_at: "2026-04-11T00:00:00Z"
+  source_plan_ref: ssot/tests/api/FEAT-SRC-001-001/api-test-plan.md
+  items:
+    # LOOP-EXEC-SUBMIT-001: 执行循环提交
+    - coverage_id: api.loop.exec-submit.happy
+      capability: LOOP-EXEC-SUBMIT-001
+      scenario_type: happy_path
+      dimension: 正常路径
+      priority: P0
+      source_feat_ref: FEAT-SRC-001-001.Scope.execution-loop
+      lifecycle_status: designed
+      mapping_status: unmapped
+      evidence_status: missing
+      waiver_status: none
+      mapped_case_ids: []
+      evidence_refs: []
+      rerun_count: 0
+      last_run_id: null
+      obsolete: false
+      superseded_by: null
+
+    - coverage_id: api.loop.exec-submit.invalid-loop-state
+      capability: LOOP-EXEC-SUBMIT-001
+      scenario_type: state_constraint
+      dimension: 状态约束
+      priority: P0
+      source_feat_ref: FEAT-SRC-001-001.Scope.execution-loop
+      lifecycle_status: designed
+      mapping_status: unmapped
+      evidence_status: missing
+      waiver_status: none
+      mapped_case_ids: []
+      evidence_refs: []
+      rerun_count: 0
+      last_run_id: null
+      obsolete: false
+      superseded_by: null
+
+    - coverage_id: api.loop.exec-submit.missing-object
+      capability: LOOP-EXEC-SUBMIT-001
+      scenario_type: exception
+      dimension: 异常路径
+      priority: P0
+      source_feat_ref: FEAT-SRC-001-001.AC-01
+      lifecycle_status: designed
+      mapping_status: unmapped
+      evidence_status: missing
+      waiver_status: none
+      mapped_case_ids: []
+      evidence_refs: []
+      rerun_count: 0
+      last_run_id: null
+      obsolete: false
+      superseded_by: null
+
+    - coverage_id: api.loop.exec-submit.data-side-effect
+      capability: LOOP-EXEC-SUBMIT-001
+      scenario_type: data_side_effect
+      dimension: 数据副作用
+      priority: P0
+      source_feat_ref: FEAT-SRC-001-001.Scope.execution-loop
+      lifecycle_status: designed
+      mapping_status: unmapped
+      evidence_status: missing
+      waiver_status: none
+      mapped_case_ids: []
+      evidence_refs: []
+      rerun_count: 0
+      last_run_id: null
+      obsolete: false
+      superseded_by: null
+
+    - coverage_id: api.loop.exec-submit.boundary-value
+      capability: LOOP-EXEC-SUBMIT-001
+      scenario_type: boundary_value
+      dimension: 边界值
+      priority: P0
+      source_feat_ref: FEAT-SRC-001-001.Scope.execution-loop
+      lifecycle_status: cut
+      mapping_status: unmapped
+      evidence_status: missing
+      waiver_status: none
+      mapped_case_ids: []
+      evidence_refs: []
+      rerun_count: 0
+      last_run_id: null
+      obsolete: false
+      superseded_by: null
+      cut_record:
+        cut_target: 边界值
+        cut_reason: "试点阶段对象提交为离散类型，无连续数值边界"
+        source_ref: ADR-047 Section 4.1.3
+        approver: "qa-lead"
+        approved_at: "2026-04-11T00:00:00Z"
+
+    # LOOP-GH-HANDOFF-001: Gate-Human 交接界面
+    - coverage_id: api.loop.gh-handoff.happy
+      capability: LOOP-GH-HANDOFF-001
+      scenario_type: happy_path
+      dimension: 正常路径
+      priority: P0
+      source_feat_ref: FEAT-SRC-001-001.Scope.gate-human-interface
+      lifecycle_status: designed
+      mapping_status: unmapped
+      evidence_status: missing
+      waiver_status: none
+      mapped_case_ids: []
+      evidence_refs: []
+      rerun_count: 0
+      last_run_id: null
+      obsolete: false
+      superseded_by: null
+
+    - coverage_id: api.loop.gh-handoff.missing-consumer
+      capability: LOOP-GH-HANDOFF-001
+      scenario_type: parameter_validation
+      dimension: 参数校验
+      priority: P0
+      source_feat_ref: FEAT-SRC-001-001.AC-01
+      lifecycle_status: designed
+      mapping_status: unmapped
+      evidence_status: missing
+      waiver_status: none
+      mapped_case_ids: []
+      evidence_refs: []
+      rerun_count: 0
+      last_run_id: null
+      obsolete: false
+      superseded_by: null
+
+    - coverage_id: api.loop.gh-handoff.invalid-transition
+      capability: LOOP-GH-HANDOFF-001
+      scenario_type: state_constraint
+      dimension: 状态约束
+      priority: P0
+      source_feat_ref: FEAT-SRC-001-001.Constraints
+      lifecycle_status: designed
+      mapping_status: unmapped
+      evidence_status: missing
+      waiver_status: none
+      mapped_case_ids: []
+      evidence_refs: []
+      rerun_count: 0
+      last_run_id: null
+      obsolete: false
+      superseded_by: null
+
+    - coverage_id: api.loop.gh-handoff.decision-failure
+      capability: LOOP-GH-HANDOFF-001
+      scenario_type: exception
+      dimension: 异常路径
+      priority: P0
+      source_feat_ref: FEAT-SRC-001-001.AC-01
+      lifecycle_status: designed
+      mapping_status: unmapped
+      evidence_status: missing
+      waiver_status: none
+      mapped_case_ids: []
+      evidence_refs: []
+      rerun_count: 0
+      last_run_id: null
+      obsolete: false
+      superseded_by: null
+
+    - coverage_id: api.loop.gh-handoff.data-side-effect
+      capability: LOOP-GH-HANDOFF-001
+      scenario_type: data_side_effect
+      dimension: 数据副作用
+      priority: P0
+      source_feat_ref: FEAT-SRC-001-001.Scope.gate-human-interface
+      lifecycle_status: designed
+      mapping_status: unmapped
+      evidence_status: missing
+      waiver_status: none
+      mapped_case_ids: []
+      evidence_refs: []
+      rerun_count: 0
+      last_run_id: null
+      obsolete: false
+      superseded_by: null
+
+    - coverage_id: api.loop.gh-handoff.boundary-value
+      capability: LOOP-GH-HANDOFF-001
+      scenario_type: boundary_value
+      dimension: 边界值
+      priority: P0
+      source_feat_ref: FEAT-SRC-001-001.Scope.gate-human-interface
+      lifecycle_status: cut
+      mapping_status: unmapped
+      evidence_status: missing
+      waiver_status: none
+      mapped_case_ids: []
+      evidence_refs: []
+      rerun_count: 0
+      last_run_id: null
+      obsolete: false
+      superseded_by: null
+      cut_record:
+        cut_target: 边界值
+        cut_reason: "交接界面为离散操作，无边界值概念"
+        source_ref: ADR-047 Section 4.1.3
+        approver: "qa-lead"
+        approved_at: "2026-04-11T00:00:00Z"
+
+    # LOOP-RESPONSIBILITY-001: Loop 责任分离
+    - coverage_id: api.loop.responsibility.happy
+      capability: LOOP-RESPONSIBILITY-001
+      scenario_type: happy_path
+      dimension: 正常路径
+      priority: P0
+      source_feat_ref: FEAT-SRC-001-001.AC-01
+      lifecycle_status: designed
+      mapping_status: unmapped
+      evidence_status: missing
+      waiver_status: none
+      mapped_case_ids: []
+      evidence_refs: []
+      rerun_count: 0
+      last_run_id: null
+      obsolete: false
+      superseded_by: null
+
+    - coverage_id: api.loop.responsibility.overlap-detection
+      capability: LOOP-RESPONSIBILITY-001
+      scenario_type: exception
+      dimension: 异常路径
+      priority: P0
+      source_feat_ref: FEAT-SRC-001-001.Constraints
+      lifecycle_status: designed
+      mapping_status: unmapped
+      evidence_status: missing
+      waiver_status: none
+      mapped_case_ids: []
+      evidence_refs: []
+      rerun_count: 0
+      last_run_id: null
+      obsolete: false
+      superseded_by: null
+
+    - coverage_id: api.loop.responsibility.state-enforcement
+      capability: LOOP-RESPONSIBILITY-001
+      scenario_type: state_constraint
+      dimension: 状态约束
+      priority: P0
+      source_feat_ref: FEAT-SRC-001-001.Constraints
+      lifecycle_status: designed
+      mapping_status: unmapped
+      evidence_status: missing
+      waiver_status: none
+      mapped_case_ids: []
+      evidence_refs: []
+      rerun_count: 0
+      last_run_id: null
+      obsolete: false
+      superseded_by: null
+
+    - coverage_id: api.loop.responsibility.data-side-effect
+      capability: LOOP-RESPONSIBILITY-001
+      scenario_type: data_side_effect
+      dimension: 数据副作用
+      priority: P0
+      source_feat_ref: FEAT-SRC-001-001.Scope.loop-responsibility
+      lifecycle_status: designed
+      mapping_status: unmapped
+      evidence_status: missing
+      waiver_status: none
+      mapped_case_ids: []
+      evidence_refs: []
+      rerun_count: 0
+      last_run_id: null
+      obsolete: false
+      superseded_by: null
+
+    - coverage_id: api.loop.responsibility.parameter-validation
+      capability: LOOP-RESPONSIBILITY-001
+      scenario_type: parameter_validation
+      dimension: 参数校验
+      priority: P0
+      source_feat_ref: FEAT-SRC-001-001.Constraints
+      lifecycle_status: cut
+      mapping_status: unmapped
+      evidence_status: missing
+      waiver_status: none
+      mapped_case_ids: []
+      evidence_refs: []
+      rerun_count: 0
+      last_run_id: null
+      obsolete: false
+      superseded_by: null
+      cut_record:
+        cut_target: 参数校验
+        cut_reason: "验证规则类能力，非 I/O 类能力"
+        source_ref: ADR-047 Section 4.1.3
+        approver: "qa-lead"
+        approved_at: "2026-04-11T00:00:00Z"
+
+    # LOOP-REFLOW-BOUNDS-001: 回流边界控制
+    - coverage_id: api.loop.reflow.happy
+      capability: LOOP-REFLOW-BOUNDS-001
+      scenario_type: happy_path
+      dimension: 正常路径
+      priority: P0
+      source_feat_ref: FEAT-SRC-001-001.AC-02
+      lifecycle_status: designed
+      mapping_status: unmapped
+      evidence_status: missing
+      waiver_status: none
+      mapped_case_ids: []
+      evidence_refs: []
+      rerun_count: 0
+      last_run_id: null
+      obsolete: false
+      superseded_by: null
+
+    - coverage_id: api.loop.reflow.invalid-reentry
+      capability: LOOP-REFLOW-BOUNDS-001
+      scenario_type: state_constraint
+      dimension: 状态约束
+      priority: P0
+      source_feat_ref: FEAT-SRC-001-001.AC-02
+      lifecycle_status: designed
+      mapping_status: unmapped
+      evidence_status: missing
+      waiver_status: none
+      mapped_case_ids: []
+      evidence_refs: []
+      rerun_count: 0
+      last_run_id: null
+      obsolete: false
+      superseded_by: null
+
+    - coverage_id: api.loop.reflow.missing-consumer
+      capability: LOOP-REFLOW-BOUNDS-001
+      scenario_type: exception
+      dimension: 异常路径
+      priority: P0
+      source_feat_ref: FEAT-SRC-001-001.AC-02
+      lifecycle_status: designed
+      mapping_status: unmapped
+      evidence_status: missing
+      waiver_status: none
+      mapped_case_ids: []
+      evidence_refs: []
+      rerun_count: 0
+      last_run_id: null
+      obsolete: false
+      superseded_by: null
+
+    - coverage_id: api.loop.reflow.data-side-effect
+      capability: LOOP-REFLOW-BOUNDS-001
+      scenario_type: data_side_effect
+      dimension: 数据副作用
+      priority: P0
+      source_feat_ref: FEAT-SRC-001-001.AC-02
+      lifecycle_status: designed
+      mapping_status: unmapped
+      evidence_status: missing
+      waiver_status: none
+      mapped_case_ids: []
+      evidence_refs: []
+      rerun_count: 0
+      last_run_id: null
+      obsolete: false
+      superseded_by: null
+
+    - coverage_id: api.loop.reflow.boundary-value
+      capability: LOOP-REFLOW-BOUNDS-001
+      scenario_type: boundary_value
+      dimension: 边界值
+      priority: P0
+      source_feat_ref: FEAT-SRC-001-001.AC-02
+      lifecycle_status: cut
+      mapping_status: unmapped
+      evidence_status: missing
+      waiver_status: none
+      mapped_case_ids: []
+      evidence_refs: []
+      rerun_count: 0
+      last_run_id: null
+      obsolete: false
+      superseded_by: null
+      cut_record:
+        cut_target: 边界值
+        cut_reason: "回流条件为离散状态判断，无连续边界"
+        source_ref: ADR-047 Section 4.1.3
+        approver: "qa-lead"
+        approved_at: "2026-04-11T00:00:00Z"
+
+    # LOOP-INHERITANCE-001: 下游协作规则继承
+    - coverage_id: api.loop.inheritance.happy
+      capability: LOOP-INHERITANCE-001
+      scenario_type: happy_path
+      dimension: 正常路径
+      priority: P1
+      source_feat_ref: FEAT-SRC-001-001.AC-03
+      lifecycle_status: designed
+      mapping_status: unmapped
+      evidence_status: missing
+      waiver_status: none
+      mapped_case_ids: []
+      evidence_refs: []
+      rerun_count: 0
+      last_run_id: null
+      obsolete: false
+      superseded_by: null
+
+    - coverage_id: api.loop.inheritance.parallel-rule-detection
+      capability: LOOP-INHERITANCE-001
+      scenario_type: exception
+      dimension: 异常路径
+      priority: P1
+      source_feat_ref: FEAT-SRC-001-001.AC-03
+      lifecycle_status: designed
+      mapping_status: unmapped
+      evidence_status: missing
+      waiver_status: none
+      mapped_case_ids: []
+      evidence_refs: []
+      rerun_count: 0
+      last_run_id: null
+      obsolete: false
+      superseded_by: null
+
+    - coverage_id: api.loop.inheritance.state-constraint
+      capability: LOOP-INHERITANCE-001
+      scenario_type: state_constraint
+      dimension: 状态约束
+      priority: P1
+      source_feat_ref: FEAT-SRC-001-001.AC-03
+      lifecycle_status: cut
+      mapping_status: unmapped
+      evidence_status: missing
+      waiver_status: none
+      mapped_case_ids: []
+      evidence_refs: []
+      rerun_count: 0
+      last_run_id: null
+      obsolete: false
+      superseded_by: null
+      cut_record:
+        cut_target: 状态约束
+        cut_reason: "P1 能力，状态约束裁剪"
+        source_ref: ADR-047 Section 4.1.3
+        approver: "qa-lead"
+        approved_at: "2026-04-11T00:00:00Z"
+
+    - coverage_id: api.loop.inheritance.authorization
+      capability: LOOP-INHERITANCE-001
+      scenario_type: authorization
+      dimension: 权限与身份
+      priority: P1
+      source_feat_ref: FEAT-SRC-001-001.Constraints
+      lifecycle_status: cut
+      mapping_status: unmapped
+      evidence_status: missing
+      waiver_status: none
+      mapped_case_ids: []
+      evidence_refs: []
+      rerun_count: 0
+      last_run_id: null
+      obsolete: false
+      superseded_by: null
+      cut_record:
+        cut_target: 权限与身份
+        cut_reason: "试点阶段无鉴权层"
+        source_ref: ADR-047 Section 4.1.3
+        approver: "qa-lead"
+        approved_at: "2026-04-11T00:00:00Z"
+
+    - coverage_id: api.loop.inheritance.idempotent
+      capability: LOOP-INHERITANCE-001
+      scenario_type: idempotent
+      dimension: 幂等/重试/并发
+      priority: P1
+      source_feat_ref: FEAT-SRC-001-001.Constraints
+      lifecycle_status: cut
+      mapping_status: unmapped
+      evidence_status: missing
+      waiver_status: none
+      mapped_case_ids: []
+      evidence_refs: []
+      rerun_count: 0
+      last_run_id: null
+      obsolete: false
+      superseded_by: null
+      cut_record:
+        cut_target: 幂等/重试/并发
+        cut_reason: "P1 能力，并发场景裁剪"
+        source_ref: ADR-047 Section 4.1.3
+        approver: "qa-lead"
+        approved_at: "2026-04-11T00:00:00Z"
+
+    - coverage_id: api.loop.inheritance.boundary-value
+      capability: LOOP-INHERITANCE-001
+      scenario_type: boundary_value
+      dimension: 边界值
+      priority: P1
+      source_feat_ref: FEAT-SRC-001-001.AC-03
+      lifecycle_status: cut
+      mapping_status: unmapped
+      evidence_status: missing
+      waiver_status: none
+      mapped_case_ids: []
+      evidence_refs: []
+      rerun_count: 0
+      last_run_id: null
+      obsolete: false
+      superseded_by: null
+      cut_record:
+        cut_target: 边界值
+        cut_reason: "继承验证为离散规则检查，无边界概念"
+        source_ref: ADR-047 Section 4.1.3
+        approver: "qa-lead"
+        approved_at: "2026-04-11T00:00:00Z"
