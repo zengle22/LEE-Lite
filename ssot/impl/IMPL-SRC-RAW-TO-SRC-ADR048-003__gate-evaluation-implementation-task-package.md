@@ -1,9 +1,9 @@
 ---
-id: IMPL-SRC-RAW-TO-SRC-ADR048-005
+id: IMPL-SRC-RAW-TO-SRC-ADR048-003
 ssot_type: IMPL
-impl_ref: IMPL-SRC-RAW-TO-SRC-ADR048-005
-tech_ref: TECH-SRC-RAW-TO-SRC-ADR048-005
-feat_ref: FEAT-SRC-RAW-TO-SRC-ADR048-005
+impl_ref: IMPL-SRC-RAW-TO-SRC-ADR048-003
+tech_ref: TECH-SRC-RAW-TO-SRC-ADR048-003
+feat_ref: FEAT-SRC-RAW-TO-SRC-ADR048-003
 title: Gate Evaluation and Milestone Decision with Fix Feature Routing Implementation Task Package
 status: execution_ready
 schema_version: 1.0.0
@@ -13,16 +13,16 @@ candidate_package_ref: artifacts/tech-to-impl/adr048-gate-eval-impl-20260412-r1
 frozen_at: '2026-04-12T00:00:00Z'
 ---
 
-# IMPL-SRC-RAW-TO-SRC-ADR048-005
+# IMPL-SRC-RAW-TO-SRC-ADR048-003
 
 ## 1. Task Identity
 
-- impl_ref: `IMPL-SRC-RAW-TO-SRC-ADR048-005`
+- impl_ref: `IMPL-SRC-RAW-TO-SRC-ADR048-003`
 - title: Gate Evaluation and Milestone Decision with Fix Feature Routing Implementation Task Package
 - workflow_key: `dev.tech-to-impl`
 - workflow_run_id: `adr048-gate-eval-impl-20260412-r1`
 - status: `execution_ready`
-- derived_from: `FEAT-SRC-RAW-TO-SRC-ADR048-005`, `TECH-SRC-RAW-TO-SRC-ADR048-005`
+- derived_from: `FEAT-SRC-RAW-TO-SRC-ADR048-003`, `TECH-SRC-RAW-TO-SRC-ADR048-003`
 - package role: canonical execution package / execution-time single entrypoint
 
 ## 2. Objectives
@@ -52,20 +52,20 @@ frozen_at: '2026-04-12T00:00:00Z'
 ## 4. Upstream Convergence
 
 - ADR refs: ADR-048, ADR-047, ADR-034 -> Gate evaluation governance and Fix Feature immutability rules.
-- FEAT: `FEAT-SRC-RAW-TO-SRC-ADR048-005` -> Gate evaluation, milestone mapping, Fix Feature routing.
-- TECH: `TECH-SRC-RAW-TO-SRC-ADR048-005` -> Read-only gate evaluation, deterministic settlement, Fix Feature as new object.
-- ARCH: `ARCH-SRC-RAW-TO-SRC-ADR048-005` -> Gate reads from .droid/, writes to ssot/tests/gate/ and ssot/feat/FIX-*.
-- API: `API-SRC-RAW-TO-SRC-ADR048-005` -> evaluate_gate, map_milestone, create_fix_feature interfaces.
+- FEAT: `FEAT-SRC-RAW-TO-SRC-ADR048-003` -> Gate evaluation, milestone mapping, Fix Feature routing.
+- TECH: `TECH-SRC-RAW-TO-SRC-ADR048-003` -> Read-only gate evaluation, deterministic settlement, Fix Feature as new object.
+- ARCH: `ARCH-SRC-RAW-TO-SRC-ADR048-003` -> Gate reads from .droid/, writes to ssot/tests/gate/ and ssot/feat/FIX-*.
+- API: `API-SRC-RAW-TO-SRC-ADR048-003` -> evaluate_gate, map_milestone, create_fix_feature interfaces.
 - UI: `missing_authority` -> Gate evaluation is backend-only; no user-facing surface.
 - TESTSET: `missing_authority` -> Dual-chain settlement serves as acceptance authority.
 
 ### Authority Binding Status
 
 - `ADR` status=`bound` ref=`ADR-048, ADR-047, ADR-034` | required_for: gate decision rules and Fix Feature immutability | execution_effect: gate follows ADR-048 Section 2.5 gate-to-milestone mapping exactly | follow_up: none
-- `ARCH` status=`bound` ref=`ARCH-SRC-RAW-TO-SRC-ADR048-005` | required_for: layering and ownership constraints | execution_effect: gate reads from .droid/, writes to ssot/tests/gate/ and ssot/feat/FIX-* | follow_up: none
-- `API` status=`bound` ref=`API-SRC-RAW-TO-SRC-ADR048-005` | required_for: interface contract snapshots | execution_effect: evaluate_gate, map_milestone, create_fix_feature signatures are frozen | follow_up: none
-- `UI` status=`missing` ref=`UI-FEAT-SRC-RAW-TO-SRC-ADR048-005` | required_for: UI entry/exit constraints | execution_effect: no UI surface for gate evaluation | follow_up: not_applicable
-- `TESTSET` status=`missing` ref=`TESTSET-FEAT-SRC-RAW-TO-SRC-ADR048-005` | required_for: acceptance truth | execution_effect: dual-chain settlement serves as acceptance proxy | follow_up: freeze_dual_chain_as_acceptance_authority
+- `ARCH` status=`bound` ref=`ARCH-SRC-RAW-TO-SRC-ADR048-003` | required_for: layering and ownership constraints | execution_effect: gate reads from .droid/, writes to ssot/tests/gate/ and ssot/feat/FIX-* | follow_up: none
+- `API` status=`bound` ref=`API-SRC-RAW-TO-SRC-ADR048-003` | required_for: interface contract snapshots | execution_effect: evaluate_gate, map_milestone, create_fix_feature signatures are frozen | follow_up: none
+- `UI` status=`missing` ref=`UI-FEAT-SRC-RAW-TO-SRC-ADR048-003` | required_for: UI entry/exit constraints | execution_effect: no UI surface for gate evaluation | follow_up: not_applicable
+- `TESTSET` status=`missing` ref=`TESTSET-FEAT-SRC-RAW-TO-SRC-ADR048-003` | required_for: acceptance truth | execution_effect: dual-chain settlement serves as acceptance proxy | follow_up: freeze_dual_chain_as_acceptance_authority
 
 ## Main Sequence Snapshot
 

@@ -1,9 +1,9 @@
 ---
-id: IMPL-SRC-RAW-TO-SRC-ADR048-004
+id: IMPL-SRC-RAW-TO-SRC-ADR048-002
 ssot_type: IMPL
-impl_ref: IMPL-SRC-RAW-TO-SRC-ADR048-004
-tech_ref: TECH-SRC-RAW-TO-SRC-ADR048-004
-feat_ref: FEAT-SRC-RAW-TO-SRC-ADR048-004
+impl_ref: IMPL-SRC-RAW-TO-SRC-ADR048-002
+tech_ref: TECH-SRC-RAW-TO-SRC-ADR048-002
+feat_ref: FEAT-SRC-RAW-TO-SRC-ADR048-002
 title: Droid Missions Runtime - API and E2E Worker Execution Implementation Task Package
 status: execution_ready
 schema_version: 1.0.0
@@ -13,16 +13,16 @@ candidate_package_ref: artifacts/tech-to-impl/adr048-droid-runtime-impl-20260412
 frozen_at: '2026-04-12T00:00:00Z'
 ---
 
-# IMPL-SRC-RAW-TO-SRC-ADR048-004
+# IMPL-SRC-RAW-TO-SRC-ADR048-002
 
 ## 1. Task Identity
 
-- impl_ref: `IMPL-SRC-RAW-TO-SRC-ADR048-004`
+- impl_ref: `IMPL-SRC-RAW-TO-SRC-ADR048-002`
 - title: Droid Missions Runtime - API and E2E Worker Execution Implementation Task Package
 - workflow_key: `dev.tech-to-impl`
 - workflow_run_id: `adr048-droid-runtime-impl-20260412-r1`
 - status: `execution_ready`
-- derived_from: `FEAT-SRC-RAW-TO-SRC-ADR048-004`, `TECH-SRC-RAW-TO-SRC-ADR048-004`
+- derived_from: `FEAT-SRC-RAW-TO-SRC-ADR048-002`, `TECH-SRC-RAW-TO-SRC-ADR048-002`
 - package role: canonical execution package / execution-time single entrypoint
 
 ## 2. Objectives
@@ -53,20 +53,20 @@ frozen_at: '2026-04-12T00:00:00Z'
 ## 4. Upstream Convergence
 
 - ADR refs: ADR-048, ADR-047, ADR-038 -> Droid Runtime governance under ADR-048 worker responsibility boundaries.
-- FEAT: `FEAT-SRC-RAW-TO-SRC-ADR048-004` -> Execute validation contracts via API/E2E workers with evidence collection.
-- TECH: `TECH-SRC-RAW-TO-SRC-ADR048-004` -> Worker-based dispatch, priority ordering, evidence hash binding.
-- ARCH: `ARCH-SRC-RAW-TO-SRC-ADR048-004` -> Runtime reads from ssot/tests/compiled/, writes to .droid/.
-- API: `API-SRC-RAW-TO-SRC-ADR048-004` -> execute_mission, validate_scrutiny, validate_user_testing interfaces.
+- FEAT: `FEAT-SRC-RAW-TO-SRC-ADR048-002` -> Execute validation contracts via API/E2E workers with evidence collection.
+- TECH: `TECH-SRC-RAW-TO-SRC-ADR048-002` -> Worker-based dispatch, priority ordering, evidence hash binding.
+- ARCH: `ARCH-SRC-RAW-TO-SRC-ADR048-002` -> Runtime reads from ssot/tests/compiled/, writes to .droid/.
+- API: `API-SRC-RAW-TO-SRC-ADR048-002` -> execute_mission, validate_scrutiny, validate_user_testing interfaces.
 - UI: `missing_authority` -> E2E worker validates UI states declared in validation-contract; no separate UI authority.
 - TESTSET: `missing_authority` -> Dual-chain manifest/spec serve as acceptance authority.
 
 ### Authority Binding Status
 
 - `ADR` status=`bound` ref=`ADR-048, ADR-047, ADR-038` | required_for: worker responsibility boundaries and runtime layering | execution_effect: runtime follows ADR-048 worker constraints exactly | follow_up: none
-- `ARCH` status=`bound` ref=`ARCH-SRC-RAW-TO-SRC-ADR048-004` | required_for: layering and ownership constraints | execution_effect: runtime writes only to .droid/ | follow_up: none
-- `API` status=`bound` ref=`API-SRC-RAW-TO-SRC-ADR048-004` | required_for: interface contract snapshots | execution_effect: execute_mission, validate_scrutiny, validate_user_testing signatures are frozen | follow_up: none
-- `UI` status=`missing` ref=`UI-FEAT-SRC-RAW-TO-SRC-ADR048-004` | required_for: UI entry/exit constraints | execution_effect: E2E worker validates UI states from validation-contract only | follow_up: not_applicable
-- `TESTSET` status=`missing` ref=`TESTSET-FEAT-SRC-RAW-TO-SRC-ADR048-004` | required_for: acceptance truth | execution_effect: dual-chain validation serves as acceptance proxy | follow_up: freeze_dual_chain_as_acceptance_authority
+- `ARCH` status=`bound` ref=`ARCH-SRC-RAW-TO-SRC-ADR048-002` | required_for: layering and ownership constraints | execution_effect: runtime writes only to .droid/ | follow_up: none
+- `API` status=`bound` ref=`API-SRC-RAW-TO-SRC-ADR048-002` | required_for: interface contract snapshots | execution_effect: execute_mission, validate_scrutiny, validate_user_testing signatures are frozen | follow_up: none
+- `UI` status=`missing` ref=`UI-FEAT-SRC-RAW-TO-SRC-ADR048-002` | required_for: UI entry/exit constraints | execution_effect: E2E worker validates UI states from validation-contract only | follow_up: not_applicable
+- `TESTSET` status=`missing` ref=`TESTSET-FEAT-SRC-RAW-TO-SRC-ADR048-002` | required_for: acceptance truth | execution_effect: dual-chain validation serves as acceptance proxy | follow_up: freeze_dual_chain_as_acceptance_authority
 
 ## Main Sequence Snapshot
 
