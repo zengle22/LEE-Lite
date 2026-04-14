@@ -1,0 +1,84 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "GateEvaluationEvidence",
+  "type": "object",
+  "required": [
+    "evaluated_at",
+    "final_decision",
+    "evidence_hash",
+    "api_chain",
+    "e2e_chain",
+    "anti_laziness_checks",
+    "decision_reason"
+  ],
+  "properties": {
+    "evaluated_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "ISO 8601 timestamp when gate evaluation was performed"
+    },
+    "final_decision": {
+      "type": "string",
+      "enum": ["pass", "fail", "conditional_pass"],
+      "description": "Gate decision outcome"
+    },
+    "evidence_hash": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$",
+      "description": "SHA-256 hash of all evidence file contents (64-char lowercase hex)"
+    },
+    "api_chain": {
+      "type": "object",
+      "required": ["total", "passed", "failed", "pass_rate"],
+      "properties": {
+        "total": { "type": "integer", "minimum": 0, "description": "Total test items" },
+        "passed": { "type": "integer", "minimum": 0, "description": "Passed test items" },
+        "failed": { "type": "integer", "minimum": 0, "description": "Failed test items" },
+        "blocked": { "type": "integer", "minimum": 0, "description": "Blocked test items" },
+        "uncovered": { "type": "integer", "minimum": 0, "description": "Uncovered test items" },
+        "pass_rate": { "type": "number", "minimum": 0, "maximum": 1, "description": "Pass rate as decimal (0.0-1.0)" },
+        "evidence_status": { "type": "string", "enum": ["complete", "partial", "missing"] }
+      }
+    },
+    "e2e_chain": {
+      "type": "object",
+      "required": ["total", "passed", "failed", "pass_rate", "exception_journeys_executed"],
+      "properties": {
+        "total": { "type": "integer", "minimum": 0, "description": "Total test items" },
+        "passed": { "type": "integer", "minimum": 0, "description": "Passed test items" },
+        "failed": { "type": "integer", "minimum": 0, "description": "Failed test items" },
+        "blocked": { "type": "integer", "minimum": 0, "description": "Blocked test items" },
+        "uncovered": { "type": "integer", "minimum": 0, "description": "Uncovered test items" },
+        "pass_rate": { "type": "number", "minimum": 0, "maximum": 1, "description": "Pass rate as decimal (0.0-1.0)" },
+        "exception_journeys_executed": { "type": "integer", "minimum": 0, "description": "Number of exception journeys executed" },
+        "evidence_status": { "type": "string", "enum": ["complete", "partial", "missing"] }
+      }
+    },
+    "anti_laziness_checks": {
+      "type": "object",
+      "required": [
+        "manifest_frozen",
+        "cut_records_valid",
+        "pending_waivers_counted",
+        "evidence_consistent",
+        "min_exception_coverage",
+        "no_evidence_not_executed",
+        "evidence_hash_binding"
+      ],
+      "properties": {
+        "manifest_frozen": { "type": "boolean", "description": "Manifest items existed before execution" },
+        "cut_records_valid": { "type": "boolean", "description": "All cut items have valid cut_record with approver" },
+        "pending_waivers_counted": { "type": "boolean", "description": "waiver_status=pending items counted as failed" },
+        "evidence_consistent": { "type": "boolean", "description": "lifecycle_status=passed requires evidence_status=complete" },
+        "min_exception_coverage": { "type": "boolean", "description": "E2E has >=1 exception journey executed" },
+        "no_evidence_not_executed": { "type": "boolean", "description": "Items with no evidence_refs NOT counted as executed" },
+        "evidence_hash_binding": { "type": "boolean", "description": "Execution log hashes present and verifiable" }
+      }
+    },
+    "decision_reason": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Explanation of the gate decision"
+    }
+  }
+}
