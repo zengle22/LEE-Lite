@@ -1,0 +1,89 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "SettlementEvidence",
+  "type": "object",
+  "required": [
+    "chain",
+    "manifest_path",
+    "settlement_report_path",
+    "generated_at"
+  ],
+  "properties": {
+    "chain": {
+      "type": "string",
+      "enum": ["api", "e2e"],
+      "description": "The test chain type (API or E2E)"
+    },
+    "manifest_path": {
+      "type": "string",
+      "description": "Path to the coverage manifest used for settlement"
+    },
+    "settlement_report_path": {
+      "type": "string",
+      "description": "Path to the generated settlement report YAML"
+    },
+    "generated_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "ISO 8601 timestamp of report generation"
+    },
+    "evidence_hash": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$",
+      "description": "SHA-256 hex digest of the settlement report"
+    },
+    "summary": {
+      "type": "object",
+      "properties": {
+        "total_capability_count": { "type": "integer" },
+        "total_coverage_item_count": { "type": "integer" },
+        "mapped_count": { "type": "integer" },
+        "generated_count": { "type": "integer" },
+        "executed_count": { "type": "integer" },
+        "passed_count": { "type": "integer" },
+        "failed_count": { "type": "integer" },
+        "blocked_count": { "type": "integer" },
+        "uncovered_count": { "type": "integer" }
+      },
+      "required": [
+        "total_capability_count",
+        "total_coverage_item_count",
+        "mapped_count",
+        "generated_count",
+        "executed_count",
+        "passed_count",
+        "failed_count",
+        "blocked_count",
+        "uncovered_count"
+      ]
+    },
+    "gap_list": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["coverage_id", "capability", "lifecycle_status"],
+        "properties": {
+          "coverage_id": { "type": "string" },
+          "capability": { "type": "string" },
+          "lifecycle_status": { "enum": ["failed", "blocked", "uncovered"] },
+          "failure_reason": { "type": "string" },
+          "blocker_reason": { "type": "string" }
+        }
+      }
+    },
+    "waiver_list": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["coverage_id", "waiver_status"],
+        "properties": {
+          "coverage_id": { "type": "string" },
+          "waiver_status": { "enum": ["pending", "approved", "rejected"] },
+          "waiver_reason": { "type": "string" },
+          "approver": { "type": "string" },
+          "approved_at": { "type": "string" }
+        }
+      }
+    }
+  }
+}
