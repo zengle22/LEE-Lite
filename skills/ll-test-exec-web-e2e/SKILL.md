@@ -1,7 +1,12 @@
 ---
 name: ll-test-exec-web-e2e
-description: Governed QA execution skill for expanding a formal TESTSET into requirement-driven web E2E cases, resolving web-specific UI sources, and returning a governed response envelope with execution artifacts, summary refs, candidate registration, and gate handoff refs.
+description: DEPRECATED -- ADR-035 TESTSET-driven web E2E execution skill. Superseded by spec-driven execution (ADR-047). Do not use for new features.
+deprecated: true
+deprecated_since: "2026-04-14"
+superseded_by: "spec-driven execution via ll-qa-e2e-spec-gen"
 ---
+
+> **DEPRECATED**: This skill is superseded by ADR-047 spec-driven execution. New features should use ll-qa-e2e-spec-gen which compiles E2E journeys directly from coverage manifests. This skill is retained for backward compatibility only and will be removed in a future release.
 
 # Test Exec Web E2E
 

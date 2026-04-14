@@ -1,3 +1,7 @@
+deprecated: true
+deprecated_since: "2026-04-14"
+superseded_by: "spec-driven execution (ADR-047)"
+state: deprecated
 version: 0.1.0
 states:
   - drafted

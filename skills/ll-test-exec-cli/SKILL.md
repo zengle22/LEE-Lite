@@ -1,7 +1,12 @@
 ---
 name: ll-test-exec-cli
-description: Governed QA execution skill for routing a formal TESTSET plus TestEnvironmentSpec into the canonical CLI execution runtime, then returning a governed response envelope with execution artifacts, candidate registration, and gate handoff refs.
+description: DEPRECATED -- ADR-035 TESTSET-driven CLI execution skill. Superseded by spec-driven execution (ADR-047). Do not use for new features.
+deprecated: true
+deprecated_since: "2026-04-14"
+superseded_by: "spec-driven execution via ll-qa-api-spec-gen + ll-qa-e2e-spec-gen"
 ---
+
+> **DEPRECATED**: This skill is superseded by ADR-047 spec-driven execution. New features should use ll-qa-api-spec-gen and ll-qa-e2e-spec-gen which compile tests directly from coverage manifests, not from TESTSET files. This skill is retained for backward compatibility only and will be removed in a future release.
 
 # Test Exec CLI
 
