@@ -16,7 +16,7 @@ from cli.lib.test_exec_runtime import execute_test_exec_skill
 
 def _skill_handler(ctx: CommandContext):
     ensure(
-        ctx.action in {"impl-spec-test", "test-exec-web-e2e", "test-exec-cli", "gate-human-orchestrator", "failure-capture", "spec-reconcile"},
+        ctx.action in {"impl-spec-test", "test-exec-web-e2e", "test-exec-cli", "gate-human-orchestrator", "failure-capture", "spec-reconcile", "tech-to-impl", "feat-to-apiplan", "prototype-to-e2eplan", "api-manifest-init", "e2e-manifest-init", "api-spec-gen", "e2e-spec-gen", "settlement", "gate-evaluate", "render-testset-view"},
         "INVALID_REQUEST",
         "unsupported skill action",
     )
@@ -63,6 +63,83 @@ def _skill_handler(ctx: CommandContext):
             "canonical_path": result["canonical_path"],
             **result,
         }, [], evidence_refs
+    if ctx.action == "tech-to-impl":
+        from cli.lib.skill_runtime_paths import resolve_skill_scripts_dir
+        from pathlib import Path
+
+        for field in ("impl_ref", "feat_ref", "tech_ref", "arch_ref", "api_ref", "impl_package_ref"):
+            ensure(field in ctx.payload, "INVALID_REQUEST", f"missing skill field: {field}")
+        impl_package_ref = str(ctx.payload["impl_package_ref"]).strip()
+        scripts_dir = resolve_skill_scripts_dir(ctx.workspace_root, "ll-dev-tech-to-impl")
+        import sys
+
+        inserted = False
+        scripts_str = str(scripts_dir.resolve())
+        if scripts_str not in sys.path:
+            sys.path.insert(0, scripts_str)
+            inserted = True
+        try:
+            from tech_to_impl_runtime import run_workflow
+
+            result = run_workflow(
+                input_path=impl_package_ref,
+                feat_ref=str(ctx.payload["feat_ref"]),
+                tech_ref=str(ctx.payload["tech_ref"]),
+                repo_root=ctx.workspace_root,
+                run_id=str(ctx.request["request_id"]),
+                allow_update=True,
+            )
+        finally:
+            if inserted and scripts_str in sys.path:
+                sys.path.remove(scripts_str)
+        evidence_refs = _collect_refs(result)
+        return "OK", "tech-to-impl candidate emitted", {
+            "canonical_path": result["artifacts_dir"],
+            **result,
+        }, [], evidence_refs
+
+    # QA skill actions — Prompt-first via skill's agents/executor.md
+    _QA_SKILL_MAP = {
+        "feat-to-apiplan": ("ll-qa-feat-to-apiplan", "feat_to_apiplan"),
+        "prototype-to-e2eplan": ("ll-qa-prototype-to-e2eplan", "prototype_to_e2eplan"),
+        "api-manifest-init": ("ll-qa-api-manifest-init", "api_manifest_init"),
+        "e2e-manifest-init": ("ll-qa-e2e-manifest-init", "e2e_manifest_init"),
+        "api-spec-gen": ("ll-qa-api-spec-gen", "api_spec_gen"),
+        "e2e-spec-gen": ("ll-qa-e2e-spec-gen", "e2e_spec_gen"),
+        "settlement": ("ll-qa-settlement", "qa_settlement"),
+        "gate-evaluate": ("ll-qa-gate-evaluate", "qa_gate_evaluate"),
+        "render-testset-view": ("render-testset-view", "qa_render_testset"),
+    }
+    if ctx.action in _QA_SKILL_MAP:
+        from cli.lib.skill_runtime_paths import resolve_skill_scripts_dir
+        import sys
+
+        skill_dir_name, runtime_module = _QA_SKILL_MAP[ctx.action]
+        scripts_dir = resolve_skill_scripts_dir(ctx.workspace_root, skill_dir_name)
+        inserted = False
+        scripts_str = str(scripts_dir.resolve())
+        if scripts_str not in sys.path:
+            sys.path.insert(0, scripts_str)
+            inserted = True
+        try:
+            # pylint: disable=import-outside-toplevel
+            from qa_skill_runtime import run_skill
+
+            result = run_skill(
+                action=ctx.action,
+                workspace_root=ctx.workspace_root,
+                payload=ctx.payload,
+                request_id=ctx.request["request_id"],
+            )
+        finally:
+            if inserted and scripts_str in sys.path:
+                sys.path.remove(scripts_str)
+        evidence_refs = _collect_refs(result)
+        return "OK", f"governed {ctx.action} completed", {
+            "canonical_path": result.get("canonical_path", ""),
+            **result,
+        }, [], evidence_refs
+
     payload = ctx.payload
     if ctx.action == "impl-spec-test":
         for field in ("impl_ref", "impl_package_ref", "feat_ref", "tech_ref"):
