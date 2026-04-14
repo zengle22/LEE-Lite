@@ -396,22 +396,16 @@ _QA_SKILL_MAP = {
 | A3 | Python is invoked as `python` on the target machine (not `python3`) | Environment Availability | Windows uses `python`; scripts using `python3` would fail. Phase 2 uses `python -m cli` consistently [VERIFIED: command.py] |
 | A4 | `release_gate_input.yaml` needs a separate schema type in qa_schemas.py (not currently in _VALIDATORS) | Pitfall 1 | Gate validate_output.sh would have no schema type to use; can fall back to key-existence checks in shell |
 
-## Open Questions
+## Open Questions (RESOLVED)
 
 1. **What exact schema should release_gate_input.yaml conform to?**
-   - What we know: ADR-047 §9.5 and §10.3 define the structure with `api`, `e2e`, `final_decision` fields
-   - What's unclear: Whether a `validate_gate()` function should be added to `qa_schemas.py` or validate_output.sh should use key-existence checks
-   - Recommendation: Add a lightweight `validate_gate()` to `qa_schemas.py` that checks required top-level keys and enum values, consistent with existing validator pattern
+   - Resolution: Add a lightweight `validate_gate()` to `qa_schemas.py` that checks required top-level keys (`api`, `e2e`, `final_decision`) and enum values. The `final_decision` must be one of `release`, `conditional_release`, `block`. Each chain sub-object must have `status` (pass|conditional_pass|fail), `uncovered_count`, `failed_count`, `blocked_count`.
 
 2. **Does render-testset-view need to produce the EXACT old testset format?**
-   - What we know: Old testset files exist at `.local/adr018-skill-trial/real-001/artifacts/active/formal/testset/testset-real-001-*.json`
-   - What's unclear: Whether the render skill should produce JSON or YAML, and whether it should match the exact legacy schema
-   - Recommendation: Plan should read one old testset example to understand the exact output format, then define the render skill's output contract accordingly
+   - Resolution: Yes, it must produce the exact old testset JSON format for backward compatibility. The render skill should read one old testset example (from `.local/adr018-skill-trial/`) to understand the output schema, then produce identical-structure JSON. Output format: JSON (matching legacy), not YAML.
 
 3. **Should settlement output be one file per chain or combined?**
-   - What we know: SKILL.md shows `api-settlement-report.yaml` and `e2e-settlement-report.yaml` as separate files
-   - What's unclear: Whether run.sh should process both chains in one invocation or two separate invocations
-   - Recommendation: One run.sh invocation per chain via `--chain` flag, producing one file each — consistent with the schema which has `chain: api|e2e` enum
+   - Resolution: One run.sh invocation per chain via `--chain api` or `--chain e2e` flag, producing one file each (`api-settlement-report.yaml` or `e2e-settlement-report.yaml`). This matches the schema which has `chain: api|e2e` enum and keeps each invocation focused.
 
 ## Environment Availability
 

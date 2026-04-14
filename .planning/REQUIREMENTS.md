@@ -12,7 +12,7 @@
 ### Skill Completion
 
 - [ ] **REQ-02**: ADR-047 设计层 6 个技能补上 Prompt-first 运行时（scripts/agents/validate）
-- [ ] **REQ-03**: 结算/执行层 3 个技能 + ll-skill-install + ll-dev-feat-to-tech 补全实现
+- [ ] **REQ-03**: 结算/执行层 3 个技能（ll-qa-settlement + ll-qa-gate-evaluate + render-testset-view）补全 Prompt-first 运行时
 
 ### Pilot
 
