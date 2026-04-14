@@ -1,0 +1,29 @@
+# Input Contract: render-testset-view
+
+## Required Inputs
+
+At least one complete chain (API or E2E) must be provided with all 4 artifacts.
+
+### API Chain (optional — but all 4 required if any provided)
+- api_plan_path: Path to api-test-plan.yaml
+- api_manifest_path: Path to api-coverage-manifest.yaml
+- api_spec_path: Path to api-test-spec directory or file
+- api_settlement_path: Path to api-settlement-report.yaml
+
+### E2E Chain (optional — but all 4 required if any provided)
+- e2e_plan_path: Path to e2e-test-plan.yaml
+- e2e_manifest_path: Path to e2e-coverage-manifest.yaml
+- e2e_spec_path: Path to e2e-test-spec directory or file
+- e2e_settlement_path: Path to e2e-settlement-report.yaml
+
+### Output
+- output_path: Path to write rendered testset view JSON (default: ${WORKSPACE}/ssot/tests/.artifacts/testset-view.json)
+- workspace: Workspace root directory (default: $PWD)
+
+## Input Validation
+- [ ] At least one complete chain (API or E2E) has all 4 artifacts
+- [ ] All provided file paths point to existing files
+- [ ] Plan files conform to api_test_plan schema
+- [ ] Manifest files conform to api_coverage_manifest schema
+- [ ] Spec files conform to api_test_spec schema
+- [ ] Settlement files conform to settlement_report schema

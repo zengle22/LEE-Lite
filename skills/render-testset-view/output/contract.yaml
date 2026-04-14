@@ -1,0 +1,48 @@
+# Output Contract: render-testset-view
+
+## Required Output
+- JSON file at specified output_path (default: ${WORKSPACE}/ssot/tests/.artifacts/testset-view.json)
+
+## Output Schema
+```json
+{
+  "assigned_id": "string — derived from feature_id, e.g. TESTSET-FEAT-001",
+  "test_set_ref": "string — matching assigned_id",
+  "title": "string — human-readable title from feat or feature_id",
+  "functional_areas": [
+    {
+      "name": "string — API object / capability group name",
+      "coverage_count": "number — total coverage items in this area",
+      "passed_count": "number — items with lifecycle_status=passed",
+      "failed_count": "number — items with lifecycle_status=failed"
+    }
+  ],
+  "coverage_matrix": [
+    {
+      "coverage_id": "string — from manifest item",
+      "capability": "string — from manifest item",
+      "lifecycle_status": "string — from manifest item (designed|passed|failed|blocked|cut)",
+      "passed": "boolean — true if lifecycle_status=passed",
+      "failed": "boolean — true if lifecycle_status=failed"
+    }
+  ],
+  "logic_dimensions": {
+    "p0_count": "number",
+    "p1_count": "number",
+    "p2_count": "number"
+  },
+  "generation_metadata": {
+    "generated_at": "ISO timestamp",
+    "source_artifacts": ["array of input file paths used"]
+  }
+}
+```
+
+## Quality Checks
+- [ ] assigned_id is a non-empty string
+- [ ] test_set_ref matches assigned_id
+- [ ] title is a non-empty string
+- [ ] functional_areas is a non-empty array
+- [ ] coverage_matrix entries have coverage_id and lifecycle_status fields
+- [ ] Statistics are consistent with input settlement report
+- [ ] Output is valid JSON

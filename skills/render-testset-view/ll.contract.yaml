@@ -1,0 +1,23 @@
+skill: render-testset-view
+version: "1.0"
+adr: ADR-047
+category: qa
+chain: backward-compatibility
+phase: view-generation
+---
+states:
+  drafted:
+    description: Output view drafted from input artifacts
+    transitions: [structurally_validated]
+  structurally_validated:
+    description: Output JSON validated against legacy testset schema
+    transitions: [semantically_reviewed]
+  semantically_reviewed:
+    description: Supervisor reviewed coverage consistency
+    transitions: [accepted, drafted]
+  accepted:
+    description: View accepted for consumption by old testset consumers
+    transitions: [frozen]
+  frozen:
+    description: View frozen — immutable artifact for release
+    transitions: []

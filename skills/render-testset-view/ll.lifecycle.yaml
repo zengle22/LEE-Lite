@@ -1,0 +1,8 @@
+skill: render-testset-view
+version: "1.0"
+state: draft
+lifecycle_states:
+  - draft
+  - validated
+  - executed
+  - frozen
