@@ -12,6 +12,12 @@
 
 **Requirements:** REQ-01
 
+**Plans:** 2 plans
+
+Plans:
+- [ ] 01-01-PLAN.md — 定义 4 个 YAML schema 文件（plan/manifest/spec/settlement）
+- [ ] 01-02-PLAN.md — Python dataclass 验证器 + 样例文件 + 单元测试
+
 **Success Criteria:**
 1. `ssot/schemas/qa/` 目录下有 4 个 schema 文件（plan.yaml, manifest.yaml, spec.yaml, settlement.yaml）
 2. 每个 schema 包含 ADR-047 §4 定义的所有核心字段
@@ -106,7 +112,7 @@
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| REQ-01: QA 统一 schema 定义 | Phase 1 | Pending |
+| REQ-01: QA 统一 schema 定义 | Phase 1 | Planned |
 | REQ-02: ADR-047 设计层 6 技能补全 | Phase 2 | Pending |
 | REQ-03: 结算/执行层 3 技能 + 额外 2 技能补全 | Phase 3 | Pending |
 | REQ-04: 试点跑通 API 链全流程 | Phase 4 | Pending |
@@ -120,3 +126,4 @@
 
 ---
 *Roadmap defined: 2026-04-14*
+*Last updated: 2026-04-14 after Phase 1 planning*
