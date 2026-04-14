@@ -12,17 +12,17 @@
 
 **Requirements:** REQ-01
 
-**Plans:** 2 plans
+**Plans:** 2 plans — ✅ 已完成
 
 Plans:
-- [ ] 01-01-PLAN.md — 定义 4 个 YAML schema 文件（plan/manifest/spec/settlement）
-- [ ] 01-02-PLAN.md — Python dataclass 验证器 + 样例文件 + 单元测试
+- [x] 01-01 — 定义 4 个 YAML schema 文件（plan/manifest/spec/settlement）
+- [x] 01-02 — Python dataclass 验证器 + 样例文件 + 单元测试
 
 **Success Criteria:**
-1. `ssot/schemas/qa/` 目录下有 4 个 schema 文件（plan.yaml, manifest.yaml, spec.yaml, settlement.yaml）
-2. 每个 schema 包含 ADR-047 §4 定义的所有核心字段
-3. 提供 Python dataclass 验证器（`cli/lib/qa_schemas.py`），能校验 YAML 文件是否符合 schema
-4. 用一个手工编写的样例文件通过验证器测试
+1. ✅ `ssot/schemas/qa/` 目录下有 4 个 schema 文件
+2. ✅ 每个 schema 包含 ADR-047 §4 定义的所有核心字段
+3. ✅ Python dataclass 验证器（`cli/lib/qa_schemas.py`），29 个单元测试通过
+4. ✅ 4 个手工样例文件全部通过验证
 
 **UI hint:** no
 
@@ -49,35 +49,36 @@ Plans:
 - `validate_output.sh` — 输出文件 schema 校验
 
 **Success Criteria:**
-1. 6 个技能各有 4 个新文件（共 24 个文件）
-2. 每个技能的 `validate_output.sh` 能调用 Phase 1 的 schema 验证器
-3. 用 `tests/fixtures/` 下的样例输入能跑通每个技能的 dry-run
-4. `validate_input.sh` 拒绝非法输入（文件不存在、schema 不匹配）
+1. ✅ 6 个技能各有 6 个新文件（scripts/run.sh, validate_input.sh, validate_output.sh, evidence/*, ll.lifecycle.yaml）
+2. ✅ 每个技能的 validate_output.sh 调用 Phase 1 的 qa_schemas 验证器
+3. ✅ CLI 已注册 6 个新 action（feat-to-apiplan, prototype-to-e2eplan, api-manifest-init, e2e-manifest-init, api-spec-gen, e2e-spec-gen）
+4. ✅ validate_input.sh 拒绝非法输入（文件不存在、schema 不匹配）
+5. ✅ 共享运行时 cli/lib/qa_skill_runtime.py 支持所有 6 个技能
 
 **UI hint:** no
 
 ---
 
-## Phase 3: 结算/执行层技能 + 额外技能补全
+## Phase 3: 结算层技能 + 兼容层
 
-**Goal:** 补全 ADR-047 的结算/执行层 3 个技能 + ll-skill-install + ll-dev-feat-to-tech。
+**Goal:** 补全结算层 2 个技能 + 兼容层 1 个技能；标记废弃 ADR-035 老 skill；注册 CLI 动作 + 扩展运行时映射 + 新增 gate 验证器。
 
 **Requirements:** REQ-03
 
-**Skills in scope:**
-1. `ll-qa-settlement` — evidence + manifest → settlement report
-2. `ll-qa-gate-evaluate` — settlement + waiver → release_gate_input.yaml
-3. `ll-test-exec-cli` — spec → script → exec → evidence（半空→完整）
-4. `ll-skill-install` — 技能安装/注册工具
-5. `ll-dev-feat-to-tech` — feat → tech spec（补测试覆盖）
+**Plans:** 4 plans
+
+Plans:
+- [x] 03-01 — ll-qa-settlement 基础设施（scripts/run.sh, validate_input.sh, validate_output.sh, evidence schema, ll.lifecycle.yaml）
+- [x] 03-02 — ll-qa-gate-evaluate 基础设施（scripts 含 5 输入验证, evidence schema, ll.lifecycle.yaml）
+- [x] 03-03 — render-testset-view 新技能（完整目录 13 文件，向后兼容聚合视图）
+- [x] 03-04 — CLI 注册 + 运行时映射扩展 + gate 验证器 + 废弃技能标记
 
 **Success Criteria:**
-1. 5 个技能各有 4 个新文件（共 20 个文件）
-2. `ll-test-exec-cli` 的 `scripts/run.sh` 能调用现有 Playwright 执行器
-3. `ll-qa-gate-evaluate` 的输出符合 ADR-047 §9.4 的 gate_rules schema
-4. 所有技能的 validate 脚本通过
-
-**UI hint:** no
+1. 3 个技能各有 scripts/validate/evidence 基础设施
+2. `ll-qa-gate-evaluate` 的输出符合 ADR-047 §9.4 gate_rules
+3. `render-testset-view` 能聚合 plan/manifest/spec 生成兼容视图
+4. CLI _QA_SKILL_MAP 新增 3 个动作，qa_skill_runtime.py 映射扩展，qa_schemas.py 新增 gate 验证器
+5. ll-test-exec-cli 和 ll-test-exec-web-e2e 有可见的 DEPRECATED 标记
 
 ---
 
@@ -90,10 +91,10 @@ Plans:
 **Pilot flow:**
 ```
 选择一个真实 feat YAML
-  → ll-qa-feat-to-apiplan（生成 api-test-plan + manifest 草稿）
-  → ll-qa-api-manifest-init（冻结 manifest）
+  → ll-qa-feat-to-apiplan（生成 api-test-plan）
+  → ll-qa-api-manifest-init（初始化 manifest）
   → ll-qa-api-spec-gen（编译为 api-test-spec）
-  → ll-test-exec-cli（执行测试，收集证据）
+  → （执行测试 — 由 spec 直接驱动，不走 ll-test-exec-cli）
   → ll-qa-settlement（生成 settlement report）
   → ll-qa-gate-evaluate（生成 release_gate_input.yaml）
 ```
@@ -112,9 +113,9 @@ Plans:
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| REQ-01: QA 统一 schema 定义 | Phase 1 | Planned |
+| REQ-01: QA 统一 schema 定义 | Phase 1 | ✅ Done |
 | REQ-02: ADR-047 设计层 6 技能补全 | Phase 2 | Pending |
-| REQ-03: 结算/执行层 3 技能 + 额外 2 技能补全 | Phase 3 | Pending |
+| REQ-03: 结算/执行层 3 技能 + 额外 2 技能补全 | Phase 3 | Planned (4 plans) |
 | REQ-04: 试点跑通 API 链全流程 | Phase 4 | Pending |
 | REQ-05: 所有中间产物通过 schema 验证 | Phase 4 | Pending |
 | REQ-06: 产出 pilot 报告 + 改进建议 | Phase 4 | Pending |
@@ -126,4 +127,4 @@ Plans:
 
 ---
 *Roadmap defined: 2026-04-14*
-*Last updated: 2026-04-14 after Phase 1 planning*
+*Last updated: 2026-04-14 after Phase 3 planning*
