@@ -1,0 +1,35 @@
+settlement_report:
+  chain: "e2e"
+  summary:
+    total_capability_count: 0
+    total_coverage_item_count: 0
+    mapped_count: 0
+    generated_count: 0
+    executed_count: 0
+    passed_count: 0
+    failed_count: 0
+    blocked_count: 0
+    uncovered_count: 0
+  by_capability: []
+  by_feature_ref: []
+  evidence_completeness:
+    total_evidence_required: 0
+    evidence_provided: 0
+    missing_evidence_count: 0
+    completeness_pct: 100.0
+  gap_list: []
+  waiver_list: []
+  verdict:
+    conclusion: "pass"
+    release_recommendation: "release"
+    notes: "E2E stub for pilot — no E2E coverage in scope for API-only pilot"
+  gate_evaluation:
+    all_p0_mapped: true
+    all_p1_mapped: true
+    all_p0_executed: true
+    all_p1_executed: true
+    evidence_for_all_executed: true
+    unwaived_failed_count: 0
+    unwaived_blocked_count: 0
+    unwaived_p0_uncovered_count: 0
+    gate_result: "pass"

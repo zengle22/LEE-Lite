@@ -1,0 +1,33 @@
+gate_evaluation:
+  evaluated_at: "2026-04-15T12:07:00Z"
+  feature_id: "feat-pilot-001"
+  source_manifest_ref: "ssot/tests/api/FEAT-PILOT-001/api-coverage-manifest.yaml"
+  source_settlement_ref: "ssot/tests/.artifacts/settlement/api-pilot-settlement-report.yaml"
+  evidence_hash: "1678fd8c32214d7301eff1a1e568a2d87b77314fbfe28e1e9a324172eb5ab5e8"
+  final_decision: "fail"
+  anti_laziness_checks:
+    manifest_frozen: true
+    cut_records_valid: true
+    pending_waivers_counted: true
+    evidence_consistent: true
+    min_exception_coverage: true
+    no_evidence_not_executed: true
+    evidence_hash_binding: true
+  api_chain:
+    total: 8
+    passed: 7
+    failed: 1
+    blocked: 0
+    uncovered: 0
+    pass_rate: 0.875
+    evidence_status: "complete"
+  e2e_chain:
+    total: 0
+    passed: 0
+    failed: 0
+    blocked: 0
+    uncovered: 0
+    pass_rate: 1.0
+    evidence_status: "complete"
+    exception_journeys_executed: 0
+  decision_reason: "API chain pilot: 1 failed item (api.feedback.submit.validation) with pending waiver. The failed item has a pending waiver_status which per anti-laziness check pending_waivers_counted is counted as failed. Final decision is fail per gate rules: unwaived_failed_count > 0."
