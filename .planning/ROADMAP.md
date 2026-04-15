@@ -103,6 +103,36 @@ Plans:
 
 ---
 
+## Phase 5: 生成层与执行层补全
+
+**Goal:** 补全 ADR-047 §11.1 定义的生成层和执行层技能，闭合 spec → generation → execution → evidence → settlement 全链。
+
+**Requirements:** REQ-07
+**Depends on:** Phase 2 (spec infrastructure), Phase 4 (pilot validation)
+**Plans:** 5 plans — Wave 1 (infra), Wave 2 (API gen + E2E gen), Wave 3 (API exec), Wave 4 (E2E exec + CLI)
+
+Plans:
+- [ ] 05-01 — Infrastructure prep: E2E spec schema + evidence schema + manifest backfill module
+- [ ] 05-02 — ll-qa-api-spec-to-tests: frozen api-test-spec → pytest 脚本生成
+- [ ] 05-03 — ll-qa-api-test-exec: 执行 pytest 脚本 → evidence YAML → manifest 回填
+- [ ] 05-04 — ll-qa-e2e-spec-to-tests: frozen e2e-journey-spec → Playwright 脚本生成
+- [ ] 05-05 — ll-qa-e2e-test-exec: 执行 Playwright 脚本 → evidence YAML + CLI 注册 4 个 action
+
+**Success Criteria:**
+1. 2 个生成层 skill + 2 个执行层 skill，均有完整运行时
+2. `ll-qa-api-spec-to-tests` 从冻结的 api-test-spec 生成合法 pytest 脚本
+3. `ll-qa-e2e-spec-to-tests` 从冻结的 e2e-journey-spec 生成合法 Playwright 脚本
+4. `ll-qa-api-test-exec` 执行生成后的脚本并产出证据 YAML
+5. `ll-qa-e2e-test-exec` 执行生成后的脚本并产出证据 YAML
+6. CLI 注册 4 个新 action，ll.py 全部更新
+7. 全链验证通过：spec → generation → execution → evidence → settlement（非模拟）
+8. 证据文件符合 ADR-047 §6.3 要求
+9. 结算报告消费真实证据（非模拟）
+
+**UI hint:** no
+
+---
+
 ## Requirement Traceability
 
 | Requirement | Phase | Status |
@@ -113,14 +143,15 @@ Plans:
 | REQ-04: 试点跑通 API 链全流程 | Phase 4 | ✅ Done |
 | REQ-05: 所有中间产物通过 schema 验证 | Phase 4 | ✅ Done |
 | REQ-06: 产出 pilot 报告 + 改进建议 | Phase 4 | ✅ Done |
+| REQ-07: 生成层 + 执行层技能 + 真实执行闭环 | Phase 5 | Planned |
 
 **Coverage:**
-- v1 requirements: 6 total
-- Mapped to phases: 6
+- v1 requirements: 7 total
+- Mapped to phases: 7
 - Unmapped: 0
 
 ---
 *Roadmap defined: 2026-04-14*
 *Last updated: 2026-04-14 after Phase 3 planning*
 *Last updated: 2026-04-15 after Phase 4 planning*
-*Last updated: 2026-04-15 all phases complete — 100%
+*Last updated: 2026-04-15 Phase 5 planned — 5 plans across 4 waves*
