@@ -1,0 +1,42 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Execution Evidence",
+  "description": "Schema for ll-qa-e2e-test-exec execution evidence",
+  "type": "object",
+  "required": ["skill", "version", "run_id", "started_at", "completed_at", "status", "results"],
+  "properties": {
+    "skill": { "type": "string", "const": "ll-qa-e2e-test-exec" },
+    "version": { "type": "string" },
+    "run_id": { "type": "string" },
+    "started_at": { "type": "string", "format": "date-time" },
+    "completed_at": { "type": "string", "format": "date-time" },
+    "status": { "type": "string", "enum": ["success", "failed", "error"] },
+    "results": {
+      "type": "object",
+      "required": ["total", "passed", "failed", "error"],
+      "properties": {
+        "total": { "type": "integer", "minimum": 0 },
+        "passed": { "type": "integer", "minimum": 0 },
+        "failed": { "type": "integer", "minimum": 0 },
+        "error": { "type": "integer", "minimum": 0 },
+        "cases": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["coverage_id", "status"],
+            "properties": {
+              "coverage_id": { "type": "string" },
+              "case_id": { "type": "string" },
+              "status": { "type": "string", "enum": ["passed", "failed", "error"] },
+              "evidence_path": { "type": "string" },
+              "duration_seconds": { "type": "number" }
+            }
+          }
+        }
+      }
+    },
+    "evidence_dir": { "type": "string" },
+    "manifest_path": { "type": "string" },
+    "manifest_updated": { "type": "boolean" }
+  }
+}

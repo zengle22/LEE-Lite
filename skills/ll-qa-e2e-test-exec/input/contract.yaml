@@ -1,0 +1,6 @@
+input:
+  spec_path: string      # path to e2e-journey-spec YAML (for evidence_required validation)
+  test_dir: string       # directory containing generated Playwright .spec.ts files
+  manifest_path: string  # path to api-coverage-manifest.yaml
+  output_dir: string     # evidence output directory (optional)
+  target_url: string     # browser target URL for test execution (optional)

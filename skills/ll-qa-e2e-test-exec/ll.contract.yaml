@@ -1,0 +1,7 @@
+skill: ll-qa-e2e-test-exec
+version: "1.0"
+adr: ADR-047
+category: execution
+chain: e2e
+phase: 5
+description: "generated Playwright .spec.ts -> evidence YAML + manifest backfill"
