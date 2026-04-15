@@ -1,133 +1,140 @@
-# Roadmap: ADR-047 双链测试技能实施 + 骨架补全
+# Roadmap: ADR-049 Experience Patch Layer Implementation
 
-**Created:** 2026-04-14
-**Granularity:** Standard (4 phases, 3-5 plans each)
-**Total Requirements:** 6
+**Created:** 2026-04-16
+**Milestone:** v1.0-adr049
+**Granularity:** Standard (7 phases, MVP-first)
+**Total Requirements:** 7 + 4 NFRs
 
 ---
 
-## Phase 1: QA Schema 定义
+## Phase 1: Patch Schema + 目录结构
 
-**Goal:** 建立统一的 QA 测试治理 schema（plan/manifest/spec/settlement 四层资产结构），作为所有 11 个技能的真理源。
+**Goal:** 定义 Patch YAML schema 和目录规范，为所有后续工作奠定基础。
 
-**Requirements:** REQ-01
-
-**Plans:** 2 plans — ✅ 已完成
-
-Plans:
-- [x] 01-01 — 定义 4 个 YAML schema 文件（plan/manifest/spec/settlement）
-- [x] 01-02 — Python dataclass 验证器 + 样例文件 + 单元测试
+**Requirements:** REQ-PATCH-01
 
 **Success Criteria:**
-1. ✅ `ssot/schemas/qa/` 目录下有 4 个 schema 文件
-2. ✅ 每个 schema 包含 ADR-047 §4 定义的所有核心字段
-3. ✅ Python dataclass 验证器（`cli/lib/qa_schemas.py`），29 个单元测试通过
-4. ✅ 4 个手工样例文件全部通过验证
+1. `ssot/schemas/qa/patch.yaml` 存在且包含所有必填/选填字段
+2. `.artifacts/` 目录结构示例已创建（含 README 说明）
+3. `patch_registry.json` schema 已定义
+4. Python schema 验证器（`cli/lib/patch_schema.py`）通过单元测试
 
 **UI hint:** no
 
 ---
 
-## Phase 2: ADR-047 设计层技能补全
+## Phase 2: Patch 登记 Skill
 
-**Goal:** 为 ADR-047 的 6 个设计层技能补上 Prompt-first 运行时（scripts/agents/validate）。
+**Goal:** 创建 `ll-experience-patch-register` 技能，支持双路径登记（Prompt-to-Patch + Document-to-SRC）。
 
-**Requirements:** REQ-02
+**Requirements:** REQ-PATCH-02
+**Depends on:** Phase 1 (schema ready)
 
-**Skills in scope:**
-1. `ll-qa-feat-to-apiplan` — feat → api-test-plan + manifest 草稿
-2. `ll-qa-prototype-to-e2eplan` — prototype → e2e-journey-plan + manifest 草稿
-3. `ll-qa-api-manifest-init` — plan → coverage manifest 初始化
-4. `ll-qa-e2e-manifest-init` — plan → coverage manifest 初始化
-5. `ll-qa-api-spec-gen` — manifest → api-test-spec 编译
-6. `ll-qa-e2e-spec-gen` — manifest → e2e-journey-spec 编译
-
-**Each skill gets:**
-- `scripts/run.sh` — Claude Code CLI 子代理调用 wrapper
-- `agents/executor.md` — LLM prompt 模板（输入/输出格式定义）
-- `validate_input.sh` — 输入文件存在性与 schema 校验
-- `validate_output.sh` — 输出文件 schema 校验
+**Skill gets:**
+- `scripts/run.sh` — Claude Code 子代理调用 wrapper
+- `agents/executor.md` — LLM prompt 模板
+- `validate_input.sh` — 输入验证
+- `validate_output.sh` — 输出 schema 校验
+- `ll.lifecycle.yaml` — 生命周期定义
 
 **Success Criteria:**
-1. ✅ 6 个技能各有 6 个新文件（scripts/run.sh, validate_input.sh, validate_output.sh, evidence/*, ll.lifecycle.yaml）
-2. ✅ 每个技能的 validate_output.sh 调用 Phase 1 的 qa_schemas 验证器
-3. ✅ CLI 已注册 6 个新 action（feat-to-apiplan, prototype-to-e2eplan, api-manifest-init, e2e-manifest-init, api-spec-gen, e2e-spec-gen）
-4. ✅ validate_input.sh 拒绝非法输入（文件不存在、schema 不匹配）
-5. ✅ 共享运行时 cli/lib/qa_skill_runtime.py 支持所有 6 个技能
+1. 技能文件结构完整（run.sh + executor.md + validate + lifecycle）
+2. Prompt-to-Patch 路径可工作：用户描述 → 生成合法 YAML
+3. `patch_registry.json` 自动更新
+4. CLI 已注册 `patch-register` 动作
 
 **UI hint:** no
 
 ---
 
-## Phase 3: 结算层技能 + 兼容层
+## Phase 3: 结算 Skill + 回写工具
 
-**Goal:** 补全结算层 2 个技能 + 兼容层 1 个技能；标记废弃 ADR-035 老 skill；注册 CLI 动作 + 扩展运行时映射 + 新增 gate 验证器。
+**Goal:** 创建 `ll-experience-patch-settle` 技能，实现批量回写 SSOT。
 
-**Requirements:** REQ-03
+**Requirements:** REQ-PATCH-03
+**Depends on:** Phase 1 (schema), Phase 2 (patch registry)
 
-**Plans:** 4 plans
-
-Plans:
-- [x] 03-01 — ll-qa-settlement 基础设施（scripts/run.sh, validate_input.sh, validate_output.sh, evidence schema, ll.lifecycle.yaml）
-- [x] 03-02 — ll-qa-gate-evaluate 基础设施（scripts 含 5 输入验证, evidence schema, ll.lifecycle.yaml）
-- [x] 03-03 — render-testset-view 新技能（完整目录 13 文件，向后兼容聚合视图）
-- [x] 03-04 — CLI 注册 + 运行时映射扩展 + gate 验证器 + 废弃技能标记
-
-**Success Criteria:**
-1. ✅ 3 个技能各有 scripts/validate/evidence 基础设施
-2. ✅ `ll-qa-gate-evaluate` 的输出符合 ADR-047 §9.4 gate_rules
-3. ✅ `render-testset-view` 能聚合 plan/manifest/spec 生成兼容视图
-4. ✅ CLI _QA_SKILL_MAP 新增 3 个动作，qa_skill_runtime.py 映射扩展，qa_schemas.py 新增 gate 验证器
-5. ✅ ll-test-exec-cli 和 ll-test-exec-web-e2e 有可见的 DEPRECATED 标记
-
----
-
-## Phase 4: API 链全流程试点
-
-**Goal:** 创建最小 feat YAML，跑通完整 API 测试链（plan → manifest → spec → simulated exec → evidence → settlement → gate），验证双链治理设计可执行，产出 pilot 报告。
-
-**Requirements:** REQ-04, REQ-05, REQ-06
-
-**Plans:** 1 plan
-
-Plans:
-- [x] 04-01 — 端到端试点：创建最小 feat → 设计链（plan/manifest/spec）→ 模拟执行 + 证据 → 结算 → gate 评估 → pilot 报告
+**Skill gets:**
+- `scripts/run.sh` — 批量结算 wrapper
+- `agents/executor.md` — LLM prompt（回写草稿生成）
+- `validate_input.sh` — 验证 pending_backwrite Patch 存在
+- `validate_output.sh` — 验证结算报告完整性
+- `ll.lifecycle.yaml` — 生命周期定义
 
 **Success Criteria:**
-1. ✅ 整条链无手工干预（除 LLM 子代理调用外）自动跑通
-2. ✅ 每个中间产物文件通过对应 schema 验证
-3. ✅ `release_gate_input.yaml` 包含正确的 pass/fail/coverage 统计
-4. ✅ 试点结果写入 `.planning/pilot-report.md`，记录所有问题和改进建议
+1. 技能文件结构完整
+2. 能按 change_type 分类回写（visual→TECH, interaction→UI, semantic→FEAT）
+3. 生成 resolved_patches.yaml 结算报告
+4. 回写草稿生成后需人工审核确认
 
 **UI hint:** no
 
 ---
 
-## Phase 5: 生成层与执行层补全
+## Phase 4: 测试联动规则
 
-**Goal:** 补全 ADR-047 §11.1 定义的生成层和执行层技能，闭合 spec → generation → execution → evidence → settlement 全链。
+**Goal:** 实现 Patch → TESTSET 同步机制，Patch-aware Harness 适配。
 
-**Requirements:** REQ-07
-**Depends on:** Phase 2 (spec infrastructure), Phase 4 (pilot validation)
-**Plans:** 5 plans — Wave 1 (infra), Wave 2 (API gen + E2E gen), Wave 3 (API exec), Wave 4 (E2E exec + CLI)
-
-Plans:
-- [ ] 05-01 — Infrastructure prep: E2E spec schema + evidence schema + manifest backfill module
-- [ ] 05-02 — ll-qa-api-spec-to-tests: frozen api-test-spec → pytest 脚本生成
-- [ ] 05-03 — ll-qa-api-test-exec: 执行 pytest 脚本 → evidence YAML → manifest 回填
-- [ ] 05-04 — ll-qa-e2e-spec-to-tests: frozen e2e-journey-spec → Playwright 脚本生成
-- [ ] 05-05 — ll-qa-e2e-test-exec: 执行 Playwright 脚本 → evidence YAML + CLI 注册 4 个 action
+**Requirements:** REQ-PATCH-04
+**Depends on:** Phase 1 (test_impact field in schema)
 
 **Success Criteria:**
-1. 2 个生成层 skill + 2 个执行层 skill，均有完整运行时
-2. `ll-qa-api-spec-to-tests` 从冻结的 api-test-spec 生成合法 pytest 脚本
-3. `ll-qa-e2e-spec-to-tests` 从冻结的 e2e-journey-spec 生成合法 Playwright 脚本
-4. `ll-qa-api-test-exec` 执行生成后的脚本并产出证据 YAML
-5. `ll-qa-e2e-test-exec` 执行生成后的脚本并产出证据 YAML
-6. CLI 注册 4 个新 action，ll.py 全部更新
-7. 全链验证通过：spec → generation → execution → evidence → settlement（非模拟）
-8. 证据文件符合 ADR-047 §6.3 要求
-9. 结算报告消费真实证据（非模拟）
+1. test_impact 字段在 Patch schema 中必填
+2. test_impact != none 时自动标记 TESTSET 为 needs_review
+3. Harness 执行前读取 active/resolved Patch 信息
+4. 测试验证逻辑合并 Patch 的 test_impact
+
+**UI hint:** no
+
+---
+
+## Phase 5: AI Context 注入
+
+**Goal:** AI 生成代码前自动注入 Patch 上下文，防止覆盖已有优化。
+
+**Requirements:** REQ-PATCH-05
+**Depends on:** Phase 1 (schema), Phase 2 (patch registry)
+
+**Success Criteria:**
+1. Patch context 文件生成器可工作
+2. 合并 active/resolved Patch 为 patch-context.yaml
+3. Skill executor.md 中集成 context injection 步骤
+4. AI 基于 "SSOT + Patches" 生成代码
+
+**UI hint:** no
+
+---
+
+## Phase 6: Hook 集成
+
+**Goal:** PreToolUse hook 自动触发 Patch 登记，减少人工操作。
+
+**Requirements:** REQ-PATCH-06
+**Depends on:** Phase 2 (patch register skill exists)
+
+**Success Criteria:**
+1. PreToolUse hook 配置完成（Edit 操作）
+2. 检测体验期文件变更自动提示 Patch 登记
+3. 用户确认后自动生成 Patch YAML
+4. 白名单机制工作（非体验期文件不触发）
+
+**UI hint:** no
+
+---
+
+## Phase 7: 24h Blocking 机制
+
+**Goal:** 结算计时器 + 超时 blocking + 审计告警。
+
+**Requirements:** REQ-PATCH-07
+**Depends on:** Phase 3 (settlement skill)
+
+**Success Criteria:**
+1. 从第一个 active Patch 创建开始计时
+2. 24h 后未结算 → 标记 BLOCKED 状态
+3. BLOCKED 状态下禁止新 Patch 登记
+4. 任一触发条件（24h / >10 patches / 手动）触发结算
+5. 审计日志记录 BLOCKED 状态
 
 **UI hint:** no
 
@@ -137,21 +144,18 @@ Plans:
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| REQ-01: QA 统一 schema 定义 | Phase 1 | ✅ Done |
-| REQ-02: ADR-047 设计层 6 技能补全 | Phase 2 | ✅ Done |
-| REQ-03: 结算/执行层 3 技能 + 额外 2 技能补全 | Phase 3 | ✅ Done |
-| REQ-04: 试点跑通 API 链全流程 | Phase 4 | ✅ Done |
-| REQ-05: 所有中间产物通过 schema 验证 | Phase 4 | ✅ Done |
-| REQ-06: 产出 pilot 报告 + 改进建议 | Phase 4 | ✅ Done |
-| REQ-07: 生成层 + 执行层技能 + 真实执行闭环 | Phase 5 | Planned |
+| REQ-PATCH-01: Patch Schema + 目录结构 | Phase 1 | Pending |
+| REQ-PATCH-02: Patch 登记 Skill | Phase 2 | Pending |
+| REQ-PATCH-03: 结算 Skill + 回写工具 | Phase 3 | Pending |
+| REQ-PATCH-04: 测试联动规则 | Phase 4 | Pending |
+| REQ-PATCH-05: AI Context 注入 | Phase 5 | Pending |
+| REQ-PATCH-06: Hook 集成 | Phase 6 | Pending |
+| REQ-PATCH-07: 24h Blocking 机制 | Phase 7 | Pending |
 
 **Coverage:**
-- v1 requirements: 7 total
+- v1.0-adr049 requirements: 7 total + 4 NFRs
 - Mapped to phases: 7
 - Unmapped: 0
 
 ---
-*Roadmap defined: 2026-04-14*
-*Last updated: 2026-04-14 after Phase 3 planning*
-*Last updated: 2026-04-15 after Phase 4 planning*
-*Last updated: 2026-04-15 Phase 5 planned — 5 plans across 4 waves*
+*Roadmap defined: 2026-04-16*

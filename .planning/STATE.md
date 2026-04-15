@@ -1,47 +1,55 @@
 ---
 gsd_state_version: 1.0
-milestone: v1.0
-milestone_name: milestone
-status: completed
-last_updated: "2026-04-15T12:45:00Z"
+milestone: v1.0-adr049
+milestone_name: ADR-049 Experience Patch Layer Implementation
+status: initialized
+last_updated: "2026-04-15T23:54:00.000Z"
 progress:
-  total_phases: 4
-  completed_phases: 4
-  total_plans: 7
-  completed_plans: 7
-  percent: 100
+  total_phases: 0
+  completed_phases: 0
+  total_plans: 0
+  completed_plans: 0
+  percent: 0
 ---
 
 # Project State
 
-**Project:** ADR-047 双链测试技能实施 + 骨架补全
-**Status:** Milestone complete
-**Core value:** 用最小可行实现验证 ADR-047 的双链治理设计是否真正可执行
-**Current focus:** Phase 04 — api
+**Project:** ADR-049 体验修正层落地
+**Status:** Milestone initialized
+**Core value:** 为体验期高频碎改提供轻量中间治理层，防止 SSOT 漂移和测试链失真
+**Current focus:** Defining requirements and roadmap
 
 ## Roadmap Summary
 
 | # | Phase | Goal | Requirements |
 |---|-------|------|--------------|
-| 1 | QA Schema 定义 | 建立统一 QA 测试治理 schema | REQ-01 |
-| 2 | 设计层技能补全 | 6 个 ADR-047 设计层技能 Prompt-first | REQ-02 |
-| 3 | 结算/执行层补全 | 5 个技能补全（3 QA + 2 额外） | REQ-03 |
-| 4 | API 链试点 | 跑通全流程 + schema 验证 + 报告 | REQ-04,05,06 |
+| 1 | Patch Schema + 目录结构 | 定义 Patch YAML schema + 目录规范 | REQ-PATCH-01 |
+| 2 | Patch 登记 Skill | 人工登记 + AI 辅助登记 | REQ-PATCH-02 |
+| 3 | 结算 Skill + 回写工具 | 批量回写 SSOT + 结算记录 | REQ-PATCH-03 |
+| 4 | 测试联动规则 | Patch → TESTSET 同步机制 | REQ-PATCH-04 |
+| 5 | AI Context 注入 | AI 生成前注入 Patch 上下文 | REQ-PATCH-05 |
+| 6 | Hook 集成 | PreToolUse 自动触发 Patch 登记 | REQ-PATCH-06 |
+| 7 | 24h Blocking 机制 | 超期自动 blocking | REQ-PATCH-07 |
 
 ## History
 
-- **2026-04-15**: Phase 1 complete — 4 schema files + validator + 41 tests + 4 fixtures
-- **2026-04-15**: Phase 2 complete — 6 design-layer skills with full runtime infrastructure
-- **2026-04-15**: Phase 3 complete — settlement/gate/compatible skills + CLI registration
-- **2026-04-15**: Phase 4 complete — API chain end-to-end pilot with all schema validations passing
+- **2026-04-15**: ADR-049 frozen (v2.1) — 体验修正层设计定稿
+- **2026-04-15**: Milestone v1.0-adr049 initialized
+
+## Accumulated Context
+
+- ADR-047 milestone completed (100%) — 11 skills filled, API chain pilot run
+- ADR-049 defines Experience Patch Layer with 3-tier classification (visual/interaction/semantic)
+- Dual-path model: Prompt-to-Patch (small changes) vs Document-to-SRC (large changes)
+- Python 3.13 CLI, zero external dependencies (except pytest/pyyaml/coverage)
 
 ## Artifacts
 
 - `.planning/PROJECT.md` — Project context
 - `.planning/config.json` — Workflow preferences
-- `.planning/ROADMAP.md` — Phase structure
-- `.planning/REQUIREMENTS.md` — Scoped requirements
-- `.planning/codebase/` — Codebase map (7 docs)
+- `.planning/ROADMAP.md` — Phase structure (needs update for new milestone)
+- `.planning/REQUIREMENTS.md` — Scoped requirements (needs creation)
+- `ssot/adr/ADR-049-引入体验修正层-Experience-Patch-Layer.md` — Frozen ADR
 
 ---
-*Last updated: 2026-04-14*
+*Last updated: 2026-04-15*
