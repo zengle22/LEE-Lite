@@ -1,0 +1,8 @@
+skill: ll-qa-prototype-to-e2eplan
+version: "1.0"
+state: draft
+lifecycle_states:
+  - draft
+  - validated
+  - executed
+  - frozen
