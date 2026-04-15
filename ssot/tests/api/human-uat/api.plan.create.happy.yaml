@@ -1,0 +1,33 @@
+api_test_spec:
+  case_id: "api_case.plan.create.happy"
+  coverage_id: "api.training_plan.create.happy"
+  endpoint: "POST /api/v1/training-plans"
+  capability: "training_plan"
+  preconditions:
+    - "api_server_running"
+  request:
+    method: "POST"
+    path: "/api/v1/training-plans"
+    body:
+      name: "Q2 产品增长训练营"
+      start_date: "2026-04-01"
+      end_date: "2026-06-30"
+      goal: "掌握产品增长方法论和实践技能"
+  expected:
+    status_code: 201
+    response_assertions:
+      - "response.id is not null"
+      - "response.name == expected"
+      - "response.status == 'active'"
+    side_effect_assertions: []
+    response_schema:
+      type: object
+      properties:
+        id: { type: string }
+        name: { type: string }
+        status: { type: string }
+  cleanup: []
+  evidence_required:
+    - "request_snapshot"
+    - "response_snapshot"
+    - "assertion_results"
