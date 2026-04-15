@@ -1,0 +1,77 @@
+# ADR-047 QA Schema: API Test Spec
+# Source: ADR-047 §4.1.5 C
+# Scope: defines the test contract for a single API scenario
+# Must NOT contain: execution results, state changes, release decisions
+
+api_test_spec:
+  case_id: string           # unique case ID, e.g., api_case.plan.create.invalid-date-range
+  coverage_id: string       # links to manifest coverage_id
+  endpoint: string          # HTTP method + path
+  capability: string        # API capability name
+
+  # Preconditions that must be satisfied before execution
+  preconditions:
+    - string  # e.g., authenticated_user_exists
+
+  # Request definition
+  request:
+    method: string | null       # HTTP method (if not inferred from endpoint)
+    path_params: object | null  # URL path parameters
+    query_params: object | null # query string parameters
+    headers: object | null      # request headers
+    body: object | null         # request body (JSON-like structure)
+
+  # Expected outcomes (the contract)
+  expected:
+    status_code: integer        # expected HTTP status code
+    response_assertions:
+      - string  # assertion expressions, e.g., error_code == "INVALID_DATE_RANGE"
+    side_effect_assertions:
+      - string  # e.g., no_plan_created_for_user == true
+    # Optional
+    response_schema: object | null  # expected response shape
+
+  # Cleanup actions (run after test regardless of pass/fail)
+  cleanup:
+    - string
+
+  # Evidence that must be collected for this case
+  evidence_required:
+    - string  # e.g., request_snapshot, response_snapshot, db_assertion_result
+
+# --- E2E Journey Spec (ADR-047 §4.2.5 C) ---
+e2e_journey_spec:
+  case_id: string           # e.g., e2e_case.onboarding.create-plan.main
+  coverage_id: string       # links to manifest coverage_id
+  journey_id: string        # user journey identifier
+  entry_point: string       # URL or screen where journey starts
+
+  preconditions:
+    - string  # e.g., user_logged_in, data_seeded
+
+  user_steps:
+    - step_number: integer
+      action: string        # e.g., "click", "fill", "navigate"
+      target: string        # CSS selector or URL
+      data: object | null   # input data if applicable
+      expected_result: string
+
+  expected_ui_states:
+    - selector: string
+      expected_text: string
+      expected_visible: boolean
+
+  expected_network_events:
+    - method: string        # HTTP method
+      url_pattern: string   # URL pattern to match
+      expected_status: integer
+
+  expected_persistence:
+    - check: string         # e.g., "reload_page_keeps_generated_plan"
+      expected: string
+
+  anti_false_pass_checks:
+    - string  # e.g., "no_console_errors", "no_404_responses"
+
+  evidence_required:
+    - string  # e.g., browser_trace, screenshot_final, network_log, dom_assertions, persistence_assertion, console_errors
