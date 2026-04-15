@@ -1,0 +1,19 @@
+experience_patch:
+  id: "UXPATCH-0003"
+  type: "experience_patch"
+  status: "draft"
+  created_at: "2026-04-16T10:00:00Z"
+  updated_at: "2026-04-16T10:00:00Z"
+  title: "Bad enum value"
+  summary: "This patch has invalid change_class"
+  source:
+    from: "product_experience"
+    actor: "human"
+    session: "session-001"
+    prompt_ref: "prompt://001"
+    human_confirmed_class: "visual"
+  scope:
+    feat_ref: "feat.training-plan"
+    page: "training-plan"
+    module: "components"
+  change_class: "invalid_value"
