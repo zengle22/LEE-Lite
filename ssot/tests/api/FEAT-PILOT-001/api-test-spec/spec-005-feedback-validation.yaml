@@ -1,0 +1,36 @@
+api_test_spec:
+  case_id: "api_case.feedback.submit.invalid-rating"
+  coverage_id: "api.feedback.submit.validation"
+  endpoint: "POST /api/v1/training-plans/{plan_id}/feedback"
+  capability: "submit_feedback"
+
+  preconditions:
+    - "authenticated_user_exists"
+    - "training_plan_exists('test-plan-001')"
+
+  request:
+    method: "POST"
+    path_params:
+      plan_id: "test-plan-001"
+    query_params: null
+    headers:
+      Content-Type: "application/json"
+    body:
+      rating: 6
+      comment: "Invalid rating test"
+
+  expected:
+    status_code: 400
+    response_assertions:
+      - "response.error_code == 'VALIDATION_ERROR'"
+      - "response.errors contains field 'rating'"
+    side_effect_assertions:
+      - "no_feedback_created()"
+    response_schema: null
+
+  cleanup:
+    - "delete_training_plan('test-plan-001')"
+
+  evidence_required:
+    - "request_snapshot"
+    - "response_snapshot"

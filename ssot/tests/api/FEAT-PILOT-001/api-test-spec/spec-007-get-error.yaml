@@ -1,0 +1,29 @@
+api_test_spec:
+  case_id: "api_case.plan.get.not-found"
+  coverage_id: "api.training_plan.get.error"
+  endpoint: "GET /api/v1/training-plans/{plan_id}"
+  capability: "get_plan"
+
+  preconditions:
+    - "authenticated_user_exists"
+
+  request:
+    method: "GET"
+    path_params:
+      plan_id: "nonexistent-plan"
+    query_params: null
+    headers: null
+    body: null
+
+  expected:
+    status_code: 404
+    response_assertions:
+      - "response.error_code == 'NOT_FOUND'"
+    side_effect_assertions: []
+    response_schema: null
+
+  cleanup: []
+
+  evidence_required:
+    - "request_snapshot"
+    - "response_snapshot"

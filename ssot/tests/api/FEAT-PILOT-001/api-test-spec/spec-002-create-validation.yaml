@@ -1,0 +1,35 @@
+api_test_spec:
+  case_id: "api_case.plan.create.invalid-name"
+  coverage_id: "api.training_plan.create.validation"
+  endpoint: "POST /api/v1/training-plans"
+  capability: "create_plan"
+
+  preconditions:
+    - "authenticated_user_exists"
+
+  request:
+    method: "POST"
+    path_params: null
+    query_params: null
+    headers:
+      Content-Type: "application/json"
+    body:
+      name: ""
+      start_date: "2026-04-01"
+      end_date: "2026-06-30"
+      goal: "Test plan"
+
+  expected:
+    status_code: 400
+    response_assertions:
+      - "response.error_code == 'VALIDATION_ERROR'"
+      - "response.errors contains field 'name'"
+    side_effect_assertions:
+      - "no_training_plan_created()"
+    response_schema: null
+
+  cleanup: []
+
+  evidence_required:
+    - "request_snapshot"
+    - "response_snapshot"

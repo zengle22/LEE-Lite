@@ -1,0 +1,45 @@
+api_test_spec:
+  case_id: "api_case.feedback.submit.happy"
+  coverage_id: "api.feedback.submit.happy"
+  endpoint: "POST /api/v1/training-plans/{plan_id}/feedback"
+  capability: "submit_feedback"
+
+  preconditions:
+    - "authenticated_user_exists"
+    - "training_plan_exists('test-plan-001')"
+
+  request:
+    method: "POST"
+    path_params:
+      plan_id: "test-plan-001"
+    query_params: null
+    headers:
+      Content-Type: "application/json"
+    body:
+      rating: 5
+      comment: "课程内容非常实用，收获很大"
+
+  expected:
+    status_code: 201
+    response_assertions:
+      - "response.id is not null"
+      - "response.rating == 5"
+      - "response.plan_id == 'test-plan-001'"
+    side_effect_assertions:
+      - "feedback_exists_in_db(response.id)"
+    response_schema:
+      type: object
+      required:
+        - id
+        - plan_id
+        - rating
+        - comment
+        - created_at
+
+  cleanup:
+    - "delete_feedback(response.id)"
+
+  evidence_required:
+    - "request_snapshot"
+    - "response_snapshot"
+    - "db_assertion_result"
