@@ -14,13 +14,14 @@ api_coverage_manifest:
         - "正常路径"
       mapped_case_ids:
         - "api_case.plan.create.happy"
-      lifecycle_status: "designed"
-      mapping_status: "unmapped"
-      evidence_status: "missing"
+      lifecycle_status: "passed"
+      mapping_status: "mapped"
+      evidence_status: "complete"
       waiver_status: "none"
-      evidence_refs: []
+      evidence_refs:
+        - "ssot/tests/.artifacts/evidence/api.training_plan.create.happy.evidence.yaml"
       rerun_count: 0
-      last_run_id: null
+      last_run_id: "run-pilot-001"
       obsolete: false
       superseded_by: null
 
@@ -35,13 +36,14 @@ api_coverage_manifest:
         - "参数校验"
       mapped_case_ids:
         - "api_case.plan.create.invalid-name"
-      lifecycle_status: "designed"
-      mapping_status: "unmapped"
-      evidence_status: "missing"
+      lifecycle_status: "passed"
+      mapping_status: "mapped"
+      evidence_status: "complete"
       waiver_status: "none"
-      evidence_refs: []
+      evidence_refs:
+        - "ssot/tests/.artifacts/evidence/api.training_plan.create.validation.evidence.yaml"
       rerun_count: 0
-      last_run_id: null
+      last_run_id: "run-pilot-001"
       obsolete: false
       superseded_by: null
 
@@ -56,13 +58,14 @@ api_coverage_manifest:
         - "状态约束"
       mapped_case_ids:
         - "api_case.plan.create.duplicate-name"
-      lifecycle_status: "designed"
-      mapping_status: "unmapped"
-      evidence_status: "missing"
+      lifecycle_status: "passed"
+      mapping_status: "mapped"
+      evidence_status: "complete"
       waiver_status: "none"
-      evidence_refs: []
+      evidence_refs:
+        - "ssot/tests/.artifacts/evidence/api.training_plan.create.state_constraint.evidence.yaml"
       rerun_count: 0
-      last_run_id: null
+      last_run_id: "run-pilot-001"
       obsolete: false
       superseded_by: null
 
@@ -77,13 +80,14 @@ api_coverage_manifest:
         - "正常路径"
       mapped_case_ids:
         - "api_case.feedback.submit.happy"
-      lifecycle_status: "designed"
-      mapping_status: "unmapped"
-      evidence_status: "missing"
+      lifecycle_status: "passed"
+      mapping_status: "mapped"
+      evidence_status: "complete"
       waiver_status: "none"
-      evidence_refs: []
+      evidence_refs:
+        - "ssot/tests/.artifacts/evidence/api.feedback.submit.happy.evidence.yaml"
       rerun_count: 0
-      last_run_id: null
+      last_run_id: "run-pilot-001"
       obsolete: false
       superseded_by: null
 
@@ -98,13 +102,14 @@ api_coverage_manifest:
         - "参数校验"
       mapped_case_ids:
         - "api_case.feedback.submit.invalid-rating"
-      lifecycle_status: "designed"
-      mapping_status: "unmapped"
-      evidence_status: "missing"
-      waiver_status: "none"
-      evidence_refs: []
+      lifecycle_status: "failed"
+      mapping_status: "mapped"
+      evidence_status: "complete"
+      waiver_status: "pending"
+      evidence_refs:
+        - "ssot/tests/.artifacts/evidence/api.feedback.submit.validation.evidence.yaml"
       rerun_count: 0
-      last_run_id: null
+      last_run_id: "run-pilot-001"
       obsolete: false
       superseded_by: null
 
@@ -119,13 +124,14 @@ api_coverage_manifest:
         - "正常路径"
       mapped_case_ids:
         - "api_case.plan.get.happy"
-      lifecycle_status: "designed"
-      mapping_status: "unmapped"
-      evidence_status: "missing"
+      lifecycle_status: "passed"
+      mapping_status: "mapped"
+      evidence_status: "complete"
       waiver_status: "none"
-      evidence_refs: []
+      evidence_refs:
+        - "ssot/tests/.artifacts/evidence/api.training_plan.get.happy.evidence.yaml"
       rerun_count: 0
-      last_run_id: null
+      last_run_id: "run-pilot-001"
       obsolete: false
       superseded_by: null
 
@@ -140,13 +146,14 @@ api_coverage_manifest:
         - "异常路径"
       mapped_case_ids:
         - "api_case.plan.get.not-found"
-      lifecycle_status: "designed"
-      mapping_status: "unmapped"
-      evidence_status: "missing"
+      lifecycle_status: "passed"
+      mapping_status: "mapped"
+      evidence_status: "complete"
       waiver_status: "none"
-      evidence_refs: []
+      evidence_refs:
+        - "ssot/tests/.artifacts/evidence/api.training_plan.get.error.evidence.yaml"
       rerun_count: 0
-      last_run_id: null
+      last_run_id: "run-pilot-001"
       obsolete: false
       superseded_by: null
 
@@ -161,12 +168,13 @@ api_coverage_manifest:
         - "正常路径"
       mapped_case_ids:
         - "api_case.plan.update.happy"
-      lifecycle_status: "designed"
-      mapping_status: "unmapped"
-      evidence_status: "missing"
+      lifecycle_status: "passed"
+      mapping_status: "mapped"
+      evidence_status: "complete"
       waiver_status: "none"
-      evidence_refs: []
+      evidence_refs:
+        - "ssot/tests/.artifacts/evidence/api.training_plan.update.happy.evidence.yaml"
       rerun_count: 0
-      last_run_id: null
+      last_run_id: "run-pilot-001"
       obsolete: false
       superseded_by: null

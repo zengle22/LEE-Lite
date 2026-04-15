@@ -1,0 +1,24 @@
+evidence_record:
+  case_id: "api_case.plan.create.duplicate-name"
+  coverage_id: "api.training_plan.create.state_constraint"
+  executed_at: "2026-04-15T12:05:02Z"
+  run_id: "run-pilot-001"
+  evidence:
+    request_snapshot:
+      method: "POST"
+      url: "/api/v1/training-plans"
+      body:
+        name: "existing-plan"
+        start_date: "2026-07-01"
+        end_date: "2026-09-30"
+        goal: "Duplicate name test"
+    response_snapshot:
+      status_code: 409
+      body:
+        error_code: "DUPLICATE_NAME"
+        message: "Training plan with this name already exists"
+    assertion_results:
+      - assertion: "response.error_code == 'DUPLICATE_NAME'"
+        result: "pass"
+  side_effects: []
+  execution_status: "simulated"

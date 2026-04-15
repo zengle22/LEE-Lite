@@ -1,0 +1,29 @@
+evidence_record:
+  case_id: "api_case.plan.create.happy"
+  coverage_id: "api.training_plan.create.happy"
+  executed_at: "2026-04-15T12:05:00Z"
+  run_id: "run-pilot-001"
+  evidence:
+    request_snapshot:
+      method: "POST"
+      url: "/api/v1/training-plans"
+      body:
+        name: "Q2 产品增长训练营"
+        start_date: "2026-04-01"
+        end_date: "2026-06-30"
+        goal: "掌握产品增长方法论和实践技能"
+    response_snapshot:
+      status_code: 201
+      body:
+        id: "plan-pilot-001"
+        name: "Q2 产品增长训练营"
+        status: "active"
+    assertion_results:
+      - assertion: "response.id is not null"
+        result: "pass"
+      - assertion: "response.name == expected"
+        result: "pass"
+      - assertion: "response.status == 'active'"
+        result: "pass"
+  side_effects: []
+  execution_status: "simulated"

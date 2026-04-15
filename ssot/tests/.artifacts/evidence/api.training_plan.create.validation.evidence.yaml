@@ -1,0 +1,28 @@
+evidence_record:
+  case_id: "api_case.plan.create.invalid-name"
+  coverage_id: "api.training_plan.create.validation"
+  executed_at: "2026-04-15T12:05:01Z"
+  run_id: "run-pilot-001"
+  evidence:
+    request_snapshot:
+      method: "POST"
+      url: "/api/v1/training-plans"
+      body:
+        name: ""
+        start_date: "2026-04-01"
+        end_date: "2026-06-30"
+        goal: "Test plan"
+    response_snapshot:
+      status_code: 400
+      body:
+        error_code: "VALIDATION_ERROR"
+        errors:
+          - field: "name"
+            message: "Name is required"
+    assertion_results:
+      - assertion: "response.error_code == 'VALIDATION_ERROR'"
+        result: "pass"
+      - assertion: "response.errors contains field 'name'"
+        result: "pass"
+  side_effects: []
+  execution_status: "simulated"

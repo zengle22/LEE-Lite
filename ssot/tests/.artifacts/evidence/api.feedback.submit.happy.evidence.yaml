@@ -1,0 +1,27 @@
+evidence_record:
+  case_id: "api_case.feedback.submit.happy"
+  coverage_id: "api.feedback.submit.happy"
+  executed_at: "2026-04-15T12:05:03Z"
+  run_id: "run-pilot-001"
+  evidence:
+    request_snapshot:
+      method: "POST"
+      url: "/api/v1/training-plans/plan-pilot-001/feedback"
+      body:
+        rating: 5
+        comment: "课程内容非常实用，收获很大"
+    response_snapshot:
+      status_code: 201
+      body:
+        id: "fb-pilot-001"
+        plan_id: "plan-pilot-001"
+        rating: 5
+    assertion_results:
+      - assertion: "response.id is not null"
+        result: "pass"
+      - assertion: "response.rating == 5"
+        result: "pass"
+      - assertion: "response.plan_id == 'plan-pilot-001'"
+        result: "pass"
+  side_effects: []
+  execution_status: "simulated"

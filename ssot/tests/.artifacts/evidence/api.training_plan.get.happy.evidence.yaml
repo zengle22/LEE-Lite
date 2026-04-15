@@ -1,0 +1,22 @@
+evidence_record:
+  case_id: "api_case.plan.get.happy"
+  coverage_id: "api.training_plan.get.happy"
+  executed_at: "2026-04-15T12:05:05Z"
+  run_id: "run-pilot-001"
+  evidence:
+    request_snapshot:
+      method: "GET"
+      url: "/api/v1/training-plans/plan-pilot-001"
+    response_snapshot:
+      status_code: 200
+      body:
+        id: "plan-pilot-001"
+        name: "Q2 产品增长训练营"
+        status: "active"
+    assertion_results:
+      - assertion: "response.id == 'plan-pilot-001'"
+        result: "pass"
+      - assertion: "response.name is not null"
+        result: "pass"
+  side_effects: []
+  execution_status: "simulated"

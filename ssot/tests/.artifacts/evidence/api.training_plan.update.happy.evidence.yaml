@@ -1,0 +1,27 @@
+evidence_record:
+  case_id: "api_case.plan.update.happy"
+  coverage_id: "api.training_plan.update.happy"
+  executed_at: "2026-04-15T12:05:07Z"
+  run_id: "run-pilot-001"
+  evidence:
+    request_snapshot:
+      method: "PUT"
+      url: "/api/v1/training-plans/plan-pilot-001"
+      body:
+        start_date: "2026-05-01"
+        end_date: "2026-08-31"
+        goal: "Updated goal for training plan"
+    response_snapshot:
+      status_code: 200
+      body:
+        id: "plan-pilot-001"
+        start_date: "2026-05-01"
+        end_date: "2026-08-31"
+        goal: "Updated goal for training plan"
+    assertion_results:
+      - assertion: "response.start_date == '2026-05-01'"
+        result: "pass"
+      - assertion: "response.goal == 'Updated goal for training plan'"
+        result: "pass"
+  side_effects: []
+  execution_status: "simulated"
