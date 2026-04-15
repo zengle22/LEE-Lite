@@ -13,11 +13,16 @@
 
 **Requirements:** REQ-PATCH-01
 
+**Plans:** 2 plans
+
+Plans:
+- [ ] 01-01-PLAN.md — Patch YAML schema definition + directory structure with example
+- [ ] 01-02-PLAN.md — Python schema validator (TDD) with unit tests + CLI entry point
+
 **Success Criteria:**
 1. `ssot/schemas/qa/patch.yaml` 存在且包含所有必填/选填字段
-2. `.artifacts/` 目录结构示例已创建（含 README 说明）
-3. `patch_registry.json` schema 已定义
-4. Python schema 验证器（`cli/lib/patch_schema.py`）通过单元测试
+2. `ssot/experience-patches/` 目录结构示例已创建（含 README 说明 + 示例 Patch）
+3. Python schema 验证器（`cli/lib/patch_schema.py`）通过单元测试
 
 **UI hint:** no
 
@@ -144,7 +149,7 @@
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| REQ-PATCH-01: Patch Schema + 目录结构 | Phase 1 | Pending |
+| REQ-PATCH-01: Patch Schema + 目录结构 | Phase 1 | Planned (2 plans) |
 | REQ-PATCH-02: Patch 登记 Skill | Phase 2 | Pending |
 | REQ-PATCH-03: 结算 Skill + 回写工具 | Phase 3 | Pending |
 | REQ-PATCH-04: 测试联动规则 | Phase 4 | Pending |
