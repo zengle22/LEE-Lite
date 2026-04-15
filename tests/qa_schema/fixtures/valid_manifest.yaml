@@ -1,0 +1,23 @@
+api_coverage_manifest:
+  items:
+    - coverage_id: api.plan.create.happy
+      feature_id: feat.training-plan.create
+      capability: create_plan
+      endpoint: POST /api/plans
+      scenario_type: happy_path
+      priority: P0
+      source_feat_ref: feat.training-plan.acceptance.create-success
+      dimensions_covered:
+        - 正常路径
+        - 数据副作用
+      mapped_case_ids:
+        - api_case.plan.create.happy
+      lifecycle_status: designed
+      mapping_status: unmapped
+      evidence_status: missing
+      waiver_status: none
+      evidence_refs: []
+      rerun_count: 0
+      last_run_id: null
+      obsolete: false
+      superseded_by: null

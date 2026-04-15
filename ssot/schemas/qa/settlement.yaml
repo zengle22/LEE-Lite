@@ -1,0 +1,79 @@
+# ADR-047 QA Schema: Settlement Report
+# Source: ADR-047 §10 + §9 (Release Gate Rules)
+# Scope: settles results and recommends release decision
+# Must NOT contain: test design, script implementations
+
+settlement_report:
+  # Chain type: api or e2e
+  chain: enum[api, e2e]
+
+  # Summary statistics
+  summary:
+    total_capability_count: integer       # total capabilities in scope
+    total_coverage_item_count: integer    # total coverage items in manifest
+    mapped_count: integer                 # items mapped to cases
+    generated_count: integer              # items with generated scripts
+    executed_count: integer               # items that have been executed
+    passed_count: integer                 # items that passed
+    failed_count: integer                 # items that failed
+    blocked_count: integer                # items blocked
+    uncovered_count: integer              # items never mapped/generated
+
+  # By-capability status breakdown
+  by_capability:
+    - capability: string
+      coverage_item_count: integer
+      mapped_count: integer
+      executed_count: integer
+      passed_count: integer
+      failed_count: integer
+      status: enum[pass, fail, blocked, uncovered]
+
+  # By-feature-ref status breakdown (traceability to upstream)
+  by_feature_ref:
+    - feature_ref: string
+      coverage_item_count: integer
+      passed_count: integer
+      failed_count: integer
+      uncovered_count: integer
+
+  # Evidence completeness
+  evidence_completeness:
+    total_evidence_required: integer
+    evidence_provided: integer
+    missing_evidence_count: integer
+    completeness_pct: number  # 0.0 - 100.0
+
+  # Gap list: items that are not passed
+  gap_list:
+    - coverage_id: string
+      capability: string
+      lifecycle_status: string
+      failure_reason: string | null
+      blocker_reason: string | null
+
+  # Waiver list: items with waiver requests or approvals
+  waiver_list:
+    - coverage_id: string
+      waiver_status: enum[pending, approved, rejected]
+      waiver_reason: string | null
+      approver: string | null
+      approved_at: string | null  # ISO 8601
+
+  # Verdict
+  verdict:
+    conclusion: enum[pass, conditional_pass, fail]
+    release_recommendation: enum[release, conditional_release, block]
+    notes: string | null
+
+  # Gate rules evaluation (machine-readable pass/fail)
+  gate_evaluation:
+    all_p0_mapped: boolean
+    all_p1_mapped: boolean
+    all_p0_executed: boolean
+    all_p1_executed: boolean
+    evidence_for_all_executed: boolean
+    unwaived_failed_count: integer
+    unwaived_blocked_count: integer
+    unwaived_p0_uncovered_count: integer
+    gate_result: enum[pass, conditional_pass, fail]

@@ -1,0 +1,26 @@
+api_test_plan:
+  feature_id: feat.training-plan
+  source_feat_refs:
+    - feat.training-plan.section.1
+    - feat.training-plan.section.2
+  api_objects:
+    - name: training_plan
+      capabilities:
+        - create_plan
+        - get_plan
+        - update_plan
+    - name: feedback
+      capabilities:
+        - submit_feedback
+  priorities:
+    p0:
+      - create_plan
+      - submit_feedback
+    p1:
+      - get_plan
+      - update_plan
+  cut_records:
+    - capability: update_plan
+      dimension: 幂等/重试/并发
+      cut_reason: "计划更新为覆盖式，无并发冲突场景"
+      source_ref: feat.training-plan.rationale.no-concurrency

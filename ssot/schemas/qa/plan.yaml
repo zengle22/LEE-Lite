@@ -1,0 +1,37 @@
+# ADR-047 QA Schema: API Test Plan
+# Source: ADR-047 §4.1.5 A
+# Scope: declares coverage scope and priorities for this round/module
+# Must NOT contain: specific test assertions, execution status, evidence refs
+
+api_test_plan:
+  # Required: source feature reference
+  feature_id: string  # e.g., feat.training-plan
+
+  # Required: at least one source reference into feat sections
+  source_feat_refs:
+    - string  # e.g., feat.training-plan.section.1
+
+  # Required: API objects under test
+  api_objects:
+    - name: string            # API object name, e.g., training_plan
+      capabilities:           # list of capability names
+        - string              # e.g., create_plan, get_plan, update_plan
+
+  # Required: priority classification (P0/P1/P2)
+  priorities:
+    p0: [string]  # capability names — must test
+    p1: [string]  # capability names — should test
+    p2: [string]  # capability names — nice to test (optional)
+
+  # Optional: cut records for trimmed dimensions
+  cut_records:
+    - capability: string      # which capability is cut
+      dimension: string       # which test dimension is cut (e.g., 幂等/重试/并发)
+      cut_reason: string      # why this dimension is cut
+      source_ref: string      # upstream justification ref
+      # Optional fields
+      approver: string        # who approved the cut
+      approved_at: string     # ISO 8601 timestamp
+
+  # Optional: notes for human readers
+  notes: string | null
