@@ -1,0 +1,35 @@
+api_test_spec:
+  case_id: "api_case.sample_resource.create.happy"
+  coverage_id: "api.sample_resource.create.happy"
+  endpoint: "POST /api/resources"
+  capability: "create"
+  preconditions:
+    - "User is authenticated"
+  request:
+    method: "POST"
+    path_params: {}
+    query_params: {}
+    headers:
+      Content-Type: "application/json"
+    body:
+      name: "test-resource"
+  expected:
+    status_code: 201
+    response_assertions:
+      - "Response contains 'id' field"
+      - "Response contains 'name' field"
+    side_effect_assertions:
+      - "Resource is persisted in database"
+    response_schema:
+      type: "object"
+      properties:
+        id:
+          type: "string"
+        name:
+          type: "string"
+  cleanup:
+    - "Delete created resource"
+  evidence_required:
+    - "request_payload"
+    - "response_payload"
+    - "execution_status"

@@ -1,0 +1,16 @@
+api_test_plan:
+  feature_id: "feat.sample.001"
+  source_feat_refs:
+    - "feat.sample.001"
+  api_objects:
+    - name: "sample_resource"
+      capabilities:
+        - "create"
+        - "get"
+  priorities:
+    p0:
+      - "create"
+    p1:
+      - "get"
+  cut_records: []
+  notes: "Sample plan fixture for schema validation"

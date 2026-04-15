@@ -74,11 +74,11 @@ Plans:
 - [x] 03-04 — CLI 注册 + 运行时映射扩展 + gate 验证器 + 废弃技能标记
 
 **Success Criteria:**
-1. 3 个技能各有 scripts/validate/evidence 基础设施
-2. `ll-qa-gate-evaluate` 的输出符合 ADR-047 §9.4 gate_rules
-3. `render-testset-view` 能聚合 plan/manifest/spec 生成兼容视图
-4. CLI _QA_SKILL_MAP 新增 3 个动作，qa_skill_runtime.py 映射扩展，qa_schemas.py 新增 gate 验证器
-5. ll-test-exec-cli 和 ll-test-exec-web-e2e 有可见的 DEPRECATED 标记
+1. ✅ 3 个技能各有 scripts/validate/evidence 基础设施
+2. ✅ `ll-qa-gate-evaluate` 的输出符合 ADR-047 §9.4 gate_rules
+3. ✅ `render-testset-view` 能聚合 plan/manifest/spec 生成兼容视图
+4. ✅ CLI _QA_SKILL_MAP 新增 3 个动作，qa_skill_runtime.py 映射扩展，qa_schemas.py 新增 gate 验证器
+5. ✅ ll-test-exec-cli 和 ll-test-exec-web-e2e 有可见的 DEPRECATED 标记
 
 ---
 
@@ -94,10 +94,10 @@ Plans:
 - [x] 04-01 — 端到端试点：创建最小 feat → 设计链（plan/manifest/spec）→ 模拟执行 + 证据 → 结算 → gate 评估 → pilot 报告
 
 **Success Criteria:**
-1. 整条链无手工干预（除 LLM 子代理调用外）自动跑通
-2. 每个中间产物文件通过对应 schema 验证
-3. `release_gate_input.yaml` 包含正确的 pass/fail/coverage 统计
-4. 试点结果写入 `.planning/pilot-report.md`，记录所有问题和改进建议
+1. ✅ 整条链无手工干预（除 LLM 子代理调用外）自动跑通
+2. ✅ 每个中间产物文件通过对应 schema 验证
+3. ✅ `release_gate_input.yaml` 包含正确的 pass/fail/coverage 统计
+4. ✅ 试点结果写入 `.planning/pilot-report.md`，记录所有问题和改进建议
 
 **UI hint:** no
 
@@ -108,11 +108,11 @@ Plans:
 | Requirement | Phase | Status |
 |-------------|-------|--------|
 | REQ-01: QA 统一 schema 定义 | Phase 1 | ✅ Done |
-| REQ-02: ADR-047 设计层 6 技能补全 | Phase 2 | Pending |
-| REQ-03: 结算/执行层 3 技能 + 额外 2 技能补全 | Phase 3 | Planned (4 plans) |
-| REQ-04: 试点跑通 API 链全流程 | Phase 4 | Planned (1 plan) |
-| REQ-05: 所有中间产物通过 schema 验证 | Phase 4 | Planned (1 plan) |
-| REQ-06: 产出 pilot 报告 + 改进建议 | Phase 4 | Planned (1 plan) |
+| REQ-02: ADR-047 设计层 6 技能补全 | Phase 2 | ✅ Done |
+| REQ-03: 结算/执行层 3 技能 + 额外 2 技能补全 | Phase 3 | ✅ Done |
+| REQ-04: 试点跑通 API 链全流程 | Phase 4 | ✅ Done |
+| REQ-05: 所有中间产物通过 schema 验证 | Phase 4 | ✅ Done |
+| REQ-06: 产出 pilot 报告 + 改进建议 | Phase 4 | ✅ Done |
 
 **Coverage:**
 - v1 requirements: 6 total
@@ -123,3 +123,4 @@ Plans:
 *Roadmap defined: 2026-04-14*
 *Last updated: 2026-04-14 after Phase 3 planning*
 *Last updated: 2026-04-15 after Phase 4 planning*
+*Last updated: 2026-04-15 all phases complete — 100%
