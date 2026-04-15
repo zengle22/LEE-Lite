@@ -16,8 +16,8 @@
 **Plans:** 2 plans
 
 Plans:
-- [ ] 01-01-PLAN.md — Patch YAML schema definition + directory structure with example
-- [ ] 01-02-PLAN.md — Python schema validator (TDD) with unit tests + CLI entry point
+- [x] 01-01-PLAN.md — Patch YAML schema definition + directory structure with example
+- [x] 01-02-PLAN.md — Python schema validator (TDD) with unit tests + CLI entry point
 
 **Success Criteria:**
 1. `ssot/schemas/qa/patch.yaml` 存在且包含所有必填/选填字段

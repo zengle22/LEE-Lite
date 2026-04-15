@@ -1,23 +1,23 @@
 ---
 gsd_state_version: 1.0
-milestone: v1.0-adr049
-milestone_name: ADR-049 Experience Patch Layer Implementation
-status: initialized
-last_updated: "2026-04-15T23:54:00.000Z"
+milestone: v1.0
+milestone_name: milestone
+status: planning
+last_updated: "2026-04-15T17:06:52.452Z"
 progress:
-  total_phases: 0
-  completed_phases: 0
-  total_plans: 0
-  completed_plans: 0
-  percent: 0
+  total_phases: 7
+  completed_phases: 1
+  total_plans: 2
+  completed_plans: 2
+  percent: 100
 ---
 
 # Project State
 
 **Project:** ADR-049 体验修正层落地
-**Status:** Milestone initialized
+**Status:** Ready to plan
 **Core value:** 为体验期高频碎改提供轻量中间治理层，防止 SSOT 漂移和测试链失真
-**Current focus:** Defining requirements and roadmap
+**Current focus:** Phase 01 — patch-schema
 
 ## Roadmap Summary
 
