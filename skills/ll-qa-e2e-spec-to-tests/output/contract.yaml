@@ -1,0 +1,35 @@
+# Output Contract: ll-qa-e2e-spec-to-tests
+
+## Required Output
+- One or more Playwright TypeScript test files (.spec.ts) in output_dir
+
+## Output Schema
+Each generated test file:
+```yaml
+output:
+  test_files:
+    - path: string      # generated .spec.ts test file path
+      case_id: string   # mapped from spec
+      coverage_id: string
+```
+
+## Generated File Structure
+Each `.spec.ts` file contains:
+- Import: `{ test, expect } from '@playwright/test'`
+- Test definition with case_id in name
+- Test body navigating to entry_point
+- User step execution (page.click, page.fill, page.goto)
+- UI state assertions (expect(locator).toHaveText, toBeVisible)
+- Persistence assertions (page.reload() + verify)
+- Anti-false-pass checks (console error listener, response interceptor)
+- Evidence collection hooks (page.screenshot, network log, DOM assertions)
+- Evidence YAML write for every spec.evidence_required item
+- Error handling with try/catch and evidence write in catch block
+
+## Quality Checks
+- [ ] Number of .spec.ts files = number of input spec files
+- [ ] Each file contains @playwright/test import
+- [ ] Each file references correct case_id and coverage_id
+- [ ] Each file contains evidence-writing code
+- [ ] Each file has try/catch error handling
+- [ ] Filenames are unique

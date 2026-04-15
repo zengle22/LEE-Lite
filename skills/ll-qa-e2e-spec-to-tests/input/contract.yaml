@@ -1,0 +1,17 @@
+# Input Contract: ll-qa-e2e-spec-to-tests
+
+## Required Input
+- One or more e2e-journey-spec YAML files from ll-qa-e2e-spec-gen
+
+## Input Schema
+```yaml
+input:
+  spec_path: string   # path to e2e-journey-spec YAML file(s)
+  output_dir: string  # directory for generated .spec.ts files (optional, default: ssot/tests/e2e/)
+```
+
+## Input Validation
+- [ ] Spec YAML file(s) exist at spec_path
+- [ ] Each file contains e2e_journey_spec root key
+- [ ] Each spec passes validate_e2e_spec schema validation
+- [ ] Each spec has case_id, coverage_id, journey_id, entry_point, user_steps
