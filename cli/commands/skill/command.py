@@ -16,7 +16,7 @@ from cli.lib.test_exec_runtime import execute_test_exec_skill
 
 def _skill_handler(ctx: CommandContext):
     ensure(
-        ctx.action in {"impl-spec-test", "test-exec-web-e2e", "test-exec-cli", "gate-human-orchestrator", "failure-capture", "spec-reconcile", "tech-to-impl", "feat-to-apiplan", "prototype-to-e2eplan", "api-manifest-init", "e2e-manifest-init", "api-spec-gen", "e2e-spec-gen", "settlement", "gate-evaluate", "render-testset-view"},
+        ctx.action in {"impl-spec-test", "test-exec-web-e2e", "test-exec-cli", "gate-human-orchestrator", "failure-capture", "spec-reconcile", "tech-to-impl", "feat-to-apiplan", "prototype-to-e2eplan", "api-manifest-init", "e2e-manifest-init", "api-spec-gen", "e2e-spec-gen", "settlement", "gate-evaluate", "render-testset-view", "api-spec-to-tests", "e2e-spec-to-tests", "api-test-exec", "e2e-test-exec"},
         "INVALID_REQUEST",
         "unsupported skill action",
     )
@@ -109,6 +109,11 @@ def _skill_handler(ctx: CommandContext):
         "settlement": ("ll-qa-settlement", "qa_settlement"),
         "gate-evaluate": ("ll-qa-gate-evaluate", "qa_gate_evaluate"),
         "render-testset-view": ("render-testset-view", "qa_render_testset"),
+        # Phase 5: generation + execution skills (D-CLI-01)
+        "api-spec-to-tests": ("ll-qa-api-spec-to-tests", "qa_skill_runtime"),
+        "e2e-spec-to-tests": ("ll-qa-e2e-spec-to-tests", "qa_skill_runtime"),
+        "api-test-exec": ("ll-qa-api-test-exec", "api_test_exec"),
+        "e2e-test-exec": ("ll-qa-e2e-test-exec", "e2e_test_exec"),
     }
     if ctx.action in _QA_SKILL_MAP:
         from cli.lib.skill_runtime_paths import resolve_skill_scripts_dir
@@ -137,6 +142,30 @@ def _skill_handler(ctx: CommandContext):
         evidence_refs = _collect_refs(result)
         return "OK", f"governed {ctx.action} completed", {
             "canonical_path": result.get("canonical_path", ""),
+            **result,
+        }, [], evidence_refs
+
+    # Code-driven execution skills (bypass LLM runtime)
+    EXEC_SKILL_RUNTIME = {
+        "api-test-exec": ("cli.lib.api_test_exec", "run_api_test_exec"),
+        "e2e-test-exec": ("cli.lib.e2e_test_exec", "run_e2e_test_exec"),
+    }
+    if ctx.action in EXEC_SKILL_RUNTIME:
+        module_path, func_name = EXEC_SKILL_RUNTIME[ctx.action]
+        from importlib import import_module
+        mod = import_module(module_path)
+        func = getattr(mod, func_name)
+        result = func(
+            spec_path=ctx.payload.get("spec_path", ""),
+            test_dir=ctx.payload.get("test_dir", ""),
+            manifest_path=ctx.payload.get("manifest_path", ""),
+            evidence_dir=ctx.payload.get("evidence_dir", ""),
+            run_id=ctx.request["request_id"],
+            base_url=ctx.payload.get("base_url", ctx.payload.get("target_url", "")),
+        )
+        evidence_refs = _collect_refs(result)
+        return "OK", f"governed {ctx.action} completed", {
+            "canonical_path": result.get("evidence_dir", ""),
             **result,
         }, [], evidence_refs
 
