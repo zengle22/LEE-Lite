@@ -84,20 +84,14 @@ Plans:
 
 ## Phase 4: API 链全流程试点
 
-**Goal:** 选一个真实 feat，跑通完整的 API 测试链（plan → manifest → spec → exec → evidence → settlement → gate），验证双链治理设计可执行。
+**Goal:** 创建最小 feat YAML，跑通完整 API 测试链（plan → manifest → spec → simulated exec → evidence → settlement → gate），验证双链治理设计可执行，产出 pilot 报告。
 
 **Requirements:** REQ-04, REQ-05, REQ-06
 
-**Pilot flow:**
-```
-选择一个真实 feat YAML
-  → ll-qa-feat-to-apiplan（生成 api-test-plan）
-  → ll-qa-api-manifest-init（初始化 manifest）
-  → ll-qa-api-spec-gen（编译为 api-test-spec）
-  → （执行测试 — 由 spec 直接驱动，不走 ll-test-exec-cli）
-  → ll-qa-settlement（生成 settlement report）
-  → ll-qa-gate-evaluate（生成 release_gate_input.yaml）
-```
+**Plans:** 1 plan
+
+Plans:
+- [x] 04-01 — 端到端试点：创建最小 feat → 设计链（plan/manifest/spec）→ 模拟执行 + 证据 → 结算 → gate 评估 → pilot 报告
 
 **Success Criteria:**
 1. 整条链无手工干预（除 LLM 子代理调用外）自动跑通
@@ -116,9 +110,9 @@ Plans:
 | REQ-01: QA 统一 schema 定义 | Phase 1 | ✅ Done |
 | REQ-02: ADR-047 设计层 6 技能补全 | Phase 2 | Pending |
 | REQ-03: 结算/执行层 3 技能 + 额外 2 技能补全 | Phase 3 | Planned (4 plans) |
-| REQ-04: 试点跑通 API 链全流程 | Phase 4 | Pending |
-| REQ-05: 所有中间产物通过 schema 验证 | Phase 4 | Pending |
-| REQ-06: 产出 pilot 报告 + 改进建议 | Phase 4 | Pending |
+| REQ-04: 试点跑通 API 链全流程 | Phase 4 | Planned (1 plan) |
+| REQ-05: 所有中间产物通过 schema 验证 | Phase 4 | Planned (1 plan) |
+| REQ-06: 产出 pilot 报告 + 改进建议 | Phase 4 | Planned (1 plan) |
 
 **Coverage:**
 - v1 requirements: 6 total
@@ -128,3 +122,4 @@ Plans:
 ---
 *Roadmap defined: 2026-04-14*
 *Last updated: 2026-04-14 after Phase 3 planning*
+*Last updated: 2026-04-15 after Phase 4 planning*
