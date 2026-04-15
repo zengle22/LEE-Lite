@@ -60,8 +60,33 @@ def run_e2e_test_exec(
     evidence_required = list(spec.evidence_required)
 
     # Step 2: Ensure Playwright project exists
-    pw_root = evidence_p.parent
-    ensure_playwright_project(pw_root, {"TARGET_URL": target_url, "npm_command": "npm install --no-fund --no-audit"})
+    # Use project root where node_modules lives (parent of evidence dir may not have it)
+    workspace_root = Path(__file__).parent.parent.parent.resolve()
+    pw_root = workspace_root
+    pw_tests_dir = pw_root / "e2e"
+    pw_tests_dir.mkdir(parents=True, exist_ok=True)
+
+    # Check if @playwright/test is available in project root
+    pw_marker = pw_root / "node_modules" / "@playwright" / "test"
+    if not pw_marker.exists():
+        ensure_playwright_project(pw_root, {"TARGET_URL": target_url, "npm_command": "npm install --no-fund --no-audit @playwright/test"})
+
+    # Ensure playwright.config.ts exists
+    pw_config = pw_root / "playwright.config.ts"
+    if not pw_config.exists():
+        pw_config.write_text(
+            """import { defineConfig } from '@playwright/test';
+export default defineConfig({
+  testDir: './e2e',
+  reporter: 'json',
+  use: {
+    headless: true,
+    browserName: 'chromium',
+  },
+});
+""",
+            encoding="utf-8",
+        )
 
     # Step 3: Copy generated .spec.ts files into Playwright testDir
     test_dir_path = Path(test_dir)
@@ -83,18 +108,36 @@ def run_e2e_test_exec(
     if target_url:
         env["TARGET_URL"] = target_url
 
+    # Resolve npx path — on Windows, npx is npx.cmd which requires shell=True
+    npx_cmd = shutil.which("npx.cmd") or shutil.which("npx")
+    if npx_cmd is None:
+        return {
+            "total": 0,
+            "passed": 0,
+            "failed": 0,
+            "error": 1,
+            "error_msg": "npx not found in PATH",
+            "evidence_dir": str(evidence_p),
+            "manifest_path": str(manifest_p),
+            "manifest_updated": False,
+            "run_id": run_id,
+            "results": [],
+        }
+
+    # On Windows, npx.cmd requires shell=True
+    use_shell = os.name == "nt" or (npx_cmd or "").endswith(".cmd")
+
     result = subprocess.run(
-        [
-            "npx", "playwright", "test",
-            "--reporter=json",
-            f"--reporter-filename={report_path.name}",
-            "--output", str(output_dir),
-        ],
+        f'"{npx_cmd}" playwright test --reporter=json',
         cwd=str(pw_root),
         capture_output=True,
         text=True,
         env=env,
+        shell=use_shell,
     )
+    # Write JSON report from stdout
+    if result.stdout.strip():
+        report_path.write_text(result.stdout, encoding="utf-8")
     # Playwright returns 0 if all pass, 1 if any fail — both are expected outcomes
 
     # Step 5: Parse Playwright JSON report
