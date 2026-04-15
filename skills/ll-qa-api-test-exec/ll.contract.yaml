@@ -1,0 +1,7 @@
+skill: ll-qa-api-test-exec
+version: "1.0"
+adr: ADR-047
+category: execution
+chain: api
+phase: 5
+description: "generated pytest -> evidence YAML + manifest backfill"
