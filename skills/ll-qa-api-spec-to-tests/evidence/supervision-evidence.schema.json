@@ -1,0 +1,34 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Supervision Evidence",
+  "description": "Supervisor validation evidence for ll-qa-api-spec-to-tests",
+  "type": "object",
+  "required": ["validation_passed", "file_count"],
+  "properties": {
+    "validation_passed": {
+      "type": "boolean",
+      "description": "Whether all generated files passed supervisor checklist"
+    },
+    "file_count": {
+      "type": "integer",
+      "description": "Number of generated test files validated"
+    },
+    "checklist_results": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["file", "checks_passed", "checks_total"],
+        "properties": {
+          "file": { "type": "string" },
+          "checks_passed": { "type": "integer" },
+          "checks_total": { "type": "integer" },
+          "failed_checks": { "type": "array", "items": { "type": "string" } }
+        }
+      }
+    },
+    "supervised_at": {
+      "type": "string",
+      "format": "date-time"
+    }
+  }
+}

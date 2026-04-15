@@ -1,0 +1,41 @@
+# Output Contract: ll-qa-api-spec-to-tests
+
+## Required Output
+- Generated pytest `.py` test files
+
+## Output Schema
+Each generated test file must contain:
+- Import statements: pytest, yaml, pathlib
+- EVIDENCE_DIR constant pointing to `ssot/tests/.artifacts/evidence`
+- Test class with docstring showing case_id and coverage_id
+- Test method implementing the spec contract:
+  - Setup preconditions
+  - Build and execute request
+  - Assert response status code
+  - Assert response and side-effect assertions
+  - Collect and write evidence YAML
+- Error handling: try/except that writes evidence on failure
+
+## Evidence Format
+Generated evidence YAML follows ADR-047 Section 6.3:
+```yaml
+evidence_record:
+  case_id: string
+  coverage_id: string
+  executed_at: string       # ISO timestamp
+  run_id: string            # unique run identifier
+  evidence:
+    request_snapshot: { method, url, body }
+    response_snapshot: { status_code, body }
+    assertion_results: [{ assertion, result }]
+  side_effects: []
+  execution_status: "success" | "failed" | "error"
+```
+
+## Quality Checks
+- [ ] Generated .py files pass py_compile (no syntax errors)
+- [ ] Files contain import pytest and import yaml
+- [ ] Files contain evidence-writing code (evidence_record dict + yaml.safe_dump)
+- [ ] Evidence output path includes run_id for collision avoidance
+- [ ] Files contain try/except error handling
+- [ ] Generated scripts do NOT modify input spec files

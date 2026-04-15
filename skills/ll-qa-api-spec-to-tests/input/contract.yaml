@@ -1,0 +1,35 @@
+# Input Contract: ll-qa-api-spec-to-tests
+
+## Required Input
+- One or more frozen api-test-spec YAML files
+
+## Input Schema
+Each spec file must contain:
+```yaml
+api_test_spec:
+  case_id: string           # unique case ID
+  coverage_id: string       # links to manifest coverage_id
+  endpoint: string          # HTTP method + path
+  capability: string        # API capability name
+  preconditions: [string]   # setup requirements
+  request:                  # request definition
+    method: string | null
+    path_params: object | null
+    query_params: object | null
+    headers: object | null
+    body: object | null
+  expected:                 # expected outcomes
+    status_code: integer
+    response_assertions: [string]
+    side_effect_assertions: [string]
+    response_schema: object | null
+  cleanup: [string]         # cleanup actions
+  evidence_required: [string] # evidence items to collect
+```
+
+## Input Validation
+- [ ] Spec YAML file exists and is valid YAML
+- [ ] Root key is `api_test_spec`
+- [ ] All required fields present: case_id, coverage_id, endpoint, capability, expected
+- [ ] expected.status_code is an integer
+- [ ] Passes `qa_schemas --type spec` validation
