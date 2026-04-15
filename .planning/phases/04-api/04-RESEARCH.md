@@ -300,22 +300,22 @@ evidence_refs:
 | A4 | The existing `api-settlement-report.yaml` in `.artifacts/settlement/` is a placeholder and must NOT be overwritten by pilot | Runtime State Inventory | MEDIUM -- Overwriting would lose existing artifact |
 | A5 | `pyyaml` is installed in the project's Python environment | Standard Stack | LOW -- `qa_schemas.py` imports it and was presumably tested in Phase 1 |
 
-## Open Questions
+## Open Questions (RESOLVED)
 
 1. **Which FEAT should the pilot use as template?**
    - What we know: D-01 says "create a new minimal feat YAML". Existing FEAT files have varied complexity (5-8 capabilities each).
    - What's unclear: The exact structure of the minimal feat YAML -- should it follow the existing FEAT markdown format with frontmatter, or a simpler YAML format?
-   - Recommendation: Follow the existing FEAT markdown format (frontmatter + Goal + Scope + Constraints + Acceptance Checks) since `validate_input.sh` checks for these sections. Create a simplified version with 2-3 API objects.
+   - RESOLVED: Follow the existing FEAT markdown format (frontmatter + Goal + Scope + Constraints + Acceptance Checks) since `validate_input.sh` checks for these sections. Create a simplified version with 2-3 API objects.
 
 2. **How should test execution be simulated?**
    - What we know: No backend exists. D-03 says "single-step interactive execution".
    - What's unclear: Should evidence files document the simulation explicitly, or treat it as if real execution occurred?
-   - Recommendation: Evidence files should note `execution_status: "simulated"` with a field indicating no real backend was called. This maintains honesty while still exercising the full chain.
+   - RESOLVED: Evidence files should note `execution_status: "simulated"` with a field indicating no real backend was called. This maintains honesty while still exercising the full chain.
 
 3. **Does the existing `e2e-settlement-report.yaml` conform to the current schema?**
    - What we know: It exists at `ssot/tests/.artifacts/settlement/e2e-settlement-report.yaml`.
    - What's unclear: Whether it has the `settlement_report` top-level key with all required fields (`chain`, `summary`, etc.).
-   - Recommendation: Run `python -m cli.lib.qa_schemas --type settlement ssot/tests/.artifacts/settlement/e2e-settlement-report.yaml` before the pilot to check. If it fails, create a minimal E2E settlement stub.
+   - RESOLVED: Run `python -m cli.lib.qa_schemas --type settlement ssot/tests/.artifacts/settlement/e2e-settlement-report.yaml` before the pilot to check. If it fails, create a minimal E2E settlement stub.
 
 4. **What should the pilot-report format be?**
    - What we know: D-09 says "record failure reasons to pilot-report". CONTEXT.md says "pilot-report detailed format is at Claude's discretion".
