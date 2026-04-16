@@ -130,7 +130,7 @@
 |-------------|-------|--------|
 | REQ-PATCH-01 | Phase 1 | Pending |
 | REQ-PATCH-02 | Phase 2 | Pending |
-| REQ-PATCH-03 | Phase 3 | Pending |
+| REQ-PATCH-03 | Phase 3 | Complete |
 | REQ-PATCH-04 | Phase 4 | Pending |
 | REQ-PATCH-05 | Phase 5 | Pending |
 | REQ-PATCH-06 | Phase 6 | Pending |

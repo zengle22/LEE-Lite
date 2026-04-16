@@ -80,7 +80,7 @@ Plans:
 - `agents/supervisor.md` — LLM 验证清单
 - `ll.lifecycle.yaml` — 生命周期定义
 
-**Plans:** 3 plans
+**Plans:** 3/3 plans complete
 
 Plans:
 - [x] 03-01-PLAN.md — Skill skeleton: SKILL.md + contract files + lifecycle metadata
