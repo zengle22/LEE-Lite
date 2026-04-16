@@ -28,36 +28,11 @@ from patch_capture_runtime import (
 def _make_complete_patch(
     patch_id: str = "UXPATCH-0002",
     change_class: str = "visual",
-    test_impact: str | None = None,
     changed_files: list[str] | None = None,
     source_actor: str = "ai_suggested",
     ai_suggested_class: str | None = "visual",
 ) -> dict:
     """Build a complete patch YAML dict that passes schema validation."""
-    test_impact_val = test_impact if test_impact else "none"
-    # test_impact field is checked as a string in escalation logic
-    # but schema expects a dict. We'll use a dict with a custom key.
-    # Actually the runtime checks patch.get("test_impact", "none") — if it's a dict,
-    # the check `not in (valid values)` will be True, triggering escalation.
-    # So for tests that should NOT escalate on test_impact, use "none" string.
-    # For tests that SHOULD escalate, use an invalid value.
-    # The schema validator treats test_impact as an optional object though.
-    # The runtime's escalation check: patch.get("test_impact", "none") not in valid_set
-    # If test_impact is "none" (string), it matches and doesn't escalate.
-    # If test_impact is a dict, it doesn't match and WILL escalate.
-    # So for non-escalating tests, we MUST use "none" string, not a dict.
-    # But the schema validator won't validate a string test_impact field...
-    # Let's use the string approach for runtime tests and understand schema won't catch it.
-    # Actually wait — the runtime code checks:
-    #   patch.get("test_impact", "none") not in ("none", "path_change", "assertion_change", "new_case_needed")
-    # If test_impact is absent, default is "none" → no escalation
-    # If test_impact is "none" → no escalation
-    # If test_impact is dict → WILL trigger escalation (because dict not in tuple)
-    #
-    # So we need test_impact as a string for proper escalation testing.
-    # The schema validator treats test_impact as optional object, so omitting it is fine.
-    # Let's just omit test_impact from YAML for non-escalating tests (default "none")
-    # and set it to invalid value for escalating tests.
 
     patch = {
         "experience_patch": {
@@ -88,9 +63,6 @@ def _make_complete_patch(
             },
         }
     }
-
-    if test_impact_val != "none":
-        patch["experience_patch"]["test_impact"] = test_impact_val
 
     return patch
 
