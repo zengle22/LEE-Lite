@@ -30,7 +30,7 @@ Plans:
 
 ## Phase 2: Patch 登记 Skill
 
-**Goal:** 创建 `ll-experience-patch-register` 技能，支持双路径登记（Prompt-to-Patch + Document-to-SRC）。
+**Goal:** 创建 `ll-patch-capture` 技能，支持双路径登记（Prompt-to-Patch + Document-to-SRC）。
 
 **Requirements:** REQ-PATCH-02
 **Depends on:** Phase 1 (schema ready)
@@ -38,15 +38,27 @@ Plans:
 **Skill gets:**
 - `scripts/run.sh` — Claude Code 子代理调用 wrapper
 - `agents/executor.md` — LLM prompt 模板
+- `agents/supervisor.md` — LLM 验证模板
 - `validate_input.sh` — 输入验证
 - `validate_output.sh` — 输出 schema 校验
 - `ll.lifecycle.yaml` — 生命周期定义
+- `scripts/patch_capture_runtime.py` — Python 运行时
+- CLI 注册 `patch-capture` 动作
+
+**Plans:** 4 plans
+
+Plans:
+- [x] 02-01-PLAN.md — Skill skeleton: SKILL.md + contract files + lifecycle metadata
+- [x] 02-02-PLAN.md — Executor + Supervisor agent prompts with dual-path routing
+- [x] 02-03-PLAN.md — Python runtime + shell scripts + CLI registration
+- [x] 02-04-PLAN.md — TDD unit tests for patch_capture_runtime.py (11 tests)
 
 **Success Criteria:**
-1. 技能文件结构完整（run.sh + executor.md + validate + lifecycle）
+1. 技能文件结构完整（run.sh + executor.md + supervisor.md + validate + lifecycle + runtime）
 2. Prompt-to-Patch 路径可工作：用户描述 → 生成合法 YAML
 3. `patch_registry.json` 自动更新
-4. CLI 已注册 `patch-register` 动作
+4. CLI 已注册 `patch-capture` 动作
+5. Runtime 单元测试通过（11 tests）
 
 **UI hint:** no
 
@@ -150,7 +162,7 @@ Plans:
 | Requirement | Phase | Status |
 |-------------|-------|--------|
 | REQ-PATCH-01: Patch Schema + 目录结构 | Phase 1 | Planned (2 plans) |
-| REQ-PATCH-02: Patch 登记 Skill | Phase 2 | Pending |
+| REQ-PATCH-02: Patch 登记 Skill | Phase 2 | Planned (4 plans) |
 | REQ-PATCH-03: 结算 Skill + 回写工具 | Phase 3 | Pending |
 | REQ-PATCH-04: 测试联动规则 | Phase 4 | Pending |
 | REQ-PATCH-05: AI Context 注入 | Phase 5 | Pending |
