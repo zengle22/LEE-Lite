@@ -16,7 +16,7 @@ from cli.lib.test_exec_runtime import execute_test_exec_skill
 
 def _skill_handler(ctx: CommandContext):
     ensure(
-        ctx.action in {"impl-spec-test", "test-exec-web-e2e", "test-exec-cli", "gate-human-orchestrator", "failure-capture", "spec-reconcile", "tech-to-impl", "feat-to-apiplan", "prototype-to-e2eplan", "api-manifest-init", "e2e-manifest-init", "api-spec-gen", "e2e-spec-gen", "settlement", "gate-evaluate", "render-testset-view", "api-spec-to-tests", "e2e-spec-to-tests", "api-test-exec", "e2e-test-exec"},
+        ctx.action in {"impl-spec-test", "test-exec-web-e2e", "test-exec-cli", "gate-human-orchestrator", "failure-capture", "spec-reconcile", "tech-to-impl", "feat-to-apiplan", "prototype-to-e2eplan", "api-manifest-init", "e2e-manifest-init", "api-spec-gen", "e2e-spec-gen", "settlement", "gate-evaluate", "render-testset-view", "api-spec-to-tests", "e2e-spec-to-tests", "api-test-exec", "e2e-test-exec", "patch-capture"},
         "INVALID_REQUEST",
         "unsupported skill action",
     )
@@ -95,6 +95,38 @@ def _skill_handler(ctx: CommandContext):
         evidence_refs = _collect_refs(result)
         return "OK", "tech-to-impl candidate emitted", {
             "canonical_path": result["artifacts_dir"],
+            **result,
+        }, [], evidence_refs
+
+    if ctx.action == "patch-capture":
+        from cli.lib.skill_runtime_paths import resolve_skill_scripts_dir
+        from pathlib import Path
+        import sys
+
+        ensure("feat_id" in ctx.payload, "INVALID_REQUEST", "missing feat_id")
+        ensure("input_type" in ctx.payload, "INVALID_REQUEST", "missing input_type")
+        ensure("input_value" in ctx.payload, "INVALID_REQUEST", "missing input_value")
+
+        scripts_dir = resolve_skill_scripts_dir(ctx.workspace_root, "ll-patch-capture")
+        scripts_str = str(scripts_dir.resolve())
+        inserted = False
+        if scripts_str not in sys.path:
+            sys.path.insert(0, scripts_str)
+            inserted = True
+        try:
+            from patch_capture_runtime import run_skill
+            result = run_skill(
+                workspace_root=ctx.workspace_root,
+                payload=ctx.payload,
+                request_id=ctx.request["request_id"],
+            )
+        finally:
+            if inserted and scripts_str in sys.path:
+                sys.path.remove(scripts_str)
+
+        evidence_refs = _collect_refs(result)
+        return "OK", "patch capture registered", {
+            "canonical_path": result.get("patch_path", ""),
             **result,
         }, [], evidence_refs
 

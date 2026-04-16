@@ -78,7 +78,7 @@ def build_parser() -> argparse.ArgumentParser:
 
     skill = groups.add_parser("skill")
     skill_sub = skill.add_subparsers(dest="action", required=True)
-    for action in ("impl-spec-test", "test-exec-web-e2e", "test-exec-cli", "gate-human-orchestrator", "failure-capture", "spec-reconcile", "tech-to-impl", "feat-to-apiplan", "prototype-to-e2eplan", "api-manifest-init", "e2e-manifest-init", "api-spec-gen", "e2e-spec-gen", "api-spec-to-tests", "e2e-spec-to-tests", "api-test-exec", "e2e-test-exec"):
+    for action in ("impl-spec-test", "test-exec-web-e2e", "test-exec-cli", "gate-human-orchestrator", "failure-capture", "spec-reconcile", "tech-to-impl", "feat-to-apiplan", "prototype-to-e2eplan", "api-manifest-init", "e2e-manifest-init", "api-spec-gen", "e2e-spec-gen", "api-spec-to-tests", "e2e-spec-to-tests", "api-test-exec", "e2e-test-exec", "patch-capture"):
         _add_action_parser(skill_sub, action)
     skill.set_defaults(handler=handle_skill)
 
