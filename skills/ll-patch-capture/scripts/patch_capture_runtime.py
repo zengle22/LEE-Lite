@@ -24,15 +24,23 @@ def slugify(text: str) -> str:
 
 def get_next_patch_id(feat_dir: Path) -> str:
     """Determine next sequential UXPATCH ID from registry or filesystem."""
-    import fcntl
     registry_path = feat_dir / "patch_registry.json"
     if registry_path.exists():
         with open(registry_path, encoding="utf-8") as f:
-            fcntl.flock(f, fcntl.LOCK_SH)
+            # File locking for concurrent access (Unix only)
+            try:
+                import fcntl
+                fcntl.flock(f, fcntl.LOCK_SH)
+            except ImportError:
+                pass  # fcntl not available on Windows
             try:
                 registry = json.load(f)
             finally:
-                fcntl.flock(f, fcntl.LOCK_UN)
+                try:
+                    import fcntl
+                    fcntl.flock(f, fcntl.LOCK_UN)
+                except ImportError:
+                    pass
         existing_ids = [
             int(p["id"].split("-")[1])
             for p in registry.get("patches", [])
