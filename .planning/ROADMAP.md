@@ -73,16 +73,25 @@ Plans:
 
 **Skill gets:**
 - `scripts/run.sh` — 批量结算 wrapper
-- `agents/executor.md` — LLM prompt（回写草稿生成）
-- `validate_input.sh` — 验证 pending_backwrite Patch 存在
-- `validate_output.sh` — 验证结算报告完整性
+- `scripts/validate_input.sh` — 验证 pending_backwrite Patch 存在
+- `scripts/validate_output.sh` — 验证结算报告完整性
+- `scripts/settle_runtime.py` — Python 运行时（批量扫描 + 分组 + 结算 + 报告）
+- `agents/executor.md` — LLM prompt（delta/SRC 草稿生成）
+- `agents/supervisor.md` — LLM 验证清单
 - `ll.lifecycle.yaml` — 生命周期定义
 
+**Plans:** 3 plans
+
+Plans:
+- [x] 03-01-PLAN.md — Skill skeleton: SKILL.md + contract files + lifecycle metadata
+- [x] 03-02-PLAN.md — Python settle_runtime.py with TDD (scan, group, settle, report, escalate)
+- [x] 03-03-PLAN.md — CLI wrapper scripts + executor/supervisor agent prompts
+
 **Success Criteria:**
-1. 技能文件结构完整
-2. 能按 change_type 分类回写（visual→TECH, interaction→UI, semantic→FEAT）
+1. 技能文件结构完整（run.sh + validate + settle_runtime.py + executor.md + supervisor.md + lifecycle）
+2. 能按 change_class 分类处理：visual→retain_in_code, interaction→delta files, semantic→SRC candidates
 3. 生成 resolved_patches.yaml 结算报告
-4. 回写草稿生成后需人工审核确认
+4. 回写草稿生成后由 supervisor 验证完整性
 
 **UI hint:** no
 
@@ -163,7 +172,7 @@ Plans:
 |-------------|-------|--------|
 | REQ-PATCH-01: Patch Schema + 目录结构 | Phase 1 | Planned (2 plans) |
 | REQ-PATCH-02: Patch 登记 Skill | Phase 2 | Planned (4 plans) |
-| REQ-PATCH-03: 结算 Skill + 回写工具 | Phase 3 | Pending |
+| REQ-PATCH-03: 结算 Skill + 回写工具 | Phase 3 | Planned (3 plans) |
 | REQ-PATCH-04: 测试联动规则 | Phase 4 | Pending |
 | REQ-PATCH-05: AI Context 注入 | Phase 5 | Pending |
 | REQ-PATCH-06: Hook 集成 | Phase 6 | Pending |
