@@ -1,0 +1,24 @@
+# Output Contract: ll-experience-patch-settle
+
+## Required Output
+- resolved_patches.yaml: Settlement report at ssot/experience-patches/{feat_id}/resolved_patches.yaml
+  Recording each patch's resolution method, timestamp, and operation summary.
+
+## Conditional Output (per change_class)
+- Interaction patches (D-03):
+  - ui-spec-delta.yaml: UI specification changes with original_text field (D-06)
+  - flow-spec-delta.yaml: Flow/navigation changes with original_flow field
+  - test-impact-draft.yaml: Test impact analysis draft
+- Semantic patches (D-04):
+  - SRC-XXXX__{slug}.yaml: SRC candidate files with requires_gate_approval: true
+- Visual patches (D-02):
+  - No delta files generated — status changed to retain_in_code only
+
+## Side Effects
+- patch_registry.json updated with new patch statuses and last_updated timestamp
+- Each processed patch YAML file updated with new status and resolution fields
+
+## Integrity Constraints
+- [ ] No frozen SSOT files are modified (D-05)
+- [ ] All new files written within feat_dir only
+- [ ] Registry update is atomic (read → modify → single write)

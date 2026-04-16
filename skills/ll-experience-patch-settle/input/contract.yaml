@@ -1,0 +1,16 @@
+# Input Contract: ll-experience-patch-settle
+
+## Required Input
+- feat_id: string (e.g., "feat.training-plan") — the FEAT whose pending_backwrite patches to settle
+- workspace: string — absolute path to the project root directory
+
+## Optional Input
+- change_class_filter: enum[visual, interaction, semantic] — settle only patches of this change_class
+- auto_approve: boolean (default: true) — skip human confirmation per D-08
+
+## Input Validation
+- [ ] feat_id is non-empty string matching ^[a-zA-Z0-9][\w.\-]*$
+- [ ] workspace points to an existing directory
+- [ ] ssot/experience-patches/{feat_id}/ exists and contains patch_registry.json
+- [ ] At least one pending_backwrite patch exists in the feat directory
+- [ ] All patches pass schema validation via cli/lib/patch_schema.py
