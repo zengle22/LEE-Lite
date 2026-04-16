@@ -24,10 +24,15 @@ def slugify(text: str) -> str:
 
 def get_next_patch_id(feat_dir: Path) -> str:
     """Determine next sequential UXPATCH ID from registry or filesystem."""
+    import fcntl
     registry_path = feat_dir / "patch_registry.json"
     if registry_path.exists():
         with open(registry_path, encoding="utf-8") as f:
-            registry = json.load(f)
+            fcntl.flock(f, fcntl.LOCK_SH)
+            try:
+                registry = json.load(f)
+            finally:
+                fcntl.flock(f, fcntl.LOCK_UN)
         existing_ids = [
             int(p["id"].split("-")[1])
             for p in registry.get("patches", [])
@@ -75,8 +80,11 @@ def register_patch_in_registry(feat_dir: Path, patch_data: dict) -> dict:
     registry_path = feat_dir / "patch_registry.json"
 
     if registry_path.exists():
-        with open(registry_path, encoding="utf-8") as f:
-            registry = json.load(f)
+        try:
+            with open(registry_path, encoding="utf-8") as f:
+                registry = json.load(f)
+        except json.JSONDecodeError as e:
+            ensure(False, "INVALID_REQUEST", f"corrupt registry: {e}")
     else:
         registry = {
             "patch_registry_version": "1.0.0",
@@ -154,8 +162,7 @@ def run_skill(workspace_root: Path | str, payload: dict[str, Any], request_id: s
         try:
             doc_path.resolve().relative_to(workspace_root.resolve())
         except ValueError:
-            from cli.lib.errors import ensure as _ensure
-            _ensure(False, "INVALID_REQUEST", f"document path outside workspace: {input_value}")
+            ensure(False, "INVALID_REQUEST", f"document path outside workspace: {input_value}")
 
     # Validate generated patch YAML if it exists (post-Executor generation)
     patch_path = None
@@ -215,11 +222,15 @@ def run_skill(workspace_root: Path | str, payload: dict[str, Any], request_id: s
         if patch.get("change_class") == "semantic":
             escalation_reasons.append("semantic_patch_requires_src_decision")
         # Disputed test_impact
-        if patch.get("test_impact", "none") not in ("none", "path_change", "assertion_change", "new_case_needed"):
+        ti = patch.get("test_impact")
+        if ti is not None and not isinstance(ti, dict):
             escalation_reasons.append("disputed_test_impact")
 
         if escalation_reasons:
             validation_result["escalation_triggers"] = escalation_reasons
+            patch["status"] = "draft"
+            with open(patch_path, "w", encoding="utf-8") as f:
+                yaml.dump(patch_data, f, default_flow_style=False, allow_unicode=True)
             registered = False
         else:
             patch["created_at"] = timestamp
