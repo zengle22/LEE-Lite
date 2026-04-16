@@ -475,3 +475,47 @@ class TestRunSkill:
             assert result["registered"] is True
             assert "notification" in result
             assert "UXPATCH-0003" in result["notification"]
+
+    def test_escalation_conflicting_files(self):
+        """Conflicting changed_files with an existing active patch should trigger escalation."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            feat_dir = Path(tmpdir) / "ssot" / "experience-patches" / "test-feat"
+            feat_dir.mkdir(parents=True)
+            # Create registry so it's not first-patch
+            registry = {
+                "patch_registry_version": "1.0.0",
+                "feat_id": "test-feat",
+                "patches": [{"id": "UXPATCH-0001"}],
+                "last_updated": "2026-04-16T09:00:00Z",
+            }
+            with open(feat_dir / "patch_registry.json", "w") as f:
+                json.dump(registry, f)
+
+            # Pre-seed an active patch with overlapping files
+            active_patch = _make_complete_patch(
+                "UXPATCH-0001", "visual",
+                changed_files=["src/components/Button.tsx"],
+                ai_suggested_class="visual",
+            )
+            with open(feat_dir / "UXPATCH-0001__active.yaml", "w") as f:
+                yaml.dump(active_patch, f)
+
+            # Create a new patch with overlapping changed_files
+            new_patch = _make_complete_patch(
+                "UXPATCH-0002", "visual",
+                changed_files=["src/components/Button.tsx", "src/utils/helper.py"],
+                ai_suggested_class="visual",
+            )
+            with open(feat_dir / "UXPATCH-0002__new.yaml", "w") as f:
+                yaml.dump(new_patch, f)
+
+            result = run_skill(
+                tmpdir,
+                {"feat_id": "test-feat", "input_type": "prompt", "input_value": "test"},
+                "req-test-011",
+            )
+            assert result.get("validation", {}).get("conflicts") is not None
+            assert len(result["validation"]["conflicts"]) == 1
+            assert result["validation"]["conflicts"][0]["with_patch_id"] == "UXPATCH-0001"
+            assert result["escalation_needed"] is True
+            assert result["registered"] is False
