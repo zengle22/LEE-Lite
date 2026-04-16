@@ -43,6 +43,11 @@ if [[ -z "${INPUT_VALUE}" ]]; then
 fi
 
 # Default output directory
+# Security: validate FEAT_ID before filesystem operations
+if ! echo "${FEAT_ID}" | grep -qE '^[a-zA-Z0-9][a-zA-Z0-9._-]*$'; then
+    echo "Error: --feat-id contains invalid characters"
+    exit 1
+fi
 OUTPUT_DIR="${WORKSPACE}/ssot/experience-patches/${FEAT_ID}"
 
 # Create output directory if it doesn't exist
