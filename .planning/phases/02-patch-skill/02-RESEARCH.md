@@ -420,22 +420,22 @@ def detect_conflicts(feat_dir: Path, new_changed_files: list[str], current_patch
 | A4 | The `input/` and `output/` directories contain `contract.yaml` + `semantic-checklist.md` based on ll-qa-settlement pattern | Architecture Patterns | Low: if other skills differ, template may need adjustment |
 | A5 | Supervisor agent validation checklist should include schema validation result from Python, not replace it | Common Pitfalls | High: if Supervisor replaces schema validation, invalid YAML can slip through |
 
-## Open Questions
+## Open Questions (RESOLVED)
 
 1. **Confidence threshold for change_class escalation**
    - What we know: D-09 says "change_class 分类置信度低" triggers escalation
    - What's unclear: No numeric threshold defined in ADR-049. ADR uses qualitative terms ("置信度高", "模糊").
-   - Recommendation: Define threshold in Executor prompt as qualitative rules (clear decision tree match = high; ambiguous = low) rather than numeric confidence scores. The executor can add a `_confidence` metadata field.
+   - RESOLVED: Define threshold in Executor prompt as qualitative rules (clear decision tree match = high; ambiguous = low) rather than numeric confidence scores. The executor adds a `_confidence` metadata field.
 
 2. **Whether `ll.lifecycle.yaml` should be created now**
    - What we know: ll-qa-settlement has it with states: draft → validated → executed → frozen
    - What's unclear: Patch lifecycle states are different (draft → active → validated → ... → archived)
-   - Recommendation: Create it with patch-appropriate states to maintain skill template consistency. Planner can decide.
+   - RESOLVED: Create it with patch-appropriate states to maintain skill template consistency. Planner decides exact states.
 
 3. **How Document-to-SRC path triggers semantic Patch generation**
    - What we know: D-15 says skill generates semantic Patch if Document-to-SRC involves experience-layer changes
    - What's unclear: What criteria determine "experience-layer change"? Does `ll-product-raw-to-src` output a flag?
-   - Recommendation: The runtime checks if the SRC candidate's scope overlaps with known experience-layer FEATs (scan `ssot/experience-patches/` for matching `feat_ref`). If yes, generate a semantic Patch with `resolution.src_created = SRC ID`.
+   - RESOLVED: The runtime checks if the SRC candidate's scope overlaps with known experience-layer FEATs (scan `ssot/experience-patches/` for matching `feat_ref`). If yes, generate a semantic Patch with `resolution.src_created = SRC ID`.
 
 ## Environment Availability
 
