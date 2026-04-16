@@ -6,7 +6,7 @@ status: planning
 last_updated: "2026-04-16T09:01:17.868Z"
 progress:
   total_phases: 7
-  completed_phases: 2
+  completed_phases: 3
   total_plans: 6
   completed_plans: 6
   percent: 100
@@ -17,7 +17,7 @@ progress:
 **Project:** ADR-049 体验修正层落地
 **Status:** Ready to plan
 **Core value:** 为体验期高频碎改提供轻量中间治理层，防止 SSOT 漂移和测试链失真
-**Current focus:** Phase 02 — patch-skill
+**Current focus:** Phase 03 — 结算 Skill + 回写工具
 
 ## Roadmap Summary
 
