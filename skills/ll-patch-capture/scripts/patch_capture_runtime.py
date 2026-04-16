@@ -45,8 +45,12 @@ def detect_conflicts(feat_dir: Path, new_changed_files: list[str], current_patch
     for patch_file in feat_dir.glob("UXPATCH-*.yaml"):
         if not patch_file.exists():
             continue
-        with open(patch_file, encoding="utf-8") as f:
-            patch_data = yaml.safe_load(f)
+        try:
+            with open(patch_file, encoding="utf-8") as f:
+                patch_data = yaml.safe_load(f)
+        except Exception:
+            # Skip malformed YAML files
+            continue
 
         # Unwrap nested structure: YAML has experience_patch as root key
         patch = patch_data.get("experience_patch", patch_data)
@@ -199,8 +203,12 @@ def run_skill(workspace_root: Path | str, payload: dict[str, Any], request_id: s
 
         # ESCALATION: check triggers before auto-registration (D-09)
         escalation_reasons = []
-        # First Patch for this FEAT
-        existing_count = len(patch_data.get("patches", [])) if patch_data.get("patches") else 0
+        # First Patch for this FEAT (check registry, not the patch file)
+        registry_for_first_check = None
+        if (feat_dir / "patch_registry.json").exists():
+            with open(feat_dir / "patch_registry.json", encoding="utf-8") as f:
+                registry_for_first_check = json.load(f)
+        existing_count = len(registry_for_first_check.get("patches", [])) if registry_for_first_check else 0
         if existing_count == 0:
             escalation_reasons.append("first_patch_for_feat")
         # Semantic Patch requires SRC decision
