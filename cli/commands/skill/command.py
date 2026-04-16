@@ -100,29 +100,24 @@ def _skill_handler(ctx: CommandContext):
 
     if ctx.action == "patch-capture":
         from cli.lib.skill_runtime_paths import resolve_skill_scripts_dir
-        from pathlib import Path
-        import sys
 
         ensure("feat_id" in ctx.payload, "INVALID_REQUEST", "missing feat_id")
         ensure("input_type" in ctx.payload, "INVALID_REQUEST", "missing input_type")
         ensure("input_value" in ctx.payload, "INVALID_REQUEST", "missing input_value")
 
         scripts_dir = resolve_skill_scripts_dir(ctx.workspace_root, "ll-patch-capture")
-        scripts_str = str(scripts_dir.resolve())
-        inserted = False
-        if scripts_str not in sys.path:
-            sys.path.insert(0, scripts_str)
-            inserted = True
-        try:
-            from patch_capture_runtime import run_skill
-            result = run_skill(
-                workspace_root=ctx.workspace_root,
-                payload=ctx.payload,
-                request_id=ctx.request["request_id"],
-            )
-        finally:
-            if inserted and scripts_str in sys.path:
-                sys.path.remove(scripts_str)
+        import importlib.util
+
+        mod_path = scripts_dir / "patch_capture_runtime.py"
+        spec = importlib.util.spec_from_file_location("patch_capture_runtime", mod_path)
+        mod = importlib.util.module_from_spec(spec)
+        sys.modules["patch_capture_runtime"] = mod
+        spec.loader.exec_module(mod)
+        result = mod.run_skill(
+            workspace_root=ctx.workspace_root,
+            payload=ctx.payload,
+            request_id=ctx.request["request_id"],
+        )
 
         evidence_refs = _collect_refs(result)
         return "OK", "patch capture registered", {
