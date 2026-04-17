@@ -1,0 +1,32 @@
+experience_patch:
+  id: "UXPATCH-0001"
+  type: "experience_patch"
+  status: "draft"
+  created_at: "2026-04-16T10:00:00Z"
+  updated_at: "2026-04-16T10:00:00Z"
+  title: "Update training plan layout"
+  summary: "Adjust layout for mobile training plan view"
+  change_class: "layout"
+  severity: null
+  source:
+    actor: "ai_suggested"
+    session: "session-001"
+    prompt_ref: null
+    ai_suggested_class: "ui_flow"
+    human_confirmed_class: "ui_flow"
+    reviewed_at: "2026-04-16T10:05:00Z"
+  scope:
+    feat_ref: "feat.training-plan"
+    page: "training-plan"
+    module: "views"
+  test_impact: null
+  implementation:
+    changed_files:
+      - "src/views/training_plan.py"
+    description: null
+  conflict: false
+  conflict_details: null
+  problem: "none"
+  decision: null
+  resolution: null
+  related_ids: []

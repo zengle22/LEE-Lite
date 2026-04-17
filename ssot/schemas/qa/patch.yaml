@@ -1,0 +1,58 @@
+# Patch YAML Schema (ADR-049 §2.4)
+# All experience patches must conform to this schema.
+
+experience_patch:
+  id: string                # UXPATCH-NNNN format (4-digit zero-padded)
+  type: "experience_patch"
+  status: enum[draft, proposed, approved, applied, rejected, superseded]
+  created_at: datetime      # ISO 8601
+  updated_at: datetime      # ISO 8601
+  title: string
+  summary: string
+  change_class: enum[ui_flow, copy_text, validation, navigation, layout, interaction, performance, accessibility, error_handling, data_display, other]
+  severity: string | null
+
+  source:
+    actor: string           # "ai_suggested" | "human"
+    session: string | null
+    prompt_ref: string | null
+    ai_suggested_class: string | null
+    human_confirmed_class: string  # Must match ai_suggested_class in auto-pass
+    reviewed_at: datetime | null   # optional — ISO 8601, human review timestamp (D-21)
+
+  scope:
+    feat_ref: string        # References the FEAT this patch belongs to
+    page: string | null
+    module: string | null
+
+  test_impact:              # Required for interaction/semantic patches (D-04)
+    impacts_user_path: boolean
+    impacts_acceptance: boolean
+    affected_routes:
+      - string              # e.g., "training-plan"
+    test_changes_required:
+      - string
+
+  implementation:
+    changed_files:
+      - string
+    description: string | null
+
+  conflict: boolean
+  conflict_details:
+    conflicting_patch_id: string
+    overlapping_files:
+      - string
+
+  problem: enum[none, conflict, regression, incomplete]
+  decision: enum[approved, rejected, needs_revision, superseded]
+
+  resolution:
+    decision: string | null
+    notes: string | null
+    src_created: string | null
+
+  related_ids:
+    - string
+
+  reviewed_at: datetime | null   # optional top-level, when test_impact was human-reviewed (D-21)
