@@ -7,6 +7,69 @@ from ._test_exec_skill_support import SkillRuntimeHarness, python_command, pytho
 
 
 class TestCliExecSkillRuntime(SkillRuntimeHarness):
+    def _write_inline_testset_005(self) -> str:
+        """Write a self-contained testset that replaces the gitignored artifact reference."""
+        return self.write_testset(
+            "inline-testset-005.yaml",
+            "ssot_type: TESTSET\n"
+            "test_set_id: TS-INLINE-005\n"
+            "title: Inline Test Set 005\n"
+            "feat_ref: FEAT-INLINE-005\n"
+            "epic_ref: EPIC-INLINE-005\n"
+            "src_ref: SRC-INLINE-005\n"
+            "test_units:\n"
+            "  - unit_ref: TS-INLINE-005-U01\n"
+            "    title: inline case one\n"
+            "    priority: P0\n"
+            "    input_preconditions: []\n"
+            "    trigger_action: run\n"
+            "    pass_conditions:\n"
+            "      - exits successfully\n"
+            "    fail_conditions: []\n"
+            "    required_evidence:\n"
+            "      - stdout\n"
+            "  - unit_ref: TS-INLINE-005-U02\n"
+            "    title: inline case two\n"
+            "    priority: P0\n"
+            "    input_preconditions: []\n"
+            "    trigger_action: run\n"
+            "    pass_conditions:\n"
+            "      - exits successfully\n"
+            "    fail_conditions: []\n"
+            "    required_evidence:\n"
+            "      - stdout\n"
+            "  - unit_ref: TS-INLINE-005-U03\n"
+            "    title: inline case three\n"
+            "    priority: P0\n"
+            "    input_preconditions: []\n"
+            "    trigger_action: run\n"
+            "    pass_conditions:\n"
+            "      - exits successfully\n"
+            "    fail_conditions: []\n"
+            "    required_evidence:\n"
+            "      - stdout\n"
+            "  - unit_ref: TS-INLINE-005-U04\n"
+            "    title: inline case four\n"
+            "    priority: P0\n"
+            "    input_preconditions: []\n"
+            "    trigger_action: run\n"
+            "    pass_conditions:\n"
+            "      - exits successfully\n"
+            "    fail_conditions: []\n"
+            "    required_evidence:\n"
+            "      - stdout\n"
+            "  - unit_ref: TS-INLINE-005-U05\n"
+            "    title: inline case five\n"
+            "    priority: P0\n"
+            "    input_preconditions: []\n"
+            "    trigger_action: run\n"
+            "    pass_conditions:\n"
+            "      - exits successfully\n"
+            "    fail_conditions: []\n"
+            "    required_evidence:\n"
+            "      - stdout\n",
+        )
+
     def test_cli_skill_emits_candidate_and_handoff_with_real_testset(self) -> None:
         command = python_command(
             "import os; "
@@ -23,7 +86,7 @@ class TestCliExecSkillRuntime(SkillRuntimeHarness):
         request = self.build_request(
             "skill.test-exec-cli",
             {
-                "test_set_ref": self.feat_testset_path("005"),
+                "test_set_ref": self._write_inline_testset_005(),
                 "test_environment_ref": env_ref,
                 "proposal_ref": "proposal-cli-001",
             },
@@ -55,7 +118,7 @@ class TestCliExecSkillRuntime(SkillRuntimeHarness):
         request = self.build_request(
             "skill.test-exec-cli",
             {
-                "test_set_ref": self.feat_testset_path("005"),
+                "test_set_ref": self._write_inline_testset_005(),
                 "test_environment_ref": env_ref,
                 "proposal_ref": "proposal-cli-fail-001",
             },
@@ -84,7 +147,7 @@ class TestCliExecSkillRuntime(SkillRuntimeHarness):
         request = self.build_request(
             "skill.test-exec-cli",
             {
-                "test_set_ref": self.feat_testset_path("005"),
+                "test_set_ref": self._write_inline_testset_005(),
                 "test_environment_ref": env_ref,
                 "proposal_ref": "proposal-cli-timeout-001",
             },
@@ -111,7 +174,7 @@ class TestCliExecSkillRuntime(SkillRuntimeHarness):
         request = self.build_request(
             "skill.test-exec-cli",
             {
-                "test_set_ref": self.feat_testset_path("005"),
+                "test_set_ref": self._write_inline_testset_005(),
                 "test_environment_ref": env_ref,
                 "proposal_ref": "proposal-cli-smoke-001",
             },
@@ -142,7 +205,7 @@ class TestCliExecSkillRuntime(SkillRuntimeHarness):
         request = self.build_request(
             "skill.test-exec-cli",
             {
-                "test_set_ref": self.feat_testset_path("005"),
+                "test_set_ref": self._write_inline_testset_005(),
                 "test_environment_ref": env_ref,
                 "proposal_ref": "proposal-cli-inline-reject-001",
             },
@@ -153,7 +216,7 @@ class TestCliExecSkillRuntime(SkillRuntimeHarness):
         self.assertNotEqual(self.run_cli("skill", "test-exec-cli", "--request", str(req), "--response-out", str(response)), 0)
         payload = read_json(response)
         self.assertEqual(payload["status_code"], "PRECONDITION_FAILED")
-        self.assertIn("python -c", payload["message"])
+        self.assertIn("python -c", payload.get("message", ""))
 
     def test_cli_skill_pilot_integration_flow(self) -> None:
         command = python_command("import os; assert os.environ['LEE_EXECUTION_MODALITY'] == 'cli'; print(os.environ['LEE_TEST_CASE_ID'])")
@@ -173,7 +236,7 @@ class TestCliExecSkillRuntime(SkillRuntimeHarness):
             "test-exec-cli",
             "pilot-skill.json",
             "pilot-skill.response.json",
-            {"test_set_ref": self.feat_testset_path("005"), "test_environment_ref": env_ref, "proposal_ref": "proposal-pilot-005"},
+            {"test_set_ref": self._write_inline_testset_005(), "test_environment_ref": env_ref, "proposal_ref": "proposal-pilot-005"},
         )
         self.assert_execution_outputs(skill_payload, expected_cases=5, expected_status="completed")
         decision_payload = self.run_json_command(
@@ -217,7 +280,7 @@ class TestCliExecSkillRuntime(SkillRuntimeHarness):
             "pilot-submit-evidence.json",
             "pilot-submit-evidence.response.json",
             {
-                "pilot_chain_ref": self.feat_testset_path("005"),
+                "pilot_chain_ref": self._write_inline_testset_005(),
                 "producer_ref": skill_payload["skill_ref"],
                 "consumer_ref": "skill.qa.test_exec_cli.consumer",
                 "audit_ref": audit_payload["finding_bundle_ref"],
@@ -347,7 +410,7 @@ class TestCliExecSkillRuntime(SkillRuntimeHarness):
         request = self.build_request(
             "skill.test-exec-cli",
             {
-                "test_set_ref": self.feat_testset_path("005"),
+                "test_set_ref": self._write_inline_testset_005(),
                 "test_environment_ref": env_ref,
                 "proposal_ref": "proposal-cli-coverage-001",
             },

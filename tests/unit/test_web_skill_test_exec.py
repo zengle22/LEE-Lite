@@ -5,6 +5,64 @@ from ._test_exec_skill_support import SkillRuntimeHarness, python_file_command, 
 
 
 class TestWebExecSkillRuntime(SkillRuntimeHarness):
+    def _write_inline_web_testset(self) -> str:
+        """Write a self-contained web testset that replaces the gitignored artifact reference."""
+        return self.write_testset(
+            "inline-web-testset.yaml",
+            "ssot_type: TESTSET\n"
+            "test_set_id: TS-WEB-INLINE-001\n"
+            "title: Inline Web Test Set\n"
+            "feat_ref: FEAT-WEB-INLINE-001\n"
+            "epic_ref: EPIC-WEB-INLINE-001\n"
+            "src_ref: SRC-WEB-INLINE-001\n"
+            "risk_focus:\n"
+            "  - RISK-001\n"
+            "test_units:\n"
+            "  - unit_ref: TS-WEB-INLINE-001-U01\n"
+            "    title: web case one\n"
+            "    priority: P0\n"
+            "    page_path: /login\n"
+            "    expected_url: /dashboard\n"
+            "    expected_text: Welcome back\n"
+            "    acceptance_refs:\n"
+            "      - AC-001\n"
+            "      - AC-002\n"
+            "    selectors:\n"
+            "      email_input:\n"
+            "        testid: login-email\n"
+            "      password_input: input[name='password']\n"
+            "      primary_action:\n"
+            "        role: button\n"
+            "        name: Sign in\n"
+            "    ui_steps:\n"
+            "    - action: goto\n"
+            "      path: /login\n"
+            "    - action: fill\n"
+            "      target: email_input\n"
+            "      value: user@example.com\n"
+            "    - action: fill\n"
+            "      target: password_input\n"
+            "      value: secret\n"
+            "    - action: click\n"
+            "      target: primary_action\n"
+            "    - action: assert_text\n"
+            "      text: Welcome back\n"
+            "  - unit_ref: TS-WEB-INLINE-001-U02\n"
+            "    title: web case two\n"
+            "    priority: P0\n"
+            "    page_path: /settings\n"
+            "    expected_text: Settings\n"
+            "    acceptance_refs:\n"
+            "      - AC-003\n"
+            "  - unit_ref: TS-WEB-INLINE-001-U03\n"
+            "    title: web case three\n"
+            "    priority: P0\n"
+            "    page_path: /profile\n"
+            "    expected_text: Profile\n"
+            "    acceptance_refs:\n"
+            "      - AC-004\n",
+        )
+
     def assert_adr035_traceability_artifacts(self, payload: dict, expected_cases: int, require_acceptance_items: bool = False) -> None:
         test_case_pack = yaml.safe_load(self.resolve_ref(payload["test_case_pack_ref"]).read_text(encoding="utf-8")) or {}
         results_summary = read_json(self.resolve_ref(payload["results_summary_ref"]))
@@ -44,7 +102,12 @@ class TestWebExecSkillRuntime(SkillRuntimeHarness):
         self.assertEqual(results_summary["run_status"], payload["run_status"])
 
     def test_web_skill_emits_candidate_and_handoff_with_real_testset(self) -> None:
-        npm_script, playwright_script = self.write_fake_playwright_scripts()
+        case_ids = [
+            "TS-WEB-INLINE-001-U01",
+            "TS-WEB-INLINE-001-U02",
+            "TS-WEB-INLINE-001-U03",
+        ]
+        npm_script, playwright_script = self.write_fake_playwright_scripts(case_ids)
         env_ref = self.write_env_spec(
             "web-env.yaml",
             "execution_modality: web_e2e\n"
@@ -59,7 +122,7 @@ class TestWebExecSkillRuntime(SkillRuntimeHarness):
         )
         request = self.build_request(
             "skill.test-exec-web-e2e",
-            {"test_set_ref": self.feat_testset_path("001"), "test_environment_ref": env_ref, "proposal_ref": "proposal-web-001"},
+            {"test_set_ref": self._write_inline_web_testset(), "test_environment_ref": env_ref, "proposal_ref": "proposal-web-001"},
         )
         req = self.request_path("skill-web.json")
         write_json(req, request)
@@ -69,7 +132,7 @@ class TestWebExecSkillRuntime(SkillRuntimeHarness):
         ui_intent, ui_source_context, ui_binding_map, candidate = self.assert_execution_outputs(payload["data"], expected_cases=3, expected_status="completed")
         self.assert_adr035_traceability_artifacts(payload["data"], expected_cases=3, require_acceptance_items=True)
         flow_plan = read_json(self.resolve_ref(payload["data"]["ui_flow_plan_ref"]))
-        self.assertTrue(all(item["derivation_mode"] in {"governance_inferred", "fallback_smoke"} for item in ui_intent["cases"]))
+        self.assertTrue(all(item["derivation_mode"] in {"explicit_contract", "governance_inferred", "fallback_smoke"} for item in ui_intent["cases"]))
         self.assertTrue(all("intent_confidence" in item for item in ui_intent["cases"]))
         self.assertFalse(ui_source_context["codebase"]["resolved"])
         self.assertIn("source_summary", ui_source_context)

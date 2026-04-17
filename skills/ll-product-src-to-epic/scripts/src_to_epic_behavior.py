@@ -89,7 +89,7 @@ def _engineering_bootstrap_behavior_slices() -> list[dict[str, Any]]:
             "overlay_families": [],
         },
         {
-            "id": "api-shell-runnable",
+            "id": "api-shell",
             "name": "Go API 空壳可运行",
             "track": "foundation",
             "goal": "提供可启动的 apps/api 骨架（模块边界、依赖注入/分层约束、最小路由），并确保 handler 不直接跑 raw SQL。",
@@ -101,7 +101,7 @@ def _engineering_bootstrap_behavior_slices() -> list[dict[str, Any]]:
             "overlay_families": [],
         },
         {
-            "id": "miniapp-shell-runnable",
+            "id": "miniapp-shell",
             "name": "UniApp 小程序空壳可运行",
             "track": "foundation",
             "goal": "提供可启动的 apps/miniapp 骨架（页面落点与最小导航），与后端健康检查打通最小联通性验证。",
@@ -113,7 +113,7 @@ def _engineering_bootstrap_behavior_slices() -> list[dict[str, Any]]:
             "overlay_families": [],
         },
         {
-            "id": "local-env-baseline",
+            "id": "local-env",
             "name": "本地开发环境与 Postgres 基线",
             "track": "foundation",
             "goal": "冻结本地运行方式（compose/postgres、env vars、.env.example），保证新成员可复现启动，不引入密钥到仓库。",
@@ -125,7 +125,7 @@ def _engineering_bootstrap_behavior_slices() -> list[dict[str, Any]]:
             "overlay_families": [],
         },
         {
-            "id": "db-migrations-discipline",
+            "id": "db-migrations",
             "name": "Migration 机制与初始 Schema 基线",
             "track": "foundation",
             "goal": "建立 db/migrations 作为唯一 schema 演进通道，禁止手工改库作为默认协作方式，并提供最小初始化迁移路径。",
@@ -137,7 +137,7 @@ def _engineering_bootstrap_behavior_slices() -> list[dict[str, Any]]:
             "overlay_families": [],
         },
         {
-            "id": "healthz-readyz-contract",
+            "id": "health-readiness",
             "name": "Healthz/ReadyZ 合约与可验证就绪性",
             "track": "foundation",
             "goal": "提供 /healthz 与 /readyz contract 与依赖检查边界，作为后续业务链进入前的最小可观测与可验收基线。",
