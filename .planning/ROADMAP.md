@@ -104,6 +104,13 @@ Plans:
 **Requirements:** REQ-PATCH-04
 **Depends on:** Phase 1 (test_impact field in schema)
 
+**Plans:** 3 plans
+
+Plans:
+- [x] 04-01-PLAN.md — Schema evolution: reviewed_at, test_impact enforcement, conflict unification, ManifestItem fields
+- [x] 04-02-PLAN.md — Harness adaptation: PatchContext, resolve_patch_context(), _check_patch_test_impact gate
+- [x] 04-03-PLAN.md — Execution wiring: conflict-aware case skip, TOCTOU re-verification, patch_affected marking
+
 **Success Criteria:**
 1. test_impact 字段在 Patch schema 中必填
 2. test_impact != none 时自动标记 TESTSET 为 needs_review
@@ -173,7 +180,7 @@ Plans:
 | REQ-PATCH-01: Patch Schema + 目录结构 | Phase 1 | Planned (2 plans) |
 | REQ-PATCH-02: Patch 登记 Skill | Phase 2 | Planned (4 plans) |
 | REQ-PATCH-03: 结算 Skill + 回写工具 | Phase 3 | Planned (3 plans) |
-| REQ-PATCH-04: 测试联动规则 | Phase 4 | Pending |
+| REQ-PATCH-04: 测试联动规则 | Phase 4 | Planned (3 plans) |
 | REQ-PATCH-05: AI Context 注入 | Phase 5 | Pending |
 | REQ-PATCH-06: Hook 集成 | Phase 6 | Pending |
 | REQ-PATCH-07: 24h Blocking 机制 | Phase 7 | Pending |
