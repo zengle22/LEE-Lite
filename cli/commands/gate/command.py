@@ -151,8 +151,6 @@ def _load_handoff_payload(ctx: CommandContext, handoff_ref: str | None) -> dict[
     payload_path = canonical_to_path(payload_ref, ctx.workspace_root)
     if not payload_path.exists():
         return {}
-    if payload_path.suffix.lower() != ".json":
-        return {}
     return load_json(payload_path)
 
 
@@ -181,7 +179,7 @@ def _raw_to_src_package_dir(ctx: CommandContext, candidate_ref: str) -> Path | N
 def _ui_spec_package_dir(ctx: CommandContext, candidate_ref: str, machine_ssot_ref: str) -> tuple[Path | None, dict[str, Any]]:
     if machine_ssot_ref:
         machine_path = canonical_to_path(machine_ssot_ref, ctx.workspace_root)
-        if machine_path.exists() and machine_path.suffix.lower() == ".json":
+        if machine_path.exists():
             return machine_path.parent, load_json(machine_path)
     if not candidate_ref:
         return None, {}
@@ -194,8 +192,6 @@ def _ui_spec_package_dir(ctx: CommandContext, candidate_ref: str, machine_ssot_r
         return None, {}
     path = canonical_to_path(managed_artifact_ref, ctx.workspace_root)
     if not path.exists():
-        return None, {}
-    if path.suffix.lower() != ".json":
         return None, {}
     return path.parent, load_json(path)
 

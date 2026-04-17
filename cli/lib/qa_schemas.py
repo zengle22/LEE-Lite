@@ -161,8 +161,6 @@ class ManifestItem:
     last_run_id: str | None = None
     obsolete: bool = False
     superseded_by: str | None = None
-    patch_affected: bool = False
-    patch_refs: list[str] = field(default_factory=list)
 
 
 @dataclass(frozen=True)
@@ -202,51 +200,6 @@ class ApiTestSpec:
     request: SpecRequest | None = None
     expected: SpecExpected | None = None
     cleanup: list[str] = field(default_factory=list)
-    evidence_required: list[str] = field(default_factory=list)
-
-
-# ---------------------------------------------------------------------------
-# Schema E: Evidence Record (ADR-047 §6.3)
-# ---------------------------------------------------------------------------
-
-
-@dataclass(frozen=True)
-class EvidenceRecord:
-    case_id: str
-    coverage_id: str
-    executed_at: str
-    run_id: str
-    evidence: dict[str, Any]
-    side_effects: list[str] = field(default_factory=list)
-    execution_status: str = "success"
-
-
-# ---------------------------------------------------------------------------
-# Schema F: E2E Journey Spec (ADR-047 §4.2.5 C)
-# ---------------------------------------------------------------------------
-
-
-@dataclass(frozen=True)
-class E2EUserStep:
-    step_number: int
-    action: str
-    target: str
-    data: dict[str, Any] | None = None
-    expected_result: str | None = None
-
-
-@dataclass(frozen=True)
-class E2EJourneySpec:
-    case_id: str
-    coverage_id: str
-    journey_id: str
-    entry_point: str
-    preconditions: list[str] = field(default_factory=list)
-    user_steps: list[E2EUserStep] = field(default_factory=list)
-    expected_ui_states: list[dict[str, Any]] = field(default_factory=list)
-    expected_network_events: list[dict[str, Any]] = field(default_factory=list)
-    expected_persistence: list[dict[str, Any]] = field(default_factory=list)
-    anti_false_pass_checks: list[str] = field(default_factory=list)
     evidence_required: list[str] = field(default_factory=list)
 
 
@@ -504,8 +457,6 @@ def validate_manifest(data: dict) -> ApiCoverageManifest:
                 last_run_id=raw.get("last_run_id"),
                 obsolete=raw.get("obsolete", False),
                 superseded_by=raw.get("superseded_by"),
-                patch_affected=raw.get("patch_affected", False),
-                patch_refs=raw.get("patch_refs") or [],
             )
         )
 
@@ -557,80 +508,6 @@ def validate_spec(data: dict) -> ApiTestSpec:
         request=request,
         expected=expected,
         cleanup=data.get("cleanup") or [],
-        evidence_required=data.get("evidence_required") or [],
-    )
-
-
-def validate_evidence(data: dict) -> EvidenceRecord:
-    """Validate and return an EvidenceRecord from raw YAML dict."""
-    label = "evidence_record"
-    _require(data, "case_id", label)
-    _require(data, "coverage_id", label)
-    _require(data, "executed_at", label)
-    _require(data, "run_id", label)
-    _require(data, "evidence", label)
-    _require(data, "execution_status", label)
-
-    valid_statuses = {"success", "failed", "error", "simulated"}
-    if data["execution_status"] not in valid_statuses:
-        raise QaSchemaError(
-            f"{label}: execution_status must be one of {valid_statuses}, "
-            f"got '{data['execution_status']}'"
-        )
-
-    if not isinstance(data["evidence"], dict):
-        raise QaSchemaError(f"{label}: evidence must be a mapping")
-
-    return EvidenceRecord(
-        case_id=data["case_id"],
-        coverage_id=data["coverage_id"],
-        executed_at=data["executed_at"],
-        run_id=data["run_id"],
-        evidence=data["evidence"],
-        side_effects=data.get("side_effects") or [],
-        execution_status=data["execution_status"],
-    )
-
-
-def validate_e2e_spec(data: dict) -> E2EJourneySpec:
-    """Validate and return an E2EJourneySpec from raw YAML dict."""
-    label = "e2e_journey_spec"
-    _require(data, "case_id", label)
-    _require(data, "coverage_id", label)
-    _require(data, "journey_id", label)
-    _require(data, "entry_point", label)
-
-    # user_steps validation
-    steps_raw = data.get("user_steps") or []
-    if not isinstance(steps_raw, list) or len(steps_raw) == 0:
-        raise QaSchemaError(f"{label}: user_steps must be a non-empty list")
-
-    user_steps: list[E2EUserStep] = []
-    for i, step in enumerate(steps_raw):
-        _require(step, "step_number", f"{label}.user_steps[{i}]")
-        _require(step, "action", f"{label}.user_steps[{i}]")
-        _require(step, "target", f"{label}.user_steps[{i}]")
-        user_steps.append(
-            E2EUserStep(
-                step_number=step["step_number"],
-                action=step["action"],
-                target=step["target"],
-                data=step.get("data"),
-                expected_result=step.get("expected_result"),
-            )
-        )
-
-    return E2EJourneySpec(
-        case_id=data["case_id"],
-        coverage_id=data["coverage_id"],
-        journey_id=data["journey_id"],
-        entry_point=data["entry_point"],
-        preconditions=data.get("preconditions") or [],
-        user_steps=user_steps,
-        expected_ui_states=data.get("expected_ui_states") or [],
-        expected_network_events=data.get("expected_network_events") or [],
-        expected_persistence=data.get("expected_persistence") or [],
-        anti_false_pass_checks=data.get("anti_false_pass_checks") or [],
         evidence_required=data.get("evidence_required") or [],
     )
 
@@ -844,8 +721,6 @@ _VALIDATORS = {
     "spec": ("api_test_spec", validate_spec),
     "settlement": ("settlement_report", validate_settlement),
     "gate": ("gate_evaluation", validate_gate),
-    "evidence": ("evidence_record", validate_evidence),
-    "e2e_spec": ("e2e_journey_spec", validate_e2e_spec),
 }
 
 

@@ -3,53 +3,42 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: planning
-last_updated: "2026-04-17T05:38:25.579Z"
+last_updated: "2026-04-14T16:28:25.379Z"
 progress:
-  total_phases: 7
-  completed_phases: 4
-  total_plans: 12
-  completed_plans: 12
-  percent: 100
+  total_phases: 4
+  completed_phases: 1
+  total_plans: 6
+  completed_plans: 4
+  percent: 67
 ---
 
 # Project State
 
-**Project:** ADR-049 体验修正层落地
-**Status:** Planning Phase 5
-**Core value:** 为体验期高频碎改提供轻量中间治理层，防止 SSOT 漂移和测试链失真
-**Current focus:** Phase 05 — ai-context-injection
+**Project:** ADR-047 双链测试技能实施 + 骨架补全
+**Status:** Ready to plan
+**Core value:** 用最小可行实现验证 ADR-047 的双链治理设计是否真正可执行
+**Current focus:** Phase 03 — settlement-exec
 
 ## Roadmap Summary
 
-| # | Phase | Goal | Requirements | Status |
-|---|-------|------|--------------|--------|
-| 1 | Patch Schema + 目录结构 | 定义 Patch YAML schema + 目录规范 | REQ-PATCH-01 | Complete |
-| 2 | Patch 登记 Skill | 人工登记 + AI 辅助登记 | REQ-PATCH-02 | Complete |
-| 3 | 结算 Skill + 回写工具 | 批量回写 SSOT + 结算记录 | REQ-PATCH-03 | Complete |
-| 4 | 测试联动规则 | Patch → TESTSET 同步机制 | REQ-PATCH-04 | Complete |
-| 5 | AI Context 注入 | AI 生成前注入 Patch 上下文 | REQ-PATCH-05 | Planning |
-| 6 | Hook 集成 | PreToolUse 自动触发 Patch 登记 | REQ-PATCH-06 | Pending |
-| 7 | 24h Blocking 机制 | 超期自动 blocking | REQ-PATCH-07 | Pending |
+| # | Phase | Goal | Requirements |
+|---|-------|------|--------------|
+| 1 | QA Schema 定义 | 建立统一 QA 测试治理 schema | REQ-01 |
+| 2 | 设计层技能补全 | 6 个 ADR-047 设计层技能 Prompt-first | REQ-02 |
+| 3 | 结算/执行层补全 | 5 个技能补全（3 QA + 2 额外） | REQ-03 |
+| 4 | API 链试点 | 跑通全流程 + schema 验证 + 报告 | REQ-04,05,06 |
 
 ## History
 
-- **2026-04-15**: ADR-049 frozen (v2.1) — 体验修正层设计定稿
-- **2026-04-15**: Milestone v1.0-adr049 initialized
-
-## Accumulated Context
-
-- ADR-047 milestone completed (100%) — 11 skills filled, API chain pilot run
-- ADR-049 defines Experience Patch Layer with 3-tier classification (visual/interaction/semantic)
-- Dual-path model: Prompt-to-Patch (small changes) vs Document-to-SRC (large changes)
-- Python 3.13 CLI, zero external dependencies (except pytest/pyyaml/coverage)
+None yet.
 
 ## Artifacts
 
 - `.planning/PROJECT.md` — Project context
 - `.planning/config.json` — Workflow preferences
-- `.planning/ROADMAP.md` — Phase structure (needs update for new milestone)
-- `.planning/REQUIREMENTS.md` — Scoped requirements (needs creation)
-- `ssot/adr/ADR-049-引入体验修正层-Experience-Patch-Layer.md` — Frozen ADR
+- `.planning/ROADMAP.md` — Phase structure
+- `.planning/REQUIREMENTS.md` — Scoped requirements
+- `.planning/codebase/` — Codebase map (7 docs)
 
 ---
-*Last updated: 2026-04-15*
+*Last updated: 2026-04-14*

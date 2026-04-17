@@ -104,11 +104,6 @@ node_modules/
 package-lock.json
 package.json
 
-# Playwright temporary files (runtime artifacts)
-/e2e/
-playwright.config.ts
-test-results/
-
 # Temporary scripts (one-time usage)
 scripts/*.py
 scripts/*.sh
@@ -137,6 +132,3 @@ scripts/*.ps1
 
 # B MAD working directory
 _bmad/
-_bmad/
-.bmad/
-.claude/worktrees/

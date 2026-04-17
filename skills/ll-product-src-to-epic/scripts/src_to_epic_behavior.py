@@ -89,7 +89,7 @@ def _engineering_bootstrap_behavior_slices() -> list[dict[str, Any]]:
             "overlay_families": [],
         },
         {
-            "id": "api-shell",
+            "id": "api-shell-runnable",
             "name": "Go API 空壳可运行",
             "track": "foundation",
             "goal": "提供可启动的 apps/api 骨架（模块边界、依赖注入/分层约束、最小路由），并确保 handler 不直接跑 raw SQL。",
@@ -101,7 +101,7 @@ def _engineering_bootstrap_behavior_slices() -> list[dict[str, Any]]:
             "overlay_families": [],
         },
         {
-            "id": "miniapp-shell",
+            "id": "miniapp-shell-runnable",
             "name": "UniApp 小程序空壳可运行",
             "track": "foundation",
             "goal": "提供可启动的 apps/miniapp 骨架（页面落点与最小导航），与后端健康检查打通最小联通性验证。",

@@ -1,1 +1,0 @@
-{"type": "object", "required": ["review_status", "checks"], "properties": {"review_status": {"enum": ["pass", "fail", "needs_revision"]}, "checks": {"type": "array", "items": {"type": "object", "required": ["name", "status"], "properties": {"name": {"type": "string"}, "status": {"enum": ["pass", "fail", "skipped"]}}}}}}
