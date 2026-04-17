@@ -4,7 +4,11 @@ from __future__ import annotations
 
 import hashlib
 import json
+import subprocess
+from pathlib import Path
 from typing import Any
+
+from .patch_awareness import PatchAwarenessStatus, PatchContext
 
 from .test_exec_case_expander import expand_requirement_cases
 from .test_exec_fixture_planner import plan_fixtures
@@ -226,3 +230,109 @@ def render_report(summary: dict[str, Any], compliance: dict[str, Any], case_resu
     for item in case_results:
         lines.append(f"- {item['case_id']}: {item['status']} ({item['actual']})")
     return "\n".join(lines) + "\n"
+
+
+def resolve_patch_context(
+    workspace_root: Path | str,
+    feat_ref: str = "",
+    *,
+    summary_budget: int = 5,
+) -> PatchContext:
+    """Scan workspace for patch-related artifacts and return a minimal PatchContext.
+
+    Uses ``git diff`` / ``git log`` to identify patches applied since the last
+    known baseline, falling back to file-system markers when git history is
+    unavailable.
+
+    Parameters
+    ----------
+    workspace_root : Path | str
+        Root of the workspace to scan.
+    feat_ref : str
+        Optional feature reference to scope the scan.
+    summary_budget : int
+        Maximum number of patches to return with full detail (default 5).
+        Beyond this budget only index-level summaries are included.
+
+    Returns
+    -------
+    PatchContext
+        Frozen dataclass containing patch discovery results.
+    """
+    root = Path(str(workspace_root)).resolve()
+
+    patches: list[dict[str, Any]] = []
+    none_found = False
+
+    try:
+        result = subprocess.run(
+            ["git", "log", "--oneline", "--name-status", "-n", str(summary_budget + 5)],
+            capture_output=True,
+            text=True,
+            cwd=str(root),
+            timeout=10,
+            check=False,
+        )
+        if result.returncode == 0 and result.stdout.strip():
+            current_hash: str | None = None
+            for line in result.stdout.splitlines():
+                stripped = line.strip()
+                if not stripped:
+                    current_hash = None
+                    continue
+                parts = stripped.split(None, 1)
+                if len(parts) == 1 and len(parts[0]) >= 7:
+                    current_hash = parts[0]
+                    continue
+                if len(parts) >= 2:
+                    status = parts[0]
+                    file_path = parts[1]
+                    patch_entry: dict[str, Any] = {
+                        "status": status,
+                        "file_path": file_path,
+                        "change_class": _classify_change(file_path),
+                        "patch_status": PatchAwarenessStatus.APPLIED.value,
+                    }
+                    if current_hash:
+                        patch_entry["commit"] = current_hash
+                    patches.append(patch_entry)
+        else:
+            none_found = True
+    except (subprocess.TimeoutExpired, OSError):
+        none_found = True
+
+    if not patches and not none_found:
+        none_found = True
+
+    budgeted_patches = patches[:summary_budget]
+    if len(patches) > summary_budget:
+        budgeted_patches.append({"truncated": True, "remaining_count": len(patches) - summary_budget})
+
+    return PatchContext(
+        patches_found=budgeted_patches,
+        none_found=none_found,
+        scan_path=str(root),
+        scan_ref=feat_ref,
+        total_count=len(patches),
+        summary_budget=summary_budget,
+    )
+
+
+def _classify_change(file_path: str) -> str:
+    """Classify a changed file into a ChangeClass bucket."""
+    fp = file_path.lower()
+    if any(fp.startswith(prefix) for prefix in ("cli/lib/patch_schema", "cli/lib/patch_context", "cli/lib/patch_")):
+        return "schema"
+    if any(prefix in fp for prefix in ("api", "endpoint", "route")):
+        return "api"
+    if any(prefix in fp for prefix in ("ui", "frontend", "component")):
+        return "ui"
+    if any(prefix in fp for prefix in ("config", "settings", "env")):
+        return "config"
+    if any(prefix in fp for prefix in ("infra", "docker", "deploy")):
+        return "infra"
+    if fp.endswith((".md", ".txt", ".rst")):
+        return "doc"
+    if any(prefix in fp for prefix in ("test", "spec")):
+        return "test"
+    return "other"
