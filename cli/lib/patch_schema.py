@@ -70,6 +70,7 @@ class PatchSource:
     prompt_ref: str
     ai_suggested_class: str | None = None
     human_confirmed_class: str | None = None
+    reviewed_at: str | None = None
 
 
 @dataclass(frozen=True)
@@ -220,6 +221,9 @@ def validate_patch(data: dict) -> PatchExperience:
     _enum_check(src["actor"], SourceActor, f"{label}.source", "actor")
     _enum_check(src["human_confirmed_class"], ChangeClass, f"{label}.source", "human_confirmed_class")
 
+    # D-21: reviewed_at timestamp (optional)
+    reviewed_at = src.get("reviewed_at")
+
     # ai_suggested_class (optional within source)
     if src.get("ai_suggested_class") is not None:
         _enum_check(src["ai_suggested_class"], ChangeClass, f"{label}.source", "ai_suggested_class")
@@ -276,6 +280,27 @@ def validate_patch(data: dict) -> PatchExperience:
             test_targets=ti.get("test_targets") or [],
         )
 
+    # D-04/D-18: interaction/semantic patches require test_impact
+    if data["change_class"] in ("interaction", "semantic"):
+        if not test_impact:
+            raise PatchSchemaError(
+                f"{label}: {data['change_class']} patch requires test_impact field"
+            )
+        if not test_impact.affected_routes:
+            raise PatchSchemaError(
+                f"{label}: {data['change_class']} patch test_impact must include affected_routes"
+            )
+
+    # D-21: reviewed_at must be >= created_at
+    if reviewed_at is not None:
+        from datetime import datetime
+        created_dt = datetime.fromisoformat(data["created_at"].replace("Z", "+00:00"))
+        reviewed_dt = datetime.fromisoformat(reviewed_at.replace("Z", "+00:00"))
+        if reviewed_dt < created_dt:
+            raise PatchSchemaError(
+                f"{label}: reviewed_at ({reviewed_at}) must be >= created_at ({data['created_at']})"
+            )
+
     resolution: PatchResolution | None = None
     if data.get("resolution"):
         res = data["resolution"]
@@ -301,6 +326,7 @@ def validate_patch(data: dict) -> PatchExperience:
             prompt_ref=src["prompt_ref"],
             ai_suggested_class=src.get("ai_suggested_class"),
             human_confirmed_class=src["human_confirmed_class"],
+            reviewed_at=reviewed_at,
         ),
         scope=PatchScope(
             feat_ref=sc["feat_ref"],

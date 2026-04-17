@@ -12,6 +12,7 @@ experience_patch:
     session: "session-20260416-001"
     prompt_ref: "prompt://session-20260416-001/turn-3"
     human_confirmed_class: "visual"
+    reviewed_at: "2026-04-16T10:05:00Z"
   scope:
     feat_ref: "feat.training-plan"
     page: "training-plan"
