@@ -15,21 +15,21 @@ progress:
 # Project State
 
 **Project:** ADR-049 体验修正层落地
-**Status:** Ready to plan
+**Status:** Planning Phase 5
 **Core value:** 为体验期高频碎改提供轻量中间治理层，防止 SSOT 漂移和测试链失真
-**Current focus:** Phase 04 — test-integration
+**Current focus:** Phase 05 — ai-context-injection
 
 ## Roadmap Summary
 
-| # | Phase | Goal | Requirements |
-|---|-------|------|--------------|
-| 1 | Patch Schema + 目录结构 | 定义 Patch YAML schema + 目录规范 | REQ-PATCH-01 |
-| 2 | Patch 登记 Skill | 人工登记 + AI 辅助登记 | REQ-PATCH-02 |
-| 3 | 结算 Skill + 回写工具 | 批量回写 SSOT + 结算记录 | REQ-PATCH-03 |
-| 4 | 测试联动规则 | Patch → TESTSET 同步机制 | REQ-PATCH-04 |
-| 5 | AI Context 注入 | AI 生成前注入 Patch 上下文 | REQ-PATCH-05 |
-| 6 | Hook 集成 | PreToolUse 自动触发 Patch 登记 | REQ-PATCH-06 |
-| 7 | 24h Blocking 机制 | 超期自动 blocking | REQ-PATCH-07 |
+| # | Phase | Goal | Requirements | Status |
+|---|-------|------|--------------|--------|
+| 1 | Patch Schema + 目录结构 | 定义 Patch YAML schema + 目录规范 | REQ-PATCH-01 | Complete |
+| 2 | Patch 登记 Skill | 人工登记 + AI 辅助登记 | REQ-PATCH-02 | Complete |
+| 3 | 结算 Skill + 回写工具 | 批量回写 SSOT + 结算记录 | REQ-PATCH-03 | Complete |
+| 4 | 测试联动规则 | Patch → TESTSET 同步机制 | REQ-PATCH-04 | Complete |
+| 5 | AI Context 注入 | AI 生成前注入 Patch 上下文 | REQ-PATCH-05 | Planning |
+| 6 | Hook 集成 | PreToolUse 自动触发 Patch 登记 | REQ-PATCH-06 | Pending |
+| 7 | 24h Blocking 机制 | 超期自动 blocking | REQ-PATCH-07 | Pending |
 
 ## History
 
