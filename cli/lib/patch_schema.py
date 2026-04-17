@@ -126,6 +126,96 @@ class PatchResolution:
 
 
 # ---------------------------------------------------------------------------
+# Conflict resolution (D-13/D-14/D-16)
+# ---------------------------------------------------------------------------
+
+
+def _resolve_conflict_winner(patch_a: dict[str, Any], patch_b: dict[str, Any]) -> str:
+    """Determine winner between two conflicting patches (D-16).
+
+    Latest validated wins. Tie-break: larger patch_id sequence number.
+    """
+    def _seq(p: dict[str, Any]) -> int:
+        pid = p.get("id", "UXPATCH-0000")
+        try:
+            return int(pid.split("-")[1])
+        except (IndexError, ValueError):
+            return 0
+
+    status_a = patch_a.get("status", "")
+    status_b = patch_b.get("status", "")
+
+    # Validated beats non-validated
+    if status_a == "validated" and status_b != "validated":
+        return patch_a["id"]
+    if status_b == "validated" and status_a != "validated":
+        return patch_b["id"]
+
+    # Tie-break: larger patch_id wins
+    return patch_a["id"] if _seq(patch_a) > _seq(patch_b) else patch_b["id"]
+
+
+def resolve_patch_conflicts(
+    feat_dir: Path,
+    patch_ids: list[str] | None = None,
+    *,
+    include_active: bool = True,
+    include_validated: bool = True,
+    include_pending: bool = False,
+) -> list[dict[str, Any]]:
+    """Unified conflict detection for experience patches (D-13, D-14).
+
+    Replaces detect_conflicts() in patch_capture_runtime.py and
+    detect_settlement_conflicts() in settle_runtime.py.
+
+    Args:
+        feat_dir: ssot/experience-patches/{FEAT-ID}/ directory
+        patch_ids: If provided, only check these IDs
+        include_active: Include 'active' status patches
+        include_validated: Include 'validated' status patches
+        include_pending: Include 'pending_backwrite' status patches
+    """
+    valid_statuses: set[str] = set()
+    if include_active:
+        valid_statuses.add("active")
+    if include_validated:
+        valid_statuses.add("validated")
+    if include_pending:
+        valid_statuses.add("pending_backwrite")
+
+    patches: list[dict[str, Any]] = []
+    for patch_file in sorted(feat_dir.glob("UXPATCH-*.yaml")):
+        try:
+            with open(patch_file, encoding="utf-8") as f:
+                data = yaml.safe_load(f)
+            patch = data.get("experience_patch", data) if isinstance(data, dict) else {}
+        except Exception:
+            continue
+        if patch.get("status") not in valid_statuses:
+            continue
+        if patch_ids and patch.get("id") not in patch_ids:
+            continue
+        patches.append(patch)
+
+    conflicts: list[dict[str, Any]] = []
+    for i in range(len(patches)):
+        for j in range(i + 1, len(patches)):
+            files_a = set(patches[i].get("implementation", {}).get("changed_files", []))
+            files_b = set(patches[j].get("implementation", {}).get("changed_files", []))
+            overlap = files_a & files_b
+            if overlap:
+                winner = _resolve_conflict_winner(patches[i], patches[j])
+                conflicts.append({
+                    "patch_a": patches[i]["id"],
+                    "patch_b": patches[j]["id"],
+                    "overlapping_files": sorted(overlap),
+                    "winner": winner,
+                    "resolution": "superseded" if winner != patches[i]["id"] else None,
+                })
+    return conflicts
+
+
+# ---------------------------------------------------------------------------
 # Root dataclass
 # ---------------------------------------------------------------------------
 

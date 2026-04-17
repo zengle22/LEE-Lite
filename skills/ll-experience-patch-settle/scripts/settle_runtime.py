@@ -9,7 +9,7 @@ from typing import Any
 import yaml
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[3]))
-from cli.lib.patch_schema import validate_file, PatchSchemaError
+from cli.lib.patch_schema import validate_file, PatchSchemaError, resolve_patch_conflicts, _resolve_conflict_winner
 from cli.lib.errors import ensure
 
 
@@ -264,10 +264,9 @@ def generate_settlement_report(feat_dir: Path, results: list[dict]) -> str:
 
 
 def detect_settlement_conflicts(patches: list[dict]) -> list[dict]:
-    """Detect same-file multi-patch conflicts within the same settlement batch.
+    """Deprecated: delegates to _resolve_conflict_winner (D-14).
 
-    For each pair of patches, check if implementation.changed_files overlap.
-    Returns list of conflict dicts: {patch_a, patch_b, overlapping_files}.
+    Detects same-file multi-patch conflicts within the same settlement batch.
     """
     conflicts = []
     for i in range(len(patches)):
@@ -276,10 +275,12 @@ def detect_settlement_conflicts(patches: list[dict]) -> list[dict]:
             files_b = set(patches[j].get("implementation", {}).get("changed_files", []))
             overlap = files_a & files_b
             if overlap:
+                winner = _resolve_conflict_winner(patches[i], patches[j])
                 conflicts.append({
                     "patch_a": patches[i]["id"],
                     "patch_b": patches[j]["id"],
                     "overlapping_files": sorted(overlap),
+                    "winner": winner,
                 })
     return conflicts
 

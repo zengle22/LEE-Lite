@@ -10,7 +10,7 @@ import yaml
 # Add parent directories to path for imports
 sys.path.insert(0, str(Path(__file__).resolve().parents[3]))
 
-from cli.lib.patch_schema import validate_file, PatchSchemaError
+from cli.lib.patch_schema import validate_file, PatchSchemaError, resolve_patch_conflicts
 from cli.lib.errors import ensure
 
 
@@ -53,34 +53,19 @@ def get_next_patch_id(feat_dir: Path) -> str:
 
 
 def detect_conflicts(feat_dir: Path, new_changed_files: list[str], current_patch_id: str) -> list[dict]:
-    """Scan active patches in the same FEAT for overlapping changed_files."""
-    conflicts = []
-    for patch_file in feat_dir.glob("UXPATCH-*.yaml"):
-        if not patch_file.exists():
-            continue
-        try:
-            with open(patch_file, encoding="utf-8") as f:
-                patch_data = yaml.safe_load(f)
-        except Exception:
-            # Skip malformed YAML files
-            continue
-
-        # Unwrap nested structure: YAML has experience_patch as root key
-        patch = patch_data.get("experience_patch", patch_data)
-        if patch.get("status") not in ("active", "validated", "pending_backwrite"):
-            continue
-        if patch.get("id") == current_patch_id:
-            continue
-
-        existing_files = set(patch.get("implementation", {}).get("changed_files", []))
-        overlap = existing_files & set(new_changed_files)
-        if overlap:
-            conflicts.append({
-                "with_patch_id": patch.get("id", "unknown"),
-                "overlapping_files": sorted(overlap),
-            })
-
-    return conflicts
+    """Deprecated: delegates to resolve_patch_conflicts (D-14)."""
+    conflicts = resolve_patch_conflicts(
+        feat_dir,
+        include_active=True,
+        include_validated=True,
+        include_pending=True,
+    )
+    # Filter to only those involving new_changed_files
+    return [
+        c for c in conflicts
+        if set(new_changed_files) & set(c["overlapping_files"])
+        and current_patch_id in (c["patch_a"], c["patch_b"])
+    ]
 
 
 def register_patch_in_registry(feat_dir: Path, patch_data: dict) -> dict:
