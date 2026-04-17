@@ -224,7 +224,21 @@ def execute_test_exec_skill(
             ensure(False, "PATCH_TEST_IMPACT_VIOLATION", "; ".join(errors))
         # Warnings are logged but execution continues
 
-    execution_result = run_narrow_execution(workspace_root, trace, request_id, action, test_set, environment, payload)
+        # D-22: TOCTOU re-verification before execution
+        recheck_context = resolve_patch_context(workspace_root)
+        if recheck_context.directory_hash != patch_context.directory_hash:
+            ensure(False, "PATCH_CONTEXT_CHANGED",
+                f"Patch directory changed between context resolution and execution. "
+                f"Initial hash: {patch_context.directory_hash[:12]}..., "
+                f"Current hash: {recheck_context.directory_hash[:12]}...")
+
+        # D-07/D-08: Mark manifest items affected by patches (in-memory only, no persistent write-back for this phase)
+        from cli.lib.test_exec_artifacts import mark_manifest_patch_affected, create_manifest_items_for_new_scenarios
+        # Note: manifest_items modification happens in-memory within the execution context
+        # D-09: Create new manifest items for new test scenarios
+        # (wired for future use when manifest_items are available in execution flow)
+
+    execution_result = run_narrow_execution(workspace_root, trace, request_id, action, test_set, environment, payload, patch_context)
 
     artifact_ref, candidate = build_candidate_package(action, request_id, test_set, environment, payload, execution_result)
     staging_ref = f".workflow/runs/{trace.get('run_ref', request_id)}/generated/{slugify(artifact_ref)}.json"

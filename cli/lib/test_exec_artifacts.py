@@ -158,6 +158,147 @@ def resolve_patch_context(
     )
 
 
+def mark_manifest_patch_affected(
+    manifest_items: list[dict[str, Any]],
+    patch_context: PatchContext,
+) -> list[dict[str, Any]]:
+    """Mark manifest items affected by Patches with test_impact (D-07, D-08).
+
+    Per-item marking only — does NOT modify lifecycle_status state machine (D-06).
+    Acceptance refs preserved (D-19): evidence_refs and mapped_case_ids are
+    only appended to, never replaced.
+
+    Args:
+        manifest_items: List of manifest item dicts (from loaded manifest YAML)
+        patch_context: Resolved PatchContext from resolve_patch_context()
+
+    Returns:
+        Updated list of manifest item dicts with patch_affected and patch_refs set.
+    """
+    # Collect patch IDs that have meaningful test_impact
+    relevant_patch_ids: list[str] = []
+    feat_ref_by_patch: dict[str, str] = {}
+
+    for patch in patch_context.validated_patches + patch_context.pending_patches:
+        test_impact = patch.get("test_impact")
+        if not test_impact:
+            continue
+        # Skip visual Patches with no affected_routes
+        if patch.get("change_class") == "visual" and not test_impact.get("affected_routes"):
+            continue
+
+        patch_id = patch["id"]
+        relevant_patch_ids.append(patch_id)
+        feat_ref_by_patch[patch_id] = patch.get("scope", {}).get("feat_ref", "")
+
+    # Mark matching manifest items
+    result: list[dict[str, Any]] = []
+    for item in manifest_items:
+        item_copy = dict(item)
+        item_feat_ref = item.get("source_feat_ref", "")
+
+        # Match on feat_ref (scope.feat_ref == item.source_feat_ref)
+        matching_patches = [
+            pid for pid, fr in feat_ref_by_patch.items()
+            if fr == item_feat_ref
+        ]
+
+        if matching_patches:
+            item_copy["patch_affected"] = True
+            existing_refs = set(item_copy.get("patch_refs") or [])
+            existing_refs.update(matching_patches)
+            item_copy["patch_refs"] = sorted(existing_refs)
+
+            # D-19: Preserve existing acceptance refs (only append, never replace)
+            if "evidence_refs" in item:
+                item_copy["evidence_refs"] = list(item["evidence_refs"])
+            if "mapped_case_ids" in item:
+                item_copy["mapped_case_ids"] = list(item["mapped_case_ids"])
+
+        result.append(item_copy)
+
+    return result
+
+
+def create_manifest_items_for_new_scenarios(
+    patch_context: PatchContext,
+    manifest_items: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    """Create new manifest items for new test case scenarios (D-09).
+
+    When a Patch's test_impact indicates impacts_existing_testcases == false
+    or test_targets contains new entries not already in manifest, create
+    new manifest items with lifecycle_status: drafted.
+
+    Args:
+        patch_context: Resolved PatchContext from resolve_patch_context()
+        manifest_items: Existing manifest item list (will be appended to)
+
+    Returns:
+        Updated manifest item list with new drafted items.
+    """
+    new_items: list[dict[str, Any]] = []
+
+    for patch in patch_context.validated_patches + patch_context.pending_patches:
+        test_impact = patch.get("test_impact")
+        if not test_impact:
+            continue
+
+        # D-09: Check if new test scenarios are needed
+        impacts_existing = test_impact.get("impacts_existing_testcases", True)
+        test_targets = test_impact.get("test_targets", [])
+
+        # New scenarios needed when:
+        # 1. impacts_existing_testcases is false (new behavior not covered)
+        # 2. test_targets has entries that don't map to existing manifest items
+        if impacts_existing and not test_targets:
+            continue  # Existing coverage sufficient, no new items needed
+
+        # Determine feat_ref for the new item
+        feat_ref = patch.get("scope", {}).get("feat_ref", "")
+
+        # Build new manifest item(s) for each target
+        for target in (test_targets or [feat_ref]):
+            # Check if item already exists for this target
+            existing_ids = {item.get("source_feat_ref") for item in manifest_items}
+            if target in existing_ids and impacts_existing:
+                continue  # Already covered
+
+            patch_id = patch.get("id", "UNKNOWN")
+            new_item: dict[str, Any] = {
+                # Core identity (minimal for drafted item)
+                "coverage_id": f"{patch_id}-{target}",
+                "feature_id": feat_ref,
+                "capability": patch.get("title", ""),
+                "endpoint": target,
+                "scenario_type": patch.get("change_class", "interaction"),
+                "priority": "P2",  # Drafted items default to P2
+                "source_feat_ref": feat_ref,
+                # Coverage and mapping
+                "dimensions_covered": [],
+                "mapped_case_ids": [],
+                # Lifecycle (D-09: new items start as drafted)
+                "lifecycle_status": "drafted",
+                "mapping_status": "pending",
+                "evidence_status": "none",
+                "waiver_status": "none",
+                # Patch markers
+                "patch_affected": True,
+                "patch_refs": [patch_id],
+                # Evidence and rerun tracking
+                "evidence_refs": [],
+                "rerun_count": 0,
+                "last_run_id": None,
+                "obsolete": False,
+                "superseded_by": None,
+            }
+            new_items.append(new_item)
+
+    # Append new items to the manifest list
+    manifest_items.extend(new_items)
+    return manifest_items
+
+
 def normalize_ui_source_spec(payload: dict[str, Any]) -> dict[str, Any]:
     explicit = payload.get("ui_source_spec", {})
     if not isinstance(explicit, dict):

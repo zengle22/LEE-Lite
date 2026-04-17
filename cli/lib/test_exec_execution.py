@@ -16,9 +16,11 @@ from cli.lib.errors import ensure
 from cli.lib.fs import canonical_to_path, to_canonical_path, write_json, write_text
 from cli.lib.registry_store import slugify
 from cli.lib.test_exec_artifacts import (
+    PatchContext,
     build_freeze_meta,
     build_script_pack,
     build_test_case_pack,
+    mark_manifest_patch_affected,
     normalize_ui_source_spec,
     resolve_ssot_context,
 )
@@ -265,10 +267,22 @@ def _execute_round(
     payload: dict[str, Any],
     case_pack: dict[str, Any],
     output_root: Path,
+    patch_context: PatchContext | None = None,
 ) -> dict[str, Any]:
     evidence_root = output_root / "evidence"
     ui_source_spec = normalize_ui_source_spec(payload)
     context = resolve_ssot_context(test_set, environment, ui_source_spec)
+
+    # D-17: Apply conflict resolution to case pack (mark blocked cases)
+    if patch_context and patch_context.conflict_resolution:
+        skip_ids = {cid for cid, resolution in patch_context.conflict_resolution.items() if resolution == "skip"}
+        for case in case_pack.get("cases", []):
+            coverage_id = case.get("coverage_id", "")
+            # Build coverage_id from route pattern (same logic as _build_conflict_resolution_map)
+            route_key = coverage_id.replace(".", "/")
+            if coverage_id in skip_ids or route_key in skip_ids:
+                case["_patch_blocked"] = True
+                case["_patch_block_reason"] = "TEST_BLOCKED: irreconcilable conflict"
     runtime_probe_root: Path | None = None
     if action == "test-exec-web-e2e":
         write_playwright_project(workspace_root, output_root, case_pack, environment)
@@ -301,7 +315,7 @@ def _execute_round(
         case_pack,
         case_meta,
     )
-    case_runs, raw_output = execute_cases(workspace_root, output_root, action, case_pack, script_pack, environment, evidence_root)
+    case_runs, raw_output = execute_cases(workspace_root, output_root, action, case_pack, script_pack, environment, evidence_root, patch_context)
     outcome = finalize_execution_outputs(
         workspace_root,
         output_root,
@@ -502,6 +516,7 @@ def execute_cases(
     script_pack: dict[str, Any],
     environment: dict[str, Any],
     evidence_root: Path,
+    patch_context: PatchContext | None = None,
 ) -> tuple[list[dict[str, Any]], dict[str, Any]]:
     if action == "test-exec-web-e2e":
         project_refs = write_playwright_project(workspace_root, output_root, case_pack, environment)
@@ -516,7 +531,22 @@ def execute_cases(
         }
         return web_run["case_runs"], raw_output
     bindings = script_pack["bindings"]
-    case_runs = [execute_case(workspace_root, item["command_entry"], case, environment, evidence_root) for case, item in zip(case_pack["cases"], bindings)]
+    case_runs: list[dict[str, Any]] = []
+    for case, item in zip(case_pack["cases"], bindings):
+        if case.get("_patch_blocked"):
+            # D-17: Skip blocked items, set status to blocked
+            case_runs.append({
+                "case_id": case["case_id"],
+                "status": "blocked",
+                "block_reason": case.get("_patch_block_reason", "TEST_BLOCKED"),
+                "actual": "not_executed",
+                "stdout_ref": "",
+                "stderr_ref": "",
+                "coverage_status": "disabled",
+                "diagnostics": [case.get("_patch_block_reason", "")],
+            })
+            continue
+        case_runs.append(execute_case(workspace_root, item["command_entry"], case, environment, evidence_root))
     return case_runs, {"framework": "shell", "results": case_runs}
 
 
@@ -528,6 +558,7 @@ def run_narrow_execution(
     test_set: dict[str, Any],
     environment: dict[str, Any],
     payload: dict[str, Any] | None = None,
+    patch_context: PatchContext | None = None,
 ) -> dict[str, str]:
     payload = payload or {}
     command_entry = str(environment.get("command_entry", environment.get("runner_command", "")))
@@ -540,7 +571,7 @@ def run_narrow_execution(
     max_expansion_rounds = _qualification_max_rounds(test_set, environment)
     if coverage_mode != "qualification":
         case_pack = build_test_case_pack(test_set, environment)
-        round_result = _execute_round(workspace_root, trace, request_id, action, test_set, environment, payload, case_pack, output_root)
+        round_result = _execute_round(workspace_root, trace, request_id, action, test_set, environment, payload, case_pack, output_root, patch_context)
         return {**round_result["refs"], **round_result["outcome"]}
 
     round0_root = output_root / "qualification-rounds" / "round-0"
@@ -553,7 +584,7 @@ def run_narrow_execution(
         qualification_stop_reason="minimal_projection_only",
         expansion_round=0,
     )
-    round0_result = _execute_round(workspace_root, trace, request_id, action, test_set, environment, payload, round0_pack, round0_root)
+    round0_result = _execute_round(workspace_root, trace, request_id, action, test_set, environment, payload, round0_pack, round0_root, patch_context)
     stop_reason = _qualification_stop_reason(test_set, round0_result["coverage_summary"], qualification_budget)
     lineage = [_qualification_lineage_entry(0, round0_pack, round0_result["coverage_summary"], stop_reason)]
     final_result = round0_result
@@ -588,7 +619,7 @@ def run_narrow_execution(
             expansion_round=round_index,
             expansion_targets=expansion_targets,
         )
-        round_result = _execute_round(workspace_root, trace, request_id, action, test_set, environment, payload, round_pack, round_root)
+        round_result = _execute_round(workspace_root, trace, request_id, action, test_set, environment, payload, round_pack, round_root, patch_context)
         stop_reason = _qualification_stop_reason(
             test_set,
             round_result["coverage_summary"],
