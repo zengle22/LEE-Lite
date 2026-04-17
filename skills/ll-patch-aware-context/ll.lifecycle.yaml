@@ -1,7 +1,0 @@
-skill: ll-patch-aware-context
-version: "1.0"
-state: draft
-lifecycle_states:
-  - draft
-  - active
-  - completed
