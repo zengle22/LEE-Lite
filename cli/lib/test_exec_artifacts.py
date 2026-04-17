@@ -2,9 +2,13 @@
 
 from __future__ import annotations
 
-import hashlib
+from dataclasses import dataclass
+from hashlib import sha1
 import json
+from pathlib import Path
 from typing import Any
+
+import yaml
 
 from .test_exec_case_expander import expand_requirement_cases
 from .test_exec_fixture_planner import plan_fixtures
@@ -16,10 +20,142 @@ from .test_exec_traceability import (
     normalize_state_model,
     summarize_case_traceability,
 )
+from .patch_schema import resolve_patch_conflicts
 
 def _checksum(payload: Any) -> str:
     text = json.dumps(payload, ensure_ascii=False, sort_keys=True)
-    return hashlib.sha1(text.encode("utf-8")).hexdigest()
+    return sha1(text.encode("utf-8")).hexdigest()
+
+
+# ---------------------------------------------------------------------------
+# Patch context (D-10, D-11, D-20, D-22)
+# ---------------------------------------------------------------------------
+
+
+@dataclass(frozen=True)
+class PatchContext:
+    """Strict typed struct for Patch context injection (D-20)."""
+    has_active_patches: bool
+    validated_patches: list[dict[str, Any]]
+    pending_patches: list[dict[str, Any]]
+    conflict_resolution: dict[str, str]  # {coverage_id: "skip" | "warn" | "use_patch"}
+    directory_hash: str  # TOCTOU protection (D-22)
+    reviewed_at_latest: str | None  # Latest reviewed_at (D-21)
+    feat_ref: str | None  # Associated FEAT reference
+
+
+def _compute_patch_dir_hash(patches_dir: Path) -> str:
+    """Compute deterministic SHA1 hash of Patch directory contents (D-22)."""
+    files_data = []
+    for patch_file in sorted(patches_dir.rglob("UXPATCH-*.yaml")):
+        files_data.append((str(patch_file.relative_to(patches_dir)), patch_file.read_text(encoding="utf-8")))
+    if not files_data:
+        return ""
+    return _checksum({"files": files_data})
+
+
+def _latest_reviewed_at(patches: list[dict[str, Any]]) -> str | None:
+    """Find the latest reviewed_at timestamp across all patches (D-21)."""
+    timestamps = []
+    for p in patches:
+        reviewed_at = p.get("source", {}).get("reviewed_at")
+        if reviewed_at:
+            timestamps.append(reviewed_at)
+    return max(timestamps) if timestamps else None
+
+
+def _load_and_validate_patch(patch_file: Path) -> dict[str, Any] | None:
+    """Load and validate a single Patch YAML file."""
+    try:
+        with open(patch_file, encoding="utf-8") as f:
+            data = yaml.safe_load(f)
+        if not isinstance(data, dict):
+            return None
+        patch = data.get("experience_patch", data)
+        if not isinstance(patch, dict):
+            return None
+        return patch
+    except Exception:
+        return None
+
+
+def _build_conflict_resolution_map(patches: list[dict[str, Any]]) -> dict[str, str]:
+    """Build per-coverage_id conflict resolution map from patches."""
+    resolution: dict[str, str] = {}
+    for patch in patches:
+        test_impact = patch.get("test_impact", {})
+        if test_impact:
+            affected_routes = test_impact.get("affected_routes", [])
+            for route in affected_routes:
+                coverage_id = route.replace("/", ".")
+                if patch.get("change_class") == "visual":
+                    resolution[coverage_id] = "warn"
+                else:
+                    resolution[coverage_id] = "use_patch"
+    return resolution
+
+
+def resolve_patch_context(
+    workspace_root: Path,
+    feat_ref: str | None = None,
+) -> PatchContext:
+    """Scan experience-patches for active/resolved Patches (D-10, D-11).
+
+    Mirrors resolve_ssot_context() pattern. Returns typed PatchContext
+    suitable for injection into test execution runtime.
+
+    TOCTOU protection: computes sha1 hash of Patch directory contents.
+    """
+    patches_dir = workspace_root / "ssot" / "experience-patches"
+    if not patches_dir.exists():
+        return PatchContext(
+            has_active_patches=False,
+            validated_patches=[],
+            pending_patches=[],
+            conflict_resolution={},
+            directory_hash="",
+            reviewed_at_latest=None,
+            feat_ref=feat_ref,
+        )
+
+    validated: list[dict[str, Any]] = []
+    pending: list[dict[str, Any]] = []
+    all_patches: list[dict[str, Any]] = []
+
+    for feat_dir in sorted(patches_dir.iterdir()):
+        if not feat_dir.is_dir():
+            continue
+        if feat_ref and feat_dir.name != feat_ref:
+            continue
+        for patch_file in sorted(feat_dir.glob("UXPATCH-*.yaml")):
+            patch = _load_and_validate_patch(patch_file)
+            if patch is None:
+                continue
+            all_patches.append(patch)
+            status = patch.get("status", "")
+            if status == "validated":
+                validated.append(patch)
+            elif status == "pending_backwrite":
+                pending.append(patch)
+
+    # D-22: TOCTOU hash
+    dir_hash = _compute_patch_dir_hash(patches_dir)
+
+    # D-15/D-16: Conflict resolution
+    conflict_resolution = _build_conflict_resolution_map(all_patches)
+
+    # D-21: Latest reviewed_at
+    reviewed_at_latest = _latest_reviewed_at(all_patches)
+
+    return PatchContext(
+        has_active_patches=bool(all_patches),
+        validated_patches=validated,
+        pending_patches=pending,
+        conflict_resolution=conflict_resolution,
+        directory_hash=dir_hash,
+        reviewed_at_latest=reviewed_at_latest,
+        feat_ref=feat_ref,
+    )
 
 
 def normalize_ui_source_spec(payload: dict[str, Any]) -> dict[str, Any]:
