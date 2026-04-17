@@ -1,0 +1,6 @@
+skill: ll-patch-capture
+version: "1.0"
+adr: ADR-049
+category: experience
+chain: patch-capture
+phase: registration

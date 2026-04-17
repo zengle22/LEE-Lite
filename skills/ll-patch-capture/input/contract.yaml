@@ -1,0 +1,13 @@
+# Input Contract: ll-patch-capture
+
+## Required Input
+- feat_id: string (e.g., "feat.training-plan") — the FEAT this patch belongs to
+- input_type: enum[prompt, document] — classification of input
+- input_value: string — either free-form prompt text or absolute file path to document
+
+## Input Validation
+- [ ] feat_id is non-empty string
+- [ ] input_type is "prompt" or "document"
+- [ ] input_value is non-empty
+- [ ] If input_type is "document", input_value points to an existing file
+- [ ] If input_type is "document", file path is within workspace root
