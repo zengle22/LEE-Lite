@@ -20,6 +20,10 @@
 
 ### Active
 
+_None — milestone v1.0 complete. Remaining skill hardening deferred to v1.1._
+
+### Deferred to v1.1
+
 - [ ] ADR-047 的 9 个 QA 技能补上 Prompt-first 运行时（scripts/agents/validate）
 - [ ] ll-skill-install 技能补全实现
 - [ ] ll-dev-feat-to-tech 技能补充测试覆盖
@@ -56,8 +60,8 @@
 |----------|-----------|---------|
 | Prompt-first 试点，不做 Python 运行时 | 快速验证 ADR-047 设计，避免过度工程化 | ✓ Good |
 | 先跑通 API 链，E2E 链后续 | API 链锚定 feat（已有实现），不依赖前端 | ✓ Good |
-| 统一 schema 放 `ssot/schemas/qa/` | 真理源独立，skills 读取验证 | — Pending |
-| 11 个技能纳入本轮范围 | ADR-047 (9) + ll-skill-install + ll-dev-feat-to-tech | — Pending |
+| 统一 schema 放 `ssot/schemas/qa/` | 真理源独立，skills 读取验证 | ✓ Deferred to v1.1 (ADR-049 provides patch/manifest schemas) |
+| 11 个技能纳入本轮范围 | ADR-047 (9) + ll-skill-install + ll-dev-feat-to-tech | ✓ Deferred — scope reduced to infrastructure foundation |
 
 ## Evolution
 
@@ -77,4 +81,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-04-14 after initialization*
+*Last updated: 2026-04-17 after v1.0 milestone completion (ADR-047 双链测试基础设施)*

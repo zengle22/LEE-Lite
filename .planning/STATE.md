@@ -3,21 +3,21 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: completed
-last_updated: "2026-04-17T13:04:08.529Z"
+last_updated: "2026-04-17T14:29:43.151Z"
 progress:
   total_phases: 4
-  completed_phases: 1
+  completed_phases: 3
   total_plans: 8
-  completed_plans: 6
-  percent: 75
+  completed_plans: 8
+  percent: 100
 ---
 
 # Project State
 
 **Project:** ADR-047 双链测试技能实施 + 骨架补全
-**Status:** Milestone complete
+**Status:** v1.0 milestone complete — archived to `.planning/milestones/`
 **Core value:** 用最小可行实现验证 ADR-047 的双链治理设计是否真正可执行
-**Current focus:** Phase 03 — settlement-exec
+**Current focus:** Idle — awaiting v1.1 (ADR-049) milestone kickoff
 
 ## Roadmap Summary
 
