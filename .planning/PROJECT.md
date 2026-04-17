@@ -25,9 +25,9 @@
 
 ### Active
 
-- [ ] ADR-049 体验修正层落地：Patch 目录 + schema + 验证 + 登记 skill + 结算 skill
-- [ ] PreToolUse hook 自动触发 Patch 登记
-- [ ] Patch 冲突检测 + 索引/查询
+- [ ] ADR-049 体验修正层落地：Patch 目录 + schema + 验证 + 登记 skill + 结算 skill + 测试联动（Phase 1-4 完成，Phase 5-7 待做）
+- [ ] PreToolUse hook 自动触发 Patch 登记（ADR-049 Phase 6）
+- [ ] Patch 冲突检测 + 索引/查询（ADR-049 Phase 7）
 - [ ] 24h blocking 机制
 - [ ] Patch-aware Harness 集成
 
@@ -62,8 +62,8 @@
 | 先跑通 API 链，E2E 链后续 | API 链锚定 feat（已有实现），不依赖前端 | ✓ Good |
 | 统一 schema 放 `ssot/schemas/qa/` | 真理源独立，skills 读取验证 | ✓ Good |
 | 11 个技能纳入本轮范围 | ADR-047 (9) + ll-skill-install + ll-dev-feat-to-tech | ✓ Good |
-| ADR-049 Patch 层独立目录 | 不破坏现有 FEAT flat 文件结构 | — Pending |
-| 24h 窗口期从 validated 开始 | 统一计时起点，超期 blocking | — Pending |
+| ADR-049 Patch 层独立目录 | 不破坏现有 FEAT flat 文件结构 | ✓ ADR-049 Phase 1-4 落地 |
+| 24h 窗口期从 validated 开始 | 统一计时起点，超期 blocking | — Pending (Phase 7) |
 
 ## Evolution
 
@@ -83,4 +83,6 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-04-14 after initialization*
+*Last updated: 2026-04-17 after Phase 4 completion*
+
+**Phase 4 (test-integration) complete**: ADR-049 REQ-PATCH-04 satisfied. Patch schema (reviewed_at, test_impact enforcement, resolve_patch_conflicts), PatchContext + resolve_patch_context(), mark_manifest_patch_affected(), create_manifest_items_for_new_scenarios(), per-case TEST_BLOCKED skip, TOCTOU re-verification. 84 tests pass.
