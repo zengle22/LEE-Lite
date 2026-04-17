@@ -17,19 +17,15 @@
 - ✓ 20+ 技能已有 Python 运行时实现（ll-product-*、ll-dev-* 核心管线）
 - ✓ Playwright E2E 执行器已就绪（动态脚手架）
 - ✓ CI 治理体系已跑通（7 个并行检查 job）
-- ✓ QA Schema 定义 + validator + fixtures（ADR-047 Phase 1）
-- ✓ 设计层 6 个技能补全（ADR-047 Phase 2）
-- ✓ 结算/执行层 5 个技能补全（ADR-047 Phase 3）
-- ✓ API 链试点跑通（ADR-047 Phase 4）
-- ✓ 生成层与执行层补全（ADR-047 Phase 5）
 
 ### Active
 
-- [ ] ADR-049 体验修正层落地：Patch 目录 + schema + 验证 + 登记 skill + 结算 skill + 测试联动（Phase 1-4 完成，Phase 5-7 待做）
-- [ ] PreToolUse hook 自动触发 Patch 登记（ADR-049 Phase 6）
-- [ ] Patch 冲突检测 + 索引/查询（ADR-049 Phase 7）
-- [ ] 24h blocking 机制
-- [ ] Patch-aware Harness 集成
+- [ ] ADR-047 的 9 个 QA 技能补上 Prompt-first 运行时（scripts/agents/validate）
+- [ ] ll-skill-install 技能补全实现
+- [ ] ll-dev-feat-to-tech 技能补充测试覆盖
+- [ ] 统一 QA schema 定义（plan/manifest/spec/settlement 四层资产结构）
+- [ ] 选一个真实 feat 跑通 API 链全流程（plan → spec → exec → settlement → gate）
+- [ ] 产出 schema 定义文件放入 `ssot/schemas/qa/`
 
 ### Out of Scope
 
@@ -44,8 +40,8 @@
 - 零外部 Python 依赖（仅 pytest/pyyaml/coverage），标准库驱动
 - 文件系统（JSON/YAML/Markdown）是主要存储机制
 - ADR-047 定义了完整的"双链治理"测试体系（API 链锚定 feat，E2E 链锚定 prototype）
-- ADR-049 定义了体验修正层（Experience Patch Layer），冻结于 v2.1
-- ADR-047 里程碑已完成，11 个技能全部补全
+- 当前有 9 个 QA 技能空壳 + 2 个其他空壳技能需要补全
+- 方案讨论文档已生成：`.planning/ADR047-IMPLEMENTATION-PROPOSAL.md`
 
 ## Constraints
 
@@ -60,10 +56,8 @@
 |----------|-----------|---------|
 | Prompt-first 试点，不做 Python 运行时 | 快速验证 ADR-047 设计，避免过度工程化 | ✓ Good |
 | 先跑通 API 链，E2E 链后续 | API 链锚定 feat（已有实现），不依赖前端 | ✓ Good |
-| 统一 schema 放 `ssot/schemas/qa/` | 真理源独立，skills 读取验证 | ✓ Good |
-| 11 个技能纳入本轮范围 | ADR-047 (9) + ll-skill-install + ll-dev-feat-to-tech | ✓ Good |
-| ADR-049 Patch 层独立目录 | 不破坏现有 FEAT flat 文件结构 | ✓ ADR-049 Phase 1-4 落地 |
-| 24h 窗口期从 validated 开始 | 统一计时起点，超期 blocking | — Pending (Phase 7) |
+| 统一 schema 放 `ssot/schemas/qa/` | 真理源独立，skills 读取验证 | — Pending |
+| 11 个技能纳入本轮范围 | ADR-047 (9) + ll-skill-install + ll-dev-feat-to-tech | — Pending |
 
 ## Evolution
 
@@ -83,6 +77,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-04-17 after Phase 4 completion*
-
-**Phase 4 (test-integration) complete**: ADR-049 REQ-PATCH-04 satisfied. Patch schema (reviewed_at, test_impact enforcement, resolve_patch_conflicts), PatchContext + resolve_patch_context(), mark_manifest_patch_affected(), create_manifest_items_for_new_scenarios(), per-case TEST_BLOCKED skip, TOCTOU re-verification. 84 tests pass.
+*Last updated: 2026-04-14 after initialization*

@@ -12,11 +12,7 @@ from cli.lib.fs import canonical_to_path, to_canonical_path, write_json
 from cli.lib.mainline_runtime import submit_handoff
 from cli.lib.managed_gateway import governed_write
 from cli.lib.registry_store import slugify
-from cli.lib.test_exec_artifacts import (
-    normalize_ui_source_spec,
-    PatchContext,
-    resolve_patch_context,
-)
+from cli.lib.test_exec_artifacts import normalize_ui_source_spec
 from cli.lib.test_exec_execution import run_narrow_execution
 
 
@@ -165,43 +161,6 @@ def _validate_testset_execution_boundary(test_set: dict[str, Any]) -> None:
     )
 
 
-def _check_patch_test_impact(
-    patch_context: PatchContext,
-    workspace_root: Path,
-) -> list[str]:
-    """Verify test_impact declarations before execution (D-18).
-
-    Returns list of warnings/errors. Empty list = proceed.
-    """
-    messages: list[str] = []
-    for patch in patch_context.validated_patches + patch_context.pending_patches:
-        change_class = patch.get("change_class", "visual")
-        test_impact = patch.get("test_impact")
-
-        if change_class == "visual":
-            # D-05: optional, WARN only if present but incomplete
-            if test_impact and not test_impact.get("affected_routes"):
-                messages.append(
-                    f"WARN: Patch {patch['id']} (visual) has test_impact "
-                    f"but no affected_routes listed"
-                )
-            continue
-
-        # D-04: interaction/semantic must have test_impact
-        if not test_impact:
-            messages.append(
-                f"ERROR: Patch {patch['id']} ({change_class}) missing test_impact"
-            )
-            continue
-
-        if not test_impact.get("affected_routes"):
-            messages.append(
-                f"ERROR: Patch {patch['id']} ({change_class}) has empty affected_routes"
-            )
-
-    return messages
-
-
 def execute_test_exec_skill(
     workspace_root: Path,
     trace: dict[str, Any],
@@ -214,31 +173,7 @@ def execute_test_exec_skill(
     _validate_testset_execution_boundary(test_set)
     environment = _apply_testset_coverage_defaults(test_set, environment)
     _validate_environment(action, environment)
-
-    # D-11: Inject patch context + pre-sync check
-    patch_context = resolve_patch_context(workspace_root)
-    if patch_context.has_active_patches:
-        impact_messages = _check_patch_test_impact(patch_context, workspace_root)
-        errors = [m for m in impact_messages if m.startswith("ERROR")]
-        if errors:
-            ensure(False, "PATCH_TEST_IMPACT_VIOLATION", "; ".join(errors))
-        # Warnings are logged but execution continues
-
-        # D-22: TOCTOU re-verification before execution
-        recheck_context = resolve_patch_context(workspace_root)
-        if recheck_context.directory_hash != patch_context.directory_hash:
-            ensure(False, "PATCH_CONTEXT_CHANGED",
-                f"Patch directory changed between context resolution and execution. "
-                f"Initial hash: {patch_context.directory_hash[:12]}..., "
-                f"Current hash: {recheck_context.directory_hash[:12]}...")
-
-        # D-07/D-08: Mark manifest items affected by patches (in-memory only, no persistent write-back for this phase)
-        from cli.lib.test_exec_artifacts import mark_manifest_patch_affected, create_manifest_items_for_new_scenarios
-        # Note: manifest_items modification happens in-memory within the execution context
-        # D-09: Create new manifest items for new test scenarios
-        # (wired for future use when manifest_items are available in execution flow)
-
-    execution_result = run_narrow_execution(workspace_root, trace, request_id, action, test_set, environment, payload, patch_context)
+    execution_result = run_narrow_execution(workspace_root, trace, request_id, action, test_set, environment, payload)
 
     artifact_ref, candidate = build_candidate_package(action, request_id, test_set, environment, payload, execution_result)
     staging_ref = f".workflow/runs/{trace.get('run_ref', request_id)}/generated/{slugify(artifact_ref)}.json"

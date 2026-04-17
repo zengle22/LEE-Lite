@@ -16,7 +16,7 @@ from cli.lib.test_exec_runtime import execute_test_exec_skill
 
 def _skill_handler(ctx: CommandContext):
     ensure(
-        ctx.action in {"impl-spec-test", "test-exec-web-e2e", "test-exec-cli", "gate-human-orchestrator", "failure-capture", "spec-reconcile", "tech-to-impl", "feat-to-apiplan", "prototype-to-e2eplan", "api-manifest-init", "e2e-manifest-init", "api-spec-gen", "e2e-spec-gen", "settlement", "gate-evaluate", "render-testset-view", "api-spec-to-tests", "e2e-spec-to-tests", "api-test-exec", "e2e-test-exec", "patch-capture", "patch-settle"},
+        ctx.action in {"impl-spec-test", "test-exec-web-e2e", "test-exec-cli", "gate-human-orchestrator", "failure-capture", "spec-reconcile", "tech-to-impl", "feat-to-apiplan", "prototype-to-e2eplan", "api-manifest-init", "e2e-manifest-init", "api-spec-gen", "e2e-spec-gen", "settlement", "gate-evaluate", "render-testset-view"},
         "INVALID_REQUEST",
         "unsupported skill action",
     )
@@ -98,58 +98,6 @@ def _skill_handler(ctx: CommandContext):
             **result,
         }, [], evidence_refs
 
-    if ctx.action == "patch-capture":
-        from cli.lib.skill_runtime_paths import resolve_skill_scripts_dir
-
-        ensure("feat_id" in ctx.payload, "INVALID_REQUEST", "missing feat_id")
-        ensure("input_type" in ctx.payload, "INVALID_REQUEST", "missing input_type")
-        ensure("input_value" in ctx.payload, "INVALID_REQUEST", "missing input_value")
-
-        scripts_dir = resolve_skill_scripts_dir(ctx.workspace_root, "ll-patch-capture")
-        import importlib.util
-
-        mod_path = scripts_dir / "patch_capture_runtime.py"
-        spec = importlib.util.spec_from_file_location("patch_capture_runtime", mod_path)
-        mod = importlib.util.module_from_spec(spec)
-        sys.modules["patch_capture_runtime"] = mod
-        spec.loader.exec_module(mod)
-        result = mod.run_skill(
-            workspace_root=ctx.workspace_root,
-            payload=ctx.payload,
-            request_id=ctx.request["request_id"],
-        )
-
-        evidence_refs = _collect_refs(result)
-        return "OK", "patch capture registered", {
-            "canonical_path": result.get("patch_path", ""),
-            **result,
-        }, [], evidence_refs
-
-    if ctx.action == "patch-settle":
-        from cli.lib.skill_runtime_paths import resolve_skill_scripts_dir
-        import sys
-
-        ensure("feat_id" in ctx.payload, "INVALID_REQUEST", "missing feat_id")
-
-        scripts_dir = resolve_skill_scripts_dir(ctx.workspace_root, "ll-experience-patch-settle")
-        import importlib.util
-
-        mod_path = scripts_dir / "settle_runtime.py"
-        spec = importlib.util.spec_from_file_location("settle_runtime", mod_path)
-        mod = importlib.util.module_from_spec(spec)
-        sys.modules["settle_runtime"] = mod
-        spec.loader.exec_module(mod)
-        result = mod.run_skill(
-            workspace_root=ctx.workspace_root,
-            payload=ctx.payload,
-        )
-
-        evidence_refs = _collect_refs(result)
-        return "OK", "patch settle completed", {
-            "canonical_path": result.get("report_path", ""),
-            **result,
-        }, [], evidence_refs
-
     # QA skill actions — Prompt-first via skill's agents/executor.md
     _QA_SKILL_MAP = {
         "feat-to-apiplan": ("ll-qa-feat-to-apiplan", "feat_to_apiplan"),
@@ -161,11 +109,6 @@ def _skill_handler(ctx: CommandContext):
         "settlement": ("ll-qa-settlement", "qa_settlement"),
         "gate-evaluate": ("ll-qa-gate-evaluate", "qa_gate_evaluate"),
         "render-testset-view": ("render-testset-view", "qa_render_testset"),
-        # Phase 5: generation + execution skills (D-CLI-01)
-        "api-spec-to-tests": ("ll-qa-api-spec-to-tests", "qa_skill_runtime"),
-        "e2e-spec-to-tests": ("ll-qa-e2e-spec-to-tests", "qa_skill_runtime"),
-        "api-test-exec": ("ll-qa-api-test-exec", "api_test_exec"),
-        "e2e-test-exec": ("ll-qa-e2e-test-exec", "e2e_test_exec"),
     }
     if ctx.action in _QA_SKILL_MAP:
         from cli.lib.skill_runtime_paths import resolve_skill_scripts_dir
@@ -194,30 +137,6 @@ def _skill_handler(ctx: CommandContext):
         evidence_refs = _collect_refs(result)
         return "OK", f"governed {ctx.action} completed", {
             "canonical_path": result.get("canonical_path", ""),
-            **result,
-        }, [], evidence_refs
-
-    # Code-driven execution skills (bypass LLM runtime)
-    EXEC_SKILL_RUNTIME = {
-        "api-test-exec": ("cli.lib.api_test_exec", "run_api_test_exec"),
-        "e2e-test-exec": ("cli.lib.e2e_test_exec", "run_e2e_test_exec"),
-    }
-    if ctx.action in EXEC_SKILL_RUNTIME:
-        module_path, func_name = EXEC_SKILL_RUNTIME[ctx.action]
-        from importlib import import_module
-        mod = import_module(module_path)
-        func = getattr(mod, func_name)
-        result = func(
-            spec_path=ctx.payload.get("spec_path", ""),
-            test_dir=ctx.payload.get("test_dir", ""),
-            manifest_path=ctx.payload.get("manifest_path", ""),
-            evidence_dir=ctx.payload.get("evidence_dir", ""),
-            run_id=ctx.request["request_id"],
-            base_url=ctx.payload.get("base_url", ctx.payload.get("target_url", "")),
-        )
-        evidence_refs = _collect_refs(result)
-        return "OK", f"governed {ctx.action} completed", {
-            "canonical_path": result.get("evidence_dir", ""),
             **result,
         }, [], evidence_refs
 

@@ -1,8 +1,0 @@
-skill: ll-qa-e2e-spec-gen
-version: "1.0"
-state: draft
-lifecycle_states:
-  - draft
-  - validated
-  - executed
-  - frozen

@@ -1,6 +1,0 @@
-skill: ll-experience-patch-settle
-version: "1.0"
-adr: ADR-049
-category: experience
-chain: patch-settle
-phase: settlement
