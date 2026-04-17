@@ -1,0 +1,90 @@
+# Experience Patch Template
+# ADR-049 §5.3 — Patch YAML Schema
+#
+# Location: ssot/experience-patches/{FEAT_ID}/{filename}
+# ID format: UXPATCH-{SEQUENCE}__{slug-description}
+# Example: ssot/experience-patches/FEAT-SRC-001-001/UXPATCH-0001__move-regenerate-button.yaml
+
+id: UXPATCH-0001                                    # Sequence number, auto-increment within FEAT directory
+type: experience_patch                              # Fixed — distinguishes from SRC artifacts
+status: draft                                       # draft → active → validated → pending_backwrite → (backwritten | retain_in_code | upgraded_to_src | discarded) → archived
+
+title: "Brief description of the experience change" # Short, human-readable title
+summary: "中文或英文的一句话变更说明"                   # One-line summary of what changed and why
+
+# ── Creation metadata ──
+created_at: "2026-04-17T00:00:00+08:00"             # ISO 8601 timestamp of creation
+updated_at: "2026-04-17T00:00:00+08:00"             # ISO 8601 timestamp of last modification
+
+# ── Source of change ──
+source:
+  from: product_experience                          # Source channel: product_experience | bug_report | ai_analysis
+  actor: human                                      # Who initiated: human | ai_suggested
+  session: "session-identifier"                     # Optional: UX review session ID
+  prompt_ref: "原始 prompt 快照"                       # Original prompt snapshot if user-initiated
+  ai_suggested_class: interaction                   # AI's classification suggestion
+  human_confirmed_class: interaction                # Human-confirmed classification (REQUIRED after review)
+
+# ── Scope ──
+scope:
+  feat_ref: FEAT-SRC-001-001                        # Parent FEAT reference
+  ui_ref: UI-FEAT-SRC-001-001                       # Related UI artifact (if exists)
+  tech_ref: TECH-SRC-001-001                        # Related TECH artifact (if exists)
+  page: "Page name or route"                        # Affected page identifier
+  module: "Component or module name"                # Affected module/component
+
+# ── Classification ──
+change_class: interaction                           # visual | interaction | semantic (human-reviewed)
+                                                    #   visual: only visual/layout changes, no semantics
+                                                    #   interaction: changes user flow, page relations, action order
+                                                    #   semantic: changes business rules, state machine, data meaning
+severity: medium                                    # low | medium | high
+
+# ── Conflict tracking (ADR-049 §5.2) ──
+conflict: false                                     # Conflicts with other active Patch in same FEAT?
+conflict_details: null                              # If conflict=true, describe which Patch and resolution
+
+# ── Problem statement ──
+problem:
+  user_issue: "What UX problem was observed"        # Description of the user-facing issue
+  evidence: "How the problem was identified"        # Observation, feedback, or data
+
+# ── Decision & backwrite ──
+decision:
+  code_hotfix_allowed: true                         # Whether code-first approach is permitted
+  must_backwrite_ssot: true                         # Auto-derived from change_class (human-reviewed)
+                                                    #   visual: false, interaction: true, semantic: true
+  backwrite_targets:                                # Auto-derived from change_class (human-reviewed)
+    - UI-FEAT-SRC-001-001                           # Target artifacts to update
+    - TESTSET-SRC-001-001
+  backwrite_deadline: "2026-04-18T00:00:00+08:00"   # interaction: 24h from validated; semantic: immediate SRC upgrade
+
+# ── Implementation ──
+implementation:
+  code_changed: true                                # Whether code was actually changed
+  changed_files:                                    # List of code files modified by this Patch
+    - "path/to/changed/file.tsx"
+    - "path/to/changed/component.ts"
+
+# ── Test impact (ADR-049 §10.1 — REQUIRED) ──
+test_impact:                                        # human-reviewed
+  impacts_user_path: true                           # Whether user navigation path is affected
+  impacts_acceptance: true                          # Whether acceptance criteria change
+  impacts_existing_testcases: true                  # Whether existing test cases need update
+  affected_routes:                                  # List of routes affected by this change (ADR-049 §H8)
+    - "/training-plan/:id/detail"
+  test_targets:                                     # Specific test cases to update
+    - "TC-FEAT-SRC-001-001-PLAN-DETAIL-ACTION"
+
+# ── Related artifacts (filesystem-derived, not AI-inferred) ──
+related_ids:                                        # Populated by filesystem lookup (ADR-049 §12.2)
+  - FEAT-SRC-001-001
+  - UI-FEAT-SRC-001-001
+  - TESTSET-SRC-001-001
+
+# ── Resolution ──
+resolution:
+  backwrite_status: pending                         # pending | backwritten | discarded | upgraded_to_src | superseded
+  merged_into_ssot_at: null                         # Timestamp when backwrite completed
+  src_created: null                                 # SRC ID if upgraded to full SRC
+  closed_at: null                                   # Timestamp when Patch reached terminal state
