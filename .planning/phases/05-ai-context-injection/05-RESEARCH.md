@@ -256,22 +256,21 @@ Before generating any SSOT artifact:
 | A3 | `patch-awareness.yaml` as the awareness output format is sufficient for downstream consumption | Code Examples | If downstream agents expect a different format (e.g., JSON or embedded in existing artifact), additional mapping needed |
 | A4 | No Python runtime changes needed beyond the existing `cli/lib/test_exec_artifacts.py` imports | Standard Stack | If the function needs to be refactored to separate concerns, a Phase 5 task would need to account for this |
 
-## Open Questions
+## Open Questions (RESOLVED)
 
-1. **Should awareness recording be a separate file or embedded in existing SSOT artifacts?**
-   - What we know: D-09 says "Awareness form recorded in output artifacts." D-10 says "no executor.md restructuring."
-   - What's unclear: Whether "output artifacts" means a new file (patch-awareness.yaml) or an embedded section in existing output (e.g., inside the TECH/UE/UI artifact).
-   - Recommendation: Use a separate `patch-awareness.yaml` file — it is cleaner, easier to verify, and does not require modifying existing artifact formats.
+Resolved via CONTEXT.md decisions from /gsd-discuss-phase session:
 
-2. **Should the awareness skill be auto-invoked or manually invoked?**
-   - What we know: D-04 says "New SSOT chain generation is user-triggered, not auto-triggered."
-   - What's unclear: Whether the awareness step should be part of the user-triggered SSOT chain (automatic prerequisite) or a separate manual step before SSOT chain generation.
-   - Recommendation: Make it an automatic prerequisite of the SSOT chain. When the user triggers `feat-to-tech`, the awareness step runs first, then the chain proceeds. This is consistent with the "lightest possible" constraint — zero extra user steps.
+1. **Should awareness recording be a separate file or embedded in existing SSOT artifacts?** — **RESOLVED**
+   - Decision: Separate `patch-awareness.yaml` file (D-09, D-10)
+   - Rationale: Cleaner, easier to verify, no modification to existing artifact formats
 
-3. **What is the exact invocation mechanism for the awareness skill from executor.md?**
-   - What we know: executor.md files are AI agent instructions, not code. They tell the AI what to do.
-   - What's unclear: Whether the AI agent should explicitly run a command (`python scripts/patch_aware_context.py`) or if the awareness file should already exist when the executor reads its instructions.
-   - Recommendation: The executor.md for SSOT chain skills gains a new step: "Before generating artifacts, verify patch-awareness.yaml exists in the input/output directory. If not, run the awareness skill first." This is a behavioral instruction, not a structural change.
+2. **Should the awareness skill be auto-invoked or manually invoked?** — **RESOLVED**
+   - Decision: Automatic prerequisite of SSOT chain generation (D-04)
+   - Rationale: Zero extra user steps; awareness runs first when user triggers SSOT chain
+
+3. **What is the exact invocation mechanism for the awareness skill from executor.md?** — **RESOLVED**
+   - Decision: Behavioral instruction in new skill's executor.md, not structural change to existing SSOT executor.md files (D-10)
+   - Rationale: executor.md tells AI what to do; awareness step is a prerequisite instruction
 
 ## Environment Availability
 
