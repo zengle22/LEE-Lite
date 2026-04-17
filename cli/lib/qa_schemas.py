@@ -161,6 +161,8 @@ class ManifestItem:
     last_run_id: str | None = None
     obsolete: bool = False
     superseded_by: str | None = None
+    patch_affected: bool = False
+    patch_refs: list[str] = field(default_factory=list)
 
 
 @dataclass(frozen=True)
@@ -502,6 +504,8 @@ def validate_manifest(data: dict) -> ApiCoverageManifest:
                 last_run_id=raw.get("last_run_id"),
                 obsolete=raw.get("obsolete", False),
                 superseded_by=raw.get("superseded_by"),
+                patch_affected=raw.get("patch_affected", False),
+                patch_refs=raw.get("patch_refs") or [],
             )
         )
 

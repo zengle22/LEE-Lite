@@ -32,6 +32,7 @@ experience_patch:
   test_impact: object                # see test_impact sub-fields below
   related_ids: array[string]         # References to related patch IDs
   resolution: object                 # see resolution sub-fields below
+  reviewed_at: datetime              # ISO 8601, when test_impact was human-reviewed (D-21)
 
   # ============================================================
   # source sub-fields (required object)
@@ -43,6 +44,7 @@ experience_patch:
     prompt_ref: string    # Reference to the prompt or turn that produced this patch
     ai_suggested_class: enum[visual, interaction, semantic]  # optional — AI's suggested classification
     human_confirmed_class: enum[visual, interaction, semantic]  # required — human-confirmed classification
+    reviewed_at: datetime              # optional — ISO 8601, human review timestamp (D-21)
 
   # ============================================================
   # scope sub-fields (required object)

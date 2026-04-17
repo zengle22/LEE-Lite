@@ -36,3 +36,6 @@ api_coverage_manifest:
       last_run_id: string | null  # last execution run ID
       obsolete: boolean         # true if upstream change invalidated this item
       superseded_by: string | null  # coverage_id that supersedes this one
+      patch_affected: boolean       # true if any Patch with test_impact affects this item (D-07)
+      patch_refs:                   # list of patch IDs that affected this item (D-07)
+        - string                    # e.g., UXPATCH-0001
