@@ -1,67 +1,71 @@
-# ADR-047 双链测试技能实施 + 骨架补全
+# ADR-050/051: SSOT 语义治理升级
 
 ## What This Is
 
-为 LEE-Lite-skill-first 项目的 11 个空壳/半空技能补上 Prompt-first 运行时骨架，并选一个真实 feat 跑通 ADR-047 双链治理全流程（API 链：plan → manifest → spec → exec → evidence → settlement → gate），同时产出统一的 QA schema 定义。
+建立完整的 SSOT 语义治理闭环，将 SSOT 从"生成链"转型为"语义抽取链"。FRZ 冻结层作为唯一真相源，执行层只能补全不能改写语义，所有变更通过分级机制回流治理，由 Task Pack 驱动顺序执行循环。
 
 ## Core Value
 
-用最小可行实现验证 ADR-047 的双链治理设计是否真正可执行——跑通一条链，证明"测试编译链"不是纸上谈兵。
+确保 SSOT 不再逐层生成，而是从 FRZ 冻结包中分层语义抽取，执行层只能补全不能改写语义，所有变更通过分级机制回流治理。
+
+## Current Milestone: v2.0 ADR-050/051 SSOT 语义治理升级
+
+**Goal:** 建立完整的 SSOT 语义治理闭环，从"生成链"转型为"语义抽取链"。
+
+**Target features:**
+- FRZ 冻结包结构定义 + MSC 5维验证
+- SSOT 语义抽取链（FRZ → SRC → EPIC → FEAT，投影不变性）
+- 执行层语义稳定规则（补全不改写，语义漂移检测）
+- 变更分级与 ADR-049 协同（visual/interaction/semantic → Minor/Major 回流）
+- 三轴管理强度（需求强/实现弱/证据轻）
+- Task Pack 结构（PACK YAML, depends_on）+ 顺序执行循环（失败暂停）
+- 协同规则更新
 
 ## Requirements
 
 ### Validated
 
-- ✓ CLI 命令体系可工作（gate、skill、evidence 等子命令已注册）
-- ✓ 代码库映射已完成（7 份 codebase 文档）
-- ✓ 20+ 技能已有 Python 运行时实现（ll-product-*、ll-dev-* 核心管线）
-- ✓ Playwright E2E 执行器已就绪（动态脚手架）
-- ✓ CI 治理体系已跑通（7 个并行检查 job）
+- ✓ FRZ 冻结层已定义（ADR-045 §2.1-§2.8，ADR-050 §3）
+- ✓ 双链测试体系已建立（ADR-047）
+- ✓ Experience Patch 层已冻结（ADR-049）
+- ✓ SSOT 主链结构已存在（SRC/EPIC/FEAT/TECH/UI/TESTSET）
+- ✓ Execution Loop Job Runner 已定义（ADR-018）
+- ✓ QA Schema 已交付（v1.0 Phase 1）
+- ✓ 11 个 QA 技能 Prompt-first 运行时已交付（v1.0 Phase 2-3）
+- ✓ Patch 基础设施已交付（v1.1: patch_schema, patch_context_injector, patch_auto_register）
 
 ### Active
 
-_None — milestone v1.0 complete. Remaining skill hardening deferred to v1.1._
-
-### Deferred to v1.1
-
-- [ ] ADR-047 的 9 个 QA 技能补上 Prompt-first 运行时（scripts/agents/validate）
-- [ ] ll-skill-install 技能补全实现
-- [ ] ll-dev-feat-to-tech 技能补充测试覆盖
-- [ ] 统一 QA schema 定义（plan/manifest/spec/settlement 四层资产结构）
-- [ ] 选一个真实 feat 跑通 API 链全流程（plan → spec → exec → settlement → gate）
-- [ ] 产出 schema 定义文件放入 `ssot/schemas/qa/`
+- [ ] FRZ 冻结包结构 + MSC 验证
+- [ ] SSOT 从生成链改为语义抽取链（ADR-050 §4）
+- [ ] 执行层语义稳定规则落地（ADR-050 §5）
+- [ ] 变更分级机制与 ADR-049 协同（ADR-050 §6）
+- [ ] 三轴管理强度定义（ADR-050 §7）
+- [ ] Task Pack 结构 + 顺序执行循环（ADR-050 §8 + ADR-051）
+- [ ] 协同规则更新（ADR-050 §9）
 
 ### Out of Scope
 
-- [Python 生产级 CLI 运行时] — 本轮只做 Prompt-first，Python 运行时留给后续里程碑
-- [E2E 链全流程] — 本轮优先跑通 API 链，E2E 链作为后续扩展
-- [兼容层 render-testset-view] — 旧 testset 兼容视图非本轮重点
-- [生成层 api-spec-to-tests / e2e-spec-to-tests] — 本轮通过 Prompt-first 实现，不建独立技能
+- [FRZ 生成工具实现] — 本轮仅定义治理规则，FRZ 仍通过 BMAD 等框架产出
+- [复杂 DAG 调度] — ADR-050/051 明确采用顺序 loop
+- [三轴一律强管理] — ADR-050 §7 明确差异化强度
 
 ## Context
 
-- 代码库是 Python 3.13 CLI 工具，通过 Claude Code 子进程驱动技能工作流
-- 零外部 Python 依赖（仅 pytest/pyyaml/coverage），标准库驱动
-- 文件系统（JSON/YAML/Markdown）是主要存储机制
-- ADR-047 定义了完整的"双链治理"测试体系（API 链锚定 feat，E2E 链锚定 prototype）
-- 当前有 9 个 QA 技能空壳 + 2 个其他空壳技能需要补全
-- 方案讨论文档已生成：`.planning/ADR047-IMPLEMENTATION-PROPOSAL.md`
-
-## Constraints
-
-- **技术栈**: Python 3.13 标准库，不引入新外部依赖
-- **运行时**: 通过 Claude Code CLI 子进程驱动，不是直接 API 调用
-- **Schema**: 统一的 YAML schema 定义，`ssot/schemas/qa/` 作为真理源
-- **文件模式**: 每个 skill 需补 4 个文件（run.sh + executor.md + validate_input.sh + validate_output.sh）
+- ADR-050 是总纲，ADR-051 是 Task Pack 的具体实现规范
+- 现有 ADR-045/047/049/018 各司其职，ADR-050/051 填补灰色地带
+- 已有 51 个 ADR 文件在 `ssot/adr/`
+- SSOT 主链对象（SRC/EPIC/FEAT 等）存在于 `ssot/` 目录
+- v1.0 (ADR-047) 和 v1.1 (ADR-049) 已交付完整基础设施
 
 ## Key Decisions
 
 | Decision | Rationale | Outcome |
 |----------|-----------|---------|
-| Prompt-first 试点，不做 Python 运行时 | 快速验证 ADR-047 设计，避免过度工程化 | ✓ Good |
-| 先跑通 API 链，E2E 链后续 | API 链锚定 feat（已有实现），不依赖前端 | ✓ Good |
-| 统一 schema 放 `ssot/schemas/qa/` | 真理源独立，skills 读取验证 | ✓ Deferred to v1.1 (ADR-049 provides patch/manifest schemas) |
-| 11 个技能纳入本轮范围 | ADR-047 (9) + ll-skill-install + ll-dev-feat-to-tech | ✓ Deferred — scope reduced to infrastructure foundation |
+| ADR-050 作为总纲，不替代已有 ADR | 已有 ADR 经过详细评审 | 仅填补灰色地带 |
+| FRZ 来自外部框架讨论产物 | BMAD/Superpowers 等讨论后冻结 | 不通过 raw-to-src 直接生成 |
+| 顺序 loop 替代复杂编排 | 稳定性优先 | ADR-051 具体化 |
+| v2.0 = 主版本号升级 | 语义治理是架构根本性转变 | — Pending |
 
 ## Evolution
 
@@ -81,4 +85,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-04-17 after v1.0 milestone completion (ADR-047 双链测试基础设施)*
+*Last updated: 2026-04-18 after v2.0 milestone initialization*
