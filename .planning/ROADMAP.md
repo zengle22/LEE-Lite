@@ -38,10 +38,10 @@
 
 **Plans:**
 
-- [ ] 08-01 — `cli/lib/drift_detector.py`: 语义漂移检测器
-- [ ] 08-02 — `skills/ll-frz-manage` 抽取模式: FRZ → SRC 抽取 + 投影守卫 + 锚点注册 + 漂移检测
-- [ ] 08-03 — `skills/ll-product-src-to-epic`: 改为 FRZ 抽取 EPIC 模式
-- [ ] 08-04 — `skills/ll-product-epic-to-feat`: 改为 FRZ 抽取 FEAT 模式
+- [x] 08-01 — `cli/lib/drift_detector.py`: 语义漂移检测器
+- [x] 08-02 — `skills/ll-frz-manage` 抽取模式: FRZ → SRC 抽取 + 投影守卫 + 锚点注册 + 漂移检测
+- [x] 08-03 — `skills/ll-product-src-to-epic`: 改为 FRZ 抽取 EPIC 模式
+- [x] 08-04 — `skills/ll-product-epic-to-feat`: 改为 FRZ 抽取 FEAT 模式
 
 **Success Criteria:**
 1. `ll frz-manage extract --frz FRZ-xxx` 输出 SRC candidate，不超出 `derived_allowed` 范围
