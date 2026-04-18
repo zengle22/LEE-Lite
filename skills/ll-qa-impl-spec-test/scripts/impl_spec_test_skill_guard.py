@@ -8,6 +8,11 @@ import json
 import sys
 from pathlib import Path
 
+try:
+    from cli.lib.silent_override import OverrideResult  # type reference for semantic_stability dimension
+except ImportError:
+    OverrideResult = None  # type: ignore[misc]  # available when run from project root
+
 
 ALLOWED_VERDICTS = {"pass", "pass_with_revisions", "block"}
 ALLOWED_RUN_STATUSES = {"completed", "completed_with_findings", "completed_with_blockers"}
@@ -284,9 +289,33 @@ def validate_output(path: Path) -> int:
         "implementation_executability",
         "testability",
         "migration_compatibility",
+        "semantic_stability",  # 9th dimension — Phase 9 addition
     }
     if set(dimension_reviews.keys()) != expected_dimensions:
-        raise ValueError("dimension reviews must contain all 8 ADR-036 dimensions")
+        raise ValueError("dimension reviews must contain all 9 dimensions (8 ADR-036 + semantic_stability)")
+
+    # Validate semantic_stability dimension structure
+    semantic_stability = dimension_reviews.get("semantic_stability", {})
+    _semantic_stability_required_fields = ["checked", "frz_refs", "semantic_drift", "verdict"]
+    for field in _semantic_stability_required_fields:
+        if field not in semantic_stability:
+            raise ValueError(f"semantic_stability dimension missing required field: {field}")
+
+    # Validate semantic_drift sub-structure (D-06)
+    semantic_drift = semantic_stability.get("semantic_drift", {})
+    _semantic_drift_required_fields = ["has_drift", "drift_results", "classification"]
+    for field in _semantic_drift_required_fields:
+        if field not in semantic_drift:
+            raise ValueError(f"semantic_stability.semantic_drift missing required field: {field}")
+
+    # Validate semantic_drift consistency
+    if semantic_drift.get("has_drift") is True:
+        if semantic_stability.get("verdict") != "block":
+            raise ValueError("semantic_stability verdict must be 'block' when semantic_drift.has_drift is True")
+
+    # Validate overall verdict consistency with semantic_stability
+    if data["verdict"] == "pass" and semantic_stability.get("verdict") == "block":
+        raise ValueError("overall verdict cannot be 'pass' when semantic_stability verdict is 'block'")
 
     # Validate recovery handling when required
     recovery_errors = _validate_recovery_handling(data, path)
