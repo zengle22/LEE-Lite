@@ -1,0 +1,6 @@
+skill: ll-frz-manage
+version: "1.0"
+adr: ADR-050
+category: freeze
+chain: frz-management
+phase: governance

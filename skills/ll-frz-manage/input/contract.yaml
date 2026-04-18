@@ -1,0 +1,13 @@
+# Input Contract: ll-frz-manage
+
+## Required Input for validate/freeze:
+- doc_dir: string (path) — directory containing PRD/UX/Arch source documents
+- frz_id: string (optional, required for freeze) — FRZ-xxx format
+
+## Required Input for list:
+- status: string (optional) — filter by "frozen" or "blocked"
+
+## Input Validation:
+- [ ] doc_dir exists and is a directory
+- [ ] frz_id matches pattern FRZ-\d{3,} when provided
+- [ ] status (if provided) is one of: frozen, blocked, draft

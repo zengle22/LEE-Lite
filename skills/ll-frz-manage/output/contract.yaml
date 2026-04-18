@@ -1,0 +1,12 @@
+# Output Contract: ll-frz-manage
+
+## Required Output for validate:
+- FRZ YAML file at artifacts/frz-input/<FRZ-ID>/freeze.yaml
+- MSC validation report printed to stdout
+
+## Required Output for freeze:
+- FRZ registered in ssot/registry/frz-registry.yaml
+- Confirmation: "FRZ-xxx registered, status: frozen"
+
+## Required Output for list:
+- Table of registered FRZ packages with id, status, created_at
