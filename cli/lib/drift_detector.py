@@ -16,6 +16,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any
 
+from cli.lib.anchor_registry import ANCHOR_ID_PATTERN
 from cli.lib.errors import CommandError, ensure
 from cli.lib.frz_schema import (
     FRZPackage,
@@ -144,6 +145,11 @@ def check_drift(
     Returns:
         DriftResult indicating drift status.
     """
+    ensure(
+        isinstance(anchor_id, str) and ANCHOR_ID_PATTERN.match(anchor_id),
+        "INVALID_REQUEST",
+        f"Invalid anchor ID format: {anchor_id}. Must match ANCHOR_ID_PATTERN",
+    )
     ensure(
         isinstance(target_data, dict),
         "INVALID_REQUEST",
