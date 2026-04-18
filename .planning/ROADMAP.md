@@ -127,15 +127,15 @@
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| FRZ-01 | Phase 7 | Pending |
-| FRZ-02 | Phase 7 | Pending |
-| FRZ-03 | Phase 7 | Pending |
-| FRZ-04 | Phase 7 | Pending |
-| FRZ-05 | Phase 7 | Pending |
-| FRZ-06 | Phase 7 | Pending |
+| FRZ-01 | Phase 7 | Satisfied |
+| FRZ-02 | Phase 7 | Satisfied |
+| FRZ-03 | Phase 7 | Satisfied |
+| FRZ-04 | Phase 7 | Satisfied |
+| FRZ-05 | Phase 7 | Satisfied |
+| FRZ-06 | Phase 7 | Satisfied |
 | EXTR-01 | Phase 8 | Pending |
 | EXTR-02 | Phase 8 | Pending |
-| EXTR-03 | Phase 8 | Pending |
+| EXTR-03 | Phase 7 | Satisfied |
 | EXTR-04 | Phase 8 | Pending |
 | EXTR-05 | Phase 8 | Pending |
 | STAB-01 | Phase 9 | Pending |

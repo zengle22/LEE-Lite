@@ -13,33 +13,33 @@ Requirements for v2.0 milestone — SSOT semantic governance upgrade.
 >
 > **整体流程:** 自由格式文档(PRD/UX/Arch) → [ll-frz-manage 冻结模式] MSC 校验 → FRZ 冻结 → 注册 → [ll-frz-manage 抽取模式] 抽取 SRC
 
-- [ ] **FRZ-01**: FRZ 包结构定义 (freeze.yaml) 包含 MSC 5维字段
+- [x] **FRZ-01**: FRZ 包结构定义 (freeze.yaml) 包含 MSC 5维字段
   - **Skill/工具:** `cli/lib/frz_schema.py` (新) — 定义 FRZ 包结构、MSC 校验 schema
   - **调用方式:** `from cli.lib.frz_schema import FRZPackage, MSCValidator`
   - **Workflow:** 人工讨论产出 PRD/UX/Arch → 收敛为 FRZ 包 → MSC 5维校验通过 → frozen
 
-- [ ] **FRZ-02**: MSC 验证器检查 FRZ 包是否满足最低语义完整性
+- [x] **FRZ-02**: MSC 验证器检查 FRZ 包是否满足最低语义完整性
   - **Skill 修改:** `ll-frz-manage` (新技能) — 冻结模式中集成
   - **调用方式:** `ll frz-manage validate --input <doc-dir>` — 输入自由格式文档，输出 FRZ 包 + MSC 报告
   - **Workflow:** 文档提交后自动运行，5维全部非空才放行
 
-- [ ] **FRZ-03**: FRZ 注册表记录版本、状态、创建时间
+- [x] **FRZ-03**: FRZ 注册表记录版本、状态、创建时间
   - **Skill 修改:** `ll-frz-manage` — 冻结模式中集成注册逻辑
   - **调用方式:** `ll frz-manage freeze --input <doc-dir> --id FRZ-xxx` — 冻结 + 注册一步完成
   - **Workflow:** MSC 验证通过后执行，写入 `ssot/registry/frz-registry.yaml`
 
-- [ ] **FRZ-04**: CLI 命令 `frz validate` 验证 FRZ 包 MSC 合规性
+- [x] **FRZ-04**: CLI 命令 `frz validate` 验证 FRZ 包 MSC 合规性
   - **Skill 修改:** `ll-frz-manage` — 冻结模式 (FRZ-02 合并实现)
   - **调用方式:** `ll frz-manage validate --input <doc-dir>`
   - **Workflow:** 同上 FRZ-02
 
-- [ ] **FRZ-05**: CLI 命令 `frz register` 注册已验证的 FRZ 包
+- [x] **FRZ-05**: CLI 命令 `frz register` 注册已验证的 FRZ 包
   - **Skill 修改:** `ll-frz-manage` — 冻结模式 (FRZ-03 合并实现)
   - **调用方式:** `ll frz-manage freeze --input <doc-dir> --id FRZ-xxx`
   - **Workflow:** MSC 验证通过后执行，将 FRZ 包写入注册表，状态置为 frozen
   - **Major 变更:** `ll frz-manage freeze --input <doc-dir> --id FRZ-xxx --type revise --reason "..." --previous_frz FRZ-yyy`
 
-- [ ] **FRZ-06**: CLI 命令 `frz list` 列出已注册 FRZ 包及状态
+- [x] **FRZ-06**: CLI 命令 `frz list` 列出已注册 FRZ 包及状态
   - **Skill 修改:** `ll-frz-manage` — 查询模式
   - **调用方式:** `ll frz-manage list [--status frozen|blocked]`
   - **Workflow:** 查看 FRZ 注册表，选择要引用的 FRZ 包用于下游抽取
@@ -69,7 +69,7 @@ Requirements for v2.0 milestone — SSOT semantic governance upgrade.
     - **调用方式:** `ll epic-to-feat extract --epic <epic-dir> --frz <frz-id>`
     - **Workflow 位置:** EPIC accepted 后触发，输出 FEAT
 
-- [ ] **EXTR-03**: 锚点 ID 注册表记录投影不变性
+- [x] **EXTR-03**: 锚点 ID 注册表记录投影不变性
   - **Skill/工具:** `cli/lib/anchor_registry.py` (新) — 锚点 ID 注册表
   - **调用方式:** `from cli.lib.anchor_registry import AnchorRegistry; registry.register(anchor_id="JRN-001", frz_ref="FRZ-xxx", projection_path="SRC/EPIC/FEAT")`
   - **Workflow:** 被 `ll-frz-manage` 抽取模式和 `ll-product-src-to-epic`/`ll-product-epic-to-feat` 内部调用
@@ -205,15 +205,15 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| FRZ-01 | Phase 1 | Pending |
-| FRZ-02 | Phase 1 | Pending |
-| FRZ-03 | Phase 1 | Pending |
-| FRZ-04 | Phase 1 | Pending |
-| FRZ-05 | Phase 1 | Pending |
-| FRZ-06 | Phase 1 | Pending |
+| FRZ-01 | Phase 7 | Satisfied |
+| FRZ-02 | Phase 7 | Satisfied |
+| FRZ-03 | Phase 7 | Satisfied |
+| FRZ-04 | Phase 7 | Satisfied |
+| FRZ-05 | Phase 7 | Satisfied |
+| FRZ-06 | Phase 7 | Satisfied |
 | EXTR-01 | Phase 2 | Pending |
 | EXTR-02 | Phase 2 | Pending |
-| EXTR-03 | Phase 2 | Pending |
+| EXTR-03 | Phase 7 | Satisfied |
 | EXTR-04 | Phase 2 | Pending |
 | EXTR-05 | Phase 2 | Pending |
 | STAB-01 | Phase 3 | Pending |
