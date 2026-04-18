@@ -1,105 +1,124 @@
-# Roadmap: ADR-047 双链测试技能实施 + 骨架补全
+# Roadmap: v2.0 ADR-050/051 SSOT 语义治理升级
 
-**Created:** 2026-04-14
-**Milestone:** v1.0
-**Status:** COMPLETE — 2026-04-17
-**Granularity:** Standard (4 phases, 3-5 plans each)
-**Total Requirements:** 6
+**Created:** 2026-04-18
+**Milestone:** v2.0
+**Granularity:** Standard (5 phases)
+**Total Requirements:** 24 (21 active + 3 deferred to v2.1)
 
 ---
 
-## Milestone v1.0 — Completed 2026-04-17
+## Phase 6: FRZ 冻结层基础设施
 
-### Phase 1: QA Schema 定义 ✅
+**Goal:** 交付 FRZ 包结构定义、MSC 验证、注册表，以及 `ll-frz-manage` 新技能（冻结模式 + 查询模式）。
 
-**Goal:** 建立统一的 QA 测试治理 schema（plan/manifest/spec/settlement 四层资产结构），作为所有 11 个技能的真理源。
+**Requirements:** FRZ-01, FRZ-02, FRZ-03, FRZ-04, FRZ-05, FRZ-06
 
-**Requirements:** REQ-01
+**Plans:**
 
-**Plans:** 2 plans — ✅ 已完成
-
-Plans:
-- [x] 01-01 — 定义 4 个 YAML schema 文件（plan/manifest/spec/settlement）
-- [x] 01-02 — Python dataclass 验证器 + 样例文件 + 单元测试
+- [ ] 06-01 — `cli/lib/frz_schema.py`: FRZ 包结构定义 + MSC 5维 schema
+- [ ] 06-02 — `cli/lib/anchor_registry.py`: 锚点 ID 注册表（EXTR-03 前置）
+- [ ] 06-03 — `ssot/registry/frz-registry.yaml`: FRZ 注册表文件 + 版本追踪
+- [ ] 06-04 — `skills/ll-frz-manage`: 新技能（冻结模式 validate + freeze + list）
 
 **Success Criteria:**
-1. ✅ `ssot/schemas/qa/` 目录下有 4 个 schema 文件
-2. ✅ 每个 schema 包含 ADR-047 §4 定义的所有核心字段
-3. ✅ Python dataclass 验证器（`cli/lib/qa_schemas.py`），29 个单元测试通过
-4. ✅ 4 个手工样例文件全部通过验证
+1. `cli/lib/frz_schema.py` 定义 FRZPackage dataclass + MSCValidator，5维校验通过
+2. 人工输入 PRD/UX/Arch 文档 → `ll frz-manage validate` 输出 MSC 报告
+3. `ll frz-manage freeze --id FRZ-xxx` 将验证通过的 FRZ 写入注册表，状态 frozen
+4. `ll frz-manage list` 列出所有已注册 FRZ 包及状态
+5. `ssot/registry/frz-registry.yaml` 记录版本、状态、创建时间
 
 **UI hint:** no
 
 ---
 
-### Phase 2: ADR-047 设计层技能补全 ✅
+## Phase 7: FRZ→SRC 语义抽取链
 
-**Goal:** 为 ADR-047 的 6 个设计层技能补上 Prompt-first 运行时（scripts/agents/validate）。
+**Goal:** 交付 `ll-frz-manage` 抽取模式 + SRC/EPIC/FEAT 级联抽取引擎 + 投影不变性守卫 + 漂移检测。
 
-**Requirements:** REQ-02
+**Requirements:** EXTR-01, EXTR-02, EXTR-03, EXTR-04, EXTR-05
 
-**Skills in scope:**
-1. `ll-qa-feat-to-apiplan` — feat → api-test-plan + manifest 草稿
-2. `ll-qa-prototype-to-e2eplan` — prototype → e2e-journey-plan + manifest 草稿
-3. `ll-qa-api-manifest-init` — plan → coverage manifest 初始化
-4. `ll-qa-e2e-manifest-init` — plan → coverage manifest 初始化
-5. `ll-qa-api-spec-gen` — manifest → api-test-spec 编译
-6. `ll-qa-e2e-spec-gen` — manifest → e2e-journey-spec 编译
+**Plans:**
 
-**Each skill gets:**
-- `scripts/run.sh` — Claude Code CLI 子代理调用 wrapper
-- `agents/executor.md` — LLM prompt 模板（输入/输出格式定义）
-- `validate_input.sh` — 输入文件存在性与 schema 校验
-- `validate_output.sh` — 输出文件 schema 校验
+- [ ] 07-01 — `cli/lib/drift_detector.py`: 语义漂移检测器
+- [ ] 07-02 — `skills/ll-frz-manage` 抽取模式: FRZ → SRC 抽取 + 投影守卫 + 锚点注册 + 漂移检测
+- [ ] 07-03 — `skills/ll-product-src-to-epic`: 改为 FRZ 抽取 EPIC 模式
+- [ ] 07-04 — `skills/ll-product-epic-to-feat`: 改为 FRZ 抽取 FEAT 模式
 
 **Success Criteria:**
-1. ✅ 6 个技能各有 6 个新文件（scripts/run.sh, validate_input.sh, validate_output.sh, evidence/*, ll.lifecycle.yaml）
-2. ✅ 每个技能的 validate_output.sh 调用 Phase 1 的 qa_schemas 验证器
-3. ✅ CLI 已注册 6 个新 action（feat-to-apiplan, prototype-to-e2eplan, api-manifest-init, e2e-manifest-init, api-spec-gen, e2e-spec-gen）
-4. ✅ validate_input.sh 拒绝非法输入（文件不存在、schema 不匹配）
-5. ✅ 共享运行时 cli/lib/qa_skill_runtime.py 支持所有 6 个技能
+1. `ll frz-manage extract --frz FRZ-xxx` 输出 SRC candidate，不超出 `derived_allowed` 范围
+2. `ll src-to-epic extract --src <dir> --frz FRZ-xxx` 输出 EPIC，锚点 ID 已注册
+3. `ll epic-to-feat extract --epic <dir> --frz FRZ-xxx` 输出 FEAT
+4. 漂移检测器比对抽取结果与 FRZ 原始语义，漂移 >0 则拦截
+5. 完整链路跑通: FRZ → SRC → EPIC → FEAT，所有锚点可追溯
 
 **UI hint:** no
 
 ---
 
-### Phase 3: 结算层技能 + 兼容层 ✅
+## Phase 8: 执行语义稳定 + impl-spec-test 增强
 
-**Goal:** 补全结算层 2 个技能 + 兼容层 1 个技能；标记废弃 ADR-035 老 skill；注册 CLI 动作 + 扩展运行时映射 + 新增 gate 验证器。
+**Goal:** 在 `ll-qa-impl-spec-test` 中集成语义稳定性检查，交付静默覆盖防护。
 
-**Requirements:** REQ-03
+**Requirements:** STAB-01, STAB-02, STAB-03, STAB-04
 
-**Plans:** 4 plans
+**Plans:**
 
-Plans:
-- [x] 03-01 — ll-qa-settlement 基础设施（scripts/run.sh, validate_input.sh, validate_output.sh, evidence schema, ll.lifecycle.yaml）
-- [x] 03-02 — ll-qa-gate-evaluate 基础设施（scripts 含 5 输入验证, evidence schema, ll.lifecycle.yaml）
-- [x] 03-03 — render-testset-view 新技能（完整目录 13 文件，向后兼容聚合视图）
-- [x] 03-04 — CLI 注册 + 运行时映射扩展 + gate 验证器 + 废弃技能标记
+- [ ] 08-01 — `cli/lib/silent_override.py`: 静默覆盖检测器
+- [ ] 08-02 — `skills/ll-qa-impl-spec-test`: 加第9维度 `semantic_stability` (含 drift_detector 调用 + verdict 字段)
+- [ ] 08-03 — 所有 `ll-dev-*` 技能的 `validate_output.sh`: 加 `silent_override.py` 校验
 
 **Success Criteria:**
-1. ✅ 3 个技能各有 scripts/validate/evidence 基础设施
-2. ✅ `ll-qa-gate-evaluate` 的输出符合 ADR-047 §9.4 gate_rules
-3. ✅ `render-testset-view` 能聚合 plan/manifest/spec 生成兼容视图
-4. ✅ CLI _QA_SKILL_MAP 新增 3 个动作，qa_skill_runtime.py 映射扩展，qa_schemas.py 新增 gate 验证器
-5. ✅ ll-test-exec-cli 和 ll-test-exec-web-e2e 有可见的 DEPRECATED 标记
+1. `ll-qa-impl-spec-test` deep mode 包含 `semantic_stability` 维度，verdict 含 `semantic_drift` 字段
+2. impl-spec-test 对漂移的 FEAT/TECH/UI 返回 `block` verdict
+3. `ll-dev-feat-to-tech` 等技能的 `validate_output.sh` 检测静默改写 FRZ 语义的行为
+4. 变更 vs 补全分类在 impl-spec-test 中正确工作 (clarification 放行，semantic_change 标记漂移)
 
 **UI hint:** no
 
 ---
 
-### Phase 4: API 链全流程试点 🚧 Deferred to v1.1
+## Phase 9: 变更分级协同
 
-**Goal:** 选一个真实 feat，跑通完整的 API 测试链（plan → manifest → spec → exec → evidence → settlement → gate），验证双链治理设计可执行。
+**Goal:** 集成三分类到 Patch 层，交付 Minor/Major 分流处理，Major 回流 FRZ。
 
-**Requirements:** REQ-04, REQ-05, REQ-06
+**Requirements:** GRADE-01, GRADE-02, GRADE-03, GRADE-04
 
-**Status:** Infrastructure foundation complete (phases 1-3). Full end-to-end pilot deferred to v1.1 (ADR-049 milestone) once real feature YAML is available.
+**Plans:**
 
-**What was delivered instead:**
-- Patch schema guardrails (Phase 4-01) — `cli/lib/patch_schema.py` with reviewed_at, test_impact enforcement
-- PatchContext dataclass + TOCTOU protection (Phase 4-02)
-- Manifest patch marking + per-case blocking (Phase 4-03)
+- [ ] 09-01 — `skills/ll-patch-capture`: 集成三分类 (visual→Minor, interaction→Minor, semantic→Major)
+- [ ] 09-02 — `skills/ll-experience-patch-settle`: Minor settle 逻辑 (backwrite UI/TESTSET)
+- [ ] 09-03 — `skills/ll-frz-manage`: 冻结模式加 `--type revise` 参数 (Major 回流)
+- [ ] 09-04 — `skills/ll-patch-aware-context`: 注入时检测 Minor/Major 变更
+
+**Success Criteria:**
+1. `ll-patch-capture` 捕获变更时自动分类，visual/interaction → Minor patch
+2. semantic 变更触发 Major 回流: `ll frz-manage freeze --type revise --previous_frz FRZ-xxx`
+3. FRZ 注册表记录 revision chain（parent_frz_ref, reason, status）
+4. Minor Patch 验证通过后 backwrite 到 UI Spec / Flow Spec
+5. `ll-patch-aware-context` 注入时正确标记 Patch 类型
+
+**UI hint:** no
+
+---
+
+## Phase 10: Task Pack 结构（执行循环延期到 v2.1）
+
+**Goal:** 交付 Task Pack YAML schema + depends_on 解析。v2.0 手动按顺序执行 task。
+
+**Requirements:** PACK-01, PACK-02, [PACK-03, PACK-04, PACK-05 deferred]
+
+**Plans:**
+
+- [ ] 10-01 — `ssot/schemas/qa/task_pack.yaml`: Task Pack YAML schema 定义
+- [ ] 10-02 — `cli/lib/task_pack_schema.py`: schema 验证器
+- [ ] 10-03 — `cli/lib/task_pack_resolver.py`: depends_on 拓扑排序
+
+**Success Criteria:**
+1. `task_pack.yaml` schema 定义 pack_id, feat_ref, tasks (task_id, type, depends_on, status, verifies)
+2. `validate(pack_yaml)` 拒绝非法结构（缺少 task_id, depends_on 引用不存在等）
+3. `resolve_order(pack_yaml)` 返回拓扑排序后的可执行顺序
+4. 手工创建一个样例 Task Pack 并通过 schema 验证 + 依赖解析
+5. PACK-03/04/05 明确标记 deferred，在 v2.1 Requirements 中追踪
 
 **UI hint:** no
 
@@ -109,18 +128,38 @@ Plans:
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| REQ-01: QA 统一 schema 定义 | Phase 1 | ✅ Done |
-| REQ-02: ADR-047 设计层 6 技能补全 | Phase 2 | ✅ Done |
-| REQ-03: 结算/执行层 3 技能 + 额外 2 技能补全 | Phase 3 | ✅ Done |
-| REQ-04: 试点跑通 API 链全流程 | Phase 4 | 🚧 Deferred to v1.1 |
-| REQ-05: 所有中间产物通过 schema 验证 | Phase 4 | 🚧 Deferred to v1.1 |
-| REQ-06: 产出 pilot 报告 + 改进建议 | Phase 4 | 🚧 Deferred to v1.1 |
+| FRZ-01 | Phase 6 | Pending |
+| FRZ-02 | Phase 6 | Pending |
+| FRZ-03 | Phase 6 | Pending |
+| FRZ-04 | Phase 6 | Pending |
+| FRZ-05 | Phase 6 | Pending |
+| FRZ-06 | Phase 6 | Pending |
+| EXTR-01 | Phase 7 | Pending |
+| EXTR-02 | Phase 7 | Pending |
+| EXTR-03 | Phase 7 | Pending |
+| EXTR-04 | Phase 7 | Pending |
+| EXTR-05 | Phase 7 | Pending |
+| STAB-01 | Phase 8 | Pending |
+| STAB-02 | Phase 8 | Pending |
+| STAB-03 | Phase 8 | Pending |
+| STAB-04 | Phase 8 | Pending |
+| GRADE-01 | Phase 9 | Pending |
+| GRADE-02 | Phase 9 | Pending |
+| GRADE-03 | Phase 9 | Pending |
+| GRADE-04 | Phase 9 | Pending |
+| PACK-01 | Phase 10 | Pending |
+| PACK-02 | Phase 10 | Pending |
+| PACK-03 | Phase 10 | Deferred to v2.1 |
+| PACK-04 | Phase 10 | Deferred to v2.1 |
+| PACK-05 | Phase 10 | Deferred to v2.1 |
 
 **Coverage:**
-- v1 requirements: 6 total
-- Completed: 3 (REQ-01 through REQ-03)
-- Deferred to v1.1: 3 (REQ-04 through REQ-06)
+- v2.0 requirements: 24 total
+- Active (v2.0 in scope): 21
+- Deferred to v2.1: 3 (PACK-03, PACK-04, PACK-05)
+- Mapped to phases: 21 active + 3 deferred
+- Unmapped: 0 ✓
 
 ---
-*Roadmap defined: 2026-04-14*
-*Milestone v1.0 completed: 2026-04-17*
+*Roadmap created: 2026-04-18*
+*Last updated: 2026-04-18 after v2.0 roadmap creation*

@@ -2,12 +2,12 @@
 gsd_state_version: 1.0
 milestone: v2.0
 milestone_name: ADR-050/051 SSOT 语义治理升级
-status: defining_requirements
-last_updated: "2026-04-18T00:00:00.000Z"
+status: roadmap_created
+last_updated: "2026-04-18T09:55:00.000Z"
 progress:
-  total_phases: 0
+  total_phases: 5
   completed_phases: 0
-  total_plans: 0
+  total_plans: 14
   completed_plans: 0
   percent: 0
 ---
@@ -15,15 +15,19 @@ progress:
 # Project State
 
 **Project:** ADR-050/051 SSOT 语义治理升级
-**Status:** v2.0 milestone initialization — defining requirements
+**Status:** v2.0 roadmap created — 5 phases (6-10), 21 active requirements
 **Core value:** 确保 SSOT 不再逐层生成，而是从 FRZ 冻结包中分层语义抽取，执行层只能补全不能改写语义
-**Current focus:** Research and requirements definition
+**Current focus:** Phase 6: FRZ 冻结层基础设施
 
 ## Roadmap Summary
 
 | # | Phase | Goal | Requirements |
 |---|-------|------|--------------|
-| — | — | — | — |
+| 6 | FRZ 冻结层 | FRZ 包结构 + MSC 验证 + 注册表 + ll-frz-manage 技能 | FRZ-01~06 |
+| 7 | 语义抽取链 | FRZ→SRC 抽取 + SRC→EPIC→FEAT 级联 + 漂移检测 | EXTR-01~05 |
+| 8 | 执行语义稳定 | impl-spec-test 加语义稳定性维度 + 静默覆盖防护 | STAB-01~04 |
+| 9 | 变更分级协同 | Patch 三分类 + Minor settle + Major 回流 FRZ | GRADE-01~04 |
+| 10 | Task Pack 结构 | YAML schema + depends_on 解析 (loop 延期到 v2.1) | PACK-01~02 |
 
 ## Accumulated Context
 
@@ -48,9 +52,9 @@ Delivered:
 - `.planning/PROJECT.md` — Project context
 - `.planning/config.json` — Workflow preferences
 - `.planning/research/` — Domain research (pending)
-- `.planning/REQUIREMENTS.md` — Scoped requirements (pending)
-- `.planning/ROADMAP.md` — Phase structure (pending)
+- `.planning/REQUIREMENTS.md` — Scoped requirements (24 items, updated with skill mappings)
+- `.planning/ROADMAP.md` — Phase structure (5 phases, 6-10, created 2026-04-18)
 - `.planning/codebase/` — Codebase map (7 docs)
 
 ---
-*Last updated: 2026-04-18 after v2.0 milestone started*
+*Last updated: 2026-04-18 after v2.0 roadmap created*
