@@ -1,0 +1,33 @@
+{
+  "version": "1.0",
+  "timestamp": "2026-04-18T11:31:29.679Z",
+  "phase": "09",
+  "phase_name": "impl-spec-test",
+  "phase_dir": ".planning/phases/09-impl-spec-test",
+  "plan": null,
+  "task": null,
+  "total_tasks": null,
+  "status": "paused",
+  "completed_tasks": [
+    {"id": "phase-08-all", "name": "Phase 08: FRZ→SRC semantic extraction chain", "status": "done", "commit": "3c9383f"},
+    {"id": "phase-09-context", "name": "Phase 9: discuss-phase — capture semantic stability decisions", "status": "done", "commit": "a787dba"}
+  ],
+  "remaining_tasks": [
+    {"id": "phase-09-plan", "name": "Plan Phase 9: silent_override.py + impl-spec-test 9th dim + dev skill validate_output.sh", "status": "not_started"},
+    {"id": "phase-09-execute", "name": "Execute Phase 9 plans", "status": "not_started"},
+    {"id": "phase-09-verify", "name": "Verify Phase 9", "status": "not_started"}
+  ],
+  "blockers": [],
+  "human_actions_pending": [
+    {"action": "Run /gsd-plan-phase 9 in fresh session", "context": "Context was at 93%, paused to avoid overflow", "blocking": true}
+  ],
+  "decisions": [
+    {"decision": "silent_override.py compares against FRZ anchors (not FEAT baseline)", "rationale": "FRZ is the 唯一语义真相源 per ADR-050; reuses Phase 8 drift_detector directly", "phase": "09"},
+    {"decision": "Tiered block/pass threshold", "rationale": "block for missing anchor/tampered/constraint-violation/out-of-derived_allowed; pass_with_revisions for extra-allowed-fields and expired-known_unknowns", "phase": "09"},
+    {"decision": "All 6 dev skills get silent_override with tiered baselines", "rationale": "feat-to-tech/tech-to-impl get full FRZ comparison; feat-to-ui/proto-to-ui get JRN/SM only; feat-to-proto/surface-map get lightweight product_boundary check", "phase": "09"},
+    {"decision": "Automated rule-based classifier for clarification vs semantic_change", "rationale": "Deterministic, testable, aligns with drift_detector; no LLM or human gate needed", "phase": "09"}
+  ],
+  "uncommitted_files": [],
+  "next_action": "Run /gsd-plan-phase 9 — CONTEXT.md already exists at .planning/phases/09-impl-spec-test/09-CONTEXT.md with all decisions captured",
+  "context_notes": "Phase 8 complete: 4/4 plans, 14/14 verified, 86 tests passing. Fixed a verification gap in check_constraints() during verification. Phase 9 discuss complete — CONTEXT.md committed with 10 decisions (D-01 through D-10). Ready to plan Phase 9."
+}
