@@ -340,3 +340,70 @@ class TestGuardProjection:
 
             assert result.guard_verdict == "block"
             assert result.ok is False
+
+
+class TestCLICommandExtractDispatch:
+    """Test CLI extract subcommand dispatch."""
+
+    def test_extract_subcommand_parses_args(self):
+        """extract subcommand parses --frz, --epic, --output args."""
+        sys.path.insert(0, str(SCRIPTS_DIR))
+        from epic_to_feat import build_parser
+
+        p = build_parser()
+        args = p.parse_args(["extract", "--frz", "FRZ-001", "--epic", "/tmp/epic", "--output", "/tmp/out"])
+
+        assert args.command == "extract"
+        assert args.frz == "FRZ-001"
+        assert args.epic == "/tmp/epic"
+        assert args.output == "/tmp/out"
+
+    def test_extract_subcommand_required_args(self):
+        """extract subcommand requires --frz and --epic."""
+        sys.path.insert(0, str(SCRIPTS_DIR))
+        from epic_to_feat import build_parser
+
+        p = build_parser()
+
+        with pytest.raises(SystemExit):
+            p.parse_args(["extract"])
+
+        with pytest.raises(SystemExit):
+            p.parse_args(["extract", "--frz", "FRZ-001"])
+
+    def test_command_extract_returns_json_with_ok_key(self):
+        """command_extract prints JSON with ok/frz_id/anchors/guard keys."""
+        sys.path.insert(0, str(SCRIPTS_DIR))
+        import json as _json
+        import unittest.mock as _mock
+        from epic_to_feat import build_parser, command_extract
+
+        p = build_parser()
+        args = p.parse_args([
+            "extract",
+            "--frz", "FRZ-TEST",
+            "--epic", "/tmp/epic",
+            "--output", "/tmp/out",
+        ])
+
+        with _mock.patch("epic_to_feat.extract_feat_from_frz") as mock_extract:
+            mock_extract.return_value = {
+                "ok": True,
+                "frz_id": "FRZ-TEST",
+                "output_dir": "/tmp/out",
+                "anchors": ["JRN-001", "ENT-001"],
+                "guard": "pass",
+            }
+
+            with _mock.patch("builtins.print") as mock_print:
+                ret = command_extract(args)
+
+            assert ret == 0
+            mock_print.assert_called_once()
+            output = mock_print.call_args[0][0]
+            data = _json.loads(output)
+            assert "ok" in data
+            assert data["ok"] is True
+            assert data["frz_id"] == "FRZ-TEST"
+            assert "anchors" in data
+            assert "guard" in data
