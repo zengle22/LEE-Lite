@@ -13,6 +13,7 @@ from pathlib import Path
 from src_to_epic_common import validate_input_package
 from src_to_epic_runtime import (
     collect_evidence_report,
+    extract_epic_from_frz,
     repo_root_from,
     run_workflow,
     supervisor_review,
@@ -86,6 +87,17 @@ def command_freeze_guard(args: argparse.Namespace) -> int:
     return command_validate_package_readiness(args)
 
 
+def command_extract(args: argparse.Namespace) -> int:
+    result = extract_epic_from_frz(
+        frz_id=args.frz,
+        src_dir=Path(args.src),
+        repo_root=repo_root_from(args.repo_root, args.src),
+        output_dir=Path(args.output) if args.output else None,
+    )
+    print(json.dumps(result, ensure_ascii=False))
+    return 0 if result.get("ok") else 1
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Run the src-to-epic workflow.")
     subparsers = parser.add_subparsers(dest="command", required=True)
@@ -134,6 +146,13 @@ def build_parser() -> argparse.ArgumentParser:
     freeze_parser = subparsers.add_parser("freeze-guard")
     freeze_parser.add_argument("--artifacts-dir", required=True)
     freeze_parser.set_defaults(func=command_freeze_guard)
+
+    extract_parser = subparsers.add_parser("extract")
+    extract_parser.add_argument("--frz", required=True, help="FRZ ID to extract EPIC from")
+    extract_parser.add_argument("--src", required=True, help="SRC package directory (anchor source)")
+    extract_parser.add_argument("--repo-root")
+    extract_parser.add_argument("--output")
+    extract_parser.set_defaults(func=command_extract)
 
     return parser
 

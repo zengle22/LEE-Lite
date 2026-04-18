@@ -12,6 +12,8 @@ import re
 import sys
 from typing import Any
 
+import yaml
+
 WORKSPACE_ROOT = Path(__file__).resolve().parents[3]
 if str(WORKSPACE_ROOT) not in sys.path: sys.path.insert(0, str(WORKSPACE_ROOT))
 from cli.lib.workflow_revision import (
@@ -76,6 +78,11 @@ from src_to_epic_gate_integration import (
     submit_gate_pending,
 )
 from src_to_epic_review_phase1 import validate_review_phase1_fields
+from src_to_epic_extract import extract_epic_from_frz_logic, build_epic_from_frz
+from cli.lib.frz_registry import get_frz
+from cli.lib.frz_schema import FRZ_ID_PATTERN, _parse_frz_dict
+from cli.lib.frz_schema import FRZStatus
+from cli.lib.errors import CommandError, ensure
 REQUIRED_OUTPUT_FILES = ("epic-freeze.md", "epic-freeze.json", "epic-review-report.json", "epic-acceptance-report.json", "epic-defect-list.json", "document-test-report.json", "epic-freeze-gate.json", "handoff-to-epic-to-feat.json", "semantic-drift-check.json", "execution-evidence.json", "supervision-evidence.json")
 REQUIRED_MARKDOWN_HEADINGS = ("Epic Intent", "Business Goal", "Business Value and Problem", "Product Positioning", "Actors and Roles", "Capability Scope", "Upstream and Downstream", "Epic Success Criteria", "Non-Goals", "Decomposition Rules", "Rollout and Adoption", "Constraints and Dependencies", "Acceptance and Review", "Downstream Handoff", "Traceability")
 def utc_now() -> str:
@@ -859,4 +866,155 @@ def run_workflow(
         "output_validation": output_result,
         "readiness_errors": readiness_errors,
         "evidence_report": str(report_path),
+    }
+
+
+# ---------------------------------------------------------------------------
+# FRZ-based EPIC extraction (D-07: extract subcommand)
+# ---------------------------------------------------------------------------
+
+
+def _load_frz_yaml(package_ref: str) -> FRZPackage:
+    """Load FRZ YAML from a package_ref path and parse to FRZPackage."""
+    ref_path = Path(package_ref)
+    if not ref_path.exists():
+        raise CommandError("REGISTRY_MISS", f"FRZ package not found: {package_ref}")
+    data = yaml.safe_load(ref_path.read_text(encoding="utf-8")) or {}
+    inner = data.get("frz_package", data)
+    return _parse_frz_dict(inner)
+
+
+def extract_epic_from_frz(
+    frz_id: str,
+    src_dir: Path,
+    repo_root: Path,
+    output_dir: Path | None = None,
+) -> dict[str, Any]:
+    """Extract EPIC from FRZ frozen semantics via rule-template projection.
+
+    Workflow:
+    1. Validate frz_id format
+    2. Load FRZ from registry
+    3. Verify FRZ status is frozen
+    4. Load SRC package from src_dir
+    5. Extract EPIC using rule-template mapping
+    6. Register anchors with projection_path="EPIC"
+    7. Run guard projection
+    8. Run drift detection
+    9. Write output files
+    10. Return JSON result
+
+    Args:
+        frz_id: FRZ identifier (e.g., FRZ-001).
+        src_dir: Path to SRC package directory.
+        repo_root: Workspace root for registry access.
+        output_dir: Optional output directory (default: artifacts/src-to-epic/extract-{frz_id}/).
+
+    Returns:
+        Dict with ok, frz_id, output_dir, anchors, guard keys.
+
+    Raises:
+        CommandError: REGISTRY_MISS if FRZ not found, POLICY_DENIED if not frozen.
+    """
+    ensure(
+        isinstance(frz_id, str) and FRZ_ID_PATTERN.match(frz_id),
+        "INVALID_REQUEST",
+        f"Invalid FRZ ID format: {frz_id}. Must match FRZ-xxx",
+    )
+
+    frz_record = get_frz(repo_root, frz_id)
+    if frz_record is None:
+        raise CommandError("REGISTRY_MISS", f"FRZ not found in registry: {frz_id}")
+
+    frz_status = frz_record.get("status", "unknown")
+    ensure(
+        frz_status == "frozen",
+        "POLICY_DENIED",
+        f"FRZ status is '{frz_status}', must be 'frozen' for extraction",
+    )
+
+    package_ref = frz_record.get("package_ref", "")
+    ensure(
+        package_ref,
+        "REGISTRY_MISS",
+        f"FRZ record has no package_ref: {frz_id}",
+    )
+
+    frz_package = _load_frz_yaml(package_ref)
+
+    # Load SRC package
+    src_package = load_src_package(src_dir)
+    src_dict: dict[str, Any] = {
+        "src_root_id": getattr(src_package, "run_id", ""),
+    }
+
+    # Determine output directory
+    if output_dir is None:
+        output_dir = repo_root / "artifacts" / "src-to-epic" / f"extract-{frz_id}"
+
+    # Run extraction logic
+    result = extract_epic_from_frz_logic(frz_package, src_dict, frz_id, repo_root)
+
+    # Write output files
+    output_dir.mkdir(parents=True, exist_ok=True)
+
+    import json
+
+    json_path = output_dir / "epic-freeze.json"
+    json_path.write_text(
+        json.dumps(result.epic_payload, ensure_ascii=False, indent=2) + "\n",
+        encoding="utf-8",
+    )
+
+    # Write markdown version
+    md_lines = [
+        f"# {result.epic_payload.get('title', 'EPIC')}",
+        "",
+        "## Epic Intent",
+        "",
+        result.epic_payload.get("epic_intent", ""),
+        "",
+        "## Capability Scope",
+        "",
+    ]
+    for item in result.epic_payload.get("scope", []):
+        md_lines.append(f"- {item}")
+    md_lines.extend([
+        "",
+        "## Actors and Roles",
+        "",
+    ])
+    for actor in result.epic_payload.get("actors_and_roles", []):
+        md_lines.append(f"- {actor.get('role', '')}: {actor.get('responsibility', '')}")
+    md_lines.extend([
+        "",
+        "## Epic Success Criteria",
+        "",
+    ])
+    for item in result.epic_payload.get("epic_success_criteria", []):
+        md_lines.append(f"- {item}")
+    md_path = output_dir / "epic-freeze.md"
+    md_path.write_text("\n".join(md_lines) + "\n", encoding="utf-8")
+
+    # Write extraction report
+    report = {
+        "frz_id": frz_id,
+        "guard_verdict": result.guard_verdict,
+        "anchors_registered": result.anchors_registered,
+        "drift_results": result.drift_results,
+        "warnings": result.warnings,
+    }
+    report_path = output_dir / "extraction-report.json"
+    report_path.write_text(
+        json.dumps(report, ensure_ascii=False, indent=2) + "\n",
+        encoding="utf-8",
+    )
+
+    return {
+        "ok": result.ok,
+        "frz_id": frz_id,
+        "output_dir": str(output_dir),
+        "anchors": result.anchors_registered,
+        "guard": result.guard_verdict,
+        "warnings": result.warnings,
     }
