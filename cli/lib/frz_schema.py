@@ -437,7 +437,9 @@ class MSCValidator:
         if not data:
             raise FRZSchemaError(f"FRZ file is empty or contains no valid data: {p}")
 
-        pkg = _parse_frz_dict(data)
+        # Extract the frz_package content if present as top-level key
+        inner = data.get("frz_package", data)
+        pkg = _parse_frz_dict(inner)
         return MSCValidator.validate(pkg)
 
 
