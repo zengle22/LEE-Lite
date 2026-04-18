@@ -9,11 +9,21 @@ from pathlib import Path
 
 import pytest
 
-# Add project root to sys.path for cli.lib imports
-PROJECT_ROOT = Path(__file__).resolve().parents[6]
-PROJECT_ROOT_STR = str(PROJECT_ROOT)
-if PROJECT_ROOT_STR not in sys.path:
-    sys.path.insert(0, PROJECT_ROOT_STR)
+# Add project root to sys.path for cli.lib imports (if needed)
+def _find_project_root() -> Path:
+    """Find project root by searching upward for .planning/ directory."""
+    current = Path(__file__).resolve()
+    for parent in current.parents:
+        if (parent / ".planning").exists():
+            return parent
+    raise RuntimeError("Cannot find project root (no .planning/ directory found)")
+
+try:
+    PROJECT_ROOT = _find_project_root()
+    if str(PROJECT_ROOT) not in sys.path:
+        sys.path.insert(0, str(PROJECT_ROOT))
+except RuntimeError:
+    pass  # cli.lib imports handled by try/except in impl_spec_test_skill_guard.py
 
 # Ensure scripts dir is also in path
 SCRIPTS_DIR = Path(__file__).resolve().parents[1] / "scripts"
