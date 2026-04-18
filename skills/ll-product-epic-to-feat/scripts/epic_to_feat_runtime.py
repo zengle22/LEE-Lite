@@ -5,6 +5,7 @@ Lite-native runtime support for epic-to-feat.
 
 from __future__ import annotations
 
+import json
 import re
 from dataclasses import dataclass
 from datetime import datetime, timezone
@@ -12,8 +13,17 @@ from pathlib import Path
 import sys
 from typing import Any
 
+import yaml
+
 WORKSPACE_ROOT = Path(__file__).resolve().parents[3]
 if str(WORKSPACE_ROOT) not in sys.path: sys.path.insert(0, str(WORKSPACE_ROOT))
+from cli.lib.anchor_registry import AnchorRegistry
+from cli.lib.drift_detector import check_derived_allowed, check_drift
+from cli.lib.errors import CommandError, ensure
+from cli.lib.frz_registry import get_frz
+from cli.lib.frz_schema import FRZPackage, _parse_frz_dict
+from cli.lib.fs import ensure_parent, write_text
+from cli.lib.projection_guard import guard_projection
 from cli.lib.workflow_revision import (
     load_revision_request,
     materialize_revision_request,
@@ -62,6 +72,10 @@ from epic_to_feat_derivation import (
     prerequisite_foundations,
     prohibited_inference_rules,
 )
+from epic_to_feat_extract import (
+    build_feat_from_frz,
+    extract_feat_from_frz_logic,
+)
 from epic_to_feat_review_phase1 import validate_review_phase1_fields
 
 
@@ -101,6 +115,21 @@ REQUIRED_INTEGRATION_CONTEXT_FIELDS = [
 
 def utc_now() -> str:
     return datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
+
+
+def _anchor_dimension(anchor_id: str) -> str:
+    """Map anchor ID prefix to FRZ MSC dimension name."""
+    if anchor_id.startswith("JRN-"):
+        return "core_journeys"
+    if anchor_id.startswith("ENT-"):
+        return "domain_model"
+    if anchor_id.startswith("SM-"):
+        return "state_machine"
+    if anchor_id.startswith("FC-"):
+        return "acceptance_contract"
+    if anchor_id.startswith("UNK-"):
+        return "known_unknowns"
+    return "unknown"
 
 
 def repo_root_from(repo_root: str | None, input_path: str | Path | None = None) -> Path:
@@ -1364,4 +1393,189 @@ def run_workflow(
         "readiness_ok": readiness_ok,
         "readiness_errors": readiness_errors,
         "evidence_report": str(report_path),
+    }
+
+
+# ---------------------------------------------------------------------------
+# FRZ-based FEAT extraction (ADR-050, Plan 08-04)
+# ---------------------------------------------------------------------------
+
+
+def extract_feat_from_frz(
+    frz_id: str,
+    epic_dir: Path,
+    repo_root: Path,
+    output_dir: Path | None = None,
+) -> dict[str, Any]:
+    """Extract FEAT bundle from FRZ frozen semantics + EPIC anchors.
+
+    Loads FRZ from registry, validates frozen status, extracts FEAT via
+    rule-template mapping (D-01), registers anchors with projection_path="FEAT",
+    runs projection guard and drift detection, writes output files.
+
+    Args:
+        frz_id: FRZ identifier (e.g., FRZ-001).
+        epic_dir: Path to EPIC package directory (anchor source).
+        repo_root: Workspace root directory.
+        output_dir: Optional output directory for extracted FEAT files.
+
+    Returns:
+        Dict with keys: ok, frz_id, output_dir, anchors, guard, warnings.
+
+    Raises:
+        CommandError: On invalid FRZ ID, missing FRZ, or non-frozen status.
+    """
+    ensure(
+        frz_id is not None,
+        "INVALID_REQUEST",
+        "frz_id is required",
+    )
+
+    frz_record = get_frz(repo_root, frz_id)
+    ensure(
+        frz_record is not None,
+        "REGISTRY_MISS",
+        f"FRZ not found in registry: {frz_id}",
+    )
+
+    ensure(
+        frz_record.get("status") == "frozen",
+        "POLICY_DENIED",
+        f"FRZ status is '{frz_record.get('status')}', must be 'frozen' for extraction",
+    )
+
+    # Load EPIC package for anchor context
+    epic_package = load_epic_package(epic_dir)
+    epic_dict = {
+        "epic_freeze_ref": epic_package.epic_json.get("epic_freeze_ref", ""),
+        "src_root_id": epic_package.epic_json.get("src_root_id", ""),
+    }
+
+    # Load FRZ YAML from package_ref path
+    frz_package_path = Path(frz_record["package_ref"])
+    if not frz_package_path.is_absolute():
+        frz_package_path = repo_root / frz_package_path
+
+    ensure(
+        frz_package_path.exists(),
+        "REGISTRY_MISS",
+        f"FRZ package file not found: {frz_package_path}",
+    )
+
+    frz_data = yaml.safe_load(frz_package_path.read_text(encoding="utf-8"))
+    inner = frz_data.get("frz_package", frz_data) if isinstance(frz_data, dict) else frz_data
+    frz_package = _parse_frz_dict(inner)
+
+    # Collect all FRZ anchor IDs for registration
+    frz_anchor_ids: list[str] = []
+    for journey in frz_package.core_journeys:
+        frz_anchor_ids.append(journey.id)
+    for entity in frz_package.domain_model:
+        frz_anchor_ids.append(entity.id)
+    for sm in frz_package.state_machine:
+        frz_anchor_ids.append(sm.id)
+    if frz_package.acceptance_contract is not None:
+        for outcome in frz_package.acceptance_contract.expected_outcomes:
+            # Extract FC-xxx pattern from outcome text
+            import re as _re
+            fc_match = _re.search(r"FC-\d{3,}", outcome)
+            if fc_match:
+                frz_anchor_ids.append(fc_match.group(0))
+    for ku in frz_package.known_unknowns:
+        frz_anchor_ids.append(ku.id)
+
+    # Register all anchors with projection_path="FEAT"
+    registry = AnchorRegistry(repo_root)
+    registered_anchors: list[str] = []
+    for anchor_id in frz_anchor_ids:
+        try:
+            registry.register_projection(
+                anchor_id=anchor_id,
+                frz_ref=frz_id,
+                projection_path="FEAT",
+                metadata={
+                    "dimension": _anchor_dimension(anchor_id),
+                    "epic_anchor": True,
+                },
+            )
+            registered_anchors.append(anchor_id)
+        except CommandError:
+            # Already registered — skip duplicate
+            pass
+
+    # Run extraction logic (delegated to epic_to_feat_extract module)
+    result = extract_feat_from_frz_logic(frz_package, epic_dict, frz_id, repo_root)
+
+    # Build FEAT payload from FRZ
+    feat_payload = build_feat_from_frz(frz_package, epic_dict, frz_id)
+
+    # Run projection guard
+    guard_result = guard_projection(frz_package, feat_payload)
+
+    # Build anchor target data for drift detection
+    anchor_target_data: dict[str, Any] = {}
+    for anchor_id in registered_anchors:
+        anchor_target_data[anchor_id] = {"name": anchor_id}
+
+    # Run drift detection for each anchor
+    drift_results = []
+    for anchor_id in registered_anchors:
+        dr = check_drift(anchor_id, frz_package, {anchor_id: anchor_target_data.get(anchor_id, {})})
+        drift_results.append({
+            "anchor_id": dr.anchor_id,
+            "has_drift": dr.has_drift,
+            "drift_type": dr.drift_type,
+            "detail": dr.detail,
+        })
+
+    # Determine output directory
+    if output_dir is None:
+        output_dir = repo_root / "artifacts" / "epic-to-feat" / f"extract-{frz_id}"
+
+    ensure_parent(output_dir)
+
+    # Write output files
+    bundle_json_path = output_dir / "feat-freeze-bundle.json"
+    ensure_parent(bundle_json_path)
+    bundle_json_path.write_text(
+        json.dumps(feat_payload, ensure_ascii=False, indent=2) + "\n",
+        encoding="utf-8",
+    )
+
+    bundle_md_path = output_dir / "feat-freeze-bundle.md"
+    md_lines = [
+        f"# FEAT extracted from {frz_id}",
+        "",
+        f"## Bundle Intent\n\n{feat_payload.get('bundle_intent', '')}",
+        "",
+        f"## Source References\n\n" + "\n".join(f"- {ref}" for ref in feat_payload.get("source_refs", [])),
+        "",
+    ]
+    for feature in feat_payload.get("features", []):
+        md_lines.append(f"## {feature.get('product_interface', 'Untitled')}\n")
+    bundle_md_path.write_text("\n".join(md_lines), encoding="utf-8")
+
+    extraction_report_path = output_dir / "extraction-report.json"
+    extraction_report = {
+        "frz_id": frz_id,
+        "guard_verdict": guard_result.verdict,
+        "guard_violations": guard_result.violations,
+        "drift_results": drift_results,
+        "anchors_registered": registered_anchors,
+    }
+    ensure_parent(extraction_report_path)
+    extraction_report_path.write_text(
+        json.dumps(extraction_report, ensure_ascii=False, indent=2) + "\n",
+        encoding="utf-8",
+    )
+
+    return {
+        "ok": guard_result.verdict == "pass",
+        "frz_id": frz_id,
+        "output_dir": str(output_dir),
+        "anchors": registered_anchors,
+        "guard": guard_result.verdict,
+        "drift_results": drift_results,
+        "drift_results": drift_results,
+        "warnings": result.warnings,
     }
