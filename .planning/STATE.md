@@ -17,17 +17,17 @@ progress:
 **Project:** ADR-050/051 SSOT 语义治理升级
 **Status:** v2.0 roadmap created — 5 phases (6-10), 21 active requirements
 **Core value:** 确保 SSOT 不再逐层生成，而是从 FRZ 冻结包中分层语义抽取，执行层只能补全不能改写语义
-**Current focus:** Phase 6: FRZ 冻结层基础设施
+**Current focus:** Phase 1: FRZ 冻结层基础设施
 
 ## Roadmap Summary
 
 | # | Phase | Goal | Requirements |
 |---|-------|------|--------------|
-| 6 | FRZ 冻结层 | FRZ 包结构 + MSC 验证 + 注册表 + ll-frz-manage 技能 | FRZ-01~06 |
-| 7 | 语义抽取链 | FRZ→SRC 抽取 + SRC→EPIC→FEAT 级联 + 漂移检测 | EXTR-01~05 |
-| 8 | 执行语义稳定 | impl-spec-test 加语义稳定性维度 + 静默覆盖防护 | STAB-01~04 |
-| 9 | 变更分级协同 | Patch 三分类 + Minor settle + Major 回流 FRZ | GRADE-01~04 |
-| 10 | Task Pack 结构 | YAML schema + depends_on 解析 (loop 延期到 v2.1) | PACK-01~02 |
+| 1 | FRZ 冻结层 | FRZ 包结构 + MSC 验证 + 注册表 + ll-frz-manage 技能 | FRZ-01~06 |
+| 2 | 语义抽取链 | FRZ→SRC 抽取 + SRC→EPIC→FEAT 级联 + 漂移检测 | EXTR-01~05 |
+| 3 | 执行语义稳定 | impl-spec-test 加语义稳定性维度 + 静默覆盖防护 | STAB-01~04 |
+| 4 | 变更分级协同 | Patch 三分类 + Minor settle + Major 回流 FRZ | GRADE-01~04 |
+| 5 | Task Pack 结构 | YAML schema + depends_on 解析 (loop 延期到 v2.1) | PACK-01~02 |
 
 ## Accumulated Context
 
