@@ -42,10 +42,26 @@ def test_register_anchor_success(registry: AnchorRegistry) -> None:
 
 def test_register_anchor_duplicate_raises(registry: AnchorRegistry) -> None:
     registry.register("ENT-001", "FRZ-001", "EPIC")
+    # Same anchor_id + same projection_path should fail
     with pytest.raises(CommandError) as exc_info:
-        registry.register("ENT-001", "FRZ-002", "FEAT")
+        registry.register("ENT-001", "FRZ-002", "EPIC")
     assert exc_info.value.status_code == "INVALID_REQUEST"
     assert "already registered" in exc_info.value.message
+
+
+def test_register_same_anchor_id_different_projection_succeeds(registry: AnchorRegistry) -> None:
+    """Same anchor_id with different projection_path should be allowed."""
+    entry1 = registry.register("JRN-001", "FRZ-001", "SRC")
+    assert entry1.anchor_id == "JRN-001"
+    assert entry1.projection_path == "SRC"
+
+    entry2 = registry.register("JRN-001", "FRZ-001", "EPIC")
+    assert entry2.anchor_id == "JRN-001"
+    assert entry2.projection_path == "EPIC"
+
+    entry3 = registry.register("JRN-001", "FRZ-001", "FEAT")
+    assert entry3.anchor_id == "JRN-001"
+    assert entry3.projection_path == "FEAT"
 
 
 def test_register_anchor_invalid_format(registry: AnchorRegistry) -> None:
@@ -76,9 +92,11 @@ def test_register_with_metadata(registry: AnchorRegistry) -> None:
 def test_resolve_existing_anchor(registry: AnchorRegistry) -> None:
     registry.register("ENT-010", "FRZ-003", "EPIC")
     result = registry.resolve("ENT-010")
-    assert result is not None
-    assert result.anchor_id == "ENT-010"
-    assert result.frz_ref == "FRZ-003"
+    # Without projection_path, returns a list
+    assert isinstance(result, list)
+    assert len(result) == 1
+    assert result[0].anchor_id == "ENT-010"
+    assert result[0].frz_ref == "FRZ-003"
 
 
 def test_resolve_nonexistent_anchor(registry: AnchorRegistry) -> None:
@@ -100,6 +118,17 @@ def test_list_by_frz(registry: AnchorRegistry) -> None:
     assert len(results) == 3
     ids = {e.anchor_id for e in results}
     assert ids == {"JRN-001", "JRN-002", "JRN-003"}
+
+
+def test_list_by_frz_same_anchor_different_paths(registry: AnchorRegistry) -> None:
+    """list_by_frz may return multiple entries for same anchor_id with different paths."""
+    registry.register("JRN-001", "FRZ-010", "SRC")
+    registry.register("JRN-001", "FRZ-010", "EPIC")
+
+    results = registry.list_by_frz("FRZ-010")
+    assert len(results) == 2
+    paths = {e.projection_path for e in results}
+    assert paths == {"SRC", "EPIC"}
 
 
 # --- list_all ---
@@ -144,9 +173,10 @@ def test_persistence_across_instances(tmp_workspace: Path) -> None:
 
     reg2 = AnchorRegistry(tmp_workspace)
     result = reg2.resolve("JRN-050")
-    assert result is not None
-    assert result.anchor_id == "JRN-050"
-    assert result.metadata == {"key": "val"}
+    assert isinstance(result, list)
+    assert len(result) == 1
+    assert result[0].anchor_id == "JRN-050"
+    assert result[0].metadata == {"key": "val"}
 
 
 # --- anchor ID edge cases ---
@@ -187,3 +217,92 @@ def test_anchor_registry_corrupted_yaml(tmp_workspace: Path) -> None:
     # _load defensively returns empty list for non-dict data
     result = registry._load()
     assert result == []
+
+
+# --- VALID_PROJECTION_PATHS extended ---
+
+
+def test_valid_projection_paths_includes_all_layers() -> None:
+    """VALID_PROJECTION_PATHS should include SRC, EPIC, FEAT, TECH, UI, TEST, IMPL."""
+    assert VALID_PROJECTION_PATHS == {
+        "SRC", "EPIC", "FEAT", "TECH", "UI", "TEST", "IMPL"
+    }
+
+
+# --- register_projection ---
+
+
+def test_register_projection_new_anchor(registry: AnchorRegistry) -> None:
+    """register_projection with anchor_id not yet registered creates new entry."""
+    entry = registry.register_projection("JRN-001", "FRZ-001", "SRC")
+    assert entry.anchor_id == "JRN-001"
+    assert entry.projection_path == "SRC"
+    assert entry.registered_at is not None
+
+
+def test_register_projection_same_anchor_different_path(registry: AnchorRegistry) -> None:
+    """register_projection with same anchor_id + different projection_path succeeds."""
+    registry.register_projection("ENT-001", "FRZ-001", "SRC")
+    entry = registry.register_projection("ENT-001", "FRZ-001", "EPIC")
+    assert entry.anchor_id == "ENT-001"
+    assert entry.projection_path == "EPIC"
+
+
+def test_register_projection_same_anchor_same_path_fails(registry: AnchorRegistry) -> None:
+    """register_projection with same anchor_id + same projection_path fails."""
+    registry.register_projection("SM-001", "FRZ-001", "SRC")
+    with pytest.raises(CommandError) as exc_info:
+        registry.register_projection("SM-001", "FRZ-001", "SRC")
+    assert exc_info.value.status_code == "INVALID_REQUEST"
+    assert "already registered" in exc_info.value.message
+
+
+def test_register_projection_invalid_path(registry: AnchorRegistry) -> None:
+    """register_projection with invalid projection_path fails."""
+    with pytest.raises(CommandError) as exc_info:
+        registry.register_projection("JRN-001", "FRZ-001", "INVALID_PATH")
+    assert exc_info.value.status_code == "INVALID_REQUEST"
+
+
+# --- resolve with projection_path ---
+
+
+def test_resolve_with_projection_path(registry: AnchorRegistry) -> None:
+    """resolve(anchor_id, projection_path='SRC') returns specific entry."""
+    registry.register("JRN-001", "FRZ-001", "SRC")
+    registry.register("JRN-001", "FRZ-001", "EPIC")
+
+    result = registry.resolve("JRN-001", projection_path="SRC")
+    assert result is not None
+    assert result.anchor_id == "JRN-001"
+    assert result.projection_path == "SRC"
+
+    result_epic = registry.resolve("JRN-001", projection_path="EPIC")
+    assert result_epic is not None
+    assert result_epic.projection_path == "EPIC"
+
+
+def test_resolve_without_projection_path_returns_list(registry: AnchorRegistry) -> None:
+    """resolve(anchor_id) without projection_path returns list of all entries."""
+    registry.register("JRN-001", "FRZ-001", "SRC")
+    registry.register("JRN-001", "FRZ-001", "EPIC")
+    registry.register("JRN-001", "FRZ-001", "FEAT")
+
+    result = registry.resolve("JRN-001")
+    assert isinstance(result, list)
+    assert len(result) == 3
+    paths = {e.projection_path for e in result}
+    assert paths == {"SRC", "EPIC", "FEAT"}
+
+
+def test_resolve_nonexistent_returns_none(registry: AnchorRegistry) -> None:
+    """resolve for nonexistent anchor_id returns None."""
+    result = registry.resolve("NONEXIST-001")
+    assert result is None
+
+
+def test_resolve_specific_projection_not_found(registry: AnchorRegistry) -> None:
+    """resolve with specific projection_path that doesn't exist returns None."""
+    registry.register("JRN-001", "FRZ-001", "SRC")
+    result = registry.resolve("JRN-001", projection_path="EPIC")
+    assert result is None

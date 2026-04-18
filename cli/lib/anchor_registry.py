@@ -20,7 +20,7 @@ from cli.lib.fs import ensure_parent
 
 
 ANCHOR_ID_PATTERN = re.compile(r"^[A-Z]{2,5}-\d{3,}$")
-VALID_PROJECTION_PATHS = {"SRC", "EPIC", "FEAT"}
+VALID_PROJECTION_PATHS = {"SRC", "EPIC", "FEAT", "TECH", "UI", "TEST", "IMPL"}
 
 
 @dataclass(frozen=True)
@@ -92,7 +92,8 @@ class AnchorRegistry:
         Args:
             anchor_id: Must match ANCHOR_ID_PATTERN (e.g., JRN-001).
             frz_ref: FRZ reference string (e.g., FRZ-001).
-            projection_path: One of "SRC", "EPIC", "FEAT".
+            projection_path: One of VALID_PROJECTION_PATHS (SRC, EPIC, FEAT,
+                TECH, UI, TEST, IMPL).
             metadata: Optional key-value metadata dict.
 
         Returns:
@@ -100,7 +101,7 @@ class AnchorRegistry:
 
         Raises:
             CommandError: INVALID_REQUEST on bad format, bad projection,
-                or duplicate anchor_id.
+                or duplicate anchor_id+projection_path combination.
         """
         if not ANCHOR_ID_PATTERN.match(anchor_id):
             raise CommandError(
@@ -114,10 +115,10 @@ class AnchorRegistry:
 
         records = self._load()
         for rec in records:
-            if rec["anchor_id"] == anchor_id:
+            if rec["anchor_id"] == anchor_id and rec["projection_path"] == projection_path:
                 raise CommandError(
                     "INVALID_REQUEST",
-                    f"Anchor ID already registered: {anchor_id}",
+                    f"Anchor {anchor_id} already registered for {projection_path}",
                 )
 
         now = datetime.now(timezone.utc).isoformat()
@@ -132,13 +133,87 @@ class AnchorRegistry:
         self._save(records)
         return _dict_to_entry(record)
 
-    def resolve(self, anchor_id: str) -> AnchorEntry | None:
-        """Look up an anchor by ID. Returns None if not found."""
+    def resolve(self, anchor_id: str, projection_path: str | None = None) -> AnchorEntry | list[AnchorEntry] | None:
+        """Look up an anchor by ID.
+
+        Args:
+            anchor_id: Anchor identifier to look up.
+            projection_path: If provided, return the single AnchorEntry
+                matching both anchor_id and projection_path. If None,
+                return a list of all AnchorEntries for that anchor_id.
+
+        Returns:
+            Single AnchorEntry (when projection_path given), list of
+            AnchorEntries (when projection_path is None), or None.
+        """
         records = self._load()
+        matches = [
+            rec for rec in records
+            if rec["anchor_id"] == anchor_id
+        ]
+
+        if projection_path is not None:
+            for rec in matches:
+                if rec["projection_path"] == projection_path:
+                    return _dict_to_entry(rec)
+            return None
+
+        if not matches:
+            return None
+        return [_dict_to_entry(rec) for rec in matches]
+
+    def register_projection(
+        self,
+        anchor_id: str,
+        frz_ref: str,
+        projection_path: str,
+        metadata: dict[str, Any] | None = None,
+    ) -> AnchorEntry:
+        """Register a new projection_path for an existing anchor, or create it.
+
+        Allows the same anchor_id to be registered with different projection_path
+        values (e.g., JRN-001@SRC, JRN-001@EPIC, JRN-001@FEAT).
+
+        Args:
+            anchor_id: Must match ANCHOR_ID_PATTERN.
+            frz_ref: FRZ reference string.
+            projection_path: One of VALID_PROJECTION_PATHS.
+            metadata: Optional metadata for this projection entry.
+
+        Returns:
+            The created or updated AnchorEntry.
+        """
+        if not ANCHOR_ID_PATTERN.match(anchor_id):
+            raise CommandError(
+                "INVALID_REQUEST", f"Invalid anchor ID format: {anchor_id}"
+            )
+        if projection_path not in VALID_PROJECTION_PATHS:
+            raise CommandError(
+                "INVALID_REQUEST",
+                f"Invalid projection path: {projection_path}. Must be one of: {', '.join(sorted(VALID_PROJECTION_PATHS))}",
+            )
+
+        records = self._load()
+
+        # Check for duplicate anchor_id + projection_path combo
         for rec in records:
-            if rec["anchor_id"] == anchor_id:
-                return _dict_to_entry(rec)
-        return None
+            if rec["anchor_id"] == anchor_id and rec["projection_path"] == projection_path:
+                raise CommandError(
+                    "INVALID_REQUEST",
+                    f"Anchor {anchor_id} already registered for {projection_path}",
+                )
+
+        now = datetime.now(timezone.utc).isoformat()
+        record = {
+            "anchor_id": anchor_id,
+            "frz_ref": frz_ref,
+            "projection_path": projection_path,
+            "metadata": metadata or {},
+            "registered_at": now,
+        }
+        records.append(record)
+        self._save(records)
+        return _dict_to_entry(record)
 
     def list_by_frz(self, frz_ref: str) -> list[AnchorEntry]:
         """Return all anchors referencing a given FRZ."""
