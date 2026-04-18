@@ -30,6 +30,12 @@ GUARD_INTRINSIC_KEYS = frozenset({
     "created_at",
     "status",
     "version",
+    # FEAT bundle intrinsic fields
+    "workflow_key",
+    "workflow_run_id",
+    "title",
+    "epic_freeze_ref",
+    "src_root_id",
 })
 
 
