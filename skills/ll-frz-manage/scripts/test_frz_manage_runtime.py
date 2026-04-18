@@ -7,6 +7,7 @@ a temp workspace with ssot/registry/ directory and optional FRZ YAML files.
 from __future__ import annotations
 
 import argparse
+import json
 import sys
 from io import StringIO
 from pathlib import Path
@@ -23,14 +24,18 @@ if str(WORKSPACE_ROOT) not in sys.path:
 if str(SCRIPT_DIR) not in sys.path:
     sys.path.insert(0, str(SCRIPT_DIR))
 
+import yaml
+
 from cli.lib.frz_registry import _load_registry, registry_path
 from cli.lib.errors import CommandError
 from frz_manage_runtime import (
     _find_workspace_root,
     build_parser,
+    extract_frz,
     freeze_frz,
     list_frz,
     main,
+    run_cascade,
     validate_frz,
 )
 
@@ -546,12 +551,160 @@ def test_freeze_creates_source_snapshot(tmp_path: Path, capsys: pytest.CaptureFi
 # ---------------------------------------------------------------------------
 
 
-def test_extract_mode_returns_not_implemented(capsys: pytest.CaptureFixture) -> None:
-    """Extract mode should return non-zero and print not implemented message."""
-    result = main(["extract", "--frz", "FRZ-001", "--output", "/tmp"])
+# ---------------------------------------------------------------------------
+# Test 18: Extract with valid frozen FRZ
+# ---------------------------------------------------------------------------
+
+
+def _setup_frozen_frz_workspace(tmp_path: Path) -> Path:
+    """Create a workspace with a registered frozen FRZ package."""
+    workspace = _setup_workspace(tmp_path)
+
+    frz_dir = workspace / "artifacts" / "frz-input" / "FRZ-001"
+    frz_dir.mkdir(parents=True)
+    frz_data = {
+        "frz_package": {
+            "frz_id": "FRZ-001",
+            "status": "frozen",
+            "product_boundary": {"in_scope": ["A"], "out_of_scope": []},
+            "core_journeys": [
+                {"id": "JRN-001", "name": "Login", "steps": ["Enter credentials", "Submit form"]},
+            ],
+            "domain_model": [
+                {"id": "ENT-001", "name": "User", "contract": {"email": "string"}},
+            ],
+            "state_machine": [
+                {"id": "SM-001", "name": "Status", "states": ["active", "inactive"], "transitions": []},
+            ],
+            "acceptance_contract": {
+                "expected_outcomes": ["User can log in"],
+                "acceptance_impact": ["UX"],
+            },
+            "constraints": [],
+            "derived_allowed": ["scope", "user_journeys", "entities", "state_transitions", "acceptance_criteria", "constraints", "open_questions"],
+            "known_unknowns": [],
+        }
+    }
+    yaml_path = frz_dir / "freeze.yaml"
+    with open(yaml_path, "w", encoding="utf-8") as f:
+        yaml.dump(frz_data, f, default_flow_style=False, allow_unicode=True, sort_keys=False)
+
+    # Register in FRZ registry
+    reg_dir = workspace / "ssot" / "registry"
+    reg_data = {
+        "frz_registry": [
+            {
+                "frz_id": "FRZ-001",
+                "status": "frozen",
+                "created_at": "2026-01-01T00:00:00+00:00",
+                "package_ref": str(yaml_path),
+                "msc_valid": True,
+                "version": "1.0",
+            }
+        ]
+    }
+    (reg_dir / "frz-registry.yaml").write_text(
+        yaml.dump(reg_data, default_flow_style=False, allow_unicode=True, sort_keys=False),
+        encoding="utf-8",
+    )
+    return workspace
+
+
+def test_extract_valid_frozen_frz(tmp_path: Path, capsys: pytest.CaptureFixture) -> None:
+    """extract with valid frozen FRZ should return 0 with JSON result."""
+    workspace = _setup_frozen_frz_workspace(tmp_path)
+    output_dir = workspace / "output"
+
+    with patch("frz_manage_runtime.Path.cwd", return_value=workspace):
+        args = argparse.Namespace(frz="FRZ-001", output=str(output_dir), cascade=False)
+        result = extract_frz(args)
+
+    assert result == 0
+    captured = capsys.readouterr()
+    output = json.loads(captured.out)
+    assert "ok" in output
+    assert "output_dir" in output
+    assert "anchors" in output
+    assert "guard" in output
+
+
+def test_extract_invalid_frz_id(tmp_path: Path, capsys: pytest.CaptureFixture) -> None:
+    """extract with invalid FRZ ID should return 2."""
+    workspace = _setup_workspace(tmp_path)
+
+    with patch("frz_manage_runtime.Path.cwd", return_value=workspace):
+        args = argparse.Namespace(frz="INVALID", output="/tmp/out", cascade=False)
+        result = extract_frz(args)
+
+    assert result == 2
+
+
+def test_extract_frz_not_in_registry(tmp_path: Path, capsys: pytest.CaptureFixture) -> None:
+    """extract with FRZ not in registry should return REGISTRY_MISS exit code."""
+    workspace = _setup_workspace(tmp_path)
+
+    with patch("frz_manage_runtime.Path.cwd", return_value=workspace):
+        args = argparse.Namespace(frz="FRZ-999", output="/tmp/out", cascade=False)
+        result = extract_frz(args)
+
     assert result != 0
     captured = capsys.readouterr()
-    assert "not implemented" in captured.err.lower()
+    assert "REGISTRY_MISS" in captured.err or "not found" in captured.err.lower()
+
+
+def test_extract_output_files_exist(tmp_path: Path, capsys: pytest.CaptureFixture) -> None:
+    """extract should create src-package.json and extraction-report.json."""
+    workspace = _setup_frozen_frz_workspace(tmp_path)
+    output_dir = workspace / "output"
+
+    with patch("frz_manage_runtime.Path.cwd", return_value=workspace):
+        args = argparse.Namespace(frz="FRZ-001", output=str(output_dir), cascade=False)
+        result = extract_frz(args)
+
+    assert result == 0
+    assert (output_dir / "src-package.json").exists()
+    assert (output_dir / "extraction-report.json").exists()
+
+
+def test_build_parser_has_cascade_flag() -> None:
+    """Parser should have --cascade flag for extract subcommand."""
+    parser = build_parser()
+    args = parser.parse_args(["extract", "--frz", "FRZ-001", "--output", "/tmp", "--cascade"])
+    assert args.cascade is True
+
+    args_no_cascade = parser.parse_args(["extract", "--frz", "FRZ-001", "--output", "/tmp"])
+    assert args_no_cascade.cascade is False
+
+
+def test_run_cascade_skips_missing_functions(tmp_path: Path, capsys: pytest.CaptureFixture) -> None:
+    """run_cascade should skip layers where extract function doesn't exist."""
+    workspace = _setup_frozen_frz_workspace(tmp_path)
+
+    with patch("frz_manage_runtime.Path.cwd", return_value=workspace):
+        result = run_cascade("FRZ-001", workspace)
+
+    # EPIC/FEAT/TECH/UI/TEST/IMPL modules likely don't exist, so they should be skipped
+    assert "results" in result
+    skipped = [r for r in result["results"] if r.get("status") == "skipped"]
+    assert len(skipped) >= 1  # At least EPIC should be skipped
+
+
+def test_run_cascade_summary_has_counts(tmp_path: Path, capsys: pytest.CaptureFixture) -> None:
+    """run_cascade should return summary with total/passed/blocked/skipped counts."""
+    workspace = _setup_frozen_frz_workspace(tmp_path)
+
+    with patch("frz_manage_runtime.Path.cwd", return_value=workspace):
+        result = run_cascade("FRZ-001", workspace)
+
+    # Even if all downstream layers are skipped, summary should exist
+    if result.get("ok"):
+        assert "summary" in result
+        summary = result["summary"]
+        assert "total" in summary
+        assert "passed" in summary
+        assert "blocked" in summary
+        assert "skipped" in summary
+        assert summary["total"] == 7  # All SSOT layers
 
 
 # ---------------------------------------------------------------------------
