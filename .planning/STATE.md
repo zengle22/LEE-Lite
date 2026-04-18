@@ -1,21 +1,21 @@
 ---
 gsd_state_version: 1.0
 milestone: v2.0
-milestone_name: ADR-050/051 SSOT 语义治理升级
-status: roadmap_created
-last_updated: "2026-04-18T09:55:00.000Z"
+milestone_name: milestone
+status: planning
+last_updated: "2026-04-18T07:19:20.846Z"
 progress:
   total_phases: 5
-  completed_phases: 0
-  total_plans: 14
-  completed_plans: 0
-  percent: 0
+  completed_phases: 1
+  total_plans: 3
+  completed_plans: 3
+  percent: 100
 ---
 
 # Project State
 
 **Project:** ADR-050/051 SSOT 语义治理升级
-**Status:** v2.0 roadmap created — 5 phases (6-10), 21 active requirements
+**Status:** Ready to plan
 **Core value:** 确保 SSOT 不再逐层生成，而是从 FRZ 冻结包中分层语义抽取，执行层只能补全不能改写语义
 **Current focus:** Phase 1: FRZ 冻结层基础设施
 
@@ -34,6 +34,7 @@ progress:
 ### Previous Milestone: v1.0 ADR-047 双链测试 (Shipped: 2026-04-17)
 
 Delivered:
+
 - QA Schema 定义（plan/manifest/spec/settlement 四层资产结构）
 - 11 个 QA 技能 Prompt-first 运行时
 - 结算层/执行层技能补全
@@ -43,6 +44,7 @@ Delivered:
 ### Previous Milestone: v1.1 ADR-049 体验修正层 (Code Complete)
 
 Delivered:
+
 - ll-patch-capture skill with dual-path execution
 - Patch-aware context resolver + AI Context Injection
 - PreToolUse Hook 集成

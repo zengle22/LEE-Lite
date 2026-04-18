@@ -7,18 +7,17 @@
 
 ---
 
-## Phase 1: FRZ 冻结层基础设施
+## Phase 7: FRZ 冻结层基础设施
 
 **Goal:** 交付 FRZ 包结构定义、MSC 验证、注册表，以及 `ll-frz-manage` 新技能（冻结模式 + 查询模式）。
 
 **Requirements:** FRZ-01, FRZ-02, FRZ-03, FRZ-04, FRZ-05, FRZ-06
 
-**Plans:**
+**Plans:** 3 plans
 
-- [ ] 06-01 — `cli/lib/frz_schema.py`: FRZ 包结构定义 + MSC 5维 schema
-- [ ] 06-02 — `cli/lib/anchor_registry.py`: 锚点 ID 注册表（EXTR-03 前置）
-- [ ] 06-03 — `ssot/registry/frz-registry.yaml`: FRZ 注册表文件 + 版本追踪
-- [ ] 06-04 — `skills/ll-frz-manage`: 新技能（冻结模式 validate + freeze + list）
+- [x] 07-01-PLAN.md — FRZ 包结构定义 + MSC 5维 schema + 单元测试 (FRZ-01, FRZ-02)
+- [x] 07-02-PLAN.md — 锚点 ID 注册表 + FRZ 注册表文件 + 版本追踪 (FRZ-03, EXTR-03)
+- [x] 07-03-PLAN.md — ll-frz-manage 技能（冻结模式 validate + freeze + list）(FRZ-04, FRZ-05, FRZ-06)
 
 **Success Criteria:**
 1. `cli/lib/frz_schema.py` 定义 FRZPackage dataclass + MSCValidator，5维校验通过
@@ -31,7 +30,7 @@
 
 ---
 
-## Phase 2: FRZ→SRC 语义抽取链
+## Phase 8: FRZ→SRC 语义抽取链
 
 **Goal:** 交付 `ll-frz-manage` 抽取模式 + SRC/EPIC/FEAT 级联抽取引擎 + 投影不变性守卫 + 漂移检测。
 
@@ -39,10 +38,10 @@
 
 **Plans:**
 
-- [ ] 02-01 — `cli/lib/drift_detector.py`: 语义漂移检测器
-- [ ] 02-02 — `skills/ll-frz-manage` 抽取模式: FRZ → SRC 抽取 + 投影守卫 + 锚点注册 + 漂移检测
-- [ ] 02-03 — `skills/ll-product-src-to-epic`: 改为 FRZ 抽取 EPIC 模式
-- [ ] 02-04 — `skills/ll-product-epic-to-feat`: 改为 FRZ 抽取 FEAT 模式
+- [ ] 08-01 — `cli/lib/drift_detector.py`: 语义漂移检测器
+- [ ] 08-02 — `skills/ll-frz-manage` 抽取模式: FRZ → SRC 抽取 + 投影守卫 + 锚点注册 + 漂移检测
+- [ ] 08-03 — `skills/ll-product-src-to-epic`: 改为 FRZ 抽取 EPIC 模式
+- [ ] 08-04 — `skills/ll-product-epic-to-feat`: 改为 FRZ 抽取 FEAT 模式
 
 **Success Criteria:**
 1. `ll frz-manage extract --frz FRZ-xxx` 输出 SRC candidate，不超出 `derived_allowed` 范围
@@ -55,7 +54,7 @@
 
 ---
 
-## Phase 3: 执行语义稳定 + impl-spec-test 增强
+## Phase 9: 执行语义稳定 + impl-spec-test 增强
 
 **Goal:** 在 `ll-qa-impl-spec-test` 中集成语义稳定性检查，交付静默覆盖防护。
 
@@ -63,9 +62,9 @@
 
 **Plans:**
 
-- [ ] 03-01 — `cli/lib/silent_override.py`: 静默覆盖检测器
-- [ ] 03-02 — `skills/ll-qa-impl-spec-test`: 加第9维度 `semantic_stability` (含 drift_detector 调用 + verdict 字段)
-- [ ] 03-03 — 所有 `ll-dev-*` 技能的 `validate_output.sh`: 加 `silent_override.py` 校验
+- [ ] 09-01 — `cli/lib/silent_override.py`: 静默覆盖检测器
+- [ ] 09-02 — `skills/ll-qa-impl-spec-test`: 加第9维度 `semantic_stability` (含 drift_detector 调用 + verdict 字段)
+- [ ] 09-03 — 所有 `ll-dev-*` 技能的 `validate_output.sh`: 加 `silent_override.py` 校验
 
 **Success Criteria:**
 1. `ll-qa-impl-spec-test` deep mode 包含 `semantic_stability` 维度，verdict 含 `semantic_drift` 字段
@@ -77,7 +76,7 @@
 
 ---
 
-## Phase 4: 变更分级协同
+## Phase 10: 变更分级协同
 
 **Goal:** 集成三分类到 Patch 层，交付 Minor/Major 分流处理，Major 回流 FRZ。
 
@@ -85,10 +84,10 @@
 
 **Plans:**
 
-- [ ] 04-01 — `skills/ll-patch-capture`: 集成三分类 (visual→Minor, interaction→Minor, semantic→Major)
-- [ ] 04-02 — `skills/ll-experience-patch-settle`: Minor settle 逻辑 (backwrite UI/TESTSET)
-- [ ] 04-03 — `skills/ll-frz-manage`: 冻结模式加 `--type revise` 参数 (Major 回流)
-- [ ] 04-04 — `skills/ll-patch-aware-context`: 注入时检测 Minor/Major 变更
+- [ ] 10-01 — `skills/ll-patch-capture`: 集成三分类 (visual→Minor, interaction→Minor, semantic→Major)
+- [ ] 10-02 — `skills/ll-experience-patch-settle`: Minor settle 逻辑 (backwrite UI/TESTSET)
+- [ ] 10-03 — `skills/ll-frz-manage`: 冻结模式加 `--type revise` 参数 (Major 回流)
+- [ ] 10-04 — `skills/ll-patch-aware-context`: 注入时检测 Minor/Major 变更
 
 **Success Criteria:**
 1. `ll-patch-capture` 捕获变更时自动分类，visual/interaction → Minor patch
@@ -101,17 +100,17 @@
 
 ---
 
-## Phase 5: Task Pack 结构（执行循环延期到 v2.1）
+## Phase 11: Task Pack 结构（执行循环延期到 v2.1）
 
 **Goal:** 交付 Task Pack YAML schema + depends_on 解析。v2.0 手动按顺序执行 task。
 
-**Requirements:** PACK-01, PACK-02, [PACK-03, PACK-04, PACK-05 deferred]
+**Requirements:** PACK-01, PACK-02, [PACK-03, PACK-04, PACK-05 deferred to v2.1]
 
 **Plans:**
 
-- [ ] 05-01 — `ssot/schemas/qa/task_pack.yaml`: Task Pack YAML schema 定义
-- [ ] 05-02 — `cli/lib/task_pack_schema.py`: schema 验证器
-- [ ] 05-03 — `cli/lib/task_pack_resolver.py`: depends_on 拓扑排序
+- [ ] 11-01 — `ssot/schemas/qa/task_pack.yaml`: Task Pack YAML schema 定义
+- [ ] 11-02 — `cli/lib/task_pack_schema.py`: schema 验证器
+- [ ] 11-03 — `cli/lib/task_pack_resolver.py`: depends_on 拓扑排序
 
 **Success Criteria:**
 1. `task_pack.yaml` schema 定义 pack_id, feat_ref, tasks (task_id, type, depends_on, status, verifies)
@@ -128,30 +127,30 @@
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| FRZ-01 | Phase 1 | Pending |
-| FRZ-02 | Phase 1 | Pending |
-| FRZ-03 | Phase 1 | Pending |
-| FRZ-04 | Phase 1 | Pending |
-| FRZ-05 | Phase 1 | Pending |
-| FRZ-06 | Phase 1 | Pending |
-| EXTR-01 | Phase 2 | Pending |
-| EXTR-02 | Phase 2 | Pending |
-| EXTR-03 | Phase 2 | Pending |
-| EXTR-04 | Phase 2 | Pending |
-| EXTR-05 | Phase 2 | Pending |
-| STAB-01 | Phase 3 | Pending |
-| STAB-02 | Phase 3 | Pending |
-| STAB-03 | Phase 3 | Pending |
-| STAB-04 | Phase 3 | Pending |
-| GRADE-01 | Phase 4 | Pending |
-| GRADE-02 | Phase 4 | Pending |
-| GRADE-03 | Phase 4 | Pending |
-| GRADE-04 | Phase 4 | Pending |
-| PACK-01 | Phase 5 | Pending |
-| PACK-02 | Phase 5 | Pending |
-| PACK-03 | Phase 5 | Deferred to v2.1 |
-| PACK-04 | Phase 5 | Deferred to v2.1 |
-| PACK-05 | Phase 5 | Deferred to v2.1 |
+| FRZ-01 | Phase 7 | Pending |
+| FRZ-02 | Phase 7 | Pending |
+| FRZ-03 | Phase 7 | Pending |
+| FRZ-04 | Phase 7 | Pending |
+| FRZ-05 | Phase 7 | Pending |
+| FRZ-06 | Phase 7 | Pending |
+| EXTR-01 | Phase 8 | Pending |
+| EXTR-02 | Phase 8 | Pending |
+| EXTR-03 | Phase 8 | Pending |
+| EXTR-04 | Phase 8 | Pending |
+| EXTR-05 | Phase 8 | Pending |
+| STAB-01 | Phase 9 | Pending |
+| STAB-02 | Phase 9 | Pending |
+| STAB-03 | Phase 9 | Pending |
+| STAB-04 | Phase 9 | Pending |
+| GRADE-01 | Phase 10 | Pending |
+| GRADE-02 | Phase 10 | Pending |
+| GRADE-03 | Phase 10 | Pending |
+| GRADE-04 | Phase 10 | Pending |
+| PACK-01 | Phase 11 | Pending |
+| PACK-02 | Phase 11 | Pending |
+| PACK-03 | Phase 11 | Deferred to v2.1 |
+| PACK-04 | Phase 11 | Deferred to v2.1 |
+| PACK-05 | Phase 11 | Deferred to v2.1 |
 
 **Coverage:**
 - v2.0 requirements: 24 total
