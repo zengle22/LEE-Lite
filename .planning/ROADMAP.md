@@ -62,9 +62,9 @@
 
 **Plans:**
 
-- [ ] 09-01 — `cli/lib/silent_override.py`: 静默覆盖检测器
-- [ ] 09-02 — `skills/ll-qa-impl-spec-test`: 加第9维度 `semantic_stability` (含 drift_detector 调用 + verdict 字段)
-- [ ] 09-03 — 所有 `ll-dev-*` 技能的 `validate_output.sh`: 加 `silent_override.py` 校验
+- [x] 09-01 — `cli/lib/silent_override.py`: 静默覆盖检测器
+- [x] 09-02 — `skills/ll-qa-impl-spec-test`: 加第9维度 `semantic_stability` (含 drift_detector 调用 + verdict 字段)
+- [x] 09-03 — 所有 `ll-dev-*` 技能的 `validate_output.sh`: 加 `silent_override.py` 校验
 
 **Success Criteria:**
 1. `ll-qa-impl-spec-test` deep mode 包含 `semantic_stability` 维度，verdict 含 `semantic_drift` 字段
