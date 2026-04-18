@@ -261,11 +261,18 @@ def check_constraints(
 
     violations: list[str] = []
     output_keys = set(output_data.keys())
+    # Extracted output may store constraints as a list value under "constraints" key
+    output_constraints = set()
+    constraints_list = output_data.get("constraints", [])
+    if isinstance(constraints_list, list):
+        output_constraints = {str(c) for c in constraints_list}
 
     for constraint in frz_package.constraints:
         # Check if constraint text or key portion (before colon) is in output keys
+        # or present in the output_data["constraints"] list
         key_portion = constraint.split(":")[0].strip()
-        if constraint not in output_keys and key_portion not in output_keys:
+        if (constraint not in output_keys and key_portion not in output_keys
+                and constraint not in output_constraints):
             violations.append(constraint)
 
     return violations
