@@ -34,7 +34,55 @@ class ChangeClass(str, Enum):
     accessibility = "accessibility"
     error_handling = "error_handling"
     data_display = "data_display"
+    visual = "visual"          # NEW: top-level tri-class value (ADR-050)
+    semantic = "semantic"      # NEW: top-level tri-class value (ADR-050)
     other = "other"
+
+
+class GradeLevel(str, Enum):
+    """Two-tier change grading: Minor (Patch-level) vs Major (FRZ re-freeze)."""
+
+    MINOR = "minor"
+    MAJOR = "major"
+
+
+CHANGE_CLASS_TO_GRADE: dict[str, GradeLevel] = {
+    # visual sub-classes -> Minor
+    ChangeClass.ui_flow.value: GradeLevel.MINOR,
+    ChangeClass.copy_text.value: GradeLevel.MINOR,
+    ChangeClass.layout.value: GradeLevel.MINOR,
+    ChangeClass.navigation.value: GradeLevel.MINOR,
+    ChangeClass.data_display.value: GradeLevel.MINOR,
+    ChangeClass.accessibility.value: GradeLevel.MINOR,
+    ChangeClass.visual.value: GradeLevel.MINOR,
+    # interaction -> Minor
+    ChangeClass.interaction.value: GradeLevel.MINOR,
+    # error_handling, performance, validation -> Minor (UI-layer only)
+    ChangeClass.error_handling.value: GradeLevel.MINOR,
+    ChangeClass.performance.value: GradeLevel.MINOR,
+    ChangeClass.validation.value: GradeLevel.MINOR,
+    # semantic -> Major (triggers FRZ re-freeze)
+    ChangeClass.semantic.value: GradeLevel.MAJOR,
+    # other -> default Minor, human can escalate
+    ChangeClass.other.value: GradeLevel.MINOR,
+}
+
+
+def derive_grade(change_class: str) -> GradeLevel:
+    """Derive grade level from change_class deterministically.
+
+    Fail-safe default: if change_class is missing/invalid, return MAJOR with warning.
+    This is safer than MINOR -- an unknown classification should escalate to human review.
+    """
+    import warnings
+    grade = CHANGE_CLASS_TO_GRADE.get(change_class)
+    if grade is None:
+        warnings.warn(
+            f"Unknown change_class '{change_class}', defaulting to MAJOR for safety. "
+            "Add this value to CHANGE_CLASS_TO_GRADE in patch_schema.py."
+        )
+        return GradeLevel.MAJOR
+    return grade
 
 
 # ---------------------------------------------------------------------------

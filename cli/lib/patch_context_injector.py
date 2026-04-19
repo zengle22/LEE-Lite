@@ -13,7 +13,7 @@ from typing import Any
 
 import yaml
 
-from .patch_schema import ChangeClass, PatchStatus
+from .patch_schema import ChangeClass, PatchStatus, derive_grade
 
 
 # ---------------------------------------------------------------------------
@@ -97,6 +97,14 @@ def summarize_patch_for_context(
     lines.append(f"### Patch: {patch.get('id', 'unknown')}")
     lines.append(f"- **title**: {patch.get('title', '')}")
     lines.append(f"- **change_class**: {patch.get('change_class', '')}")
+    change_class = patch.get("change_class", "")
+    grade_level = patch.get("grade_level", derive_grade(change_class).value)
+    lines.append(f"- **grade_level**: {grade_level}")
+
+    # Highlight Major patches with a warning
+    if grade_level == "major":
+        lines.append(f"\n> [!WARNING] MAJOR change — requires FRZ re-freeze via `ll frz-manage freeze --type revise`")
+
     lines.append(f"- **scope**: {patch.get('scope', '')}")
     lines.append(f"- **status**: {patch.get('status', '')}")
     lines.append(f"- **changed_files**:")
@@ -155,11 +163,12 @@ def inject_context(
     all_patches = all_patches[:max_patches]
 
     sections: list[str] = []
-    sections.append("## Experience Patch Context\n")
+    sections.append("## Experience Patch Context (Change Grading)\n")
     sections.append(
         f"> Context budget: {max_tokens} tokens, "
         f"max {max_patches} patches. "
         f"Found {len(all_patches)} relevant patch(es).\n"
+        f"> Patches graded: Minor = code-level settle, Major = FRZ re-freeze required.\n"
     )
 
     remaining_tokens = max_tokens
@@ -209,6 +218,10 @@ def _load_patch_yaml(path: Path) -> dict[str, Any] | None:
             data = yaml.safe_load(f)
         if not isinstance(data, dict):
             return None
+        # Derive grade_level if not present, using derive_grade from patch_schema
+        if "grade_level" not in data and "change_class" in data:
+            data["grade_level"] = derive_grade(data["change_class"]).value
+            data["grade_derived_from"] = "patch_schema.derive_grade"
         return data
     except (OSError, yaml.YAMLError):
         return None
