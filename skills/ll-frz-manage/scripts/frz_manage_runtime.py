@@ -43,7 +43,13 @@ from cli.lib.frz_schema import (
 )
 
 # Import FRZ registry helpers (aliased to avoid naming conflict)
-from cli.lib.frz_registry import get_frz, list_frz as _list_frz_registry, register_frz
+from cli.lib.frz_registry import (
+    get_frz,
+    list_frz as _list_frz_registry,
+    register_frz,
+    _load_registry,
+    registry_path,
+)
 
 # Import extraction library
 from cli.lib.frz_extractor import extract_src_from_frz, check_frz_coverage
@@ -155,10 +161,43 @@ def _find_workspace_root(start: Path | None = None) -> Path:
         current = parent
 
 
+def _check_circular_revision(
+    frz_registry: dict[str, Any], new_frz_id: str, previous_frz: str
+) -> list[str]:
+    """Check if adding new_frz_id -> previous_frz would create a circular chain.
+
+    Walks the revision chain from previous_frz following previous_frz_ref
+    pointers. If new_frz_id is encountered, a circular chain exists.
+
+    Args:
+        frz_registry: Map of frz_id -> record dict.
+        new_frz_id: The FRZ ID being created.
+        previous_frz: The FRZ ID this revision claims to revise.
+
+    Returns:
+        List of FRZ IDs in the chain if circular, empty list if safe.
+    """
+    visited: set[str] = set()
+    current = previous_frz
+    while current:
+        if current == new_frz_id:
+            return list(visited) + [current]
+        if current in visited:
+            break
+        visited.add(current)
+        rec = frz_registry.get(current)
+        if rec:
+            current = rec.get("previous_frz_ref")
+        else:
+            current = None
+    return []
+
+
 def _format_frz_list(frz_records: list[dict[str, Any]]) -> str:
     """Format FRZ records as an aligned table.
 
-    Columns: FRZ_ID, STATUS, CREATED_AT, MSC_VALID
+    FIXED columns: FRZ_ID, STATUS, REV_TYPE, PREV_FRZ, CREATED_AT, MSC_VALID.
+    '-' used for empty values to preserve column position parsing.
     Sorted by created_at descending (newest first).
 
     Args:
@@ -177,21 +216,23 @@ def _format_frz_list(frz_records: list[dict[str, Any]]) -> str:
         reverse=True,
     )
 
-    # Calculate column widths
-    header = ["FRZ_ID", "STATUS", "CREATED_AT", "MSC_VALID"]
+    # FIXED header — always shows all columns
+    header = ["FRZ_ID", "STATUS", "REV_TYPE", "PREV_FRZ", "CREATED_AT", "MSC_VALID"]
     rows: list[list[str]] = []
     for rec in sorted_records:
         frz_id = rec.get("frz_id", "N/A")
         status = rec.get("status", "N/A")
+        rev_type = rec.get("revision_type", "new")
+        prev_frz = rec.get("previous_frz_ref", "-")
         created_at = rec.get("created_at", "N/A")
         msc_valid = "yes" if rec.get("msc_valid") else "no"
-        rows.append([frz_id, status, created_at, msc_valid])
+        rows.append([frz_id, status, rev_type, prev_frz, created_at, msc_valid])
 
     # Calculate widths
     widths = [len(h) for h in header]
     for row in rows:
         for i, cell in enumerate(row):
-            widths[i] = max(widths[i], len(cell))
+            widths[i] = max(widths[i], len(str(cell)))
 
     # Build table
     lines: list[str] = []
@@ -199,7 +240,7 @@ def _format_frz_list(frz_records: list[dict[str, Any]]) -> str:
     lines.append(header_line)
     lines.append("-" * len(header_line))
     for row in rows:
-        line = "  ".join(cell.ljust(widths[i]) for i, cell in enumerate(row))
+        line = "  ".join(str(cell).ljust(widths[i]) for i, cell in enumerate(row))
         lines.append(line)
 
     return "\n".join(lines)
@@ -326,6 +367,20 @@ def freeze_frz(args: argparse.Namespace) -> int:
             "INVALID_REQUEST",
             f"FRZ ID already registered: {frz_id}",
         )
+
+    # Circular revision chain prevention (GRADE-03)
+    if revision_type == "revise" and previous_frz:
+        # Load existing registry records as a lookup map
+        reg_path_file = registry_path(workspace_root)
+        raw_records = _load_registry(reg_path_file)
+        registry_map = {r["frz_id"]: r for r in raw_records}
+        circular_chain = _check_circular_revision(registry_map, frz_id, previous_frz)
+        if circular_chain:
+            raise CommandError(
+                "CIRCULAR_REVISION",
+                f"Circular FRZ revision chain detected: {' -> '.join(circular_chain)} -> {frz_id}. "
+                f"Refusing to create circular revision chain.",
+            )
 
     # Register the FRZ
     revision_type = getattr(args, "type", "new")
