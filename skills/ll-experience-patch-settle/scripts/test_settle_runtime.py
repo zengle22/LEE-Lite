@@ -10,9 +10,13 @@ from unittest import mock
 
 import pytest
 
-# Add project root to path so we can import cli.lib and settle_runtime
+# Add project root to path so we can import cli.lib
 PROJECT_ROOT = Path(__file__).parent.parent.parent.parent  # skills/ll-experience-patch-settle -> project root
 sys.path.insert(0, str(PROJECT_ROOT))
+
+# Add the scripts directory to path for direct import of settle_runtime
+SCRIPTS_DIR = Path(__file__).parent
+sys.path.insert(0, str(SCRIPTS_DIR))
 
 
 def _make_patch(
@@ -69,17 +73,13 @@ def workspace(tmp_path):
 
 
 # ---------------------------------------------------------------------------
-# Import settle_runtime under test
+# Import settle_runtime under test (direct import from scripts dir)
 # ---------------------------------------------------------------------------
 
 def _import_settle_runtime():
-    """Import settle_runtime module, adding its scripts dir to sys.path."""
-    scripts_dir = Path(__file__).parent
-    if str(scripts_dir) not in sys.path:
-        sys.path.insert(0, str(scripts_dir))
-    # Force reimport for each test run
+    """Import settle_runtime module directly from the scripts directory."""
     import importlib
-    import skills.ll_experience_patch_settle.scripts.settle_runtime as mod
+    import settle_runtime as mod
     importlib.reload(mod)
     return mod
 
