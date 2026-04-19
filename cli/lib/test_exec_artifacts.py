@@ -4,8 +4,11 @@ from __future__ import annotations
 
 import hashlib
 import json
+from pathlib import Path
 from typing import Any
 
+from .patch_awareness import PatchContext
+from .patch_context_injector import find_related_patches
 from .test_exec_case_expander import expand_requirement_cases
 from .test_exec_fixture_planner import plan_fixtures
 from .test_exec_script_mapper import map_scripts
@@ -166,6 +169,24 @@ def build_freeze_meta(artifact_type: str, payload: dict[str, Any]) -> dict[str, 
         "item_count": count,
         "checksum": _checksum(payload),
     }
+
+
+def resolve_patch_context(workspace_root: Path, feat_ref: str) -> PatchContext:
+    """Resolve patch context for a given workspace and feature reference.
+
+    Parameters
+    ----------
+    workspace_root : Path
+        Root directory to scan for patches.
+    feat_ref : str
+        Feature reference string.
+
+    Returns
+    -------
+    PatchContext
+        Resolved patch context containing related patches.
+    """
+    return find_related_patches(workspace_root, feat_ref=feat_ref)
 
 
 def render_report(summary: dict[str, Any], compliance: dict[str, Any], case_results: list[dict[str, Any]]) -> str:
