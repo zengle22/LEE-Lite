@@ -1,0 +1,42 @@
+# Output Contract — ll-experience-patch-settle
+
+## Produced Output
+
+### 1. Updated Patch YAML
+
+The original Patch YAML file is updated in-place:
+
+```yaml
+# ... original fields preserved ...
+status: applied
+settled_at: "2026-04-19T10:30:00Z"
+backwrite_records:
+  - target: ui_spec
+    path: ssot/experience-patches/FEAT-001/backwrites/ui_spec_updates.yaml
+  - target: flow_spec
+    path: ssot/experience-patches/FEAT-001/backwrites/flow_spec_updates.yaml
+  - target: testset
+    path: ssot/experience-patches/FEAT-001/backwrites/testset_updates.yaml
+```
+
+### 2. Backwrite RECORDS
+
+Structured YAML records written to `ssot/experience-patches/{feat_ref}/backwrites/`:
+
+```yaml
+# Example: backwrites/ui_spec_updates.yaml
+patch_id: UXPATCH-0001
+change_class: interaction
+grade_level: minor
+backwrite_target: ui_spec
+changed_files:
+  - src/components/UserFlow.tsx
+test_impact:
+  affected_routes: ["/user-flow"]
+created_at: "2026-04-19T10:30:00Z"
+note: "Record for human review -- NOT applied to actual SSOT files"
+```
+
+### Key Clarification
+
+Backwrite RECORDS are structured summaries of what SHOULD be updated in SSOT spec files. They are NOT actual modifications to SSOT files. A future `--apply` flag would read these records and perform the actual SSOT modifications, gated behind human confirmation.

@@ -1,0 +1,9 @@
+skill: ll-experience-patch-settle
+version: "1.0"
+state: approved
+lifecycle_states:
+  - draft
+  - proposed
+  - approved
+  - settle
+  - applied

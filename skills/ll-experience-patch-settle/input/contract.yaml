@@ -1,0 +1,37 @@
+# Input Contract — ll-experience-patch-settle
+
+## Accepted Input: Patch YAML
+
+The settle skill accepts a validated Patch YAML file from `ll-patch-capture` with the following required structure:
+
+```yaml
+id: UXPATCH-NNNN
+type: experience_patch
+status: approved
+change_class: interaction|visual|navigation|copy_text|layout|ui_flow|error_handling|performance|accessibility|data_display|other
+grade_level: minor
+scope:
+  feat_ref: FEAT-XXX
+  page: optional
+  module: optional
+changed_files:
+  - path/to/file1.py
+  - path/to/file2.ts
+test_impact:
+  impacts_user_path: true
+  impacts_acceptance: false
+  affected_routes: ["/route1", "/route2"]
+  test_changes_required: ["test_file1.py", "test_file2.py"]
+source:
+  actor: human|ai
+  ai_suggested_class: interaction
+  human_confirmed_class: interaction
+```
+
+### Validation Rules
+
+- `grade_level` MUST be "minor" -- Major patches are rejected
+- `status` MUST be "approved" -- draft/proposed patches are not ready for settlement
+- `change_class` MUST be a valid enum value from `ChangeClass`
+- `scope.feat_ref` MUST be present -- needed for backwrite directory resolution
+- If `change_class` is "interaction" or "semantic", `test_impact.affected_routes` MUST be non-empty

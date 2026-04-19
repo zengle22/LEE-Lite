@@ -1,0 +1,30 @@
+skill: ll-experience-patch-settle
+version: "1.0"
+adr: ADR-049
+category: settle
+chain: patch-lifecycle
+phase: settlement
+
+input:
+  type: patch_yaml
+  required_fields:
+    - id
+    - change_class
+    - grade_level
+    - status
+    - scope
+    - changed_files
+  constraints:
+    grade_level: minor
+    status: approved
+
+output:
+  type: patch_yaml_updated
+  fields:
+    - id
+    - status: applied
+    - settled_at
+  artifacts:
+    - path: backwrites/
+      description: "Structured YAML records for human review (NOT actual SSOT modifications)"
+      format: yaml
