@@ -29,7 +29,9 @@ import yaml
 from cli.lib.frz_registry import _load_registry, registry_path
 from cli.lib.errors import CommandError
 from frz_manage_runtime import (
+    _check_circular_revision,
     _find_workspace_root,
+    _format_frz_list,
     build_parser,
     extract_frz,
     freeze_frz,
@@ -743,3 +745,237 @@ def test_validate_malicious_yaml_rejected(tmp_path: Path) -> None:
     import yaml
     with pytest.raises(yaml.constructor.ConstructorError):
         validate_frz(args)
+
+
+# ---------------------------------------------------------------------------
+# Task 2: Revise tests + circular chain prevention + FIXED columns
+# ---------------------------------------------------------------------------
+
+
+def test_circular_revision_chain(tmp_path: Path, capsys: pytest.CaptureFixture) -> None:
+    """Circular revision chain (self-reference) should be rejected."""
+    workspace = _setup_workspace(tmp_path)
+    input_dir = workspace / "input"
+    _write_frz_yaml(input_dir, _make_valid_frz_yaml())
+
+    with patch("frz_manage_runtime.Path.cwd", return_value=workspace):
+        # First freeze FRZ-001
+        args1 = argparse.Namespace(input=str(input_dir), id="FRZ-001")
+        result1 = freeze_frz(args1)
+        assert result1 == 0
+
+        # Attempt to create FRZ-001 revise -> FRZ-001 (self-reference)
+        # This should be caught by duplicate check first, so use a new FRZ ID
+        # that tries to create a cycle
+        input_dir2 = workspace / "input2"
+        revised = _make_valid_frz_yaml()
+        revised["frz_id"] = "FRZ-002"
+        _write_frz_yaml(input_dir2, revised)
+
+        # FRZ-002 revises FRZ-001 (valid)
+        args2 = argparse.Namespace(
+            input=str(input_dir2), id="FRZ-002", type="revise",
+            reason="scope change", previous_frz="FRZ-001",
+        )
+        result2 = freeze_frz(args2)
+        assert result2 == 0
+
+        # Now try FRZ-003 revise -> FRZ-002, but with previous_frz=FRZ-003 (self-ref)
+        input_dir3 = workspace / "input3"
+        revised3 = _make_valid_frz_yaml()
+        revised3["frz_id"] = "FRZ-003"
+        _write_frz_yaml(input_dir3, revised3)
+
+        args3 = argparse.Namespace(
+            input=str(input_dir3), id="FRZ-003", type="revise",
+            reason="test", previous_frz="FRZ-003",
+        )
+        # Self-reference: FRZ-003 -> FRZ-003, this IS circular
+        # But FRZ-003 doesn't exist in registry yet, so chain is FRZ-003 -> FRZ-003
+        # _check_circular_revision walks from FRZ-003 and immediately finds new_frz_id=FRZ-003
+        with pytest.raises(CommandError, match="CIRCULAR_REVISION|Circular"):
+            freeze_frz(args3)
+
+
+def test_circular_revision_chain_back_reference(tmp_path: Path) -> None:
+    """If FRZ-002 revises FRZ-001, FRZ-001 revise -> FRZ-002 should be rejected."""
+    workspace = _setup_workspace(tmp_path)
+    input_dir = workspace / "input"
+    _write_frz_yaml(input_dir, _make_valid_frz_yaml())
+
+    with patch("frz_manage_runtime.Path.cwd", return_value=workspace):
+        # Freeze FRZ-001
+        args1 = argparse.Namespace(input=str(input_dir), id="FRZ-001")
+        result1 = freeze_frz(args1)
+        assert result1 == 0
+
+        # FRZ-002 revises FRZ-001
+        input_dir2 = workspace / "input2"
+        revised = _make_valid_frz_yaml()
+        revised["frz_id"] = "FRZ-002"
+        _write_frz_yaml(input_dir2, revised)
+
+        args2 = argparse.Namespace(
+            input=str(input_dir2), id="FRZ-002", type="revise",
+            reason="test", previous_frz="FRZ-001",
+        )
+        result2 = freeze_frz(args2)
+        assert result2 == 0
+
+        # Now try FRZ-001 revise -> FRZ-002 (cycle: FRZ-001 -> FRZ-002 -> FRZ-001)
+        # But FRZ-001 already exists, so duplicate check catches it first.
+        # Use a different FRZ ID to test the chain: FRZ-003 revises FRZ-002,
+        # then FRZ-004 revises FRZ-003 but points previous_frz=FRZ-001
+        input_dir3 = workspace / "input3"
+        revised3 = _make_valid_frz_yaml()
+        revised3["frz_id"] = "FRZ-003"
+        _write_frz_yaml(input_dir3, revised3)
+
+        args3 = argparse.Namespace(
+            input=str(input_dir3), id="FRZ-003", type="revise",
+            reason="test", previous_frz="FRZ-002",
+        )
+        result3 = freeze_frz(args3)
+        assert result3 == 0
+
+        # FRZ-004 revises FRZ-003, which revises FRZ-002, which revises FRZ-001
+        # If FRZ-004 points to FRZ-001 as previous, no cycle. But if we create
+        # FRZ-001 -> FRZ-002 and then FRZ-005 revise -> FRZ-001, that would cycle
+        # back. Since FRZ-001 already exists, we test _check_circular_revision directly.
+        reg_path = registry_path(workspace)
+        records = _load_registry(reg_path)
+        registry_map = {r["frz_id"]: r for r in records}
+
+        # FRZ-002 has previous_frz_ref=FRZ-001
+        # If new FRZ-006 points to FRZ-002, chain: FRZ-006 -> FRZ-002 -> FRZ-001 (safe)
+        chain = _check_circular_revision(registry_map, "FRZ-006", "FRZ-002")
+        assert chain == [], f"Expected no cycle, got: {chain}"
+
+        # Test: revise where previous_frz chains back to new_frz_id
+        # FRZ-X has no previous, FRZ-Y revises FRZ-X
+        # If we create FRZ-X revise -> FRZ-Y, that would cycle: FRZ-X -> FRZ-Y -> FRZ-X
+        fake_map2 = {
+            "FRZ-X": {"frz_id": "FRZ-X", "previous_frz_ref": None},
+            "FRZ-Y": {"frz_id": "FRZ-Y", "previous_frz_ref": "FRZ-X"},
+        }
+        # FRZ-X (new_frz_id) with previous_frz=FRZ-Y: walk FRZ-Y -> FRZ-X -> found!
+        chain3 = _check_circular_revision(fake_map2, "FRZ-X", "FRZ-Y")
+        assert chain3 == ["FRZ-Y", "FRZ-X"]
+
+        # Test: longer chain cycle
+        # FRZ-A -> FRZ-B -> FRZ-C (no cycle)
+        # If FRZ-A revise -> FRZ-C, walk FRZ-C: no further ref -> safe
+        fake_map3 = {
+            "FRZ-A": {"frz_id": "FRZ-A", "previous_frz_ref": None},
+            "FRZ-B": {"frz_id": "FRZ-B", "previous_frz_ref": "FRZ-A"},
+            "FRZ-C": {"frz_id": "FRZ-C", "previous_frz_ref": "FRZ-B"},
+        }
+        # FRZ-A revise -> FRZ-C: walk FRZ-C -> FRZ-B -> FRZ-A -> found!
+        chain4 = _check_circular_revision(fake_map3, "FRZ-A", "FRZ-C")
+        assert chain4 == ["FRZ-C", "FRZ-B", "FRZ-A"]
+
+
+def test_fixed_columns_always_shown(tmp_path: Path, capsys: pytest.CaptureFixture) -> None:
+    """List always shows REV_TYPE and PREV_FRZ columns (FIXED columns)."""
+    workspace = _setup_workspace(tmp_path)
+    input_dir = workspace / "input"
+    _write_frz_yaml(input_dir, _make_valid_frz_yaml())
+
+    with patch("frz_manage_runtime.Path.cwd", return_value=workspace):
+        freeze_args = argparse.Namespace(input=str(input_dir), id="FRZ-001")
+        freeze_frz(freeze_args)
+
+        capsys.readouterr()
+        list_args = argparse.Namespace()
+        list_frz(list_args)
+
+    captured = capsys.readouterr()
+    assert "REV_TYPE" in captured.out, f"Must show REV_TYPE column: {captured.out}"
+    assert "PREV_FRZ" in captured.out, f"Must show PREV_FRZ column: {captured.out}"
+    # FRZ-001 is a "new" type, so PREV_FRZ should be '-'
+    assert "new" in captured.out
+
+
+def test_empty_prev_frz_shows_dash() -> None:
+    """Non-revision records show '-' in the PREV_FRZ column."""
+    records = [
+        {"frz_id": "FRZ-001", "status": "frozen", "created_at": "2026-01-01", "msc_valid": True, "revision_type": "new"},
+    ]
+    out = _format_frz_list(records)
+    assert "-" in out, f"Empty prev_frz should show '-': {out}"
+    # Ensure it's in the data row, not just the separator
+    lines = out.split("\n")
+    assert len(lines) >= 3  # header, separator, at least one data row
+    data_row = lines[2]
+    # The '-' should appear as a column value in the data row
+    # Count '-' occurrences: separator has many, data row for "new" type has exactly one
+    dash_cols = [col.strip() for col in data_row.split("  ") if col.strip() == "-"]
+    assert len(dash_cols) == 1, f"Expected exactly one '-' in PREV_FRZ column: {data_row}"
+
+
+def test_invalid_previous_frz_validation(tmp_path: Path, capsys: pytest.CaptureFixture) -> None:
+    """Revise with non-existent previous_frz should warn but allow (current behavior)."""
+    workspace = _setup_workspace(tmp_path)
+    input_dir = workspace / "input"
+    _write_frz_yaml(input_dir, _make_valid_frz_yaml())
+
+    # No FRZ-999 exists, but we create FRZ-001 that revises it
+    with patch("frz_manage_runtime.Path.cwd", return_value=workspace):
+        args = argparse.Namespace(
+            input=str(input_dir), id="FRZ-001", type="revise",
+            reason="test", previous_frz="FRZ-999",
+        )
+        result = freeze_frz(args)
+        assert result == 0
+
+    # Verify registry has the record with previous_frz_ref pointing to FRZ-999
+    reg_path = registry_path(workspace)
+    records = _load_registry(reg_path)
+    frz001 = next(r for r in records if r["frz_id"] == "FRZ-001")
+    assert frz001.get("previous_frz_ref") == "FRZ-999"
+
+
+def test_revise_via_main_cli(tmp_path: Path, capsys: pytest.CaptureFixture) -> None:
+    """Full CLI path: freeze --type revise --reason --previous-frz."""
+    workspace = _setup_workspace(tmp_path)
+    input_dir = workspace / "input"
+    _write_frz_yaml(input_dir, _make_valid_frz_yaml())
+
+    # Override cwd
+    import os
+    original_cwd = os.getcwd()
+    os.chdir(workspace)
+
+    try:
+        # First freeze FRZ-001 via main()
+        result1 = main(["freeze", "--input", str(input_dir), "--id", "FRZ-001"])
+        assert result1 == 0
+
+        # Create second FRZ for revision
+        input_dir2 = workspace / "input2"
+        revised = _make_valid_frz_yaml()
+        revised["frz_id"] = "FRZ-002"
+        _write_frz_yaml(input_dir2, revised)
+
+        # Freeze FRZ-002 as revision of FRZ-001 via main()
+        result2 = main([
+            "freeze", "--input", str(input_dir2), "--id", "FRZ-002",
+            "--type", "revise", "--reason", "semantic change", "--previous-frz", "FRZ-001",
+        ])
+        assert result2 == 0
+
+        # Verify list shows revision metadata
+        result3 = main(["list"])
+        assert result3 == 0
+        captured = capsys.readouterr()
+        assert "FRZ-002" in captured.out
+        assert "revise" in captured.out
+        assert "FRZ-001" in captured.out
+
+        # Verify registry
+        records = _load_registry(registry_path(workspace))
+        frz002 = next(r for r in records if r["frz_id"] == "FRZ-002")
+        assert frz002["revision_type"] == "revise"
+        assert frz002.get("previous_frz_ref") == "FRZ-001"
+    finally:
+        os.chdir(original_cwd)
