@@ -30,6 +30,7 @@ except ImportError:
     yaml = None  # type: ignore[assignment]
 
 from cli.lib.patch_awareness import PatchAwarenessStatus, PatchContext
+from cli.lib.patch_schema import derive_grade
 from cli.lib.test_exec_artifacts import resolve_patch_context
 
 
@@ -46,9 +47,13 @@ def summarize_patch(patch: dict[str, Any]) -> dict[str, Any]:
     dict
         Minimal summary with only the fields needed for AI awareness.
     """
+    change_class = patch.get("change_class", "other")
+    grade_level = patch.get("grade_level", derive_grade(change_class).value)
     summary: dict[str, Any] = {
         "file_path": patch.get("file_path", ""),
-        "change_class": patch.get("change_class", "other"),
+        "change_class": change_class,
+        "grade_level": grade_level,
+        "grade_derived_from": "patch_schema.derive_grade",
         "patch_status": patch.get("patch_status", PatchAwarenessStatus.PENDING.value),
     }
     if "commit" in patch:
