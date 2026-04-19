@@ -114,24 +114,24 @@ Requirements for v2.0 milestone — SSOT semantic governance upgrade.
 >
 > **整体流程:** 变更发现 → [ll-patch-capture] 三分类 → visual/interaction → Minor Patch → semantic → [ll-frz-manage freeze --type revise] 回流
 
-- [ ] **GRADE-01**: 三分类映射 (visual→Minor, interaction→Minor, semantic→Major)
+- [x] **GRADE-01**: 三分类映射 (visual→Minor, interaction→Minor, semantic→Major)
   - **Skill 修改:** `ll-patch-capture` — 集成三分类
     - **当前行为:** Patch 捕获 + 双路径执行
     - **v2.0 行为:** 捕获时自动分类，visual/interaction → Minor patch，semantic → 触发 Major 回流
     - **Workflow 位置:** dev 技能执行过程中发现变更时
 
-- [ ] **GRADE-02**: Minor 路径处理 (retain_in_code + backwrite UI/TESTSET)
+- [x] **GRADE-02**: Minor 路径处理 (retain_in_code + backwrite UI/TESTSET)
   - **Skill 修改:** `ll-experience-patch-settle` — 处理 Minor 变更的 settle 逻辑
   - **调用方式:** `ll experience-patch-settle process --patch <patch-yaml> --type minor`
   - **Workflow:** Minor Patch 验证通过后，backwrite 到 UI Spec / Flow Spec
 
-- [ ] **GRADE-03**: Major 路径处理 (回流 FRZ 重冻结)
+- [x] **GRADE-03**: Major 路径处理 (回流 FRZ 重冻结)
   - **Skill 修改:** `ll-frz-manage` — 冻结模式加 `--type revise` 参数
     - **调用方式:** `ll frz-manage freeze --input <doc-dir> --id FRZ-xxx --type revise --reason "..." --previous_frz FRZ-yyy`
     - **Workflow:** semantic 变更触发，创建新 FRZ 修订 → 人工讨论 → 重新冻结 → 重新抽取
     - **注册表:** 记录 revision chain（parent_frz_ref, reason, status）
 
-- [ ] **GRADE-04**: 与 ADR-049 Patch 层协同机制
+- [x] **GRADE-04**: 与 ADR-049 Patch 层协同机制
   - **Skill 修改:** `ll-patch-aware-context` — 加语义变更检测
     - **当前行为:** 注入 Patch 上下文到编辑流程
     - **v2.0 行为:** 注入时检测当前 Patch 是 Minor 还是 Major 变更
@@ -220,10 +220,10 @@ Which phases cover which requirements. Updated during roadmap creation.
 | STAB-02 | Phase 3 | Pending |
 | STAB-03 | Phase 3 | Pending |
 | STAB-04 | Phase 3 | Pending |
-| GRADE-01 | Phase 4 | Pending |
-| GRADE-02 | Phase 4 | Pending |
-| GRADE-03 | Phase 4 | Pending |
-| GRADE-04 | Phase 4 | Pending |
+| GRADE-01 | Phase 4 | Complete |
+| GRADE-02 | Phase 4 | Complete |
+| GRADE-03 | Phase 4 | Complete |
+| GRADE-04 | Phase 4 | Complete |
 | PACK-01 | Phase 5 | Pending |
 | PACK-02 | Phase 5 | Pending |
 | PACK-03 | Phase 5 | Deferred to v2.1 |

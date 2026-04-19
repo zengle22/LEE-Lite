@@ -82,16 +82,17 @@
 
 **Requirements:** GRADE-01, GRADE-02, GRADE-03, GRADE-04
 
-**Plans:**
+**Plans:** 4/4 plans complete
 
-- [ ] 10-01 — `skills/ll-patch-capture`: 集成三分类 (visual→Minor, interaction→Minor, semantic→Major)
-- [ ] 10-02 — `skills/ll-experience-patch-settle`: Minor settle 逻辑 (backwrite UI/TESTSET)
-- [ ] 10-03 — `skills/ll-frz-manage`: 冻结模式加 `--type revise` 参数 (Major 回流)
-- [ ] 10-04 — `skills/ll-patch-aware-context`: 注入时检测 Minor/Major 变更
+Plans:
+- [x] 10-01-PLAN.md — `skills/ll-patch-capture`: 集成三分类 (visual→Minor, interaction→Minor, semantic→Major) + GradeLevel enum (GRADE-01)
+- [x] 10-02-PLAN.md — `skills/ll-experience-patch-settle`: Minor settle 逻辑 (backwrite UI/TESTSET) (GRADE-02, GRADE-04)
+- [x] 10-03-PLAN.md — `skills/ll-frz-manage`: 冻结模式加 `--type revise` 参数 (Major 回流) (GRADE-03)
+- [x] 10-04-PLAN.md — `skills/ll-patch-aware-context`: 注入时检测 Minor/Major 变更 (GRADE-04)
 
 **Success Criteria:**
 1. `ll-patch-capture` 捕获变更时自动分类，visual/interaction → Minor patch
-2. semantic 变更触发 Major 回流: `ll frz-manage freeze --type revise --previous_frz FRZ-xxx`
+2. semantic 变更触发 Major 回流: `ll frz-manage freeze --type revise --previous-frz FRZ-xxx`
 3. FRZ 注册表记录 revision chain（parent_frz_ref, reason, status）
 4. Minor Patch 验证通过后 backwrite 到 UI Spec / Flow Spec
 5. `ll-patch-aware-context` 注入时正确标记 Patch 类型
@@ -161,4 +162,4 @@
 
 ---
 *Roadmap created: 2026-04-18*
-*Last updated: 2026-04-18 after v2.0 roadmap creation*
+*Last updated: 2026-04-18 after Phase 10 planning*

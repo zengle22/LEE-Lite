@@ -3,12 +3,12 @@ gsd_state_version: 1.0
 milestone: v2.0
 milestone_name: milestone
 status: planning
-last_updated: "2026-04-18T14:07:57.973Z"
+last_updated: "2026-04-19T10:21:39.058Z"
 progress:
   total_phases: 5
-  completed_phases: 3
-  total_plans: 10
-  completed_plans: 10
+  completed_phases: 4
+  total_plans: 14
+  completed_plans: 14
   percent: 100
 ---
 
@@ -17,7 +17,7 @@ progress:
 **Project:** ADR-050/051 SSOT 语义治理升级
 **Status:** Ready to plan
 **Core value:** 确保 SSOT 不再逐层生成，而是从 FRZ 冻结包中分层语义抽取，执行层只能补全不能改写语义
-**Current focus:** Phase 1: FRZ 冻结层基础设施
+**Current focus:** Phase 10 — change-grading
 
 ## Roadmap Summary
 
