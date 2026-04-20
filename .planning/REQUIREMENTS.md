@@ -145,24 +145,24 @@ Requirements for v2.0 milestone — SSOT semantic governance upgrade.
 >
 > **v2.1 scope (deferred):** 自动化 loop 执行器 + 双链验证集成 + 失败暂停。
 
-- [ ] **PACK-01**: PACK YAML 结构定义 + schema 验证
+- [x] **PACK-01**: PACK YAML 结构定义 + schema 验证
   - **Skill/工具:** `ssot/schemas/qa/task_pack.yaml` (新 schema) + `cli/lib/task_pack_schema.py` (新)
   - **调用方式:** `from cli.lib.task_pack_schema import validate; validate(pack_yaml)`
   - **Workflow:** 创建 Task Pack 时验证结构合法性
 
-- [ ] **PACK-02**: depends_on 依赖解析 (拓扑排序)
+- [x] **PACK-02**: depends_on 依赖解析 (拓扑排序)
   - **Skill/工具:** `cli/lib/task_pack_resolver.py` (新)
   - **调用方式:** `from cli.lib.task_pack_resolver import resolve_order; order = resolve_order(pack_yaml)`
   - **Workflow:** Task Pack 加载后，解析依赖得到可执行顺序
 
-- [ ] **PACK-03**: 顺序循环执行器 (一次一个任务) — **DEFERRED to v2.1**
+- [x] **PACK-03**: 顺序循环执行器 (一次一个任务) — **DEFERRED to v2.1**
   - ~~`ll-execution-loop-job-runner`~~ — 延期
   - **v2.0 替代方案:** 手动按 resolved_order 逐个执行 task
 
-- [ ] **PACK-04**: 失败暂停 + 等待人工干预 — **DEFERRED to v2.1**
+- [x] **PACK-04**: 失败暂停 + 等待人工干预 — **DEFERRED to v2.1**
   - 延期到 v2.1 与 PACK-03 一起实现
 
-- [ ] **PACK-05**: 测试任务绑定到 API/E2E 双链 — **DEFERRED to v2.1**
+- [x] **PACK-05**: 测试任务绑定到 API/E2E 双链 — **DEFERRED to v2.1**
   - 延期到 v2.1 与 PACK-03 一起实现
 
 ### ~~三轴管理~~ (AXIS-01~03)
@@ -224,8 +224,8 @@ Which phases cover which requirements. Updated during roadmap creation.
 | GRADE-02 | Phase 4 | Complete |
 | GRADE-03 | Phase 4 | Complete |
 | GRADE-04 | Phase 4 | Complete |
-| PACK-01 | Phase 5 | Pending |
-| PACK-02 | Phase 5 | Pending |
+| PACK-01 | Phase 5 | Complete |
+| PACK-02 | Phase 5 | Complete |
 | PACK-03 | Phase 5 | Deferred to v2.1 |
 | PACK-04 | Phase 5 | Deferred to v2.1 |
 | PACK-05 | Phase 5 | Deferred to v2.1 |
