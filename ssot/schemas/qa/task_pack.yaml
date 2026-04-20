@@ -1,0 +1,17 @@
+# Task Pack YAML Schema (ADR-051 §2.1)
+# All task packs must conform to this schema.
+
+task_pack:
+  pack_id: string               # Required — unique pack identifier (PACK-... format)
+  feat_ref: string              # Required — references parent FEAT
+  created_at: datetime          # Required — ISO 8601
+  tasks:                        # Required — non-empty list of tasks
+    - task_id: string           # Required — unique within pack (TASK-NNN format, 3+ digits)
+      type: enum[impl, test-api, test-e2e, review, doc, gate]
+      title: string             # Required — human-readable description
+      depends_on:               # Optional — prerequisite task_ids, defaults []
+        - string
+      status: enum[pending, running, passed, failed, still_failed, skipped, blocked]
+                                # Optional — default: pending
+      verifies:                 # Optional — acceptance criterion IDs, defaults []
+        - string                # e.g., "AC-001"
