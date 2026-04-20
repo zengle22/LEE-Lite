@@ -30,9 +30,8 @@ Create governed workflow skills for LEE Lite. Each generated skill must remain a
    - Run `python scripts/validate_lee_workflow_skill.py <path/to/generated-skill>`.
    - If the standard skill validator is available in the environment, run it too.
 6. Install when needed.
-   - Prefer `python ..\ll-skill-install\scripts\install_adapter.py --source <path-to-canonical-skill> --replace` to install a canonical skill into Codex as a workspace-bound adapter.
-   - Keep `python scripts/install_profile.py --profile codex` only as a compatibility wrapper that delegates to `ll-skill-install`.
-   - Prefer install-time adaptation over maintaining a separate Codex source tree unless scripts, structure, or trigger logic genuinely diverge.
+   - Use `ll-skill-install` to install a canonical skill into Codex or Claude Code as a workspace-bound adapter.
+   - `scripts/install_profile.py` is a thin compatibility wrapper that delegates to `ll-skill-install`; do not invoke it directly unless maintaining legacy code.
 
 ## Non-Negotiable Rules
 

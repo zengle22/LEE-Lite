@@ -1,6 +1,6 @@
 ---
 name: ll-frz-manage
-description: ADR-050 governed skill for FRZ (Freeze Package) management: validate, freeze, list, and extract operations.
+description: "ADR-050 governed skill for FRZ (Freeze Package) management: validate, freeze, list, and extract operations."
 ---
 
 # LL FRZ Manage
@@ -31,9 +31,10 @@ This skill implements the ADR-050 FRZ lifecycle management interface. It accepts
 ## Execution Protocol
 
 1. **Accept input** — either a doc directory path (validate/freeze) or registry query parameters (list).
-2. **Determine mode** — `validate`, `freeze`, `list`, or `extract` based on subcommand.
+2. **Determine mode** — `validate`, `freeze` (new/revise), `list`, or `extract` based on subcommand.
 3a. **validate mode**: `ll frz-manage validate --input <doc-dir>` — reads FRZ YAML from doc directory, runs MSC validation across all 5 dimensions, prints structured report with present/missing dimensions and PASS/FAIL status.
 3b. **freeze mode**: `ll frz-manage freeze --input <doc-dir> --id FRZ-xxx` — validates MSC first (rejects if invalid), saves FRZ package to artifacts directory with input snapshot, registers to FRZ registry with status=frozen.
+3b-r. **freeze --type revise**: `ll frz-manage freeze --type revise --input <doc-dir> --previous-frz FRZ-xxx --reason "..."` — same as freeze mode but records a revision chain linking to the previous FRZ, runs circular-reference prevention, and tags `revision_type=revise` in the registry. Used for Major patches that require FRZ re-freeze. After revise completes, the user must manually re-run the extraction chain (SRC → EPIC → FEAT).
 3c. **list mode**: `ll frz-manage list [--status frozen|blocked]` — queries FRZ registry, displays formatted table of registered packages with ID, status, created_at, MSC validity.
 3d. **extract mode**: `ll frz-manage extract --frz <frz-id> --output <dir>` — stub for Phase 8, prints "not implemented yet, use in Phase 8".
 4. **Validate output** — confirm MSC report completeness, registry consistency, output format correctness.

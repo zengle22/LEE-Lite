@@ -37,8 +37,8 @@ This skill implements the ADR-049 dual-path experience patch registration. It ac
 3a. **Prompt-to-Patch path**: Executor Agent analyzes change description, generates Patch YAML draft with all fields pre-filled per ADR-049 decision tree. Set `grade_level`, `dimensions_detected`, `confidence`, and `needs_human_review` fields based on classification result. Use `cli/lib/patch_schema.py` `derive_grade()` for deterministic mapping. Writes to `ssot/experience-patches/{FEAT-ID}/UXPATCH-NNNN__{slug}.yaml`.
 3b. **Document-to-SRC path**: Route to `ll-product-raw-to-src` skill; if experience-layer change detected, generate semantic Patch with `resolution.src_created = SRC ID`.
 4. **Supervisor Agent** validates generated Patch — runs schema validation via `cli/lib/patch_schema.py`, checks for conflicts, decides auto-pass vs escalate to human.
-5. **Auto-pass** -> register Patch, update `patch_registry.json`, emit "已登记 UXPATCH-XXXX" notification.
-6. **Escalate** -> present structured review checklist to user for confirmation.
+5. **Auto-pass** (sub-process of capture) -> Supervisor approves without human review when confidence is high and no conflicts detected. Register Patch, update `patch_registry.json`, emit "已登记 UXPATCH-XXXX" notification.
+6. **Escalate** (sub-process of capture) -> Supervisor flags ambiguity or conflicts, presents structured review checklist to user for confirmation. After human confirmation, register Patch same as auto-pass.
 7. **Validate output** — confirm generated YAML passes schema validation, registry updated.
 
 ## Workflow Boundary

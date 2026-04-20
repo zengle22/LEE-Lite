@@ -3,6 +3,12 @@
 Scans experience-patches for non-terminal patches relevant to a target
 file and formats them as context-friendly text, respecting the context
 budget of 3000 tokens / 10 patches (ADR-049 section 12.1).
+
+BOUNDARY: This module handles CONSUMER-SIDE injection — it matches patches
+by target file and returns markdown for AI consumption during code edits.
+It is NOT the same as patch_aware_context.py, which handles FULL-SCAN
+recording by feat-ref for evidence capture (that script was removed as a
+skill; its function remains in cli/lib/patch_context_injector.py).
 """
 
 from __future__ import annotations

@@ -14,6 +14,7 @@ This skill is a lite-native governed workflow between `ll-product-src-to-epic` a
 - Downstream workflows:
   - `workflow.dev.feat_to_tech`
   - `workflow.qa.feat_to_testset`
+- **Downstream consumer ordering**: After FEAT freeze, when `design_impact_required=true`, consumers MUST run `ll-dev-feat-to-surface-map` first (design ownership layer), then run `ll-dev-feat-to-tech` and `ll-dev-feat-to-proto` in parallel.
 - Derived child artifacts expected downstream: `TECH`, `TESTSET`
 - Preferred runtime command: `python scripts/epic_to_feat.py run --input <epic-package-dir> --repo-root <repo-root>`
 
