@@ -1,0 +1,49 @@
+{
+  "status": "issues",
+  "phase": "08",
+  "summary": {
+    "CRITICAL": {
+      "count": 0,
+      "status": "pass"
+    },
+    "HIGH": {
+      "count": 4,
+      "status": "warn"
+    },
+    "MEDIUM": {
+      "count": 5,
+      "status": "info"
+    },
+    "LOW": {
+      "count": 3,
+      "status": "note"
+    }
+  },
+  "verdict": "WARNING - 4 HIGH issues should be resolved before merge",
+  "findings": [
+    {
+      "severity": "HIGH",
+      "id": "HIGH-1",
+      "file": "skills/ll-product-epic-to-feat/scripts/epic_to_feat_runtime.py",
+      "issue": "File is 2948 lines, nearly 4x the 800-line project max. Split into focused modules."
+    },
+    {
+      "severity": "HIGH",
+      "id": "HIGH-2",
+      "file": "skills/ll-product-src-to-epic/scripts/src_to_epic_runtime.py",
+      "issue": "File is 1021 lines, exceeds 800-line max."
+    },
+    {
+      "severity": "HIGH",
+      "id": "HIGH-3",
+      "file": "skills/ll-product-epic-to-feat/scripts/epic_to_feat_extract.py:257",
+      "issue": "Drift detection passes trivial target data - always reports drift."
+    },
+    {
+      "severity": "HIGH",
+      "id": "HIGH-4",
+      "file": "skills/ll-product-epic-to-feat/scripts/epic_to_feat_extract.py:247-249",
+      "issue": "Duplicate anchor registration silently swallowed."
+    }
+  ]
+}

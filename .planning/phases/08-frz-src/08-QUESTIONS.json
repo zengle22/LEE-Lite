@@ -1,0 +1,239 @@
+{
+  "phase": "08-frz-src",
+  "generated_at": "2026-04-18T15:25:00+08:00",
+  "stats": {
+    "total": 14,
+    "answered": 14,
+    "chat_more": 1,
+    "remaining": 0
+  },
+  "sections": [
+    {
+      "id": "extract-strategy",
+      "title": "抽取策略 (Extract Strategy)",
+      "questions": [
+        {
+          "id": "Q-01",
+          "title": "FRZ → SRC 抽取方式",
+          "context": "ADR-050 §4 明确 SSOT 从 FRZ '抽取' 而非 '生成'。现有 src_to_epic_runtime.py 已有 run_workflow/executor_run 流程，但输入是 RAW/SRC 包而非 FRZ。需要将 FRZ 的 5 维 MSC 语义映射到 SRC 结构化字段。",
+          "options": [
+            {"id": "a", "label": "规则模板投影 (Recommended)", "description": "基于 FRZ MSC 维度到 SRC 字段的预定义映射规则，确定性输出。可审计、可回溯、不依赖 LLM 判断。适合当前 file-first 架构。"},
+            {"id": "b", "label": "语义匹配 + 填充", "description": "解析 FRZ 语义后，用模式匹配填充 SRC 模板。比纯规则灵活，但仍需定义匹配规则。复杂度中等。"},
+            {"id": "c", "label": "自定义", "description": ""}
+          ],
+          "answer": "a",
+          "chat_more": "",
+          "status": "answered"
+        },
+        {
+          "id": "Q-02",
+          "title": "抽取输出格式",
+          "context": "现有 src_to_epic 输出是 artifacts 目录下的 JSON/YAML 文件包。FRZ extract 的输出 SRC 应遵循相同格式还是新建独立格式？",
+          "options": [
+            {"id": "a", "label": "沿用现有 SRC 包格式 (Recommended)", "description": "输出与现有 src_to_epic 相同的 SRC 包结构（JSON + YAML + metadata），下游无需修改。保持 pipeline 兼容性。"},
+            {"id": "b", "label": "新建 FRZ-专用格式", "description": "定义新的 FRZ-extract 专属输出格式，包含更多 FRZ 溯源信息。需要修改下游消费逻辑。"},
+            {"id": "c", "label": "自定义", "description": ""}
+          ],
+          "answer": "a",
+          "chat_more": "",
+          "status": "answered"
+        }
+      ]
+    },
+    {
+      "id": "projection-guard",
+      "title": "投影不变性守卫 (Projection Guard)",
+      "questions": [
+        {
+          "id": "Q-03",
+          "title": "守卫检查时机",
+          "context": "ADR-050 §4.1 要求 'SSOT 只表达 FRZ，不得改写 FRZ 语义'。EXTR-05 要求抽取操作的守卫步骤拒绝超出 derived_allowed 范围的改写。",
+          "options": [
+            {"id": "a", "label": "抽取后验证 (Recommended)", "description": "抽取完成后比对输出与 FRZ derived_allowed 范围，超出则拒绝。实现简单，适合规则投影。"},
+            {"id": "b", "label": "抽取前预检 + 抽取后验证", "description": "抽取前检查 FRZ derived_allowed 定义抽取边界，抽取后再次验证。更安全但增加复杂度。"},
+            {"id": "c", "label": "自定义", "description": ""}
+          ],
+          "answer": "a",
+          "chat_more": "",
+          "status": "answered"
+        },
+        {
+          "id": "Q-04",
+          "title": "derived_allowed 范围定义方式",
+          "context": "FRZ freeze.yaml 中有 derived_allowed 字段（ADR-050 §3.2.3），列出允许下游派生的范围。",
+          "options": [
+            {"id": "a", "label": "字段白名单", "description": "derived_allowed 是字段名列表，只有这些字段可以被派生填充。检查时验证输出中没有新增非白名单字段。"},
+            {"id": "b", "label": "MSC 维度锁定", "description": "derived_allowed 锁定 MSC 5 维为核心不可变，其他字段均可派生。"},
+            {"id": "c", "label": "自定义", "description": ""}
+          ],
+          "answer": "a",
+          "chat_more": "",
+          "status": "answered"
+        }
+      ]
+    },
+    {
+      "id": "drift-detection",
+      "title": "漂移检测 (Drift Detection)",
+      "questions": [
+        {
+          "id": "Q-05",
+          "title": "漂移检测粒度",
+          "context": "EXTR-04 要求语义漂移检测器比对抽取前后语义差异。",
+          "options": [
+            {"id": "a", "label": "锚点级漂移 (Recommended)", "description": "以锚点 ID 为单位，检查每个锚点在抽取后是否存在且语义一致。"},
+            {"id": "b", "label": "MSC 维度级漂移", "description": "检查 5 个 MSC 维度是否完整保留。"},
+            {"id": "c", "label": "字段级 diff", "description": "逐字段比对，最精细但噪声大。"},
+            {"id": "d", "label": "自定义", "description": ""}
+          ],
+          "answer": "a",
+          "chat_more": "",
+          "status": "answered"
+        },
+        {
+          "id": "Q-06",
+          "title": "漂移拦截策略",
+          "context": "检测到漂移后如何处理？",
+          "options": [
+            {"id": "a", "label": "拦截 + 报告 (Recommended)", "description": "返回 block verdict + 漂移详细报告，不写入下游。"},
+            {"id": "b", "label": "拦截 + 自动修正", "description": "检测到漂移后自动尝试修正。"},
+            {"id": "c", "label": "自定义", "description": ""}
+          ],
+          "answer": "a",
+          "chat_more": "",
+          "status": "answered"
+        }
+      ]
+    },
+    {
+      "id": "cascade-trigger",
+      "title": "级联抽取触发 (Cascade Trigger)",
+      "questions": [
+        {
+          "id": "Q-07",
+          "title": "SRC → EPIC → FEAT 级联方式",
+          "context": "EXTR-02 要求 SRC→EPIC→FEAT 级联投影。",
+          "options": [
+            {"id": "a", "label": "新增 extract 子命令 (Recommended)", "description": "在 src_to_epic.py 和 epic_to_feat.py 中各加 extract 子命令，接受 --frz 参数。"},
+            {"id": "b", "label": "frz-manage 统一抽取", "description": "所有抽取操作集中在 ll frz-manage extract 中完成。"},
+            {"id": "c", "label": "自定义", "description": ""}
+          ],
+          "answer": "a",
+          "chat_more": "",
+          "status": "answered"
+        },
+        {
+          "id": "Q-08",
+          "title": "级联是手动触发还是自动链",
+          "context": "ROADMAP 定义分开命令，但用户是否希望一键跑通全链路？",
+          "options": [
+            {"id": "a", "label": "手动分步调用 (Recommended)", "description": "每个抽取步骤手动调用。"},
+            {"id": "b", "label": "一键全链 + 可选分步", "description": "ll frz-manage extract --cascade 一键跑通，同时保留分步命令。"},
+            {"id": "c", "label": "自定义", "description": ""}
+          ],
+          "answer": "b",
+          "chat_more": "全链要加上中间的 gate skill，每步抽取后走 gate 审核再继续下一层。范围覆盖整个 SSOT 链，不仅是 SRC→EPIC→FEAT，后续的 TECH/UI/TEST/IMPL 同样要从 FRZ 对应的文档里做语义抽取。如果对应内容信息缺失需要给出提示。",
+          "status": "chat-more"
+        }
+      ]
+    },
+    {
+      "id": "anchor-timing",
+      "title": "锚点注册时机 (Anchor Registration)",
+      "questions": [
+        {
+          "id": "Q-09",
+          "title": "锚点何时注册",
+          "context": "EXTR-03 (AnchorRegistry) 已在 Phase 7 交付。",
+          "options": [
+            {"id": "a", "label": "抽取时注册 (Recommended)", "description": "抽取时立即注册，实时可追溯。"},
+            {"id": "b", "label": "Gate 通过后注册", "description": "gate 审核后才注册。"},
+            {"id": "c", "label": "自定义", "description": ""}
+          ],
+          "answer": "a",
+          "chat_more": "",
+          "status": "answered"
+        },
+        {
+          "id": "Q-10",
+          "title": "锚点 ID 生成策略",
+          "context": "抽取时锚点 ID 是从 FRZ 继承还是重新生成？",
+          "options": [
+            {"id": "a", "label": "从 FRZ 继承 (Recommended)", "description": "FRZ 中的锚点 ID 直接复用到 SRC/EPIC/FEAT，projection_path 不同。"},
+            {"id": "b", "label": "每层重新生成", "description": "每层生成新的锚点 ID。"},
+            {"id": "c", "label": "自定义", "description": ""}
+          ],
+          "answer": "a",
+          "chat_more": "",
+          "status": "answered"
+        }
+      ]
+    },
+    {
+      "id": "testing-approach",
+      "title": "测试策略 (Testing Approach)",
+      "questions": [
+        {
+          "id": "Q-11",
+          "title": "抽取功能测试方式",
+          "context": "Phase 7 测试使用了 70 个单元测试。",
+          "options": [
+            {"id": "a", "label": "fixture-based 单元测试 (Recommended)", "description": "使用固定 FRZ fixture 验证抽取输出。"},
+            {"id": "b", "label": "端到端集成测试", "description": "跑完整链路验证端到端。"},
+            {"id": "c", "label": "两者结合", "description": "单元测试覆盖组件，集成测试覆盖全链路。"},
+            {"id": "d", "label": "自定义", "description": ""}
+          ],
+          "answer": "c",
+          "chat_more": "",
+          "status": "answered"
+        },
+        {
+          "id": "Q-12",
+          "title": "漂移检测器测试用例",
+          "context": "漂移检测需要验证多种漂移场景。",
+          "options": [
+            {"id": "a", "label": "核心场景全覆盖", "description": "锚点缺失、语义篡改、新增非 derived_allowed 字段、constraints 违反、known_unknowns 过期。"},
+            {"id": "b", "label": "最小可用集", "description": "只测试锚点缺失和语义篡改。"},
+            {"id": "c", "label": "自定义", "description": ""}
+          ],
+          "answer": "a",
+          "chat_more": "",
+          "status": "answered"
+        }
+      ]
+    },
+    {
+      "id": "scope-boundary",
+      "title": "范围边界 (Scope Boundary)",
+      "questions": [
+        {
+          "id": "Q-13",
+          "title": "Phase 8 是否包含 Gate 集成",
+          "context": "现有 src_to_epic 有 gate_integration 脚本。",
+          "options": [
+            {"id": "a", "label": "复用现有 gate 逻辑 (Recommended)", "description": "抽取产物走相同 gate 流程，增加锚点检查。"},
+            {"id": "b", "label": "新增抽取专用 gate", "description": "为抽取模式新增 gate 类型。"},
+            {"id": "c", "label": "自定义", "description": ""}
+          ],
+          "answer": "a",
+          "chat_more": "",
+          "status": "answered"
+        },
+        {
+          "id": "Q-14",
+          "title": "Phase 8 交付物优先级",
+          "context": "ROADMAP 定义了 4 个 plan。",
+          "options": [
+            {"id": "a", "label": "按 ROADMAP 顺序", "description": "drift_detector → frz-manage extract → src-to-epic → epic-to-feat。"},
+            {"id": "b", "label": "先主入口后支撑", "description": "frz-manage extract 骨架 → drift_detector → 级联。"},
+            {"id": "c", "label": "Claude 自行决定", "description": "根据依赖关系自行排序。"},
+            {"id": "d", "label": "自定义", "description": ""}
+          ],
+          "answer": "a",
+          "chat_more": "",
+          "status": "answered"
+        }
+      ]
+    }
+  ]
+}

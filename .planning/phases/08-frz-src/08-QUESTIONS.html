@@ -1,0 +1,252 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Phase 8: FRZ&#8594;SRC 语义抽取链 — Discussion Questions</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:#f8fafc;color:#1e293b;line-height:1.6;max-width:1200px;margin:0 auto;padding:24px}
+h1{font-size:1.5rem;font-weight:700;margin-bottom:8px}
+h2{font-size:1.1rem;font-weight:600;margin-bottom:12px;cursor:pointer;user-select:none;display:flex;align-items:center;gap:8px}
+h2:hover{color:#3b82f6}
+h2 .arrow{transition:transform .2s}
+h2.collapsed .arrow{transform:rotate(-90deg)}
+.stats{display:flex;gap:16px;padding:16px;background:#fff;border-radius:12px;border:1px solid #e2e8f0;margin-bottom:24px;align-items:center;flex-wrap:wrap}
+.stat{text-align:center;min-width:80px}
+.stat .num{font-size:1.5rem;font-weight:700;color:#3b82f6}
+.stat .label{font-size:.75rem;color:#64748b;text-transform:uppercase;letter-spacing:.05em}
+.progress-bar{width:100%;height:8px;background:#e2e8f0;border-radius:4px;overflow:hidden;margin-top:8px}
+.progress-fill{height:100%;background:linear-gradient(90deg,#22c55e,#16a34a);transition:width .3s;border-radius:4px}
+.section{margin-bottom:20px;background:#fff;border-radius:12px;border:1px solid #e2e8f0;overflow:hidden}
+.section-header{padding:16px 20px;border-bottom:1px solid #e2e8f0}
+.section-body{padding:16px 20px}
+.section-body.collapsed{display:none}
+.section-count{font-size:.8rem;color:#64748b;font-weight:400}
+.q-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(340px,1fr));gap:16px}
+.q-card{border:1px solid #e2e8f0;border-radius:10px;padding:16px;background:#fff;transition:all .2s}
+.q-card.answered{border:2px solid #22c55e;background:#f0fdf4}
+.q-badge{display:inline-block;background:#e2e8f0;color:#475569;font-size:.7rem;font-weight:600;padding:2px 8px;border-radius:4px;margin-bottom:8px}
+.q-card.answered .q-badge{background:#dcfce7;color:#16a34a}
+.q-title{font-size:.95rem;font-weight:600;margin-bottom:6px}
+.q-context{font-size:.8rem;color:#94a3b8;font-style:italic;margin-bottom:12px;line-height:1.5}
+.option{margin-bottom:10px;display:flex;align-items:flex-start;gap:8px}
+.option input[type="radio"]{margin-top:4px;accent-color:#3b82f6;flex-shrink:0}
+.option label{font-size:.85rem;cursor:pointer;flex:1}
+.option label strong{display:block;margin-bottom:2px}
+.option label span{color:#64748b;font-size:.8rem}
+textarea{width:100%;border:1px solid #e2e8f0;border-radius:6px;padding:8px;font-size:.8rem;font-family:inherit;resize:vertical;min-height:40px;margin-top:8px;transition:border-color .2s}
+textarea:focus{outline:none;border-color:#3b82f6}
+textarea.has-content{border:2px solid #f97316}
+.save-btn{display:inline-flex;align-items:center;gap:6px;padding:10px 20px;background:#3b82f6;color:#fff;border:none;border-radius:8px;font-size:.9rem;font-weight:600;cursor:pointer;margin:16px 0;transition:background .2s}
+.save-btn:hover{background:#2563eb}
+.top-actions{display:flex;gap:12px;align-items:center;margin-bottom:16px;flex-wrap:wrap}
+.instructions{font-size:.8rem;color:#64748b;background:#fffbeb;padding:10px 14px;border-radius:8px;border:1px solid #fde68a;margin-bottom:16px;line-height:1.5}
+.cmd{background:#f1f5f9;padding:2px 6px;border-radius:4px;font-family:monospace;font-size:.8rem}
+</style>
+</head>
+<body>
+
+<h1>Phase 8: FRZ&#8594;SRC 语义抽取链</h1>
+<p style="color:#64748b;margin-bottom:16px">Discussion Questions — Power Mode</p>
+
+<div class="stats" id="statsBar">
+  <div class="stat"><div class="num" id="totalCount">14</div><div class="label">Total</div></div>
+  <div class="stat"><div class="num" id="answeredCount">0</div><div class="label">Answered</div></div>
+  <div class="stat"><div class="num" id="remainingCount">14</div><div class="label">Remaining</div></div>
+  <div style="flex:1;min-width:200px">
+    <div class="progress-bar"><div class="progress-fill" id="progressFill" style="width:0%"></div></div>
+  </div>
+</div>
+
+<div class="top-actions">
+  <button class="save-btn" onclick="saveAnswers()">&#128190; Save answers</button>
+</div>
+
+<div class="instructions">
+  After answering, click <strong>"Save answers"</strong> — or download the JSON and replace the original file.<br>
+  Then return to Claude and say <span class="cmd">refresh</span> to process your answers, or <span class="cmd">finalize</span> when done.
+</div>
+
+<div id="sectionsContainer"></div>
+
+<div class="top-actions" style="margin-top:24px">
+  <button class="save-btn" onclick="saveAnswers()">&#128190; Save answers</button>
+</div>
+
+<script>
+const JSON_PATH = '08-QUESTIONS.json';
+let data = null;
+
+function init() {
+  // We'll try to fetch the JSON via a data URI since File System Access API needs user gesture
+  // For now, render from the embedded structure and save via download
+  renderFromEmbedded();
+}
+
+function renderFromEmbedded() {
+  data = {"phase":"08-frz-src","sections":[
+    {"id":"extract-strategy","title":"抽取策略 (Extract Strategy)","questions":[
+      {"id":"Q-01","title":"FRZ \u2192 SRC 抽取方式","context":"ADR-050 \u00a74 \u660e\u786e SSOT \u4ece FRZ '\u62bd\u53d6' \u800c\u975e '\u751f\u6210'\u3002\u73b0\u6709 src_to_epic_runtime.py \u5df2\u6709 run_workflow/executor_run \u6d41\u7a0b\uff0c\u4f46\u8f93\u5165\u662f RAW/SRC \u5305\u800c\u975e FRZ\u3002\u9700\u8981\u5c06 FRZ \u7684 5 \u7ef4 MSC \u8bed\u4e49\u6620\u5c04\u5230 SRC \u7ed3\u6784\u5316\u5b57\u6bb5\u3002","options":[{"id":"a","label":"\u89c4\u5219\u6a21\u677f\u6295\u5f71 (Recommended)","description":"\u57fa\u4e8e FRZ MSC \u7ef4\u5ea6\u5230 SRC \u5b57\u6bb5\u7684\u9884\u5b9a\u4e49\u6620\u5c04\u89c4\u5219\uff0c\u786e\u5b9a\u6027\u8f93\u51fa\u3002\u53ef\u5ba1\u8ba1\u3001\u53ef\u8ffd\u6eaf\u3001\u4e0d\u4f9d\u8d56 LLM \u5224\u65ad\u3002\u9002\u5408\u5f53\u524d file-first \u67b6\u6784\u3002"},{"id":"b","label":"\u8bed\u4e49\u5339\u914d + \u586b\u5145","description":"\u89e3\u6790 FRZ \u8bed\u4e49\u540e\uff0c\u7528\u6a21\u5f0f\u5339\u914d\u586b\u5145 SRC \u6a21\u677f\u3002\u6bd4\u7eaf\u89c4\u5219\u7075\u6d3b\uff0c\u4f46\u4ecd\u9700\u5b9a\u4e49\u5339\u914d\u89c4\u5219\u3002\u590d\u6742\u5ea6\u4e2d\u7b49\u3002"},{"id":"c","label":"\u81ea\u5b9a\u4e49","description":""}],"answer":null,"chat_more":"","status":"unanswered"},
+      {"id":"Q-02","title":"\u62bd\u53d6\u8f93\u51fa\u683c\u5f0f","context":"\u73b0\u6709 src_to_epic \u8f93\u51fa\u662f artifacts \u76ee\u5f55\u4e0b\u7684 JSON/YAML \u6587\u4ef6\u5305\u3002FRZ extract \u7684\u8f93\u51fa SRC \u5e94\u9075\u5faa\u76f8\u540c\u683c\u5f0f\u8fd8\u662f\u65b0\u5efa\u72ec\u7acb\u683c\u5f0f\uff1f","options":[{"id":"a","label":"\u6cbf\u7528\u73b0\u6709 SRC \u5305\u683c\u5f0f (Recommended)","description":"\u8f93\u51fa\u4e0e\u73b0\u6709 src_to_epic \u76f8\u540c\u7684 SRC \u5305\u7ed3\u6784\uff08JSON + YAML + metadata\uff09\uff0c\u4e0b\u6e38\u65e0\u9700\u4fee\u6539\u3002\u4fdd\u6301 pipeline \u517c\u5bb9\u6027\u3002"},{"id":"b","label":"\u65b0\u5efa FRZ-\u4e13\u7528\u683c\u5f0f","description":"\u5b9a\u4e49\u65b0\u7684 FRZ-extract \u4e13\u5c5e\u8f93\u51fa\u683c\u5f0f\uff0c\u5305\u542b\u66f4\u591a FRZ \u6eaf\u6e90\u4fe1\u606f\u3002\u9700\u8981\u4fee\u6539\u4e0b\u6e38\u6d88\u8d39\u903b\u8f91\u3002"},{"id":"c","label":"\u81ea\u5b9a\u4e49","description":""}],"answer":null,"chat_more":"","status":"unanswered"}
+    ]},
+    {"id":"projection-guard","title":"\u6295\u5f71\u4e0d\u53d8\u6027\u5b88\u536b (Projection Guard)","questions":[
+      {"id":"Q-03","title":"\u5b88\u536b\u68c0\u67e5\u65f6\u673a","context":"ADR-050 \u00a74.1 \u8981\u6c42 'SSOT \u53ea\u8868\u8fbe FRZ\uff0c\u4e0d\u5f97\u6539\u5199 FRZ \u8bed\u4e49'\u3002EXTR-05 \u8981\u6c42\u62bd\u53d6\u64cd\u4f5c\u7684\u5b88\u536b\u6b65\u9aa4\u62d2\u7edd\u8d85\u51fa derived_allowed \u8303\u56f4\u7684\u6539\u5199\u3002\u5b88\u536b\u5e94\u8be5\u5728\u62bd\u53d6\u524d\u9884\u68c0\u3001\u62bd\u53d6\u540e\u9a8c\u8bc1\uff0c\u8fd8\u662f\u4e24\u8005\u90fd\u505a\uff1f","options":[{"id":"a","label":"\u62bd\u53d6\u540e\u9a8c\u8bc1 (Recommended)","description":"\u62bd\u53d6\u5b8c\u6210\u540e\u6bd4\u5bf9\u8f93\u51fa\u4e0e FRZ derived_allowed \u8303\u56f4\uff0c\u8d85\u51fa\u5219\u62d2\u7edd\u3002\u5b9e\u73b0\u7b80\u5355\uff0c\u9002\u5408\u89c4\u5219\u6295\u5f71\u3002"},{"id":"b","label":"\u62bd\u53d6\u524d\u9884\u68c0 + \u62bd\u53d6\u540e\u9a8c\u8bc1","description":"\u62bd\u53d6\u524d\u68c0\u67e5 FRZ derived_allowed \u5b9a\u4e49\u62bd\u53d6\u8fb9\u754c\uff0c\u62bd\u53d6\u540e\u518d\u6b21\u9a8c\u8bc1\u3002\u66f4\u5b89\u5168\u4f46\u589e\u52a0\u590d\u6742\u5ea6\u3002"},{"id":"c","label":"\u81ea\u5b9a\u4e49","description":""}],"answer":null,"chat_more":"","status":"unanswered"},
+      {"id":"Q-04","title":"derived_allowed \u8303\u56f4\u5b9a\u4e49\u65b9\u5f0f","context":"FRZ freeze.yaml \u4e2d\u6709 derived_allowed \u5b57\u6bb5\uff08ADR-050 \u00a73.2.3\uff09\uff0c\u5217\u51fa\u5141\u8bb8\u4e0b\u6e38\u6d3e\u751f\u7684\u8303\u56f4\u3002\u9700\u8981\u5b9a\u4e49\u8fd9\u4e2a\u5b57\u6bb5\u7684\u5177\u4f53\u683c\u5f0f\u548c\u68c0\u67e5\u903b\u8f91\u3002","options":[{"id":"a","label":"\u5b57\u6bb5\u767d\u540d\u5355","description":"derived_allowed \u662f\u5b57\u6bb5\u540d\u5217\u8868\uff08\u5982 ['tech_details', 'ui_layout']\uff09\uff0c\u53ea\u6709\u8fd9\u4e9b\u5b57\u6bb5\u53ef\u4ee5\u88ab\u6d3e\u751f\u586b\u5145\u3002\u68c0\u67e5\u65f6\u9a8c\u8bc1\u8f93\u51fa\u4e2d\u6ca1\u6709\u65b0\u589e\u975e\u767d\u540d\u5355\u5b57\u6bb5\u3002"},{"id":"b","label":"MSC \u7ef4\u5ea6\u9501\u5b9a","description":"derived_allowed \u9501\u5b9a MSC 5 \u7ef4\u4e3a\u6838\u5fc3\u4e0d\u53ef\u53d8\uff0c\u5176\u4ed6\u5b57\u6bb5\u5747\u53ef\u6d3e\u751f\u3002\u66f4\u7c97\u7c92\u5ea6\u4f46\u66f4\u7b80\u5355\u3002"},{"id":"c","label":"\u81ea\u5b9a\u4e49","description":""}],"answer":null,"chat_more":"","status":"unanswered"}
+    ]},
+    {"id":"drift-detection","title":"\u6f02\u79fb\u68c0\u6d4b (Drift Detection)","questions":[
+      {"id":"Q-05","title":"\u6f02\u79fb\u68c0\u6d4b\u7c92\u5ea6","context":"EXTR-04 \u8981\u6c42\u8bed\u4e49\u6f02\u79fb\u68c0\u6d4b\u5668\u6bd4\u5bf9\u62bd\u53d6\u524d\u540e\u8bed\u4e49\u5dee\u5f02\u3002ADR-050 \u00a73.2.3 \u5b9a\u4e49\u4e86 MSC 5 \u7ef4 + constraints + derived_allowed \u7b49\u5b57\u6bb5\u3002\u68c0\u6d4b\u5e94\u8be5\u5728\u54ea\u4e2a\u7c92\u5ea6\u8fdb\u884c\uff1f","options":[{"id":"a","label":"\u951a\u70b9\u7ea7\u6f02\u79fb (Recommended)","description":"\u4ee5\u951a\u70b9 ID\uff08JRN-xxx, ENT-xxx, SM-xxx, FC-xxx\uff09\u4e3a\u5355\u4f4d\uff0c\u68c0\u67e5\u6bcf\u4e2a\u951a\u70b9\u5728\u62bd\u53d6\u540e\u7684 SRC/EPIC/FEAT \u4e2d\u662f\u5426\u4ecd\u7136\u5b58\u5728\u4e14\u8bed\u4e49\u4e00\u81f4\u3002\u7c92\u5ea6\u9002\u4e2d\uff0c\u53ef\u8ffd\u6eaf\u3002"},{"id":"b","label":"MSC \u7ef4\u5ea6\u7ea7\u6f02\u79fb","description":"\u68c0\u67e5 FRZ \u7684 5 \u4e2a MSC \u7ef4\u5ea6\u5728\u62bd\u53d6\u4ea7\u7269\u4e2d\u662f\u5426\u5b8c\u6574\u4fdd\u7559\u3002\u7c97\u7c92\u5ea6\uff0c\u9002\u5408\u6574\u4f53\u5065\u5eb7\u5ea6\u68c0\u67e5\u3002"},{"id":"c","label":"\u5b57\u6bb5\u7ea7 diff","description":"\u9010\u5b57\u6bb5\u6bd4\u5bf9 FRZ freeze.yaml \u548c\u62bd\u53d6\u4ea7\u7269\u3002\u6700\u7cbe\u7ec6\u4f46\u566a\u58f0\u5927\uff0c\u6d3e\u751f\u5b57\u6bb5\u4f1a\u8bef\u62a5\u6f02\u79fb\u3002"},{"id":"d","label":"\u81ea\u5b9a\u4e49","description":""}],"answer":null,"chat_more":"","status":"unanswered"},
+      {"id":"Q-06","title":"\u6f02\u79fb\u62e6\u622a\u7b56\u7565","context":"\u68c0\u6d4b\u5230\u6f02\u79fb\u540e\u5982\u4f55\u5904\u7406\uff1fRequirements \u8bf4 '\u6f02\u79fb >0 \u5219\u62e6\u622a'\uff0c\u4f46\u9700\u8981\u5b9a\u4e49\u62e6\u622a\u540e\u7684\u884c\u4e3a\u3002","options":[{"id":"a","label":"\u62e6\u622a + \u62a5\u544a (Recommended)","description":"\u8fd4\u56de block verdict + \u6f02\u79fb\u8be6\u7ec6\u62a5\u544a\uff0c\u4e0d\u5199\u5165\u4e0b\u6e38\u3002\u64cd\u4f5c\u8005\u6839\u636e\u62a5\u544a\u51b3\u5b9a\u4fee\u6b63\u62bd\u53d6\u6216\u56de\u6d41 FRZ\u3002"},{"id":"b","label":"\u62e6\u622a + \u81ea\u52a8\u4fee\u6b63","description":"\u68c0\u6d4b\u5230\u6f02\u79fb\u540e\u81ea\u52a8\u5c1d\u8bd5\u4fee\u6b63\uff08\u91cd\u65b0\u62bd\u53d6\u6216\u56de\u9000\u5230 FRZ \u539f\u59cb\u503c\uff09\u3002\u66f4\u81ea\u52a8\u5316\u4f46\u4fee\u6b63\u903b\u8f91\u590d\u6742\u3002"},{"id":"c","label":"\u81ea\u5b9a\u4e49","description":""}],"answer":null,"chat_more":"","status":"unanswered"}
+    ]},
+    {"id":"cascade-trigger","title":"\u7ea7\u8054\u62bd\u53d6\u89e6\u53d1 (Cascade Trigger)","questions":[
+      {"id":"Q-07","title":"SRC \u2192 EPIC \u2192 FEAT \u7ea7\u8054\u65b9\u5f0f","context":"EXTR-02 \u8981\u6c42 SRC\u2192EPIC\u2192FEAT \u7ea7\u8054\u6295\u5f71\u3002\u73b0\u6709 src_to_epic \u548c epic_to_feat \u6280\u80fd\u5df2\u6709 run \u547d\u4ee4\u3002\u65b0\u62bd\u53d6\u6a21\u5f0f\u5982\u4f55\u96c6\u6210\uff1f","options":[{"id":"a","label":"\u65b0\u589e extract \u5b50\u547d\u4ee4 (Recommended)","description":"\u5728 src_to_epic.py \u548c epic_to_feat.py \u4e2d\u5404\u52a0\u4e00\u4e2a extract \u5b50\u547d\u4ee4\uff0c\u63a5\u53d7 --frz \u53c2\u6570\u4ece FRZ \u62bd\u53d6\u3002\u4fdd\u6301\u73b0\u6709 run \u547d\u4ee4\u4e0d\u53d8\u3002\u8c03\u7528\u65b9\u5f0f\uff1all src-to-epic extract --src <dir> --frz FRZ-xxx"},{"id":"b","label":"frz-manage \u7edf\u4e00\u62bd\u53d6","description":"\u6240\u6709\u62bd\u53d6\u64cd\u4f5c\u96c6\u4e2d\u5728 ll frz-manage extract \u4e2d\u5b8c\u6210\uff0c\u4e00\u6b21\u6027\u8f93\u51fa SRC+EPIC+FEAT\u3002\u51cf\u5c11\u547d\u4ee4\u6570\u91cf\u4f46\u8fdd\u53cd\u6280\u80fd\u8fb9\u754c\u3002"},{"id":"c","label":"\u81ea\u5b9a\u4e49","description":""}],"answer":null,"chat_more":"","status":"unanswered"},
+      {"id":"Q-08","title":"\u7ea7\u8054\u662f\u624b\u52a8\u89e6\u53d1\u8fd8\u662f\u81ea\u52a8\u94fe","context":"ROADMAP \u5b9a\u4e49\u7684\u8c03\u7528\u65b9\u5f0f\u662f\u5206\u5f00\u7684\u547d\u4ee4\uff0c\u4f46\u7528\u6237\u662f\u5426\u5e0c\u671b\u4e00\u952e\u8dd1\u901a\u5168\u94fe\u8def\uff1f","options":[{"id":"a","label":"\u624b\u52a8\u5206\u6b65\u8c03\u7528 (Recommended)","description":"\u6bcf\u4e2a\u62bd\u53d6\u6b65\u9aa4\u624b\u52a8\u8c03\u7528\uff0c\u6bcf\u6b65\u53ef\u68c0\u67e5\u4e2d\u95f4\u7ed3\u679c\u3002\u7b26\u5408\u5f53\u524d file-first \u4eba\u5de5\u5ba1\u6838\u7684\u5de5\u4f5c\u6d41\u3002"},{"id":"b","label":"\u4e00\u952e\u5168\u94fe + \u53ef\u9009\u5206\u6b65","description":"ll frz-manage extract --cascade \u4e00\u952e\u8dd1\u901a FRZ\u2192SRC\u2192EPIC\u2192FEAT\uff0c\u540c\u65f6\u4fdd\u7559\u5206\u6b65\u547d\u4ee4\u3002\u589e\u52a0\u4e00\u4e2a orchestrate \u5165\u53e3\u3002"},{"id":"c","label":"\u81ea\u5b9a\u4e49","description":""}],"answer":null,"chat_more":"","status":"unanswered"}
+    ]},
+    {"id":"anchor-timing","title":"\u951a\u70b9\u6ce8\u518c\u65f6\u673a (Anchor Registration)","questions":[
+      {"id":"Q-09","title":"\u951a\u70b9\u4f55\u65f6\u6ce8\u518c","context":"EXTR-03 (AnchorRegistry) \u5df2\u5728 Phase 7 \u4ea4\u4ed8\u3002\u951a\u70b9 ID \u8bb0\u5f55\u6295\u5f71\u4e0d\u53d8\u6027\u3002\u62bd\u53d6\u6d41\u7a0b\u4e2d\u951a\u70b9\u6ce8\u518c\u7684\u65f6\u673a\u5f71\u54cd\u53ef\u8ffd\u6eaf\u6027\u3002","options":[{"id":"a","label":"\u62bd\u53d6\u65f6\u6ce8\u518c (Recommended)","description":"\u4ece FRZ \u62bd\u53d6\u5230 SRC \u65f6\uff0c\u7acb\u5373\u4e3a\u6bcf\u4e2a FRZ \u951a\u70b9\u6ce8\u518c\u5230 AnchorRegistry\uff0cprojection_path \u4e3a 'SRC'\u3002EPIC/FEAT \u62bd\u53d6\u65f6\u8ffd\u52a0\u6ce8\u518c\u3002\u5b9e\u65f6\u53ef\u8ffd\u6eaf\u3002"},{"id":"b","label":"Gate \u901a\u8fc7\u540e\u6ce8\u518c","description":"\u62bd\u53d6\u4ea7\u7269\u901a\u8fc7 gate \u5ba1\u6838\u540e\u624d\u6ce8\u518c\u951a\u70b9\u3002\u66f4\u5b89\u5168\u4f46 gate \u5ba1\u6838\u671f\u95f4\u65e0\u6cd5\u8ffd\u6eaf\u3002"},{"id":"c","label":"\u81ea\u5b9a\u4e49","description":""}],"answer":null,"chat_more":"","status":"unanswered"},
+      {"id":"Q-10","title":"\u951a\u70b9 ID \u751f\u6210\u7b56\u7565","context":"\u73b0\u6709 AnchorRegistry \u63a5\u53d7 anchor_id \u53c2\u6570\uff08PREFIX-NNN \u683c\u5f0f\uff09\u3002\u62bd\u53d6\u65f6\u951a\u70b9 ID \u662f\u4ece FRZ \u7ee7\u627f\u8fd8\u662f\u91cd\u65b0\u751f\u6210\uff1f","options":[{"id":"a","label":"\u4ece FRZ \u7ee7\u627f (Recommended)","description":"FRZ \u4e2d\u7684\u951a\u70b9 ID\uff08JRN-001, ENT-001 \u7b49\uff09\u76f4\u63a5\u590d\u7528\u5230 SRC/EPIC/FEAT\u3002\u540c\u4e00 ID \u5728 AnchorRegistry \u4e2d\u6709\u591a\u6761\u8bb0\u5f55\uff0cprojection_path \u4e0d\u540c\u3002\u4fdd\u6301\u7aef\u5230\u7aef\u8ffd\u6eaf\u3002"},{"id":"b","label":"\u6bcf\u5c42\u91cd\u65b0\u751f\u6210","description":"\u6bcf\u5c42\u751f\u6210\u65b0\u7684\u951a\u70b9 ID\uff08SRC-JRN-001, EPIC-JRN-001\uff09\uff0c\u901a\u8fc7 frz_ref \u5173\u8054\u3002\u66f4\u72ec\u7acb\u4f46\u8ffd\u6eaf\u94fe\u66f4\u957f\u3002"},{"id":"c","label":"\u81ea\u5b9a\u4e49","description":""}],"answer":null,"chat_more":"","status":"unanswered"}
+    ]},
+    {"id":"testing-approach","title":"\u6d4b\u8bd5\u7b56\u7565 (Testing Approach)","questions":[
+      {"id":"Q-11","title":"\u62bd\u53d6\u529f\u80fd\u6d4b\u8bd5\u65b9\u5f0f","context":"Phase 7 \u7684 frz_manage_runtime \u6d4b\u8bd5\u4f7f\u7528\u4e86 70 \u4e2a\u5355\u5143\u6d4b\u8bd5\u3002Phase 8 \u7684\u62bd\u53d6 + \u6f02\u79fb\u68c0\u6d4b + \u5b88\u536b\u9700\u8981\u7c7b\u4f3c\u7684\u6d4b\u8bd5\u8986\u76d6\u3002","options":[{"id":"a","label":"fixture-based \u5355\u5143\u6d4b\u8bd5 (Recommended)","description":"\u4f7f\u7528\u56fa\u5b9a\u7684 FRZ fixture \u6587\u4ef6\u4f5c\u4e3a\u8f93\u5165\uff0c\u9a8c\u8bc1\u62bd\u53d6\u8f93\u51fa\u7b26\u5408\u9884\u671f\u3002\u4e0e Phase 7 \u6d4b\u8bd5\u98ce\u683c\u4e00\u81f4\u3002"},{"id":"b","label":"\u7aef\u5230\u7aef\u96c6\u6210\u6d4b\u8bd5","description":"\u521b\u5efa\u4e34\u65f6 FRZ \u5305\uff0c\u8dd1\u5b8c\u6574 FRZ\u2192SRC\u2192EPIC\u2192FEAT \u94fe\u8def\uff0c\u9a8c\u8bc1\u7aef\u5230\u7aef\u3002\u8986\u76d6\u66f4\u5168\u9762\u4f46\u8c03\u8bd5\u56f0\u96be\u3002"},{"id":"c","label":"\u4e24\u8005\u7ed3\u5408","description":"\u5355\u5143\u6d4b\u8bd5\u8986\u76d6\u5355\u4e2a\u7ec4\u4ef6\uff08drift_detector, projection_guard\uff09\uff0c\u96c6\u6210\u6d4b\u8bd5\u8986\u76d6\u5168\u94fe\u8def\u3002\u6d4b\u8bd5\u91cf\u5927\u4f46\u8986\u76d6\u6700\u5168\u3002"},{"id":"d","label":"\u81ea\u5b9a\u4e49","description":""}],"answer":null,"chat_more":"","status":"unanswered"},
+      {"id":"Q-12","title":"\u6f02\u79fb\u68c0\u6d4b\u5668\u6d4b\u8bd5\u7528\u4f8b","context":"\u6f02\u79fb\u68c0\u6d4b\u9700\u8981\u9a8c\u8bc1\u591a\u79cd\u6f02\u79fb\u573a\u666f\u3002\u54ea\u4e9b\u573a\u666f\u662f\u5fc5\u987b\u8986\u76d6\u7684\uff1f","options":[{"id":"a","label":"\u6838\u5fc3\u573a\u666f\u5168\u8986\u76d6","description":"\u951a\u70b9\u7f3a\u5931\u3001\u951a\u70b9\u8bed\u4e49\u7be1\u6539\u3001\u65b0\u589e\u975e derived_allowed \u5b57\u6bb5\u3001constraints \u8fdd\u53cd\u3001known_unknowns \u8fc7\u671f\u30025 \u7c7b\u573a\u666f\u5404\u81f3\u5c11 1 \u4e2a\u6d4b\u8bd5\u3002"},{"id":"b","label":"\u6700\u5c0f\u53ef\u7528\u96c6","description":"\u53ea\u6d4b\u8bd5\u951a\u70b9\u7f3a\u5931\u548c\u8bed\u4e49\u7be1\u6539\u4e24\u4e2a\u6838\u5fc3\u573a\u666f\u3002\u5feb\u901f\u4ea4\u4ed8\uff0c\u5176\u4f59\u540e\u7eed\u8865\u5145\u3002"},{"id":"c","label":"\u81ea\u5b9a\u4e49","description":""}],"answer":null,"chat_more":"","status":"unanswered"}
+    ]},
+    {"id":"scope-boundary","title":"\u8303\u56f4\u8fb9\u754c (Scope Boundary)","questions":[
+      {"id":"Q-13","title":"Phase 8 \u662f\u5426\u5305\u542b Gate \u96c6\u6210","context":"\u73b0\u6709 src_to_epic \u6709 gate_integration \u811a\u672c\u3002\u62bd\u53d6\u6a21\u5f0f\u662f\u5426\u9700\u8981\u65b0\u7684 gate \u903b\u8f91\uff0c\u8fd8\u662f\u590d\u7528\u73b0\u6709 gate\uff1f","options":[{"id":"a","label":"\u590d\u7528\u73b0\u6709 gate \u903b\u8f91 (Recommended)","description":"\u62bd\u53d6\u4ea7\u7269\u8d70\u4e0e\u73b0\u6709 SRC/EPIC/FEAT \u76f8\u540c\u7684 gate \u6d41\u7a0b\u3002\u4e0d\u65b0\u589e gate \u903b\u8f91\uff0c\u53ea\u5728 gate \u6821\u9a8c\u4e2d\u52a0 FRZ \u951a\u70b9\u68c0\u67e5\u3002"},{"id":"b","label":"\u65b0\u589e\u62bd\u53d6\u4e13\u7528 gate","description":"\u4e3a\u62bd\u53d6\u6a21\u5f0f\u65b0\u589e gate \u7c7b\u578b\uff0c\u5305\u542b\u6295\u5f71\u4e0d\u53d8\u6027\u9a8c\u8bc1 + \u6f02\u79fb\u68c0\u67e5\u3002\u66f4\u4e13\u7528\u4f46\u589e\u52a0 gate \u590d\u6742\u5ea6\u3002"},{"id":"c","label":"\u81ea\u5b9a\u4e49","description":""}],"answer":null,"chat_more":"","status":"unanswered"},
+      {"id":"Q-14","title":"Phase 8 \u4ea4\u4ed8\u7269\u4f18\u5148\u7ea7","context":"ROADMAP \u5b9a\u4e49\u4e86 4 \u4e2a plan\uff1a08-01 drift_detector, 08-02 frz-manage extract, 08-03 src-to-epic extract, 08-04 epic-to-feat extract\u3002\u662f\u5426\u6709\u4f18\u5148\u7ea7\u8003\u91cf\uff1f","options":[{"id":"a","label":"\u6309 ROADMAP \u987a\u5e8f","description":"\u5148 drift_detector\uff08\u88ab\u5176\u4ed6\u7ec4\u4ef6\u4f9d\u8d56\uff09\uff0c\u518d frz-manage extract\uff08\u4e3b\u5165\u53e3\uff09\uff0c\u6700\u540e\u7ea7\u8054\u4fee\u6539 src-to-epic \u548c epic-to-feat\u3002"},{"id":"b","label":"\u5148\u4e3b\u5165\u53e3\u540e\u652f\u6491","description":"\u5148\u5b9e\u73b0 frz-manage extract \u9aa8\u67b6\uff08\u542b stub\uff09\uff0c\u518d\u8865 drift_detector \u548c\u5b88\u536b\uff0c\u6700\u540e\u5b8c\u5584\u7ea7\u8054\u3002\u53ef\u4ee5\u66f4\u65e9\u770b\u5230\u7aef\u5230\u7aef\u6548\u679c\u3002"},{"id":"c","label":"Claude \u81ea\u884c\u51b3\u5b9a","description":"\u6839\u636e\u5b9e\u73b0\u4f9d\u8d56\u5173\u7cfb\u548c\u6280\u672f\u5224\u65ad\u81ea\u884c\u6392\u5e8f\u3002"},{"id":"d","label":"\u81ea\u5b9a\u4e49","description":""}],"answer":null,"chat_more":"","status":"unanswered"}
+    ]}
+  ]};
+  render(data);
+}
+
+function render(d) {
+  const container = document.getElementById('sectionsContainer');
+  container.innerHTML = '';
+  let qNum = 0;
+  d.sections.forEach(section => {
+    const secDiv = document.createElement('div');
+    secDiv.className = 'section';
+
+    const headerDiv = document.createElement('div');
+    headerDiv.className = 'section-header';
+
+    const h2 = document.createElement('h2');
+    const answeredInSection = section.questions.filter(q => q.answer && q.answer !== '').length;
+    h2.innerHTML = `<span class="arrow">&#9660;</span> ${section.title} <span class="section-count">(${answeredInSection}/${section.questions.length} answered)</span>`;
+    h2.onclick = () => {
+      h2.classList.toggle('collapsed');
+      bodyDiv.classList.toggle('collapsed');
+    };
+    headerDiv.appendChild(h2);
+
+    const bodyDiv = document.createElement('div');
+    bodyDiv.className = 'section-body';
+
+    const grid = document.createElement('div');
+    grid.className = 'q-grid';
+
+    section.questions.forEach(q => {
+      qNum++;
+      const card = document.createElement('div');
+      card.className = 'q-card' + (q.answer && q.answer !== '' ? ' answered' : '');
+      card.id = 'card-' + q.id;
+
+      let html = `<div class="q-badge">${q.id}</div><div class="q-title">${q.title}</div>`;
+      html += `<div class="q-context">${q.context}</div>`;
+
+      q.options.forEach(opt => {
+        const checked = (q.answer === opt.id) ? ' checked' : '';
+        html += `<div class="option"><input type="radio" name="${q.id}" value="${opt.id}" id="${q.id}-${opt.id}"${checked}><label for="${q.id}-${opt.id}"><strong>${opt.label}</strong><span>${opt.description}</span></label></div>`;
+      });
+
+      const chatMore = q.chat_more || '';
+      const hasContent = chatMore.length > 0 ? ' has-content' : '';
+      html += `<textarea class="${hasContent}" id="chat-${q.id}" placeholder="Add context, nuance, or clarification for this question...">${chatMore}</textarea>`;
+
+      card.innerHTML = html;
+      grid.appendChild(card);
+    });
+
+    bodyDiv.appendChild(grid);
+    secDiv.appendChild(headerDiv);
+    secDiv.appendChild(bodyDiv);
+    container.appendChild(secDiv);
+  });
+
+  attachListeners(d);
+  updateStats(d);
+}
+
+function attachListeners(d) {
+  d.sections.forEach(section => {
+    section.questions.forEach(q => {
+      const radios = document.querySelectorAll(`input[name="${q.id}"]`);
+      radios.forEach(radio => {
+        radio.addEventListener('change', () => {
+          q.answer = radio.value;
+          q.status = 'answered';
+          const card = document.getElementById('card-' + q.id);
+          if (card) card.classList.add('answered');
+          updateStats(d);
+        });
+      });
+      const textarea = document.getElementById('chat-' + q.id);
+      if (textarea) {
+        textarea.addEventListener('input', () => {
+          q.chat_more = textarea.value;
+          textarea.classList.toggle('has-content', textarea.value.length > 0);
+          updateStats(d);
+        });
+      }
+    });
+  });
+}
+
+function updateStats(d) {
+  let total = 0, answered = 0, chatMore = 0;
+  d.sections.forEach(s => s.questions.forEach(q => {
+    total++;
+    if (q.answer && q.answer !== '') answered++;
+    if (q.chat_more && q.chat_more.trim() !== '') chatMore++;
+  }));
+  const remaining = total - answered;
+  document.getElementById('totalCount').textContent = total;
+  document.getElementById('answeredCount').textContent = answered;
+  document.getElementById('remainingCount').textContent = remaining;
+  document.getElementById('progressFill').style.width = ((answered / total) * 100) + '%';
+
+  // Update section counts
+  const headers = document.querySelectorAll('.section h2');
+  let idx = 0;
+  d.sections.forEach(s => {
+    const answ = s.questions.filter(q => q.answer && q.answer !== '').length;
+    if (headers[idx]) {
+      const countSpan = headers[idx].querySelector('.section-count');
+      if (countSpan) countSpan.textContent = `(${answ}/${s.questions.length} answered)`;
+    }
+    idx++;
+  });
+}
+
+function saveAnswers() {
+  const json = JSON.stringify(data, null, 2);
+  const blob = new Blob([json], {type: 'application/json'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = '08-QUESTIONS.json';
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+
+  // Also try File System Access API
+  if (window.showSaveFilePicker) {
+    // Already downloaded as fallback
+  }
+  alert('JSON file downloaded. Replace the original 08-QUESTIONS.json with this file, then return to Claude and say "refresh" or "finalize".');
+}
+
+init();
+</script>
+</body>
+</html>
