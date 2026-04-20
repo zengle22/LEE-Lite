@@ -347,22 +347,22 @@ record, _ = register_frz(
 | A4 | `ChangeClass.semantic` is NOT in the current enum, but the output contract references it as a valid value | Pitfall 1, Code Examples | Verified: `patch_schema.py` line 24-37 does not include `semantic`. |
 | A5 | The `--type revise` CLI path in `frz_manage_runtime.py` is fully functional for Major changes | Pattern 2, Code Examples | Verified: code at lines 330-346 reads `--type`, `--reason`, `--previous-frz` args and passes them to `register_frz()`. However, MSC validation still runs before freeze, which may be too strict for a "revise" operation that only needs to record a revision chain without full MSC re-validation. [MEDIUM confidence — needs validation during planning] |
 
-## Open Questions
+## Open Questions (RESOLVED)
 
 1. **Should `semantic` be added as a `ChangeClass` enum value, or should a separate `SemanticChangeClass` be used?**
    - What we know: The output contract references `change_class: one of visual, interaction, semantic`. The current enum has `ui_flow, copy_text, ...` but not `visual`, `interaction`, or `semantic` as top-level values.
    - What's unclear: Whether the fine-grained sub-classes should coexist with top-level tri-class values, or if the schema should migrate to tri-class as the primary dimension with sub-class as optional.
-   - Recommendation: Add `"visual"`, `"interaction"`, `"semantic"` to `ChangeClass`. Keep existing sub-class values for backward compatibility. Add `grade_level` as a derived field.
+   - **RESOLVED:** Add `"visual"`, `"interaction"`, `"semantic"` to `ChangeClass`. Keep existing sub-class values for backward compatibility. Add `grade_level` as a derived field.
 
 2. **Does the `--type revise` flow need to skip MSC validation?**
    - What we know: `freeze_frz()` runs MSC validation before registration (line 291). For a revise operation triggered during execution, the input may not be a full FRZ package.
    - What's unclear: Whether the Major revise flow should accept partial input (just the changed semantic) or require a full FRZ package.
-   - Recommendation: For Phase 10, `--type revise` should still require valid FRZ input but may need a relaxed MSC mode. The planner should consider adding a `--minimal` flag for revise operations.
+   - **RESOLVED:** For Phase 10, `--type revise` should still require valid FRZ input but may need a relaxed MSC mode. The planner should consider adding a `--minimal` flag for revise operations.
 
 3. **What triggers the `ll-patch-capture` runtime in the actual workflow?**
    - What we know: The SKILL.md describes "user prompt text described UX change OR document path" as input.
    - What's unclear: Is it triggered manually by the user, by the PreToolUse hook, or by the dev skill's validate_output.sh?
-   - Recommendation: For Phase 10, keep the existing trigger model (manual invocation via skill) and document the workflow position clearly.
+   - **RESOLVED:** For Phase 10, keep the existing trigger model (manual invocation via skill) and document the workflow position clearly.
 
 ## Environment Availability
 
