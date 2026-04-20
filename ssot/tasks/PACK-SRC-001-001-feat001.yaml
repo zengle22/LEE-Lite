@@ -1,0 +1,32 @@
+task_pack:
+  pack_id: PACK-SRC-001-001-feat001
+  feat_ref: FEAT-SRC-001-001
+  created_at: "2026-04-20T00:00:00+08:00"
+  tasks:
+    - task_id: TASK-001
+      type: impl
+      title: Implement User API endpoint
+      depends_on: []
+      status: pending
+      verifies: []
+
+    - task_id: TASK-002
+      type: test-api
+      title: API test for User endpoint
+      depends_on: [TASK-001]
+      status: pending
+      verifies: [AC-001, AC-002]
+
+    - task_id: TASK-003
+      type: test-e2e
+      title: E2E journey for User feature
+      depends_on: [TASK-001]
+      status: pending
+      verifies: [AC-003]
+
+    - task_id: TASK-004
+      type: review
+      title: Code review
+      depends_on: [TASK-002, TASK-003]
+      status: pending
+      verifies: []
