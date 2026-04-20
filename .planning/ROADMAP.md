@@ -107,11 +107,10 @@ Plans:
 
 **Requirements:** PACK-01, PACK-02, [PACK-03, PACK-04, PACK-05 deferred to v2.1]
 
-**Plans:**
+**Plans:** 2 plans
 
-- [ ] 11-01 — `ssot/schemas/qa/task_pack.yaml`: Task Pack YAML schema 定义
-- [ ] 11-02 — `cli/lib/task_pack_schema.py`: schema 验证器
-- [ ] 11-03 — `cli/lib/task_pack_resolver.py`: depends_on 拓扑排序
+- [ ] 11-01-PLAN.md — `ssot/schemas/qa/task_pack.yaml` + `cli/lib/task_pack_schema.py` + tests (PACK-01)
+- [ ] 11-02-PLAN.md — `cli/lib/task_pack_resolver.py` + tests + sample Task Pack (PACK-02)
 
 **Success Criteria:**
 1. `task_pack.yaml` schema 定义 pack_id, feat_ref, tasks (task_id, type, depends_on, status, verifies)
@@ -162,4 +161,4 @@ Plans:
 
 ---
 *Roadmap created: 2026-04-18*
-*Last updated: 2026-04-18 after Phase 10 planning*
+*Last updated: 2026-04-20 after Phase 11 planning*

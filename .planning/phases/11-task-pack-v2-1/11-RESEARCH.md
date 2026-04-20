@@ -387,14 +387,16 @@ def test_validate_rejects_circular_dependency():
 | A2 | `task_id` format is `TASK-\d{3,}` (3+ digits) | Code Examples | Same as A1 — format may differ in practice |
 | A3 | No external validation libraries are in use | Standard Stack | Would change approach, but verified by inspecting all 3 existing schema modules |
 
-## Open Questions
+## Open Questions (RESOLVED)
 
 1. **Should `verifies` field format be validated?**
+   RESOLVED: Validate as non-empty strings only, no AC-ID format enforcement. QA layer handles AC reference validation. Implemented in plan via `or []` coercion.
    - What we know: ADR-051 shows `verifies: [AC-001, AC-002]` — references acceptance criteria.
    - What's unclear: Whether the AC-ID format should be validated (like FRZ validates `JRN-001` format).
    - Recommendation: Validate `verifies` items are non-empty strings, but don't enforce a specific AC-ID format yet (too restrictive). Let the QA layer validate AC references.
 
 2. **Should `title` be required?**
+   RESOLVED: Yes, required (non-empty string) for human readability in manual execution mode. Implemented in plan 11-01 validation step.
    - What we know: ADR-051 example includes `title` for all tasks.
    - What's unclear: Whether tasks without titles should be rejected.
    - Recommendation: Make `title` required (non-empty string) for human readability in manual execution mode.
