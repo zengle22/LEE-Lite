@@ -178,13 +178,15 @@ def _check_circular_revision(
         List of FRZ IDs in the chain if circular, empty list if safe.
     """
     visited: set[str] = set()
+    chain: list[str] = []
     current = previous_frz
     while current:
         if current == new_frz_id:
-            return list(visited) + [current]
+            return chain + [current]
         if current in visited:
             break
         visited.add(current)
+        chain.append(current)
         rec = frz_registry.get(current)
         if rec:
             current = rec.get("previous_frz_ref")
@@ -368,6 +370,11 @@ def freeze_frz(args: argparse.Namespace) -> int:
             f"FRZ ID already registered: {frz_id}",
         )
 
+    # Extract revision args
+    revision_type = getattr(args, "type", "new")
+    reason = getattr(args, "reason", None)
+    previous_frz = getattr(args, "previous_frz", None)
+
     # Circular revision chain prevention (GRADE-03)
     if revision_type == "revise" and previous_frz:
         # Load existing registry records as a lookup map
@@ -383,9 +390,6 @@ def freeze_frz(args: argparse.Namespace) -> int:
             )
 
     # Register the FRZ
-    revision_type = getattr(args, "type", "new")
-    reason = getattr(args, "reason", None)
-    previous_frz = getattr(args, "previous_frz", None)
 
     record, _ = register_frz(
         workspace_root,
