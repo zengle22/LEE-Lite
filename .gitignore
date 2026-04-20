@@ -132,3 +132,4 @@ scripts/*.ps1
 
 # B MAD working directory
 _bmad/
+.claude/worktrees/ 
