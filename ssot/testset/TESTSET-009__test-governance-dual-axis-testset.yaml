@@ -1,0 +1,72 @@
+id: TESTSET-009
+ssot_type: TESTSET
+workflow_key: qa.feat-to-testset
+template_id: template.qa.test_set_production
+template_workflow_key: workflow.qa.test_set_production_l3
+test_set_id: TS-009
+feat_refs:
+- FEAT-009-D
+- FEAT-009-E
+- FEAT-009-A
+- FEAT-009-S
+epic_ref: EPIC-009
+src_ref: SRC-009
+title: 测试体系双轴治理 Test Set
+description: 测试体系双轴治理（需求轴SSOT + 实施轴Artifact）governed QA test set
+derived_slug: test-governance-dual-axis
+coverage_scope:
+- 验证需求轴/实施轴分离契约：声明性资产可重新编译，证据性资产只追加
+- 验证 2 个用户 Skill（qa.test-plan / qa.test-run）编排 17+ 内部模块的完整链路
+- 验证三层断言模型（A/B/C）覆盖率与 Gate 判定依赖
+- 验证状态机执行器约束 AI 执行路径，产出结构化证据
+- 验证独立 verifier 一票否决 Gate 规则
+- 验证 GoldenPath schema 定义和验证标准可正确应用于产品侧定义的黄金路径
+- 验证 8 类故障分类及后处理路由
+- 验证 Gate 评价维度：用例通过率/断言覆盖率/bypass违规/verifier verdict/PRODUCT故障/环境一致性
+# 说明：以下 golden_paths 是示例性产品业务流程，用于验证测试框架能力。具体内容由产品侧定义。
+recommended_coverage_scope_name:
+- test governance dual-axis
+feature_owned_code_paths:
+- cli/lib/state_machine_executor.py
+- cli/lib/assertion_validator.py
+- cli/lib/failure_classifier.py
+- cli/lib/independent_verifier.py
+- cli/lib/bypass_detector.py
+- cli/lib/accident_packager.py
+- cli/lib/gate_evaluation.py
+- cli/lib/settlement.py
+risk_focus:
+- verifier 与 runner 共享上下文（FC-007 违规）
+- TESTSET 中嵌入 test_case_pack 或 script_pack（FC-006 违规）
+- C 层断言未 100% 覆盖时 Gate 返回 pass（FC-003 违规）
+- verifier=fail 但 Gate 仍返回 pass（FC-004 违规）
+- Phase 1 中 Gate 返回 pass 而非 provisional_pass（FC-005 违规）
+preconditions:
+- SRC-009 已冻结并通过 GATE-FRZ-SRC-009
+- EPIC-009 已通过 GATE-SRC-EPIC-009
+- 4 FEATs 已通过 GATE-EPIC-FEAT-009
+- TECH-009 已通过 GATE-FEAT-TECH-009
+environment_assumptions:
+- 测试环境支持多浏览器 context 隔离
+- 可用不同 API token / 账号用于 verifier 独立认证
+assertion_requirements:
+- A层（交互断言）: 所有 golden paths 必须覆盖
+- B层（页面结果断言）: 所有 golden paths 必须覆盖
+- C层（业务状态断言）: 按阶段要求执行，Phase 1 允许未覆盖但影响 Gate 结论
+failure_classification_test:
+- ENV: 环境不可用/版本不匹配
+- DATA: 测试数据缺失/脏状态
+- SCRIPT: 测试脚本缺陷
+- ORACLE: 断言预期行为定义不清
+- BYPASS: AI 执行跳步/违规
+- PRODUCT: 产品真实 bug
+- FLAKY: 偶发性失败
+- TIMEOUT: 超时失败
+golden_paths:
+# 以下为示例性产品业务流程，由产品侧定义，用于验证测试框架的 GoldenPath schema 和验证标准
+- G1: 训练反馈后计划被正确调整
+- G2: 成功生成首版训练计划
+- G3: 新用户最小信息采集成功
+- G4: 用户中断后恢复
+- G5: 异常输入下受控反馈
+- G6: 历史记录可再次打开且数据一致

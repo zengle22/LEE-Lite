@@ -1,0 +1,13 @@
+frz_id: FRZ-001
+freeze_type: new
+frozen_at: "2026-04-22T00:00:00+08:00"
+frozen_by: system
+msc_result: pass
+validation_summary:
+  minimum: pass
+  structured: pass
+  completeness: pass
+source_documents:
+  - "ssot/adr/ADR-052-测试体系轴化-需求轴与实施轴.md"
+adr_review_rounds: 4
+adr_final_verdict: "SIGN-OFF (Winston + Murat)"

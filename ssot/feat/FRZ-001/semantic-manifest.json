@@ -1,0 +1,70 @@
+{
+  "frz_id": "FRZ-001",
+  "entities": [
+    {
+      "type": "skill",
+      "id": "qa.test-plan",
+      "purpose": "将需求转化为可执行测试计划",
+      "orchestrates": ["feat-to-testset", "api-plan-compile", "api-manifest-compile", "api-spec-compile", "e2e-plan-compile", "e2e-manifest-compile", "e2e-spec-compile"]
+    },
+    {
+      "type": "skill",
+      "id": "qa.test-run",
+      "purpose": "在指定环境上跑测试，生成结果和报告",
+      "orchestrates": ["environment-provision", "test-data-provision", "l0-smoke-check", "run-manifest-gen", "scenario-spec-compile", "state-machine-executor", "bypass-detector", "accident-package", "failure-classifier", "independent-verifier", "settlement", "gate-evaluation"],
+      "modes": ["full", "last_failed", "report_only"]
+    },
+    {
+      "type": "module",
+      "id": "environment-provision",
+      "axis": "implementation",
+      "phase": "1a",
+      "priority": "P0",
+      "input": "TESTSET.environment_assumptions + target_address",
+      "output": "ENV YAML + EnvConfig dataclass"
+    },
+    {
+      "type": "module",
+      "id": "state-machine-executor",
+      "axis": "implementation",
+      "phase": "1a",
+      "priority": "P0",
+      "states": ["SETUP", "LOGIN", "NAVIGATE", "INPUT_FORM", "SUBMIT", "WAIT_EFFECT", "VERIFY_UI", "VERIFY_STATE", "COLLECT", "DONE"],
+      "phase1_simplified_states": ["SETUP", "EXECUTE", "VERIFY", "COLLECT", "DONE"]
+    },
+    {
+      "type": "assertion_model",
+      "layers": {
+        "A": {"name": "交互断言", "example": "页面有toast/弹窗/导航"},
+        "B": {"name": "页面结果断言", "example": "页面出现期望内容（计划列表）"},
+        "C": {"name": "业务状态断言", "example": "数据库/API返回的计划已创建"}
+      }
+    },
+    {
+      "type": "failure_model",
+      "classes": ["ENV", "DATA", "SCRIPT", "ORACLE", "BYPASS", "PRODUCT", "FLAKY", "TIMEOUT"]
+    },
+    {
+      "type": "golden_path",
+      "paths": [
+        {"id": "G1", "priority": "P0", "description": "训练反馈后计划被正确调整", "depends_on": ["G2"]},
+        {"id": "G2", "priority": "P0", "description": "成功生成首版训练计划", "depends_on": ["G3"]},
+        {"id": "G3", "priority": "P0", "description": "新用户最小信息采集成功"},
+        {"id": "G4", "priority": "P1", "description": "用户中断后恢复"},
+        {"id": "G5", "priority": "P1", "description": "异常输入下系统能给出受控反馈"},
+        {"id": "G6", "priority": "P1", "description": "历史记录可再次打开且数据一致"}
+      ]
+    }
+  ],
+  "constraints": [
+    "Skill仅作为用户入口，内部模块不注册为Skill",
+    "需求轴资产声明性可覆盖，实施轴资产证据性只追加",
+    "黄金路径C层断言100%覆盖前gate不得返回pass",
+    "verifier=fail→Gate必须=fail，不可被settlement覆盖",
+    "Phase 1 Gate结论上限为provisional_pass",
+    "TESTSET中不得嵌入test_case_pack或script_pack",
+    "verifier必须使用独立认证上下文"
+  ],
+  "extracted_from": "ADR-052",
+  "extracted_at": "2026-04-22"
+}

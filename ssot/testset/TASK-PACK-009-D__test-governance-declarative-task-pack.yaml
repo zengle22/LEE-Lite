@@ -1,0 +1,70 @@
+# Task Pack for FEAT-009-D: 测试需求轴治理 — 声明性资产分层与枚举冻结
+# Conforms to ssot/schemas/qa/task_pack.yaml (ADR-051 §2.1)
+
+task_pack:
+  pack_id: PACK-009-D
+  feat_ref: FEAT-009-D
+  created_at: "2026-04-22T00:00:00+08:00"
+  tasks:
+    - task_id: TASK-001
+      type: impl
+      title: 实现需求轴/实施轴分层 schema 定义（TESTSET/Environment/Gate YAML schemas）
+      depends_on: []
+      status: pending
+      verifies:
+        - AC-SCHEMA-001
+
+    - task_id: TASK-002
+      type: impl
+      title: 实现枚举守卫模块（skill_id / assertion_layer / failure_class / gate_verdict / phase）
+      depends_on:
+        - TASK-001
+      status: pending
+      verifies:
+        - AC-ENUM-001
+
+    - task_id: TASK-003
+      type: impl
+      title: 实现 11 个治理对象的结构化契约验证器
+      depends_on:
+        - TASK-001
+      status: pending
+      verifies:
+        - AC-OBJECT-001
+
+    - task_id: TASK-004
+      type: test-api
+      title: 编写 TESTSET schema 验证测试（不含 test_case_pack / script_pack）
+      depends_on:
+        - TASK-001
+      status: pending
+      verifies:
+        - AC-FC006-001
+
+    - task_id: TASK-005
+      type: test-api
+      title: 编写枚举守卫验证测试（forbidden_semantics 拦截）
+      depends_on:
+        - TASK-002
+      status: pending
+      verifies:
+        - AC-ENUM-002
+
+    - task_id: TASK-006
+      type: test-api
+      title: 编写 7 条 Frozen Contracts 可追溯性测试
+      depends_on:
+        - TASK-003
+      status: pending
+      verifies:
+        - AC-FC-001
+
+    - task_id: TASK-007
+      type: review
+      title: 需求轴编译规则 review（声明性资产可从 FEAT/TECH/UI 重新编译）
+      depends_on:
+        - TASK-004
+        - TASK-005
+        - TASK-006
+      status: pending
+      verifies: []

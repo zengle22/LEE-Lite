@@ -1,0 +1,30 @@
+frz_id: FRZ-001
+title: "测试体系轴化架构 — 需求轴与实施轴"
+version: "1.0"
+frozen_at: "2026-04-22T00:00:00+08:00"
+status: frozen
+source:
+  type: adr
+  ref: "ADR-052"
+  path: "ssot/adr/ADR-052-测试体系轴化-需求轴与实施轴.md"
+  version: "v1.4-draft"
+msc_validated: true
+semantic_summary: |
+  测试体系按需求轴/实施轴拆分，2个用户入口Skill编排内部模块。
+  需求轴（SSOT管理）定义"测什么"，实施轴（Artifact管理）定义"在哪测、怎么跑、结果是否可信"。
+  通过三层断言（交互/页面结果/业务状态）、状态机执行、独立验证、8类故障分类形成从需求到验收的完整闭环。
+key_constraints:
+  - "Skill仅作为用户入口，内部模块不注册为Skill"
+  - "需求轴资产声明性可覆盖，实施轴资产证据性只追加"
+  - "黄金路径C层断言100%覆盖前gate不得返回pass"
+  - "verifier=fail→Gate必须=fail"
+  - "Phase 1 Gate结论上限为provisional_pass"
+scope:
+  included_modules:
+    requirement_axis: ["feat-to-testset", "api-plan-compile", "api-manifest-compile", "api-spec-compile", "e2e-plan-compile", "e2e-manifest-compile", "e2e-spec-compile"]
+    implementation_axis: ["test-exec-web-e2e", "test-exec-cli", "case_pack展开", "UI意图推导", "UI选择器绑定", "Playwright翻译", "证据收集", "合规性检查", "用例判定", "Bug bundle", "覆盖率合并", "测试报告", "settlement", "gate evaluation", "environment-provision", "run-manifest-gen", "scenario-spec-compile", "state-machine-executor", "bypass-detector", "independent-verifier", "accident-package", "failure-classifier", "test-data-provision", "l0-smoke-check"]
+    user_skills: ["qa.test-plan", "qa.test-run"]
+  golden_paths: ["G1:训练反馈调整", "G2:首版生成", "G3:新用户", "G4:中断恢复", "G5:异常受控", "G6:历史一致性"]
+  phases: ["Phase 1a:最小可运行", "Phase 1b:三层断言", "Phase 2:独立验证+排障+冒烟", "Phase 3:稳健性+DAG", "Phase 4:需求轴Skill+全面切换"]
+depends_on: ["ADR-047", "ADR-050", "ADR-051"]
+downstream_workflows: ["product.raw-to-src", "qa.feat-to-testset", "qa.e2e-spec-gen"]

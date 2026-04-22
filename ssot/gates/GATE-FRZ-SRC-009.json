@@ -1,0 +1,21 @@
+{
+  "gate_id": "GATE-FRZ-SRC-009",
+  "transition": "FRZ → SRC",
+  "source": "FRZ-001",
+  "target": "SRC-009",
+  "verdict": "pass",
+  "checked_at": "2026-04-22T00:00:00+08:00",
+  "criteria": [
+    {"criterion": "FRZ package complete", "status": "pass", "evidence": "4 files in frz-package/: frz-package.json, freeze.yaml, evidence.yaml, index.md"},
+    {"criterion": "MSC 5-dimension validation", "status": "pass", "evidence": "All 5 dimensions satisfied per freeze.yaml"},
+    {"criterion": "SRC candidate well-formed", "status": "pass", "evidence": "src-candidate.md has 17 sections, all filled"},
+    {"criterion": "Machine-readable JSON consistent", "status": "pass", "evidence": "src-candidate.json matches src-candidate.md"},
+    {"criterion": "Constraints captured", "status": "pass", "evidence": "7 key constraints extracted from ADR-052"},
+    {"criterion": "Domain objects defined", "status": "pass", "evidence": "11 domain objects with required/optional/forbidden fields"},
+    {"criterion": "Enum values frozen", "status": "pass", "evidence": "6 enum fields with allowed_values and forbidden_semantics"},
+    {"criterion": "Facet bundle selected", "status": "pass", "evidence": "4 facets: test-governance, test-execution-framework, audit-and-verification, skill-orchestration"},
+    {"criterion": "Bridge context complete", "status": "pass", "evidence": "All 8 bridge context fields populated"}
+  ],
+  "overall_score": "100%",
+  "notes": "Pure extraction from FRZ-001/ADR-052. No patches applied. SRC-009 is complete and well-formed."
+}

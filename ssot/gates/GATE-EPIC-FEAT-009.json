@@ -1,0 +1,17 @@
+{
+  "gate_id": "GATE-EPIC-FEAT-009",
+  "transition": "EPIC → FEAT",
+  "source": "EPIC-009",
+  "target": ["FEAT-001-D", "FEAT-002-E", "FEAT-003-A", "FEAT-004-S"],
+  "verdict": "pass",
+  "checked_at": "2026-04-22T00:00:00+08:00",
+  "criteria": [
+    {"criterion": "Epic accepted", "status": "pass", "evidence": "GATE-SRC-EPIC-009 passed"},
+    {"criterion": "All Epic FEAT groups covered", "status": "pass", "evidence": "4 FEATs, one per FEAT group from EPIC"},
+    {"criterion": "Feature scope within Epic boundaries", "status": "pass", "evidence": "Each FEAT maps to specific module/workflow within its Epic"},
+    {"criterion": "Anchor IDs registered", "status": "pass", "evidence": "All FEATs reference SRC-009 anchor points"},
+    {"criterion": "No semantic drift from Epic", "status": "pass", "evidence": "Constraints and enums inherited from SRC-009 preserved"}
+  ],
+  "overall_score": "100%",
+  "notes": "4 FEATs derived: 001-D (data/flow), 002-E (engine/execution), 003-A (audit/verification), 004-S (skill/orchestration)."
+}

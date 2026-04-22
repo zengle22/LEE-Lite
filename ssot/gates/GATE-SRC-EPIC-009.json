@@ -1,0 +1,17 @@
+{
+  "gate_id": "GATE-SRC-EPIC-009",
+  "transition": "SRC → EPIC",
+  "source": "SRC-009",
+  "target": "EPIC-009",
+  "verdict": "pass",
+  "checked_at": "2026-04-22T00:00:00+08:00",
+  "criteria": [
+    {"criterion": "SRC accepted", "status": "pass", "evidence": "GATE-FRZ-SRC-009 passed with 100% score"},
+    {"criterion": "Epic decomposition covers all SRC facets", "status": "pass", "evidence": "4 Epics aligned with 4-phase implementation plan (1a/1b/2/3/4)"},
+    {"criterion": "Anchors traceable to SRC", "status": "pass", "evidence": "Each Epic references SRC-009 constraints and domain objects"},
+    {"criterion": "No semantic drift from SRC", "status": "pass", "evidence": "All 7 key constraints inherited by Epic layer"},
+    {"criterion": "Epic scope within SRC boundaries", "status": "pass", "evidence": "No out-of-scope additions detected"}
+  ],
+  "overall_score": "100%",
+  "notes": "EPIC-009 cleanly decomposes SRC-009 into phase-aligned Epics."
+}
