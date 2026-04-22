@@ -111,8 +111,10 @@ ENUM_REGISTRY: dict[str, type[Enum]] = {
     "skill_id": SkillId,
     "module_id": ModuleId,
     "assertion_layer": AssertionLayer,
-    "failure_class": FailureClass,
-    "gate_verdict": GateVerdict,
+    "failure_class": FailureClass,  # SRC-009: FailureClass.failure_classification
+    "failure_classification": FailureClass,  # Alias for SRC-009 Accident.failure_classification
+    "gate_verdict": GateVerdict,  # SRC-009: Gate.verdict
+    "verdict": GateVerdict,  # Alias for SRC-009 Gate.verdict and Verifier.verdict
     "phase": PhaseId,
 }
 
@@ -121,7 +123,9 @@ FORBIDDEN_SEMANTICS: dict[str, str] = {
     "module_id": "Direct user invocation",
     "assertion_layer": "Skip A or B layer, go directly to C",
     "failure_class": "New undefined categories, ad-hoc classification",
+    "failure_classification": "New undefined categories, ad-hoc classification",
     "gate_verdict": "Custom verdict types",
+    "verdict": "Custom verdict types",
     "phase": "Skip phases, go directly to production",
 }
 
