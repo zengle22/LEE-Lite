@@ -1,33 +1,49 @@
 {
   "version": "1.0",
-  "timestamp": "2026-04-18T11:31:29.679Z",
-  "phase": "09",
-  "phase_name": "impl-spec-test",
-  "phase_dir": ".planning/phases/09-impl-spec-test",
-  "plan": null,
-  "task": null,
-  "total_tasks": null,
-  "status": "paused",
+  "timestamp": "2026-04-22T12:00:00+08:00",
+  "phase": null,
+  "phase_name": "SSOT chain extraction and materialization (ADR-052)",
+  "status": "completed",
+  "task": 9,
+  "total_tasks": 9,
   "completed_tasks": [
-    {"id": "phase-08-all", "name": "Phase 08: FRZ→SRC semantic extraction chain", "status": "done", "commit": "3c9383f"},
-    {"id": "phase-09-context", "name": "Phase 9: discuss-phase — capture semantic stability decisions", "status": "done", "commit": "a787dba"}
+    {"id": 1, "name": "FRZ-001 freeze", "status": "done"},
+    {"id": 2, "name": "SRC extraction (renamed to SRC-009)", "status": "done"},
+    {"id": 3, "name": "EPIC extraction (renamed to EPIC-009)", "status": "done"},
+    {"id": 4, "name": "FEAT extraction (renamed to FEAT-009-*)", "status": "done"},
+    {"id": 5, "name": "TECH derivation (renamed to TECH-009)", "status": "done"},
+    {"id": 6, "name": "TESTSET derivation (renamed to TESTSET-009)", "status": "done"},
+    {"id": 7, "name": "SSOT chain integrity verification (42/42 PASS)", "status": "done"},
+    {"id": 8, "name": "Rename artifacts + Gate + materialization", "status": "done"},
+    {"id": 9, "name": "Create Task Pack + IMPL per ADR-051", "status": "done"}
   ],
-  "remaining_tasks": [
-    {"id": "phase-09-plan", "name": "Plan Phase 9: silent_override.py + impl-spec-test 9th dim + dev skill validate_output.sh", "status": "not_started"},
-    {"id": "phase-09-execute", "name": "Execute Phase 9 plans", "status": "not_started"},
-    {"id": "phase-09-verify", "name": "Verify Phase 9", "status": "not_started"}
-  ],
+  "materialized_artifacts": {
+    "src": "ssot/src/SRC-009__adr-052-ssot-semantic-governance-upgrade.md",
+    "epic": "ssot/epic/EPIC-009__adr-052-test-governance-dual-axis.md",
+    "feats": [
+      "ssot/feat/FEAT-009-D__test-governance-declarative-asset-layering.md",
+      "ssot/feat/FEAT-009-E__state-machine-execution-and-assertion-model.md",
+      "ssot/feat/FEAT-009-A__independent-verification-and-audit.md",
+      "ssot/feat/FEAT-009-S__skill-orchestration-dag-definition.md"
+    ],
+    "tech": "ssot/tech/TECH-009__adr-052-test-governance-technical-design.md",
+    "testset": "ssot/testset/TESTSET-009__test-governance-dual-axis-testset.yaml",
+    "gates": [
+      "ssot/gates/GATE-FRZ-SRC-009.json",
+      "ssot/gates/GATE-SRC-EPIC-009.json",
+      "ssot/gates/GATE-EPIC-FEAT-009.json",
+      "ssot/gates/GATE-FEAT-TECH-009.json",
+      "ssot/gates/GATE-TECH-TESTSET-009.json"
+    ],
+    "task_pack": "ssot/testset/TASK-PACK-009-D__test-governance-declarative-task-pack.yaml",
+    "impl": "ssot/impl/IMPL-SRC-009-D__test-governance-declarative-asset-layering.md"
+  },
   "blockers": [],
-  "human_actions_pending": [
-    {"action": "Run /gsd-plan-phase 9 in fresh session", "context": "Context was at 93%, paused to avoid overflow", "blocking": true}
-  ],
   "decisions": [
-    {"decision": "silent_override.py compares against FRZ anchors (not FEAT baseline)", "rationale": "FRZ is the 唯一语义真相源 per ADR-050; reuses Phase 8 drift_detector directly", "phase": "09"},
-    {"decision": "Tiered block/pass threshold", "rationale": "block for missing anchor/tampered/constraint-violation/out-of-derived_allowed; pass_with_revisions for extra-allowed-fields and expired-known_unknowns", "phase": "09"},
-    {"decision": "All 6 dev skills get silent_override with tiered baselines", "rationale": "feat-to-tech/tech-to-impl get full FRZ comparison; feat-to-ui/proto-to-ui get JRN/SM only; feat-to-proto/surface-map get lightweight product_boundary check", "phase": "09"},
-    {"decision": "Automated rule-based classifier for clarification vs semantic_change", "rationale": "Deterministic, testable, aligns with drift_detector; no LLM or human gate needed", "phase": "09"}
+    {"decision": "Use SRC-009 numbering", "rationale": "SRC-001 already exists for ADR-005. Occupied: 001,002,003,005,006,008. Next: 009."},
+    {"decision": "4 FEATs: 009-D, 009-E, 009-A, 009-S", "rationale": "One FEAT per facet group: test-governance, test-execution-framework, audit-and-verification, skill-orchestration"},
+    {"decision": "Single EPIC-009", "rationale": "All facets belong to one unified test governance capability"}
   ],
-  "uncommitted_files": [],
-  "next_action": "Run /gsd-plan-phase 9 — CONTEXT.md already exists at .planning/phases/09-impl-spec-test/09-CONTEXT.md with all decisions captured",
-  "context_notes": "Phase 8 complete: 4/4 plans, 14/14 verified, 86 tests passing. Fixed a verification gap in check_constraints() during verification. Phase 9 discuss complete — CONTEXT.md committed with 10 decisions (D-01 through D-10). Ready to plan Phase 9."
+  "next_action": "Review and commit, then consider multi-role code review before implementation",
+  "context_notes": "ADR-052 SSOT chain fully extracted, ID-fixed, gated, and materialized. Task Pack + IMPL created per ADR-051. Ready for review/commit."
 }

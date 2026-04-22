@@ -30,7 +30,7 @@
 
 ---
 
-## Phase 8: FRZ→SRC 语义抽取链
+## Phase 8: FRZ->SRC 语义抽取链
 
 **Goal:** 交付 `ll-frz-manage` 抽取模式 + SRC/EPIC/FEAT 级联抽取引擎 + 投影不变性守卫 + 漂移检测。
 
@@ -39,7 +39,7 @@
 **Plans:**
 
 - [x] 08-01 — `cli/lib/drift_detector.py`: 语义漂移检测器
-- [x] 08-02 — `skills/ll-frz-manage` 抽取模式: FRZ → SRC 抽取 + 投影守卫 + 锚点注册 + 漂移检测
+- [x] 08-02 — `skills/ll-frz-manage` 抽取模式: FRZ -> SRC 抽取 + 投影守卫 + 锚点注册 + 漂移检测
 - [x] 08-03 — `skills/ll-product-src-to-epic`: 改为 FRZ 抽取 EPIC 模式
 - [x] 08-04 — `skills/ll-product-epic-to-feat`: 改为 FRZ 抽取 FEAT 模式
 
@@ -48,7 +48,7 @@
 2. `ll src-to-epic extract --src <dir> --frz FRZ-xxx` 输出 EPIC，锚点 ID 已注册
 3. `ll epic-to-feat extract --epic <dir> --frz FRZ-xxx` 输出 FEAT
 4. 漂移检测器比对抽取结果与 FRZ 原始语义，漂移 >0 则拦截
-5. 完整链路跑通: FRZ → SRC → EPIC → FEAT，所有锚点可追溯
+5. 完整链路跑通: FRZ -> SRC -> EPIC -> FEAT，所有锚点可追溯
 
 **UI hint:** no
 
@@ -85,13 +85,13 @@
 **Plans:** 4/4 plans complete
 
 Plans:
-- [x] 10-01-PLAN.md — `skills/ll-patch-capture`: 集成三分类 (visual→Minor, interaction→Minor, semantic→Major) + GradeLevel enum (GRADE-01)
+- [x] 10-01-PLAN.md — `skills/ll-patch-capture`: 集成三分类 (visual->Minor, interaction->Minor, semantic->Major) + GradeLevel enum (GRADE-01)
 - [x] 10-02-PLAN.md — `skills/ll-experience-patch-settle`: Minor settle 逻辑 (backwrite UI/TESTSET) (GRADE-02, GRADE-04)
 - [x] 10-03-PLAN.md — `skills/ll-frz-manage`: 冻结模式加 `--type revise` 参数 (Major 回流) (GRADE-03)
 - [x] 10-04-PLAN.md — `skills/ll-patch-aware-context`: 注入时检测 Minor/Major 变更 (GRADE-04)
 
 **Success Criteria:**
-1. `ll-patch-capture` 捕获变更时自动分类，visual/interaction → Minor patch
+1. `ll-patch-capture` 捕获变更时自动分类，visual/interaction -> Minor patch
 2. semantic 变更触发 Major 回流: `ll frz-manage freeze --type revise --previous-frz FRZ-xxx`
 3. FRZ 注册表记录 revision chain（parent_frz_ref, reason, status）
 4. Minor Patch 验证通过后 backwrite 到 UI Spec / Flow Spec
@@ -157,7 +157,7 @@ Plans:
 - Active (v2.0 in scope): 21
 - Deferred to v2.1: 3 (PACK-03, PACK-04, PACK-05)
 - Mapped to phases: 21 active + 3 deferred
-- Unmapped: 0 ✓
+- Unmapped: 0
 
 ---
 *Roadmap created: 2026-04-18*
@@ -188,7 +188,7 @@ Plans:
 - [x] `tests/cli/lib/test_environment_schema.py` (16 tests, all passing)
 - [x] `tests/cli/lib/test_gate_schema.py` (21 tests, all passing)
 
-**State transition:** schema_draft → schema_validated ✓
+**State transition:** schema_draft -> schema_validated
 
 **Plans:** 3/3 plans complete
 
@@ -217,10 +217,16 @@ Plans:
 3. 错误消息包含字段名、非法值、允许值列表
 
 **Deliverables:**
-- `cli/lib/enum_guard.py` (new)
+- [ ] `cli/lib/enum_guard.py` (new)
+- [ ] `tests/cli/lib/test_enum_guard.py` (new)
 
 **Dependencies:** Phase 12 (enum values defined in schemas)
-**State transition:** schema_validated → enum_guard_integrated
+**State transition:** schema_validated -> enum_guard_integrated
+
+**Plans:** 1 plan
+
+Plans:
+- [ ] 13-01-PLAN.md -- Centralized enum_guard.py with 6 governance enums, validation, and CLI (ENUM-01, ENUM-02, ENUM-03)
 
 ---
 
@@ -257,7 +263,7 @@ Plans:
 - `cli/lib/protocol.py` (extend)
 
 **Dependencies:** Phase 12, Phase 13, Phase 14
-**State transition:** enum_guard_integrated → contracts_traceable
+**State transition:** enum_guard_integrated -> contracts_traceable
 
 ---
 
@@ -275,7 +281,7 @@ Plans:
 5. Frozen Contract 追溯测试通过
 
 **Dependencies:** Phase 12, Phase 13, Phase 14, Phase 15
-**State transition:** contracts_traceable → ready_for_test
+**State transition:** contracts_traceable -> ready_for_test
 
 ---
 
@@ -296,4 +302,4 @@ Plans:
 - Unmapped: 0
 
 ---
-*Last updated: 2026-04-22 — v2.1 roadmap added (Phases 12-16)*
+*Last updated: 2026-04-22 — v2.1 roadmap updated (Phase 13 plan added)*
