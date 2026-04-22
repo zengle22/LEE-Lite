@@ -3,7 +3,7 @@ gsd_state_version: 1.0
 milestone: v2.0
 milestone_name: milestone
 status: completed
-last_updated: "2026-04-20T03:52:33.436Z"
+last_updated: "2026-04-22T07:49:21.707Z"
 progress:
   total_phases: 5
   completed_phases: 5
@@ -58,5 +58,10 @@ Delivered:
 - `.planning/ROADMAP.md` — Phase structure (5 phases, 6-10, created 2026-04-18)
 - `.planning/codebase/` — Codebase map (7 docs)
 
+## Accumulated Context
+
+### Pending Todos
+- [ ] 2026-04-22: ADR-052 在v2.1没有进入scope的内容 — FEAT-009-E (状态机执行/三层断言/故障分类), FEAT-009-A (独立验证/违规检测/事故包), FEAT-009-S (Skill编排/DAG), FC-002 (需求轴/实施轴分离契约)
+
 ---
-*Last updated: 2026-04-18 after v2.0 roadmap created*
+*Last updated: 2026-04-22 after v2.1 milestone initialization*
