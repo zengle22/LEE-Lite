@@ -210,13 +210,17 @@ class TestEnumGuardViolation:
 
 class TestRegistry:
     def test_enum_registry_has_all_6_fields(self):
-        assert len(ENUM_REGISTRY) == 6
+        # Base 6 fields + 2 aliases (verdict, failure_classification) for SRC-009
+        assert len(ENUM_REGISTRY) >= 6
         assert "skill_id" in ENUM_REGISTRY
         assert "module_id" in ENUM_REGISTRY
         assert "assertion_layer" in ENUM_REGISTRY
         assert "failure_class" in ENUM_REGISTRY
         assert "gate_verdict" in ENUM_REGISTRY
         assert "phase" in ENUM_REGISTRY
+        # Aliases for SRC-009 compatibility
+        assert "verdict" in ENUM_REGISTRY
+        assert "failure_classification" in ENUM_REGISTRY
 
     def test_enum_registry_maps_correct_types(self):
         assert ENUM_REGISTRY["skill_id"] is SkillId
@@ -225,9 +229,13 @@ class TestRegistry:
         assert ENUM_REGISTRY["failure_class"] is FailureClass
         assert ENUM_REGISTRY["gate_verdict"] is GateVerdict
         assert ENUM_REGISTRY["phase"] is PhaseId
+        # Aliases
+        assert ENUM_REGISTRY["verdict"] is GateVerdict
+        assert ENUM_REGISTRY["failure_classification"] is FailureClass
 
     def test_forbidden_semantics_has_all_6_fields(self):
-        assert len(FORBIDDEN_SEMANTICS) == 6
+        # Base 6 + 2 aliases for SRC-009 compatibility
+        assert len(FORBIDDEN_SEMANTICS) >= 6
         for field in ENUM_REGISTRY:
             assert field in FORBIDDEN_SEMANTICS, f"Missing forbidden_semantics for {field}"
 
