@@ -2,10 +2,10 @@
 gsd_state_version: 1.0
 milestone: v2.1
 milestone_name: "双链双轴测试强化"
-status: initializing
-last_updated: "2026-04-22T08:00:00Z"
+status: ready
+last_updated: "2026-04-22T08:30:00Z"
 progress:
-  total_phases: 0
+  total_phases: 5
   completed_phases: 0
   total_plans: 0
   completed_plans: 0
@@ -21,7 +21,13 @@ progress:
 
 ## Roadmap Summary
 
-*Pending — roadmap not yet created*
+| # | Phase | Goal | Requirements |
+|---|-------|------|--------------|
+| 12 | Schema 定义层 | 3 个 YAML schema (TESTSET/Environment/Gate) | SCHEMA-01~06 |
+| 13 | 枚举守卫 | enum_guard.py 实现 6 个枚举字段校验 | ENUM-01~03 |
+| 14 | 治理对象验证器 | governance_validator.py 11 个对象字段校验 | GOV-01~03 |
+| 15 | 集成与追溯 | enum_guard 集成 SSOT 写入路径 + FC 追溯 | FC-01~03, INT-01~03 |
+| 16 | 测试验证 | 完整测试套件 + 证据产出 | TEST-01~05 |
 
 ## Accumulated Context
 
@@ -61,8 +67,8 @@ Delivered:
 - `.planning/PROJECT.md` — Project context
 - `.planning/config.json` — Workflow preferences
 - `.planning/research/` — Domain research (pending)
-- `.planning/REQUIREMENTS.md` — Scoped requirements (pending)
-- `.planning/ROADMAP.md` — Phase structure (pending)
+- `.planning/REQUIREMENTS.md` — Scoped requirements (22 items, v2.1)
+- `.planning/ROADMAP.md` — Phase structure (5 phases, 12-16, created 2026-04-22)
 - `.planning/codebase/` — Codebase map (7 docs)
 
 ---

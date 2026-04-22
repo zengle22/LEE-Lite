@@ -162,3 +162,119 @@ Plans:
 ---
 *Roadmap created: 2026-04-18*
 *Last updated: 2026-04-20 after Phase 11 planning*
+
+---
+
+## Phase 12: Schema 定义层 (v2.1)
+
+**Goal:** 定义 TESTSET、Environment、Gate 三个 YAML schema，含 forbidden/required field guards。
+
+**Requirements:** SCHEMA-01 ~ SCHEMA-06
+
+**Success Criteria:**
+1. TESTSET schema 拒绝 test_case_pack / script_pack 字段（FC-006）
+2. Environment schema 要求 base_url / browser / timeout / headless 字段
+3. Gate schema 仅接受 pass / conditional_pass / fail / provisional_pass 四个 verdict
+4. 所有 schema 对合法输入返回成功，对非法输入返回清晰错误信息
+
+**Deliverables:**
+- `cli/lib/testset_schema.py` (new)
+- `cli/lib/environment_schema.py` (new)
+- `cli/lib/gate_schema.py` (new)
+
+**State transition:** schema_draft → schema_validated
+
+---
+
+## Phase 13: 枚举守卫 (v2.1)
+
+**Goal:** 实现 enum_guard.py，覆盖 6 个枚举字段（skill_id, module_id, assertion_layer, failure_class, gate_verdict, phase）。
+
+**Requirements:** ENUM-01 ~ ENUM-03
+
+**Success Criteria:**
+1. allowed_values 白名单严格校验所有 6 个枚举字段
+2. forbidden_semantics 值被正确拦截
+3. 错误消息包含字段名、非法值、允许值列表
+
+**Deliverables:**
+- `cli/lib/enum_guard.py` (new)
+
+**Dependencies:** Phase 12 (enum values defined in schemas)
+**State transition:** schema_validated → enum_guard_integrated
+
+---
+
+## Phase 14: 治理对象验证器 (v2.1)
+
+**Goal:** 实现 governance_validator.py，覆盖 SRC-009 定义的 11 个治理对象。
+
+**Requirements:** GOV-01 ~ GOV-03
+
+**Success Criteria:**
+1. 11 个治理对象（Skill, Module, AssertionLayer, FailureClass, GoldenPath, Gate, StateMachine, RunManifest, Environment, Accident, Verifier）均通过字段校验
+2. required_fields / optional_fields / forbidden_fields 与 SRC-009 完全一致
+3. 错误消息清晰指出缺失/多余/禁止字段
+
+**Deliverables:**
+- `cli/lib/governance_validator.py` (new)
+
+**Dependencies:** Phase 12 (schema definitions inform field constraints)
+
+---
+
+## Phase 15: 集成与追溯 (v2.1)
+
+**Goal:** enum_guard 集成到 SSOT 写入路径，Frozen Contract 追溯集成到所有产出。
+
+**Requirements:** FC-01 ~ FC-03, INT-01 ~ INT-03
+
+**Success Criteria:**
+1. SSOT 写入路径（cli/lib/protocol.py）自动调用 enum_guard 校验
+2. 现有 FRZ/MSC 验证流程不受影响
+3. 所有产出文件显式引用 FC-001 ~ FC-007
+
+**Deliverables:**
+- `cli/lib/protocol.py` (extend)
+
+**Dependencies:** Phase 12, Phase 13, Phase 14
+**State transition:** enum_guard_integrated → contracts_traceable
+
+---
+
+## Phase 16: 测试验证 (v2.1)
+
+**Goal:** 完整测试套件运行，产出证据，达到 ready_for_test 状态。
+
+**Requirements:** TEST-01 ~ TEST-05
+
+**Success Criteria:**
+1. 所有 schema 测试通过
+2. 所有 enum guard 测试通过
+3. 所有 governance validator 测试通过
+4. 集成测试确认 enum_guard 在 SSOT 写入时自动触发
+5. Frozen Contract 追溯测试通过
+
+**Dependencies:** Phase 12, Phase 13, Phase 14, Phase 15
+**State transition:** contracts_traceable → ready_for_test
+
+---
+
+## v2.1 Task Pack Mapping
+
+| Phase | Task Pack | Acceptance Criteria |
+|-------|-----------|---------------------|
+| Phase 12 | TASK-001 | AC-SCHEMA-001 |
+| Phase 13 | TASK-002, TASK-005 | AC-ENUM-001, AC-ENUM-002 |
+| Phase 14 | TASK-003, TASK-006 | AC-OBJECT-001 |
+| Phase 15 | TASK-007 | AC-FC-001 |
+| Phase 16 | TASK-004 | AC-FC006-001 |
+
+## v2.1 Coverage
+
+- v2.1 requirements: 22 total
+- Mapped to phases: 22 (100%)
+- Unmapped: 0
+
+---
+*Last updated: 2026-04-22 — v2.1 roadmap added (Phases 12-16)*
