@@ -2,14 +2,14 @@
 gsd_state_version: 1.0
 milestone: v2.1
 milestone_name: Task Pack Mapping
-status: Defining requirements
-last_updated: "2026-04-22T22:30:00.000Z"
+status: In progress
+last_updated: "2026-04-23T00:15:00.000Z"
 progress:
   total_phases: 5
-  completed_phases: 2
-  total_plans: 16
-  completed_plans: 5
-  percent: 31
+  completed_phases: 4
+  total_plans: 17
+  completed_plans: 6
+  percent: 35
 ---
 
 # Project State
@@ -28,6 +28,11 @@ progress:
 | 14 | 治理对象验证器 | governance_validator.py 11 个对象字段校验 | GOV-01~03 |
 | 15 | 集成与追溯 | enum_guard 集成 SSOT 写入路径 + FC 追溯 | FC-01~03, INT-01~03 |
 | 16 | 测试验证 | 完整测试套件 + 证据产出 | TEST-01~05 |
+
+**Plans:** 1 plan
+
+Plans:
+- [ ] 14-01-PLAN.md — governance_validator.py with all 11 object validators, enum integration, CLI (GOV-01, GOV-02, GOV-03)
 
 ## Accumulated Context
 

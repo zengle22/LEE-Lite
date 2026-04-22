@@ -243,8 +243,14 @@ Plans:
 
 **Deliverables:**
 - `cli/lib/governance_validator.py` (new)
+- `tests/cli/lib/test_governance_validator.py` (new)
 
 **Dependencies:** Phase 12 (schema definitions inform field constraints)
+
+**Plans:** 1/1 plans complete
+
+Plans:
+- [x] 14-01-PLAN.md — governance_validator.py with all 11 object validators, enum integration, CLI (GOV-01, GOV-02, GOV-03) ✓ commit 972ee41
 
 ---
 
@@ -308,5 +314,11 @@ Plans:
 - Mapped to phases: 22 (100%)
 - Unmapped: 0
 
+| Requirement | Phase | Status |
+|-------------|-------|--------|
+| GOV-01 | Phase 14 | Satisfied |
+| GOV-02 | Phase 14 | Satisfied |
+| GOV-03 | Phase 14 | Satisfied |
+
 ---
-*Last updated: 2026-04-22 — Phase 13 complete (enum_guard, 41 tests)*
+*Last updated: 2026-04-22 — Phase 14 planned (governance_validator, 1 plan)*
