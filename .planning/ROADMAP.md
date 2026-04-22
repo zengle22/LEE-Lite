@@ -217,8 +217,8 @@ Plans:
 3. 错误消息包含字段名、非法值、允许值列表
 
 **Deliverables:**
-- [ ] `cli/lib/enum_guard.py` (new)
-- [ ] `tests/cli/lib/test_enum_guard.py` (new)
+- [x] `cli/lib/enum_guard.py` (new) — 227 lines, 6 enums, 4 functions, CLI
+- [x] `tests/cli/lib/test_enum_guard.py` (new) — 41 tests, all passing
 
 **Dependencies:** Phase 12 (enum values defined in schemas)
 **State transition:** schema_validated -> enum_guard_integrated
@@ -226,7 +226,7 @@ Plans:
 **Plans:** 1 plan
 
 Plans:
-- [ ] 13-01-PLAN.md -- Centralized enum_guard.py with 6 governance enums, validation, and CLI (ENUM-01, ENUM-02, ENUM-03)
+- [x] 13-01-PLAN.md -- Centralized enum_guard.py with 6 governance enums, validation, and CLI (ENUM-01, ENUM-02, ENUM-03) ✓ commit 4f90aa1
 
 ---
 
@@ -295,11 +295,18 @@ Plans:
 | Phase 15 | TASK-007 | AC-FC-001 |
 | Phase 16 | TASK-004 | AC-FC006-001 |
 
-## v2.1 Coverage
+## v2.1 Requirement Traceability
 
+| Requirement | Phase | Status |
+|-------------|-------|--------|
+| ENUM-01 | Phase 13 | Satisfied |
+| ENUM-02 | Phase 13 | Satisfied |
+| ENUM-03 | Phase 13 | Satisfied |
+
+**Coverage:**
 - v2.1 requirements: 22 total
 - Mapped to phases: 22 (100%)
 - Unmapped: 0
 
 ---
-*Last updated: 2026-04-22 — v2.1 roadmap updated (Phase 13 plan added)*
+*Last updated: 2026-04-22 — Phase 13 complete (enum_guard, 41 tests)*
