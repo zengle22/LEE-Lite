@@ -1,0 +1,26 @@
+# Gate verdict schema (ADR-052, Phase 12)
+# 4-verdict enum: pass, conditional_pass, fail, provisional_pass
+# Forbidden fields: hidden_verifier_failure
+
+type: object
+required:
+  - verdict
+properties:
+  artifact_type:
+    type: string
+    const: gate
+  gate_id:
+    type: string
+  verdict:
+    type: string
+    enum: [pass, conditional_pass, fail, provisional_pass]
+  feature_id:
+    type: string
+  evaluated_at:
+    type: string
+  reason:
+    type: string
+  notes:
+    type: string
+forbidden:
+  - hidden_verifier_failure

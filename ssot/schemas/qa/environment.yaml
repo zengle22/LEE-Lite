@@ -1,0 +1,36 @@
+# Environment schema (ADR-052, Phase 12)
+# Required fields: base_url, browser, timeout, headless
+# Forbidden fields: embedded_in_testset
+
+type: object
+required:
+  - base_url
+  - browser
+  - timeout
+  - headless
+properties:
+  artifact_type:
+    type: string
+    const: environment
+  env_id:
+    type: string
+  base_url:
+    type: string
+  browser:
+    type: string
+    enum: [chromium, firefox, webkit]
+  timeout:
+    type: integer
+  headless:
+    type: boolean
+  viewport:
+    type: object
+    properties:
+      width:
+        type: integer
+      height:
+        type: integer
+  notes:
+    type: string
+forbidden:
+  - embedded_in_testset

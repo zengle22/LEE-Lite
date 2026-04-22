@@ -1,0 +1,27 @@
+# TESTSET schema (ADR-052, Phase 12)
+# Forbidden fields: test_case_pack, script_pack (FC-006)
+
+type: object
+properties:
+  artifact_type:
+    type: string
+    const: testset
+  testset_id:
+    type: string
+  source_feat_refs:
+    type: array
+    items:
+      type: string
+  environment_ref:
+    type: string
+  gate_ref:
+    type: string
+  tasks:
+    type: array
+    items:
+      type: object
+  notes:
+    type: string
+forbidden:
+  - test_case_pack
+  - script_pack

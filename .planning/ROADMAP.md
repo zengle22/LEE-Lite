@@ -178,11 +178,30 @@ Plans:
 4. 所有 schema 对合法输入返回成功，对非法输入返回清晰错误信息
 
 **Deliverables:**
-- `cli/lib/testset_schema.py` (new)
-- `cli/lib/environment_schema.py` (new)
-- `cli/lib/gate_schema.py` (new)
+- [x] `cli/lib/testset_schema.py` (new)
+- [x] `cli/lib/environment_schema.py` (new)
+- [x] `cli/lib/gate_schema.py` (new)
+- [x] `ssot/schemas/qa/testset.yaml` (new)
+- [x] `ssot/schemas/qa/environment.yaml` (new)
+- [x] `ssot/schemas/qa/gate.yaml` (new)
+- [x] `tests/cli/lib/test_testset_schema.py` (12 tests, all passing)
+- [x] `tests/cli/lib/test_environment_schema.py` (16 tests, all passing)
+- [x] `tests/cli/lib/test_gate_schema.py` (21 tests, all passing)
 
-**State transition:** schema_draft → schema_validated
+**State transition:** schema_draft → schema_validated ✓
+
+**Plans:** 3/3 plans complete
+
+Plans:
+- [x] 12-01-PLAN.md — TESTSET schema with forbidden field guards (FC-006)
+- [x] 12-02-PLAN.md — Environment schema with required field guards
+- [x] 12-03-PLAN.md — Gate schema with 4-verdict enum guard
+
+**Success Criteria:**
+1. [x] TESTSET schema 拒绝 test_case_pack / script_pack 字段（FC-006）
+2. [x] Environment schema 要求 base_url / browser / timeout / headless 字段
+3. [x] Gate schema 仅接受 pass / conditional_pass / fail / provisional_pass 四个 verdict
+4. [x] 所有 schema 对合法输入返回成功，对非法输入返回清晰错误消息
 
 ---
 

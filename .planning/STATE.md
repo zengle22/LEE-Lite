@@ -1,15 +1,15 @@
 ---
 gsd_state_version: 1.0
 milestone: v2.1
-milestone_name: "双链双轴测试强化"
-status: ready
-last_updated: "2026-04-22T08:30:00Z"
+milestone_name: Task Pack Mapping
+status: Defining requirements
+last_updated: "2026-04-22T11:57:57.759Z"
 progress:
   total_phases: 5
-  completed_phases: 0
-  total_plans: 0
-  completed_plans: 0
-  percent: 0
+  completed_phases: 1
+  total_plans: 16
+  completed_plans: 3
+  percent: 19
 ---
 
 # Project State
@@ -60,6 +60,7 @@ Delivered:
 - PreToolUse Hook 集成
 
 ### Pending Todos
+
 - [ ] 2026-04-22: ADR-052 在v2.1没有进入scope的内容 — FEAT-009-E (状态机执行/三层断言/故障分类), FEAT-009-A (独立验证/违规检测/事故包), FEAT-009-S (Skill编排/DAG), FC-002 (需求轴/实施轴分离契约)
 
 ## Artifacts
