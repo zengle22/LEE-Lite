@@ -8,18 +8,17 @@
 
 确保 SSOT 不再逐层生成，而是从 FRZ 冻结包中分层语义抽取，执行层只能补全不能改写语义，所有变更通过分级机制回流治理。
 
-## Current Milestone: v2.0 ADR-050/051 SSOT 语义治理升级
+## Current Milestone: v2.1 双链双轴测试强化
 
-**Goal:** 建立完整的 SSOT 语义治理闭环，从"生成链"转型为"语义抽取链"。
+**Goal:** 实现 FEAT-009-D 测试需求轴治理基础设施 — 声明性资产分层与枚举冻结。
 
 **Target features:**
-- FRZ 冻结包结构定义 + MSC 5维验证
-- SSOT 语义抽取链（FRZ → SRC → EPIC → FEAT，投影不变性）
-- 执行层语义稳定规则（补全不改写，语义漂移检测）
-- 变更分级与 ADR-049 协同（visual/interaction/semantic → Minor/Major 回流）
-- 三轴管理强度（需求强/实现弱/证据轻）
-- Task Pack 结构（PACK YAML, depends_on）+ 顺序执行循环（失败暂停）
-- 协同规则更新
+- TESTSET/Environment/Gate YAML Schema 定义（3 个 schema，含 forbidden/required field guards）
+- 枚举守卫模块 (enum_guard.py) — 6 个枚举字段 (skill_id, module_id, assertion_layer, failure_class, gate_verdict, phase)
+- 治理对象验证器 ( governance_validator.py) — 11 个治理对象的 required/optional/forbidden fields 校验
+- Frozen Contract 追溯（7 条 FC-001 ~ FC-007 在所有产出中可追溯）
+- SSOT 写入路径集成（enum_guard 集成到 cli/lib/ 写入路径）
+- Task Pack 顺序执行（7 个任务 TASK-001 ~ TASK-007 依赖解析）
 
 ## Requirements
 
@@ -33,22 +32,29 @@
 - ✓ QA Schema 已交付（v1.0 Phase 1）
 - ✓ 11 个 QA 技能 Prompt-first 运行时已交付（v1.0 Phase 2-3）
 - ✓ Patch 基础设施已交付（v1.1: patch_schema, patch_context_injector, patch_auto_register）
+- ✓ v2.0 SSOT 语义治理已交付（ADR-050/051）
+- ✓ ADR-052 测试体系轴化已定义（SRC-009 v1.1 frozen）
+- ✓ EPIC-009 / 4 FEATs 已冻结（FEAT-009-D/E/A/S）
+- ✓ TECH-009 技术设计已定义（4-layer architecture）
+- ✓ TESTSET-009 验收集已定义
 
 ### Active
 
-- [ ] FRZ 冻结包结构 + MSC 验证
-- [ ] SSOT 从生成链改为语义抽取链（ADR-050 §4）
-- [ ] 执行层语义稳定规则落地（ADR-050 §5）
-- [ ] 变更分级机制与 ADR-049 协同（ADR-050 §6）
-- [ ] 三轴管理强度定义（ADR-050 §7）
-- [ ] Task Pack 结构 + 顺序执行循环（ADR-050 §8 + ADR-051）
-- [ ] 协同规则更新（ADR-050 §9）
+- [ ] TESTSET/Environment/Gate YAML Schema 定义
+- [ ] 枚举守卫模块（6 个枚举字段）
+- [ ] 治理对象验证器（11 个治理对象）
+- [ ] Frozen Contract 追溯集成
+- [ ] SSOT 写入路径集成（enum_guard → protocol.py）
+- [ ] Task Pack 执行与验证
 
 ### Out of Scope
 
 - [FRZ 生成工具实现] — 本轮仅定义治理规则，FRZ 仍通过 BMAD 等框架产出
 - [复杂 DAG 调度] — ADR-050/051 明确采用顺序 loop
 - [三轴一律强管理] — ADR-050 §7 明确差异化强度
+- [FEAT-009-E 状态机执行] — 独立 FEAT，延期到后续 milestone
+- [FEAT-009-A 独立验证审计] — 独立 FEAT，延期到后续 milestone
+- [FEAT-009-S Skill 编排 DAG] — 独立 FEAT，延期到后续 milestone
 
 ## Context
 

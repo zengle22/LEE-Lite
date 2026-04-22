@@ -1,35 +1,39 @@
 ---
 gsd_state_version: 1.0
-milestone: v2.0
-milestone_name: milestone
-status: completed
-last_updated: "2026-04-22T07:49:21.707Z"
+milestone: v2.1
+milestone_name: "双链双轴测试强化"
+status: initializing
+last_updated: "2026-04-22T08:00:00Z"
 progress:
-  total_phases: 5
-  completed_phases: 5
-  total_plans: 16
-  completed_plans: 16
-  percent: 100
+  total_phases: 0
+  completed_phases: 0
+  total_plans: 0
+  completed_plans: 0
+  percent: 0
 ---
 
 # Project State
 
-**Project:** ADR-050/051 SSOT 语义治理升级
-**Status:** Milestone complete
-**Core value:** 确保 SSOT 不再逐层生成，而是从 FRZ 冻结包中分层语义抽取，执行层只能补全不能改写语义
-**Current focus:** Phase 10 — change-grading
+**Project:** v2.1 双链双轴测试强化
+**Status:** Defining requirements
+**Core value:** 实现测试需求轴治理基础设施 — 声明性资产分层与枚举冻结，确保"测什么"由 SSOT 管理
+**Current focus:** Defining requirements and roadmap
 
 ## Roadmap Summary
 
-| # | Phase | Goal | Requirements |
-|---|-------|------|--------------|
-| 1 | FRZ 冻结层 | FRZ 包结构 + MSC 验证 + 注册表 + ll-frz-manage 技能 | FRZ-01~06 |
-| 2 | 语义抽取链 | FRZ→SRC 抽取 + SRC→EPIC→FEAT 级联 + 漂移检测 | EXTR-01~05 |
-| 3 | 执行语义稳定 | impl-spec-test 加语义稳定性维度 + 静默覆盖防护 | STAB-01~04 |
-| 4 | 变更分级协同 | Patch 三分类 + Minor settle + Major 回流 FRZ | GRADE-01~04 |
-| 5 | Task Pack 结构 | YAML schema + depends_on 解析 (loop 延期到 v2.1) | PACK-01~02 |
+*Pending — roadmap not yet created*
 
 ## Accumulated Context
+
+### Previous Milestone: v2.0 ADR-050/051 SSOT 语义治理升级 (Shipped: 2026-04-22)
+
+Delivered:
+
+- FRZ 冻结层结构 + MSC 5维验证
+- SSOT 语义抽取链（FRZ → SRC → EPIC → FEAT）
+- 执行层语义稳定规则
+- 变更分级机制与 ADR-049 协同
+- Task Pack 结构 + 顺序执行循环
 
 ### Previous Milestone: v1.0 ADR-047 双链测试 (Shipped: 2026-04-17)
 
@@ -49,19 +53,17 @@ Delivered:
 - Patch-aware context resolver + AI Context Injection
 - PreToolUse Hook 集成
 
+### Pending Todos
+- [ ] 2026-04-22: ADR-052 在v2.1没有进入scope的内容 — FEAT-009-E (状态机执行/三层断言/故障分类), FEAT-009-A (独立验证/违规检测/事故包), FEAT-009-S (Skill编排/DAG), FC-002 (需求轴/实施轴分离契约)
+
 ## Artifacts
 
 - `.planning/PROJECT.md` — Project context
 - `.planning/config.json` — Workflow preferences
 - `.planning/research/` — Domain research (pending)
-- `.planning/REQUIREMENTS.md` — Scoped requirements (24 items, updated with skill mappings)
-- `.planning/ROADMAP.md` — Phase structure (5 phases, 6-10, created 2026-04-18)
+- `.planning/REQUIREMENTS.md` — Scoped requirements (pending)
+- `.planning/ROADMAP.md` — Phase structure (pending)
 - `.planning/codebase/` — Codebase map (7 docs)
-
-## Accumulated Context
-
-### Pending Todos
-- [ ] 2026-04-22: ADR-052 在v2.1没有进入scope的内容 — FEAT-009-E (状态机执行/三层断言/故障分类), FEAT-009-A (独立验证/违规检测/事故包), FEAT-009-S (Skill编排/DAG), FC-002 (需求轴/实施轴分离契约)
 
 ---
 *Last updated: 2026-04-22 after v2.1 milestone initialization*
