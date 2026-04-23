@@ -6,6 +6,7 @@ import json
 from pathlib import Path
 from typing import Any
 
+from cli.lib.enum_guard import validate_enums
 from cli.lib.errors import CommandError
 
 
@@ -27,7 +28,44 @@ def load_json(path: Path) -> dict[str, Any]:
         raise CommandError("INVALID_REQUEST", f"invalid json file: {path}", [str(exc)]) from exc
 
 
+def _is_ssot_path(path: Path) -> bool:
+    """Return True if path is an SSOT path (not FRZ)."""
+    parts = path.resolve().parts
+    return "ssot" in parts and "frz" not in parts
+
+
+def _run_enum_guard(payload: dict, path: Path) -> None:
+    """Validate payload enums before writing SSOT files. Fail-fast on violation."""
+    violations = validate_enums(payload, label=str(path))
+    if violations:
+        v = violations[0]
+        msg = f"enum_guard blocked write: {v.field}='{v.value}' — allowed: {v.allowed}"
+        diagnostics = [str(viol) for viol in violations]
+        raise CommandError("INVARIANT_VIOLATION", msg, diagnostics=diagnostics)
+
+
+def _inject_fc_refs(payload: dict) -> dict:
+    """Return a new dict with fc_refs added if not already present (immutable)."""
+    if "fc_refs" not in payload:
+        return {
+            **payload,
+            "fc_refs": [
+                "FC-001",
+                "FC-002",
+                "FC-003",
+                "FC-004",
+                "FC-005",
+                "FC-006",
+                "FC-007",
+            ],
+        }
+    return payload
+
+
 def write_json(path: Path, payload: dict[str, Any]) -> None:
+    if _is_ssot_path(path):
+        _run_enum_guard(payload, path)
+        payload = _inject_fc_refs(payload)
     ensure_parent(path)
     path.write_text(json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
 
