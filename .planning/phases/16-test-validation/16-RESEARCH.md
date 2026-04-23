@@ -242,19 +242,19 @@ python -m pytest tests/cli/lib/test_fs.py -v -k "fc_refs or inject_fc"
 | A2 | coverage 7.8.0 is the current latest version | Standard Stack | Minor version mismatch has no functional impact |
 | A3 | The 207 test count represents complete coverage of v2.1 code | Test Baseline | If new code was added since last run, gaps may exist -- verifiable by coverage report |
 
-## Open Questions
+## Open Questions (RESOLVED)
 
-1. **Should pytest.ini be created or should options be passed inline?**
+1. **Should pytest.ini be created or should options be passed inline?** RESOLVED: Create minimal pytest.ini
    - What we know: No pytest config file exists; tests pass with defaults; 2 PytestCollectionWarnings appear
    - What's unclear: Whether to suppress warnings via config or accept them
    - Recommendation: Create minimal pytest.ini to suppress collection warnings and set default `--cov=cli.lib` -- cleaner evidence output
 
-2. **Should test_manifests.json be updated as part of this phase?**
+2. **Should test_manifests.json be updated as part of this phase?** RESOLVED: Yes, add cli_lib_tests entry
    - What we know: Current manifests don't include tests/cli/lib/ tests
    - What's unclear: Whether CI pipeline should run these tests on cli/ changes
    - Recommendation: Add `"cli_lib_tests": ["tests/cli/lib"]` to test_manifests.json and update the `cli-governance` check to include them -- this is a D-08 module connectivity concern
 
-3. **What coverage threshold constitutes "ready_for_test"?**
+3. **What coverage threshold constitutes "ready_for_test"?** RESOLVED: 80% line coverage
    - What we know: User's global testing.md requires 80% minimum; CONTEXT.md leaves exact threshold to Claude's discretion
    - What's unclear: Whether 80% line coverage or 80% branch coverage
    - Recommendation: Target 80% line coverage on cli.lib modules; use `--cov-fail-under=80` to enforce
