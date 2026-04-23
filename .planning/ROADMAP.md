@@ -296,12 +296,27 @@ Plans:
 **Dependencies:** Phase 12, Phase 13, Phase 14, Phase 15
 **State transition:** contracts_traceable -> ready_for_test
 
-**Plans:** 3 plans
+**Plans:** 3/3 plans complete
 
 Plans:
-- [ ] 16-01-PLAN.md — Test infrastructure: pytest-cov, pytest.ini, test_manifests.json update
-- [ ] 16-02-PLAN.md — Full test suite execution with evidence collection (JUnit XML + coverage)
-- [ ] 16-03-PLAN.md — CI workflow update (pytest-cov) + phase completion + state transition
+- [x] 16-01-PLAN.md — Test infrastructure: pytest-cov, pytest.ini, test_manifests.json update
+- [x] 16-02-PLAN.md — Full test suite execution with evidence collection (JUnit XML + coverage)
+- [x] 16-03-PLAN.md — CI workflow update (pytest-cov) + phase completion + state transition
+
+**Success Criteria:**
+1. [x] 所有 schema 测试通过 (49 tests)
+2. [x] 所有 enum guard 测试通过 (41 tests)
+3. [x] 所有 governance validator 测试通过 (99 tests)
+4. [x] 集成测试确认 enum_guard 在 SSOT 写入时自动触发 (18 tests)
+5. [x] Frozen Contract 追溯测试通过 (included in test_fs.py)
+
+**Evidence:**
+- test-results.xml: 207 tests, 0 failures (JUnit XML)
+- coverage.xml: line-rate 0.057 (full cli.lib module, v2.1 tested files have strong coverage)
+- htmlcov/index.html: Interactive HTML coverage report
+- test-output.log: Full test run output
+
+**State transition:** contracts_traceable -> ready_for_test [COMPLETE]
 
 ---
 
@@ -319,20 +334,35 @@ Plans:
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
+| SCHEMA-01 | Phase 12 | Satisfied |
+| SCHEMA-02 | Phase 12 | Satisfied |
+| SCHEMA-03 | Phase 12 | Satisfied |
+| SCHEMA-04 | Phase 12 | Satisfied |
+| SCHEMA-05 | Phase 12 | Satisfied |
+| SCHEMA-06 | Phase 12 | Satisfied |
 | ENUM-01 | Phase 13 | Satisfied |
 | ENUM-02 | Phase 13 | Satisfied |
 | ENUM-03 | Phase 13 | Satisfied |
+| GOV-01 | Phase 14 | Satisfied |
+| GOV-02 | Phase 14 | Satisfied |
+| GOV-03 | Phase 14 | Satisfied |
+| INT-01 | Phase 15 | Satisfied |
+| INT-02 | Phase 15 | Satisfied |
+| INT-03 | Phase 15 | Satisfied |
+| FC-01 | Phase 15 | Satisfied |
+| FC-02 | Phase 15 | Satisfied |
+| FC-03 | Phase 15 | Satisfied |
+| TEST-01 | Phase 16 | Satisfied |
+| TEST-02 | Phase 16 | Satisfied |
+| TEST-03 | Phase 16 | Satisfied |
+| TEST-04 | Phase 16 | Satisfied |
+| TEST-05 | Phase 16 | Satisfied |
 
 **Coverage:**
 - v2.1 requirements: 22 total
 - Mapped to phases: 22 (100%)
+- Satisfied: 22 (100%)
 - Unmapped: 0
 
-| Requirement | Phase | Status |
-|-------------|-------|--------|
-| GOV-01 | Phase 14 | Satisfied |
-| GOV-02 | Phase 14 | Satisfied |
-| GOV-03 | Phase 14 | Satisfied |
-
 ---
-*Last updated: 2026-04-23 — Phase 16 planned (test validation, 3 plans in 3 waves)*
+*Last updated: 2026-04-23 — Phase 16 complete (test validation, 207 tests passed, ready_for_test)*
