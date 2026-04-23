@@ -3,7 +3,7 @@ gsd_state_version: 1.0
 milestone: v2.1
 milestone_name: Task Pack Mapping
 status: Complete
-last_updated: "2026-04-23T10:55:00.000Z"
+last_updated: "2026-04-23T12:45:00.000Z"
 progress:
   total_phases: 5
   completed_phases: 5
@@ -17,7 +17,15 @@ progress:
 **Project:** v2.1 双链双轴测试强化
 **Status:** Milestone complete
 **Core value:** 实现测试需求轴治理基础设施 — 声明性资产分层与枚举冻结，确保"测什么"由 SSOT 管理
-**Current focus:** Milestone v2.1 complete — all 5 phases shipped
+**Current focus:** v2.1 milestone archived (2026-04-23). Ready for next milestone planning.
+
+## Deferred Items
+
+Items acknowledged and deferred at milestone close on 2026-04-23:
+
+| Category | Item | Status |
+|----------|------|--------|
+| planning | ADR-052 out-of-scope items (FEAT-009-E/A/S, FC-002) | pending |
 
 ## Roadmap Summary
 
@@ -77,9 +85,10 @@ Delivered:
 - `.planning/PROJECT.md` — Project context
 - `.planning/config.json` — Workflow preferences
 - `.planning/research/` — Domain research (pending)
-- `.planning/REQUIREMENTS.md` — Scoped requirements (22 items, v2.1)
 - `.planning/ROADMAP.md` — Phase structure (5 phases, 12-16, created 2026-04-22)
 - `.planning/codebase/` — Codebase map (7 docs)
+- `.planning/milestones/v2.1-ROADMAP.md` — Archived milestone roadmap
+- `.planning/milestones/v2.1-REQUIREMENTS.md` — Archived milestone requirements
 
 ---
-*Last updated: 2026-04-22 after v2.1 milestone initialization*
+*Last updated: 2026-04-23 after v2.1 milestone completion*
