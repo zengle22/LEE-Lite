@@ -2,14 +2,14 @@
 gsd_state_version: 1.0
 milestone: v2.1
 milestone_name: Task Pack Mapping
-status: In progress
-last_updated: "2026-04-23T01:00:00.000Z"
+status: Planning complete
+last_updated: "2026-04-23T02:30:00.000Z"
 progress:
   total_phases: 5
   completed_phases: 5
-  total_plans: 18
-  completed_plans: 7
-  percent: 39
+  total_plans: 21
+  completed_plans: 10
+  percent: 48
 ---
 
 # Project State
@@ -29,9 +29,12 @@ progress:
 | 15 | 集成与追溯 | enum_guard 集成 SSOT 写入路径 + FC 追溯 | FC-01~03, INT-01~03 |
 | 16 | 测试验证 | 完整测试套件 + 证据产出 | TEST-01~05 |
 
-**Plans:** 1 plan
+**Plans:** 3 plans
 
 Plans:
+- [x] 16-01-PLAN.md — Test infrastructure prerequisites (pytest-cov, pytest.ini, test_manifests.json)
+- [x] 16-02-PLAN.md — Full test suite execution + evidence collection
+- [x] 16-03-PLAN.md — CI update + phase completion state transition
 - [x] 14-01-PLAN.md — governance_validator.py with all 11 object validators, enum integration, CLI (GOV-01, GOV-02, GOV-03)
 - [x] 15-01-PLAN.md — enum_guard integration into write_json + FC traceability + integration tests (FC-01~03, INT-01~03)
 
