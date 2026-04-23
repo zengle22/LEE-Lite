@@ -38,15 +38,15 @@
 
 ## Frozen Contract Traceability
 
-- [ ] **FC-01**: All outputs reference FC-001 ~ FC-007 with explicit traceability
-- [ ] **FC-02**: FC-006 enforcement: TESTSET schema rejects test_case_pack / script_pack fields
-- [ ] **FC-03**: FC-007 enforcement: Verifier schema marks shared_context_with_runner as forbidden field
+- [x] **FC-01**: All outputs reference FC-001 ~ FC-007 with explicit traceability
+- [x] **FC-02**: FC-006 enforcement: TESTSET schema rejects test_case_pack / script_pack fields
+- [x] **FC-03**: FC-007 enforcement: Verifier schema marks shared_context_with_runner as forbidden field
 
 ## SSOT Write Path Integration
 
-- [ ] **INT-01**: Integrate enum_guard into `cli/lib/protocol.py` SSOT write paths
-- [ ] **INT-02**: Existing FRZ/MSC validation flow remains unaffected by enum_guard integration
-- [ ] **INT-03**: SSOT writes invoke enum_guard validation automatically before persisting
+- [x] **INT-01**: Integrate enum_guard into `cli/lib/protocol.py` SSOT write paths
+- [x] **INT-02**: Existing FRZ/MSC validation flow remains unaffected by enum_guard integration
+- [x] **INT-03**: SSOT writes invoke enum_guard validation automatically before persisting
 
 ## Testing
 
