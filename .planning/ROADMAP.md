@@ -296,6 +296,13 @@ Plans:
 **Dependencies:** Phase 12, Phase 13, Phase 14, Phase 15
 **State transition:** contracts_traceable -> ready_for_test
 
+**Plans:** 3 plans
+
+Plans:
+- [ ] 16-01-PLAN.md — Test infrastructure: pytest-cov, pytest.ini, test_manifests.json update
+- [ ] 16-02-PLAN.md — Full test suite execution with evidence collection (JUnit XML + coverage)
+- [ ] 16-03-PLAN.md — CI workflow update (pytest-cov) + phase completion + state transition
+
 ---
 
 ## v2.1 Task Pack Mapping
@@ -328,4 +335,4 @@ Plans:
 | GOV-03 | Phase 14 | Satisfied |
 
 ---
-*Last updated: 2026-04-23 — Phase 15 planned (enum_guard integration + FC traceability, 1 plan)*
+*Last updated: 2026-04-23 — Phase 16 planned (test validation, 3 plans in 3 waves)*
