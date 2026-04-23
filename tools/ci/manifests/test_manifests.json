@@ -21,6 +21,7 @@
     "tests/unit/test_cli_skill_test_exec.py",
     "tests/unit/test_cli_skill_impl_spec_test.py"
   ],
+  "cli_lib_tests": ["tests/cli/lib"],
   "skill_test_map": {
     "ll-product-raw-to-src": ["tests/unit/test_lee_product_raw_to_src.py"],
     "ll-product-src-to-epic": ["tests/unit/test_lee_product_src_to_epic.py"],
