@@ -266,10 +266,17 @@ Plans:
 3. 所有产出文件显式引用 FC-001 ~ FC-007
 
 **Deliverables:**
-- `cli/lib/protocol.py` (extend)
+- `cli/lib/fs.py` (extend — write_json enum_guard wrapping + fc_refs injection)
+- `cli/lib/protocol.py` (verify — no changes needed, inherits via write_json)
+- `tests/cli/lib/test_fs.py` (new — integration tests)
 
 **Dependencies:** Phase 12, Phase 13, Phase 14
 **State transition:** enum_guard_integrated -> contracts_traceable
+
+**Plans:** 1 plan
+
+Plans:
+- [ ] 15-01-PLAN.md — enum_guard integration into write_json + FC traceability + integration tests (FC-01, FC-02, FC-03, INT-01, INT-02, INT-03)
 
 ---
 
@@ -321,4 +328,4 @@ Plans:
 | GOV-03 | Phase 14 | Satisfied |
 
 ---
-*Last updated: 2026-04-22 — Phase 14 planned (governance_validator, 1 plan)*
+*Last updated: 2026-04-23 — Phase 15 planned (enum_guard integration + FC traceability, 1 plan)*
