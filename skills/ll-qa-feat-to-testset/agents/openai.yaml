@@ -1,4 +1,0 @@
-interface:
-  display_name: "LL Qa Feat To Testset"
-  short_description: "Governed skill for LL Qa Feat To Testset"
-  default_prompt: "Use $ll-qa-feat-to-testset to run the governed ll-qa-feat-to-testset workflow."
