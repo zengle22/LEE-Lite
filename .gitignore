@@ -133,3 +133,6 @@ scripts/*.ps1
 # B MAD working directory
 _bmad/
 .claude/worktrees/ 
+.tmp/
+
+aiLEE-Lite-skill-first/tests/defect/failure-cases/
