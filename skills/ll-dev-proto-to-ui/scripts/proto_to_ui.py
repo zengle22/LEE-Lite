@@ -273,8 +273,10 @@ def validate_input_package(input_path: str | Path) -> tuple[list[str], dict[str,
         errors.append("prototype review must not contain blocking_points")
     if review.get("coverage_declaration", {}).get("not_checked"):
         errors.append("prototype review coverage must not contain not_checked items")
-    if not str(review.get("reviewer_identity") or "").strip() or str(review.get("reviewer_identity")) == "pending_human_review":
-        errors.append("prototype review must record a real human reviewer identity")
+    if not str(review.get("reviewer_identity") or "").strip():
+        errors.append("prototype review must record a reviewer identity")
+    elif str(review.get("reviewer_identity")) == "pending_human_review":
+        errors.append("prototype review has not been completed; review verdict must be approved by a reviewer")
     if not gate.get("freeze_ready"):
         errors.append("prototype-freeze-gate.json freeze_ready must be true")
     return errors, {"input_dir": input_dir, "bundle": bundle, "review": review}

@@ -158,7 +158,8 @@ def test_proto_to_ui_emits_semantic_ledger(tmp_path: Path) -> None:
     assert any(entry["semantic_area"] == "shell_frame" for entry in ledger["ui_spec_semantic_sources"]["from_other_authority"])
 
 
-def test_proto_to_ui_rejects_pending_human_reviewer(tmp_path: Path) -> None:
+def test_proto_to_ui_rejects_unreviewed_prototype(tmp_path: Path) -> None:
+    """pending_human_review means no review was done yet, not a valid reviewer identity."""
     proto_dir = tmp_path / "prototype-package"
     proto_dir.mkdir()
     (proto_dir / "prototype-bundle.json").write_text(
@@ -231,4 +232,4 @@ def test_proto_to_ui_rejects_pending_human_reviewer(tmp_path: Path) -> None:
         check=False,
     )
     assert validate.returncode == 1
-    assert "real human reviewer identity" in validate.stdout
+    assert "not been completed" in validate.stdout or "not been approved" in validate.stdout
