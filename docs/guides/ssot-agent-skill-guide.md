@@ -1,9 +1,9 @@
 # SSOT 语义治理与 Agent Skill 调用指南
 
 > **项目**: LEE-Lite-skill-first
-> **版本**: v2.0
-> **发布日期**: 2026-04-20
-> **核心原则**: 前置 FRZ 统一语义 → SSOT 结构化抽取 → Task Pack 顺序执行 → 双链验证 → 变更分级回流
+> **版本**: v2.1
+> **发布日期**: 2026-04-23
+> **核心原则**: 前置 FRZ 统一语义 → SSOT 结构化抽取 → Task Pack 顺序执行 → 双链双轴验证 → 变更分级回流
 
 ---
 
@@ -16,13 +16,14 @@
 5. [变更分级与体验修正](#5-变更分级与体验修正)
 6. [实施前质量门禁](#6-实施前质量门禁)
 7. [Task Pack 任务编排](#7-task-pack-任务编排)
-8. [常见操作场景](#8-常见操作场景)
+8. [双链双轴测试](#8-双链双轴测试)
+9. [常见操作场景](#9-常见操作场景)
 
 ---
 
 ## 1. 系统概览
 
-v2.0 将 SSOT 从"逐层生成链"升级为**语义治理闭环**。核心变化：
+v2.0/v2.1 将 SSOT 从"逐层生成链"升级为**语义治理闭环**。核心变化：
 
 ```
 旧流程（逐层生成，语义漂移）:
@@ -48,7 +49,7 @@ v2.0 将 SSOT 从"逐层生成链"升级为**语义治理闭环**。核心变化
 | 4 | 变更分级 | Minor 变更回写 SSOT，Major 变更回流 FRZ |
 | 5 | 三轴管理 | FEAT/TECH/UI 各自独立治理 |
 | 6 | Task Pack 驱动 | 任务以 Pack 为单位组织，按依赖顺序执行 |
-| 7 | 双链验证收敛 | API + E2E 双链验证闭环 |
+| 7 | 双链双轴验证 | API + E2E 双链，需求轴/实施轴两维治理 |
 
 ---
 
@@ -76,6 +77,7 @@ v2.0 将 SSOT 从"逐层生成链"升级为**语义治理闭环**。核心变化
 | 产品经理 | 冻结产品文档为 FRZ 包 | [§3 FRZ 冻结层](#3-frz-冻结层) |
 | 架构师 | 从 FRZ 抽取 SRC → EPIC → FEAT | [§4 语义抽取链](#4-语义抽取链) |
 | 开发者 | 执行 Task Pack 中的任务 | [§7 Task Pack](#7-task-pack-任务编排) |
+| 测试工程师 | 双链测试执行（API + E2E） | [ADR-052 双链测试指南](adr052-dual-chain-testing-guide.md) |
 | 测试工程师 | 实施前质量门禁检查 | [§6 质量门禁](#6-实施前质量门禁) |
 | 任何人提变更 | 描述变更、走分级流程 | [§5 变更分级](#5-变更分级与体验修正) |
 
@@ -462,21 +464,73 @@ OK: ssot/tasks/PACK-SRC-001-001-feat001.yaml
   4. TASK-004
 ```
 
-### 7.6 手动执行 Task Pack（v2.0 当前方式）
+### 7.6 手动执行 Task Pack
 
-v2.0 的执行循环是**手动顺序执行**：
+v2.0/v2.1 的执行循环是**手动顺序执行**：
 
 1. 解析依赖顺序：调用 task-pack skill
 2. 按输出顺序逐一执行 task
 3. 每个 task 完成后手动更新 `status`
-4. 每个 task 完成后运行双链验证（API + E2E）
+4. 每个 task 完成后运行双链验证（API + E2E）— 详见 [ADR-052 双链测试指南](adr052-dual-chain-testing-guide.md)
 5. 如果 task 失败，暂停等待人工介入
 
-**自动执行循环（Pack-03/04/05）已延期到 v2.1**。
+**自动执行循环（Pack-03/04/05）已延期到 v2.1 之后的里程碑**。
 
 ---
 
-## 8. 常见操作场景
+## 8. 双链双轴测试
+
+> **详细操作指南**: [ADR-052 双链测试指南](adr052-dual-chain-testing-guide.md)
+
+v2.0/ADR-047 交付了 11 个 QA 技能。v2.1/ADR-052 在此基础上增加了测试需求轴治理基础设施（Schema 定义层、枚举守卫、治理对象验证器），确保"测什么"由 SSOT 管理。
+
+### 8.1 双链概念
+
+| 链 | 覆盖范围 | 测试类型 |
+|---|---------|---------|
+| API 链 | 接口级别 | HTTP 请求/响应、参数校验、边界值、异常处理 |
+| E2E 链 | 用户旅程级别 | 页面交互、UI 状态、网络事件、数据持久化 |
+
+### 8.2 双轴概念
+
+| 轴 | 管理问题 | 资产性质 |
+|---|---------|---------|
+| 需求轴 | "测什么？" | 声明性（Plan → Manifest → Spec），可重新编译 |
+| 实施轴 | "在哪测？怎么跑？结果是否可信？" | 证据性（执行日志、截图、trace），只追加 |
+
+### 8.3 当前可用的 8 个 QA Skills
+
+| Step | Skill | 产出 |
+|------|-------|------|
+| 1 | `ll-qa-feat-to-apiplan` | API 测试计划（定义测哪些 API、优先级） |
+| 2 | `ll-qa-api-manifest-init` | API 覆盖清单（展开为独立测试项） |
+| 3 | `ll-qa-api-spec-gen` | API 测试规范（每个测试项的详细请求/断言） |
+| 4 | `ll-qa-prototype-to-e2eplan` | E2E 旅程计划（用户操作流程） |
+| 5 | `ll-qa-e2e-manifest-init` | E2E 覆盖清单 |
+| 6 | `ll-qa-e2e-spec-gen` | E2E 旅程规范（页面步骤、UI 断言） |
+| 7 | `ll-test-exec-cli` / `ll-test-exec-web-e2e` | 实际执行并收集证据 |
+| 8 | `ll-qa-settlement` + `ll-qa-gate-evaluate` | 结算报告 + Gate 门禁决策 |
+
+### 8.4 v2.1 新增：治理基础设施
+
+| 模块 | 用途 |
+|------|------|
+| `testset.yaml` / `environment.yaml` / `gate.yaml` | QA 资产 YAML Schema 定义 |
+| `enum_guard.py` | 6 个枚举字段的白名单校验（skill_id、module_id 等） |
+| `governance_validator.py` | 11 个治理对象（Skill、Module、Gate 等）的字段校验 |
+
+### 8.5 与 Task Pack 的集成
+
+每个 Task Pack 中的 `test-*` 类型任务对应双链测试中的相应步骤。执行流程：
+
+```
+FEAT（冻结）→ Skill 1-6（生成测试计划）
+           → Skill 7（执行测试）
+           → Skill 8（结算 + Gate 决策）
+           → Task Pack 中对应 task 状态更新
+```
+
+## 9. 常见操作场景
 
 ### 场景 1: 从 0 开始一个新功能
 
@@ -537,9 +591,13 @@ v2.0 的执行循环是**手动顺序执行**：
 ssot/
 ├── adr/                          # 架构决策记录
 │   ├── ADR-050-SSOT语义治理总纲.md
-│   └── ADR-051-TaskPack顺序执行循环模式.md
+│   ├── ADR-051-TaskPack顺序执行循环模式.md
+│   └── ADR-052-测试体系轴化-需求轴与实施轴.md
 ├── schemas/qa/
-│   └── task_pack.yaml            # Task Pack YAML schema 定义
+│   ├── task_pack.yaml            # Task Pack YAML schema
+│   ├── testset.yaml              # TESTSET schema (v2.1)
+│   ├── environment.yaml          # Environment schema (v2.1)
+│   └── gate.yaml                 # Gate verdict schema (v2.1)
 ├── tasks/
 │   └── PACK-SRC-001-001-feat001.yaml  # Task Pack 示例
 └── experience-patches/           # 体验修正 Patch 存储
@@ -549,20 +607,37 @@ cli/lib/
 ├── patch_schema.py               # Patch YAML schema
 ├── task_pack_schema.py           # Task Pack schema 验证
 ├── task_pack_resolver.py         # Task Pack 依赖解析（拓扑排序）
-└── qa_schemas.py                 # QA 资产 schema
+├── qa_schemas.py                 # QA 资产 schema
+├── enum_guard.py                 # 枚举守卫（6 个枚举字段，v2.1）
+├── governance_validator.py       # 治理对象验证器（11 个对象，v2.1）
+└── protocol.py                   # SSOT 写入路径（集成 enum_guard）
 
 skills/
 ├── frz-manage/                   # FRZ 生命周期管理技能
+├── product-raw-to-src/           # FRZ → SRC 抽取技能
 ├── product-src-to-epic/          # SRC → EPIC 抽取技能
 ├── product-epic-to-feat/         # EPIC → FEAT 抽取技能
 ├── patch-capture/                # 变更捕获 + 三分类技能
 ├── experience-patch-settle/      # Minor Patch settlement 技能
-└── qa-impl-spec-test/            # 实施前质量门禁技能
+├── qa-impl-spec-test/            # 实施前质量门禁技能
+├── task-pack/                    # Task Pack 管理技能
+├── ll-qa-feat-to-apiplan/        # API 测试计划生成（ADR-047）
+├── ll-qa-api-manifest-init/      # API 覆盖清单初始化（ADR-047）
+├── ll-qa-api-spec-gen/           # API 测试规范生成（ADR-047）
+├── ll-qa-prototype-to-e2eplan/   # E2E 旅程计划生成（ADR-047）
+├── ll-qa-e2e-manifest-init/      # E2E 覆盖清单初始化（ADR-047）
+├── ll-qa-e2e-spec-gen/           # E2E 旅程规范生成（ADR-047）
+├── ll-qa-settlement/             # 测试结算报告（ADR-047）
+├── ll-qa-gate-evaluate/          # Gate 门禁评估（ADR-047）
+├── ll-test-exec-cli/             # API 测试执行引擎（ADR-047）
+└── ll-test-exec-web-e2e/         # E2E 测试执行引擎（ADR-047）
 ```
 
 ---
 
 ## 附录: Skill 速查表
+
+### FRZ 与语义治理
 
 | Skill 名称 | 用途 | 调用示例 |
 |-----------|------|---------|
@@ -574,3 +649,20 @@ skills/
 | `experience-patch-settle` | Minor Patch 回写 | "使用 experience-patch-settle skill 处理 Patch" |
 | `qa-impl-spec-test` | 实施前质量门禁 | "使用 qa-impl-spec-test skill 执行门禁检查" |
 | `task-pack` | Task Pack 管理 | "使用 task-pack skill 解析依赖顺序" |
+
+### 双链测试（ADR-047 / ADR-052）
+
+> **详细操作指南**: [ADR-052 双链测试指南](adr052-dual-chain-testing-guide.md)
+
+| Skill 名称 | 用途 | 对应步骤 |
+|-----------|------|---------|
+| `ll-qa-feat-to-apiplan` | 从 FEAT 生成 API 测试计划 | Step 1 |
+| `ll-qa-api-manifest-init` | 初始化 API 覆盖清单 | Step 2 |
+| `ll-qa-api-spec-gen` | 生成 API 测试规范 | Step 3 |
+| `ll-qa-prototype-to-e2eplan` | 从原型图生成 E2E 旅程计划 | Step 4 |
+| `ll-qa-e2e-manifest-init` | 初始化 E2E 覆盖清单 | Step 5 |
+| `ll-qa-e2e-spec-gen` | 生成 E2E 旅程规范 | Step 6 |
+| `ll-test-exec-cli` | API 测试执行引擎 | Step 7 |
+| `ll-test-exec-web-e2e` | E2E 测试执行引擎（Playwright） | Step 7 |
+| `ll-qa-settlement` | 测试结算报告 | Step 8 |
+| `ll-qa-gate-evaluate` | Gate 门禁评估（pass/fail） | Step 9 |
