@@ -152,13 +152,30 @@ def _apply_testset_coverage_defaults(test_set: dict[str, Any], environment: dict
 
 
 def _validate_testset_execution_boundary(test_set: dict[str, Any]) -> None:
-    ensure(test_set.get("ssot_type") == "TESTSET", "PRECONDITION_FAILED", "test_set_ref must resolve to a TESTSET")
-    ensure(isinstance(test_set.get("test_units", []), list), "PRECONDITION_FAILED", "TESTSET must define test_units as strategy anchors")
-    ensure(
-        not bool(test_set.get("test_case_pack") or test_set.get("script_pack")),
-        "PRECONDITION_FAILED",
-        "TESTSET must not embed execution artifacts such as test_case_pack or script_pack",
-    )
+    ssot_type = test_set.get("ssot_type", "")
+    if ssot_type == "TESTSET":
+        # 原有逻辑（向后兼容）
+        ensure(test_set.get("ssot_type") == "TESTSET",
+               "PRECONDITION_FAILED", "test_set_ref must resolve to a TESTSET")
+        ensure(isinstance(test_set.get("test_units", []), list),
+               "PRECONDITION_FAILED", "TESTSET must define test_units as strategy anchors")
+        ensure(
+            not bool(test_set.get("test_case_pack") or test_set.get("script_pack")),
+            "PRECONDITION_FAILED",
+            "TESTSET must not embed execution artifacts such as test_case_pack or script_pack",
+        )
+    elif ssot_type == "SPEC_ADAPTER_COMPAT":
+        # 新增：spec adapter 格式兼容 (ADR-054 §2.4.1)
+        ensure(isinstance(test_set.get("test_units", []), list),
+               "PRECONDITION_FAILED", "SPEC_ADAPTER_COMPAT must define test_units")
+        ensure(
+            bool(test_set.get("feat_ref") or test_set.get("prototype_ref")),
+            "PRECONDITION_FAILED",
+            "SPEC_ADAPTER_COMPAT must specify feat_ref or prototype_ref",
+        )
+    else:
+        ensure(False, "PRECONDITION_FAILED",
+               f"unsupported ssot_type: {ssot_type}")
 
 
 def execute_test_exec_skill(
