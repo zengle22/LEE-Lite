@@ -1,7 +1,7 @@
-# Test Environment 格式规范
+# Test Environment 格式规范 (v2.2)
 
 > 本文档定义 `test_environment_ref` 指向的 environment YAML 文件的标准格式。
-> 当前为**手动创建**阶段，后续由 `qa.environment-provision` 技能自动生成。
+> **当前状态**: 由 `environment_provision.py` 自动生成 (v2.2)。
 
 ---
 
@@ -9,9 +9,8 @@
 
 ```
 ssot/environments/
-├── ENV-FEAT-SRC-001-001.yaml
-├── ENV-FEAT-SRC-003-001.yaml
-└── ENV-<feat_id>.yaml
+├── ENV-{feat_id}.yaml          ← environment_provision.py 生成
+└── .gitkeep
 ```
 
 命名规则：`ENV-{feat_id}.yaml`，一个 FEAT 对应一个 environment。
@@ -20,7 +19,7 @@ ssot/environments/
 
 ## 二、完整字段定义
 
-### 2.1 必需字段（所有 execution_modality）
+### 2.1 必需字段
 
 | 字段 | 类型 | 说明 | 示例 |
 |------|------|------|------|
@@ -33,7 +32,8 @@ ssot/environments/
 
 | 字段 | 类型 | 说明 | 示例 |
 |------|------|------|------|
-| `base_url` | string | 被测目标 URL | `http://localhost:3000` |
+| `base_url` | string | 被测前端 URL | `http://localhost:3000` |
+| `api_url` | string | API 服务 URL | `http://localhost:8000` |
 | `browser` | string | 浏览器引擎 | `"chromium"`, `"firefox"`, `"webkit"` |
 
 ### 2.3 cli 模式必需字段
@@ -52,49 +52,29 @@ ssot/environments/
 | `timeout` | number | `30000` | 单用例超时（毫秒） |
 | `coverage_mode` | string | `"auto"` | `"auto"`, `"smoke"`, `"qualification"`, `"off"` |
 | `coverage_enabled` | boolean | 由 coverage_mode 推导 | 是否启用覆盖率 |
-| `coverage_include` | list[string] | 无 | 覆盖率包含路径 |
-| `coverage_source` | list[string] | 无 | 覆盖率源码路径 |
-| `coverage_branch` | boolean | `true` | 是否收集分支覆盖率 |
-| `qualification_budget` | number | `1`（继承自 TESTSET） | qualification 扩展预算轮次 |
-| `max_expansion_rounds` | number | `1`（继承自 TESTSET） | 最大用例扩展轮次 |
 | `description` | string | 无 | 环境描述 |
-| `created_at` | string | 无 | 创建时间 ISO 8601 |
-| `created_by` | string | 无 | 创建者 |
+| `created_at` | string | ISO 8601 | 创建时间 |
+| `created_by` | string | `"ll-qa-test-run"` | 创建者 |
 
 ---
 
 ## 三、代码校验规则
 
-从 `test_exec_runtime.py` 和 `test_exec_execution.py` 推导出的校验规则：
-
-### 3.1 execution_modality 校验（`_validate_environment`）
+### 3.1 execution_modality 校验
 
 ```python
-# test-exec-web-e2e 要求：
-execution_modality == "web_e2e"
-base_url in environment        # 必须存在
-browser in environment         # 必须存在
-
-# test-exec-cli 要求：
-execution_modality == "cli"
-(command_entry or runner_command) in environment  # 至少一个
+# ll-qa-test-run 要求:
+execution_modality == "web_e2e" → base_url + api_url + browser 必需
+execution_modality == "cli" → command_entry 或 runner_command 必需
 ```
 
-### 3.2 coverage_mode 处理（`_coverage_mode` + `_apply_testset_coverage_defaults`）
-
-```
-coverage_mode == "off"       → coverage_enabled = False
-coverage_mode == "smoke"     → coverage_enabled = False（不收集）
-coverage_mode == "qualification" → coverage_enabled = True（需 coverage_include 或 feature_owned_code_paths）
-coverage_mode == "auto"      → 自动推导（默认）
-```
-
-### 3.3 运行时环境变量注入（`_execution_env`）
+### 3.2 运行时环境变量注入
 
 执行时，environment 的以下字段会注入到子进程环境变量：
 
 ```
 LEE_BASE_URL        ← environment.base_url
+LEE_API_URL         ← environment.api_url
 LEE_BROWSER         ← environment.browser
 LEE_EXECUTION_MODALITY ← environment.execution_modality
 LEE_TEST_CASE_ID    ← case.case_id
@@ -107,14 +87,15 @@ LEE_TRIGGER_ACTION  ← case.trigger_action
 
 ## 四、模板
 
-### 4.1 web_e2e 模板
+### 4.1 web_e2e 模板 (v2.2)
 
 ```yaml
-id: ENV-FEAT-SRC-XXX-YYY
+id: ENV-{feat_id}
 ssot_type: TESTENV
 execution_modality: web_e2e
-feat_ref: FEAT-SRC-XXX-YYY
+feat_ref: {feat_id}
 base_url: "http://localhost:3000"
+api_url: "http://localhost:8000"
 browser: chromium
 headless: true
 viewport:
@@ -122,85 +103,112 @@ viewport:
   height: 720
 timeout: 30000
 coverage_mode: auto
-coverage_branch: true
-description: "本地开发环境 - {功能描述}"
-created_at: "2026-04-21T00:00:00Z"
-created_by: "your-name"
+description: "本地开发环境"
+created_at: "2026-04-24T00:00:00Z"
+created_by: "ll-qa-test-run"
 ```
 
 ### 4.2 cli 模板
 
 ```yaml
-id: ENV-FEAT-SRC-XXX-YYY
+id: ENV-{feat_id}
 ssot_type: TESTENV
 execution_modality: cli
-feat_ref: FEAT-SRC-XXX-YYY
+feat_ref: {feat_id}
 command_entry: "python -m cli.main"
 coverage_mode: auto
-coverage_branch: true
-description: "CLI 执行环境 - {功能描述}"
-created_at: "2026-04-21T00:00:00Z"
-created_by: "your-name"
+description: "CLI 执行环境"
+created_at: "2026-04-24T00:00:00Z"
+created_by: "ll-qa-test-run"
 ```
 
 ### 4.3 staging 环境模板
 
 ```yaml
-id: ENV-FEAT-SRC-XXX-YYY
+id: ENV-{feat_id}
 ssot_type: TESTENV
 execution_modality: web_e2e
-feat_ref: FEAT-SRC-XXX-YYY
+feat_ref: {feat_id}
 base_url: "https://staging.example.com"
+api_url: "https://staging-api.example.com"
 browser: chromium
 headless: true
 timeout: 60000
 coverage_mode: smoke
-description: "Staging 环境 - {功能描述}"
-created_at: "2026-04-21T00:00:00Z"
-created_by: "your-name"
+description: "Staging 环境"
+created_at: "2026-04-24T00:00:00Z"
+created_by: "ll-qa-test-run"
 ```
 
 ---
 
-## 五、与 TESTSET 的关系
+## 五、v2.2 变更
+
+### 5.1 新增字段
+
+| 字段 | 说明 | 来源 |
+|------|------|------|
+| `api_url` | API 服务 URL | v2.2 新增（分离架构） |
+
+### 5.2 生成方式变更
+
+| 版本 | 生成方式 |
+|------|----------|
+| v2.1 | 手动创建 |
+| **v2.2** | **environment_provision.py 自动生成** |
+
+```python
+# cli/lib/environment_provision.py
+def generate_environment(
+    feat_ref: str,
+    base_url: str,
+    api_url: str = None,
+    browser: str = "chromium"
+) -> EnvConfig:
+    """从 FEAT + 用户参数生成 ENV YAML"""
+    return EnvConfig(
+        id=f"ENV-{feat_ref}",
+        base_url=base_url,
+        api_url=api_url,
+        browser=browser,
+        execution_modality="web_e2e"
+    )
+```
+
+---
+
+## 六、与实施轴的关系 (ADR-054)
 
 ```
-FEAT
- ├──→ qa.feat-to-testset → TESTSET.yaml（定义"测什么"）
- └──→ 手动/未来技能 → ENV.yaml（定义"在哪测"）
+environment_provision (v2.2)
         ↓
-test_set_ref + test_environment_ref 一起传入 test-exec-* 技能
+ll-qa-test-run
         ↓
-execute_test_exec_skill()
-```
-
-| 来源 | 负责内容 | 关键字段 |
-|------|----------|----------|
-| **TESTSET** | 测试范围、test_units、coverage_scope | `test_units`, `feature_owned_code_paths` |
-| **ENV** | 执行目标、浏览器、超时 | `base_url`, `browser`, `timeout` |
-
-ENV 中的 `coverage_*` 字段如果未显式设置，会从 TESTSET 的 `feature_owned_code_paths` 和 `recommended_coverage_scope_name` 自动推导（由 `_apply_testset_coverage_defaults()` 完成）。
-
----
-
-## 六、生命周期
-
-```
-[创建] 手动创建 ENV-{feat_id}.yaml（当前阶段）
-  ↓
-[使用] 执行时通过 test_environment_ref 传入
-  ↓
-[校验] _validate_environment() 校验必需字段
-  ↓
-[注入] 执行时将 base_url/browser 注入子进程环境变量
-  ↓
-[记录] environment._source_ref 写入 candidate artifact（可追溯）
-  ↓
-[未来] 由 qa.environment-provision 技能从 FEAT + TESTSET 自动生成
+test_orchestrator
+        ↓
+state_machine_executor
+        ↓
+independent_verifier → settlement → gate
 ```
 
 ---
 
-> 文档版本: 1.0
-> 最后更新: 2026-04-21
-> 状态: 手动创建阶段
+## 七、生命周期
+
+```
+[生成] environment_provision.generate() (v2.2 自动)
+  ↓
+[使用] ll-qa-test-run 执行时引用
+  ↓
+[校验] test_orchestrator 校验必需字段
+  ↓
+[注入] 执行时将配置注入子进程环境变量
+  ↓
+[记录] environment._source_ref 写入 StepResult（可追溯）
+```
+
+---
+
+> **文档版本**: v2.2
+> **最后更新**: 2026-04-24
+> **状态**: v2.2 自动生成
