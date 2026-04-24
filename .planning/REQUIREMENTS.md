@@ -75,27 +75,30 @@
 
 | REQ-ID | ADR-053 | ADR-054 | Phase |
 |--------|---------|---------|-------|
-| ENTRY-01 | §2.2 | — | — |
-| ENTRY-02 | §2.3 | — | — |
-| ENTRY-03 | §2.4 | — | — |
-| ENTRY-04 | §2.1 | — | — |
-| BRIDGE-01 | — | §2.2 | Phase 1 |
-| BRIDGE-02 | — | §2.2.2 | Phase 1 |
-| BRIDGE-03 | — | §2.2.3 | Phase 1 |
-| BRIDGE-04 | — | §5.1 R-2 | Phase 1 |
-| BRIDGE-05 | — | §2.4 | Phase 1 |
-| BRIDGE-06 | — | §5.1 R-1 | Phase 1 |
-| BRIDGE-07 | — | §2.5 | Phase 1 |
-| BRIDGE-08 | — | §2.6 | Phase 1 |
-| ENV-01 | — | §2.3 | Phase 1 |
-| ENV-02 | — | §2.3.3 | Phase 1 |
-| EXEC-01 | — | §3 Phase 2 | Phase 2 |
-| EXEC-02 | — | §3 Phase 2 | Phase 2 |
-| EXEC-03 | — | §3 Phase 2 | Phase 2 |
-| GATE-01 | — | §3 Phase 3 | Phase 3 |
-| GATE-02 | — | §3 Phase 3 | Phase 3 |
-| GATE-03 | — | §3 Phase 3 | Phase 3 |
-| TEST-01~04 | — | §6 Phase 1/2/3 | — |
+| ENTRY-01 | §2.2 | — | Phase 17 |
+| ENTRY-02 | §2.3 | — | Phase 17 |
+| ENTRY-03 | §2.4 | — | Phase 17 |
+| ENTRY-04 | §2.1 | — | Phase 17 |
+| BRIDGE-01 | — | §2.2 | Phase 17 |
+| BRIDGE-02 | — | §2.2.2 | Phase 17 |
+| BRIDGE-03 | — | §2.2.3 | Phase 17 |
+| BRIDGE-04 | — | §5.1 R-2 | Phase 17 |
+| BRIDGE-05 | — | §2.4 | Phase 17 |
+| BRIDGE-06 | — | §5.1 R-1 | Phase 17 |
+| BRIDGE-07 | — | §2.5 | Phase 17 |
+| BRIDGE-08 | — | §2.6 | Phase 17 |
+| ENV-01 | — | §2.3 | Phase 17 |
+| ENV-02 | — | §2.3.3 | Phase 17 |
+| EXEC-01 | — | §3 Phase 2 | Phase 18 |
+| EXEC-02 | — | §3 Phase 2 | Phase 18 |
+| EXEC-03 | — | §3 Phase 2 | Phase 18 |
+| GATE-01 | — | §3 Phase 3 | Phase 19 |
+| GATE-02 | — | §3 Phase 3 | Phase 19 |
+| GATE-03 | — | §3 Phase 3 | Phase 19 |
+| TEST-01 | — | §6 Phase 1 | Phase 17 |
+| TEST-02 | — | §6 Phase 2 | Phase 18 |
+| TEST-03 | — | §6 Phase 2 | Phase 18 |
+| TEST-04 | — | §6 Phase 3 | Phase 19 |
 
 ---
 
@@ -103,8 +106,21 @@
 
 | Phase | 目标 | Requirements |
 |-------|------|-------------|
-| Phase 17 | 双链统一入口 + spec 桥接跑通 | ENTRY-01~04, BRIDGE-01~08, ENV-01~02, TEST-01~04 |
-| Phase 18 | 实施轴 P0 模块 | EXEC-01~03 |
-| Phase 19 | 验收闭环 | GATE-01~03 |
+| Phase 17 | 双链统一入口 + spec 桥接跑通 | ENTRY-01~04, BRIDGE-01~08, ENV-01~02, TEST-01 |
+| Phase 18 | 实施轴 P0 模块 | EXEC-01~03, TEST-02, TEST-03 |
+| Phase 19 | 验收闭环 | GATE-01~03, TEST-04 |
 
 *Phase numbering continues from v2.1 (ended at Phase 16)*
+
+---
+
+## v2.2 Coverage Summary
+
+| Metric | Value |
+|--------|-------|
+| Total requirements | 24 |
+| Phase 17 (需求轴统一入口 + spec 桥接) | 15 |
+| Phase 18 (实施轴 P0 模块) | 5 |
+| Phase 19 (验收闭环) | 4 |
+| Mapped to phases | 24/24 (100%) |
+| Unmapped | 0 |

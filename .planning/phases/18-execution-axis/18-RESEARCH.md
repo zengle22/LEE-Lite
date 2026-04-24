@@ -564,22 +564,20 @@ assertions:
 
 ---
 
-## Open Questions
+## Open Questions (RESOLVED)
 
 1. **run_id format for API chain vs E2E chain**
-   - What we know: E2E suggestion is `e2e.run-{timestamp}-{random}`, API likely `api.run-{timestamp}-{random}`
-   - What's unclear: Should format be chain-agnostic or chain-specific?
-   - Recommendation: Use chain-agnostic `run-{timestamp}-{random}` in base, with chain prefix in subdirectory (e.g., `runs/e2e/run-xxx`, `runs/api/run-xxx`)
+   - Resolution: Use chain-agnostic `e2e.run-{timestamp}-{random}` format
+   - Both chains use same format, differentiated by context (feat_ref vs proto_ref)
+   - API chain: same format, context makes it API vs E2E
 
 2. **accounts parameter sourcing**
-   - What we know: EXEC-01 requires `accounts` field in run-manifest
-   - What's unclear: Where do accounts come from — CLI parameter, config file, environment?
-   - Recommendation: Add `--account` CLI parameter (repeatable), default to empty list
+   - Resolution: Add `--account` CLI parameter (repeatable), default to empty list
+   - EXEC-01 will include `accounts: []` when not provided
 
 3. **C-layer evidence: HAR + screenshot timing**
-   - What we know: Per D-04, C_MISSING collects HAR + screenshot
-   - What's unclear: Is HAR capture per-step or per-journey? When is screenshot taken?
-   - Recommendation: HAR capture per-journey (start → end), screenshot at step failure point
+   - Resolution: HAR capture per-journey (start → end), screenshot at step failure point
+   - Per D-04: "Both HAR + screenshot" selected as evidence collection method
 
 ---
 
