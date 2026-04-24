@@ -10,7 +10,7 @@
 ## Phases
 
 - [ ] **Phase 17: 双链统一入口 + spec 桥接跑通** — 废弃 TESTSET，统一入口 Skill 编排，spec adapter 桥接，ll-qa-test-run 用户入口
-- [ ] **Phase 18: 实施轴 P0 模块** — run_manifest_gen, scenario_spec_compile, state_machine_executor 3-state 模型
+- [ ] **Phase 18: 实施轴 P0 模块** — run_manifest_gen, scenario_spec_compile, state_machine_executor 3状态模型
 - [ ] **Phase 19: 验收闭环** — independent_verifier, settlement 集成, gate-evaluate 集成
 
 ---
@@ -56,7 +56,11 @@
 4. `qa test-run --proto-ref XXX --app-url http://localhost:3000 --api-url http://localhost:8000` E2E chain 端到端跑通
 5. `--resume` 从失败的 step 继续执行，不重复已完成步骤
 
-**Plans:** TBD
+**Plans:** 4 plans
+- [ ] 18-01-PLAN.md — run_manifest_gen.py + unit tests (Wave 1, EXEC-01)
+- [ ] 18-02-PLAN.md — scenario_spec_compile.py + unit tests (Wave 1, EXEC-02)
+- [ ] 18-03-PLAN.md — state_machine_executor.py + unit tests (Wave 1, EXEC-03, depends on 18-01, 18-02)
+- [ ] 18-04-PLAN.md — integration tests (Wave 2, TEST-02, TEST-03, depends on 18-01, 18-02, 18-03)
 
 **UI hint:** no
 
@@ -76,7 +80,10 @@
 3. `ll-qa-gate-evaluate` 基于 manifest 产出 gate 结论，与 settlement report 对齐
 4. `pytest tests/cli/lib/test_spec_adapter.py tests/cli/lib/test_environment_provision.py tests/cli/lib/test_step_result.py` 单元测试套件全部通过
 
-**Plans:** TBD
+**Plans:** 3 plans
+- [ ] 19-01-PLAN.md — independent_verifier.py + step_result.py (Wave 1)
+- [ ] 19-02-PLAN.md — settlement + gate-evaluate integration (Wave 2)
+- [ ] 19-03-PLAN.md — unit tests + minimal spec_adapter/environment_provision (Wave 3)
 
 **UI hint:** no
 
@@ -87,8 +94,8 @@
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 17. 双链统一入口 + spec 桥接跑通 | 0/N | Not started | - |
-| 18. 实施轴 P0 模块 | 0/N | Not started | - |
-| 19. 验收闭环 | 0/N | Not started | - |
+| 18. 实施轴 P0 模块 | 0/4 | Planned | - |
+| 19. 验收闭环 | 0/3 | Planned | - |
 
 ---
 
@@ -110,22 +117,22 @@
 | BRIDGE-08 | Phase 17 | Pending |
 | ENV-01 | Phase 17 | Pending |
 | ENV-02 | Phase 17 | Pending |
-| EXEC-01 | Phase 18 | Pending |
-| EXEC-02 | Phase 18 | Pending |
-| EXEC-03 | Phase 18 | Pending |
+| EXEC-01 | Phase 18 | Planned |
+| EXEC-02 | Phase 18 | Planned |
+| EXEC-03 | Phase 18 | Planned |
 | GATE-01 | Phase 19 | Pending |
 | GATE-02 | Phase 19 | Pending |
 | GATE-03 | Phase 19 | Pending |
 | TEST-01 | Phase 17 | Pending |
-| TEST-02 | Phase 18 | Pending |
-| TEST-03 | Phase 18 | Pending |
+| TEST-02 | Phase 18 | Planned |
+| TEST-03 | Phase 18 | Planned |
 | TEST-04 | Phase 19 | Pending |
 
 **Coverage:**
 - v2.2 requirements: 24 total
 - Mapped to phases: 24 (100%)
-- Pending: 24
-- Unmapped: 0
+- Planned: 5 (Phase 18)
+- Pending: 19
 
 ---
 
@@ -149,4 +156,4 @@ Phase 17 ──> Phase 18 ──> Phase 19
 ---
 
 *Roadmap created: 2026-04-24*
-*Last updated: 2026-04-24 — v2.2 initialized*
+*Last updated: 2026-04-24 — Phase 18 plans created (4 plans)*
