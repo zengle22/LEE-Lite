@@ -1,0 +1,27 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "required": ["review_status", "checks"],
+  "properties": {
+    "review_status": {
+      "type": "string",
+      "enum": ["pass", "fail", "needs_revision"],
+      "description": "Overall review result"
+    },
+    "checks": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["name", "status"],
+        "properties": {
+          "name": {"type": "string"},
+          "status": {
+            "type": "string",
+            "enum": ["pass", "fail", "skipped"]
+          },
+          "details": {"type": "string"}
+        }
+      }
+    }
+  }
+}
