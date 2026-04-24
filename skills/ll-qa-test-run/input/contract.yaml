@@ -1,0 +1,20 @@
+# Input Contract: ll-qa-test-run
+
+## CLI Arguments
+
+- feat_ref: string (API chain required)
+- proto_ref: string (E2E chain required)
+- app_url: string (E2E chain required, default http://localhost:3000)
+- api_url: string (optional, separated architecture)
+- chain: api|e2e|both
+- coverage_mode: smoke|qualification
+- resume: boolean
+- resume_from: string (optional run_id)
+
+## Input Validation
+
+- [ ] feat_ref or proto_ref must be provided
+- [ ] app_url must be valid URL for E2E chain
+- [ ] chain must be one of: api, e2e, both
+- [ ] coverage_mode must be one of: smoke, qualification
+- [ ] resume_from requires resume=true

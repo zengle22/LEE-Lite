@@ -1,0 +1,24 @@
+# Output Contract: ll-qa-test-run
+
+## Output Artifacts
+
+1. Updated `api-coverage-manifest.yaml` or `e2e-coverage-manifest.yaml`
+   - `lifecycle_status`: designed → executed
+   - `evidence_refs` appended
+   - `last_run_id` set
+   - `last_run_status` set
+
+2. Execution evidence at `artifacts/active/qa/candidates/{slug}.json`
+
+3. Execution summary with:
+   - `run_id`: Unique identifier for this execution
+   - `executed_count`: Number of test cases executed
+   - `failed_count`: Number of test cases failed
+   - `manifest_items_count`: Number of manifest items updated
+
+## Success Criteria
+
+- [ ] ENV file generated at `ssot/environments/ENV-{id}.yaml`
+- [ ] SPEC_ADAPTER_COMPAT file generated at `ssot/tests/.spec-adapter/{id}.yaml`
+- [ ] Manifest updated with execution results
+- [ ] Candidate artifact registered

@@ -1,0 +1,6 @@
+skill: ll-qa-test-run
+version: "1.0"
+adr: ADR-054
+category: qa
+chain: execution
+phase: test-run
