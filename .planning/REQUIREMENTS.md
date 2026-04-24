@@ -38,16 +38,16 @@
 
 ### Category: 验收闭环（ADR-054 Phase 3）
 
-- [ ] **GATE-01**: `independent_verifier.py` — 独立于 runner 的验证报告（verdict: pass/conditional_pass/fail），含置信度
-- [ ] **GATE-02**: settlement 集成 — `ll-qa-settlement` 消费更新后的 manifest，产出 settlement report
-- [ ] **GATE-03**: gate-evaluate 集成 — `ll-qa-gate-evaluate` 基于更新后的 manifest 产出 gate 结论
+- [x] **GATE-01**: `independent_verifier.py` — 独立于 runner 的验证报告（verdict: pass/conditional_pass/fail），含置信度
+- [x] **GATE-02**: settlement 集成 — `ll-qa-settlement` 消费更新后的 manifest，产出 settlement report
+- [x] **GATE-03**: gate-evaluate 集成 — `ll-qa-gate-evaluate` 基于更新后的 manifest 产出 gate 结论
 
 ### Category: 集成测试
 
 - [ ] **TEST-01**: API chain 端到端测试 — `qa.test-run --feat-ref FEAT-SRC-003-001 --app-url http://localhost:8000`，验证 manifest 更新 + settlement 可消费
 - [ ] **TEST-02**: E2E chain 端到端测试 — `qa.test-run --proto-ref XXX --app-url http://localhost:3000 --api-url http://localhost:8000`，验证 playwright 执行
 - [ ] **TEST-03**: `--resume` 重跑测试 — 失败后使用 `--resume` 重跑失败用例
-- [ ] **TEST-04**: 单元测试套件 — `spec_adapter.py`、`environment_provision.py`、`StepResult` dataclass 单元测试
+- [x] **TEST-04**: 单元测试套件 — `spec_adapter.py`、`environment_provision.py`、`StepResult` dataclass、`independent_verifier`、`settlement_integration`、`gate_integration` 单元测试 (144 tests)
 
 ---
 
