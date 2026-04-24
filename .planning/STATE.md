@@ -1,52 +1,50 @@
 ---
 gsd_state_version: 1.0
-milestone: v2.1
-milestone_name: Task Pack Mapping
-status: Complete
-last_updated: "2026-04-23T12:45:00.000Z"
+milestone: v2.2
+milestone_name: 双链执行闭环
+status: Defining requirements
+last_updated: "2026-04-24T00:00:00.000Z"
 progress:
-  total_phases: 5
-  completed_phases: 5
-  total_plans: 21
-  completed_plans: 21
-  percent: 100
+  total_phases: 0
+  completed_phases: 0
+  total_plans: 0
+  completed_plans: 0
+  percent: 0
 ---
 
 # Project State
 
-**Project:** v2.1 双链双轴测试强化
-**Status:** Milestone complete
-**Core value:** 实现测试需求轴治理基础设施 — 声明性资产分层与枚举冻结，确保"测什么"由 SSOT 管理
-**Current focus:** v2.1 milestone archived (2026-04-23). Ready for next milestone planning.
+**Project:** v2.2 双链执行闭环 — 需求轴统一入口 + 实施轴桥接
+**Status:** Milestone started
+**Core value:** 废弃 TESTSET 策略层，构建需求轴统一入口 Skill，补齐 spec → 实施的桥接，打通从 feat 到 gate 的完整测试闭环
+**Current focus:** v2.2 milestone defining requirements
 
 ## Deferred Items
 
-Items acknowledged and deferred at milestone close on 2026-04-23:
+Items acknowledged and deferred from previous milestones:
 
 | Category | Item | Status |
 |----------|------|--------|
+| planning | ADR-048 Mission Compiler | pending — Mission Compiler 实现后废弃 SPEC_ADAPTER_COMPAT |
 | planning | ADR-052 out-of-scope items (FEAT-009-E/A/S, FC-002) | pending |
+| planning | 多 feat 共享 ENV 粒度管理（OQ-2）| pending — Phase 2 review |
 
 ## Roadmap Summary
 
-| # | Phase | Goal | Requirements |
-|---|-------|------|--------------|
-| 12 | Schema 定义层 | 3 个 YAML schema (TESTSET/Environment/Gate) | SCHEMA-01~06 |
-| 13 | 枚举守卫 | enum_guard.py 实现 6 个枚举字段校验 | ENUM-01~03 |
-| 14 | 治理对象验证器 | governance_validator.py 11 个对象字段校验 | GOV-01~03 |
-| 15 | 集成与追溯 | enum_guard 集成 SSOT 写入路径 + FC 追溯 | FC-01~03, INT-01~03 |
-| 16 | 测试验证 | 完整测试套件 + 证据产出 | TEST-01~05 |
-
-**Plans:** 3 plans
-
-Plans:
-- [x] 16-01-PLAN.md — Test infrastructure prerequisites (pytest-cov, pytest.ini, test_manifests.json)
-- [x] 16-02-PLAN.md — Full test suite execution + evidence collection
-- [x] 16-03-PLAN.md — CI update + phase completion state transition
-- [x] 14-01-PLAN.md — governance_validator.py with all 11 object validators, enum integration, CLI (GOV-01, GOV-02, GOV-03)
-- [x] 15-01-PLAN.md — enum_guard integration into write_json + FC traceability + integration tests (FC-01~03, INT-01~03)
+Not yet created — requirements definition in progress.
 
 ## Accumulated Context
+
+### Previous Milestone: v2.1 双链双轴测试强化 (Shipped: 2026-04-23)
+
+Delivered:
+
+- TESTSET/Environment/Gate YAML Schema 定义（3 个 schema）
+- enum_guard.py — 6 个枚举字段校验
+- governance_validator.py — 11 个治理对象字段校验
+- Frozen Contract 追溯（FC-001~FC-007）
+- SSOT 写入路径集成（enum_guard → cli/lib/）
+- Task Pack 执行与验证（TASK-001~TASK-007）
 
 ### Previous Milestone: v2.0 ADR-050/051 SSOT 语义治理升级 (Shipped: 2026-04-22)
 
@@ -76,19 +74,30 @@ Delivered:
 - Patch-aware context resolver + AI Context Injection
 - PreToolUse Hook 集成
 
-### Pending Todos
+## Pending Todos
 
-- [ ] 2026-04-22: ADR-052 在v2.1没有进入scope的内容 — FEAT-009-E (状态机执行/三层断言/故障分类), FEAT-009-A (独立验证/违规检测/事故包), FEAT-009-S (Skill编排/DAG), FC-002 (需求轴/实施轴分离契约)
+- [ ] v2.2 requirements definition (in progress)
+- [ ] ADR-053 implement: ll-qa-api-from-feat Skill
+- [ ] ADR-053 implement: ll-qa-e2e-from-proto Skill
+- [ ] ADR-053 implement: acceptance traceability
+- [ ] ADR-054 implement: spec_adapter.py + SPEC_ADAPTER_COMPAT
+- [ ] ADR-054 implement: environment_provision.py
+- [ ] ADR-054 implement: test_exec_runtime.py 兼容性修改
+- [ ] ADR-054 implement: test_orchestrator.py
+- [ ] ADR-054 implement: ll-qa-test-run Skill
+- [ ] Phase 1 集成测试
 
 ## Artifacts
 
 - `.planning/PROJECT.md` — Project context
 - `.planning/config.json` — Workflow preferences
-- `.planning/research/` — Domain research (pending)
-- `.planning/ROADMAP.md` — Phase structure (5 phases, 12-16, created 2026-04-22)
-- `.planning/codebase/` — Codebase map (7 docs)
-- `.planning/milestones/v2.1-ROADMAP.md` — Archived milestone roadmap
-- `.planning/milestones/v2.1-REQUIREMENTS.md` — Archived milestone requirements
+- `.planning/ROADMAP.md` — Phase structure (pending)
+- `.planning/REQUIREMENTS.md` — Requirements (pending)
+- `.planning/codebase/` — Codebase map
+- `.planning/milestones/v2.1-ROADMAP.md` — Archived v2.1 roadmap
+- `.planning/milestones/v2.1-REQUIREMENTS.md` — Archived v2.1 requirements
+- `ssot/adr/ADR-053-QA需求轴统一入口与TESTSET废弃.md` — v1.1-draft
+- `ssot/adr/ADR-054-实施轴接入需求轴-双链桥接与执行闭环.md` — v1.1-draft
 
 ---
-*Last updated: 2026-04-23 after v2.1 milestone completion*
+*Last updated: 2026-04-24 — v2.2 milestone started*

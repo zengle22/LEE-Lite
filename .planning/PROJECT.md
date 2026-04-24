@@ -8,17 +8,18 @@
 
 确保 SSOT 不再逐层生成，而是从 FRZ 冻结包中分层语义抽取，执行层只能补全不能改写语义，所有变更通过分级机制回流治理。
 
-## Current Milestone: v2.1 双链双轴测试强化
+## Current Milestone: v2.2 双链执行闭环
 
-**Goal:** 实现 FEAT-009-D 测试需求轴治理基础设施 — 声明性资产分层与枚举冻结。
+**Goal:** 废弃 TESTSET 策略层，构建需求轴统一入口 Skill，补齐 spec → 实施的桥接，打通从 feat 到 gate 的完整测试闭环。
 
 **Target features:**
-- TESTSET/Environment/Gate YAML Schema 定义（3 个 schema，含 forbidden/required field guards）
-- 枚举守卫模块 (enum_guard.py) — 6 个枚举字段 (skill_id, module_id, assertion_layer, failure_class, gate_verdict, phase)
-- 治理对象验证器 ( governance_validator.py) — 11 个治理对象的 required/optional/forbidden fields 校验
-- Frozen Contract 追溯（7 条 FC-001 ~ FC-007 在所有产出中可追溯）
-- SSOT 写入路径集成（enum_guard 集成到 cli/lib/ 写入路径）
-- Task Pack 顺序执行（7 个任务 TASK-001 ~ TASK-007 依赖解析）
+- ADR-053: 废弃 ll-qa-feat-to-testset，构建 ll-qa-api-from-feat + ll-qa-e2e-from-proto 统一入口 Skill
+- ADR-053: 补齐 acceptance traceability（acceptance → capability/journey 显式追溯）
+- ADR-054: SPEC_ADAPTER_COMPAT 桥接格式（spec → TESTSET 中间格式）
+- ADR-054: environment-provision 模块（自动生成 ENV 文件）
+- ADR-054: test_orchestrator 编排函数（env → adapter → exec → manifest update）
+- ADR-054: ll-qa-test-run Skill（用户入口，支持 --resume 重跑）
+- ADR-054: test_exec_runtime 兼容性修改（SPEC_ADAPTER_COMPAT 分支）
 
 ## Requirements
 
@@ -37,24 +38,30 @@
 - ✓ EPIC-009 / 4 FEATs 已冻结（FEAT-009-D/E/A/S）
 - ✓ TECH-009 技术设计已定义（4-layer architecture）
 - ✓ TESTSET-009 验收集已定义
+- ✓ v2.1 测试双轴治理已交付（Schema/enum_guard/governance_validator/FC追溯/Task Pack 执行）
+- ✓ ADR-053 QA 需求轴统一入口设计已完成（v1.1-draft，废弃 TESTSET + 统一入口）
+- ✓ ADR-054 实施轴桥接设计已完成（v1.1-draft，SPEC_ADAPTER_COMPAT + env + orchestrator）
 
 ### Active
 
-- [ ] TESTSET/Environment/Gate YAML Schema 定义
-- [ ] 枚举守卫模块（6 个枚举字段）
-- [ ] 治理对象验证器（11 个治理对象）
-- [ ] Frozen Contract 追溯集成
-- [ ] SSOT 写入路径集成（enum_guard → protocol.py）
-- [ ] Task Pack 执行与验证
+- [ ] ll-qa-api-from-feat Skill（统一入口，编排 api 子链）
+- [ ] ll-qa-e2e-from-proto Skill（统一入口，编排 e2e 子链）
+- [ ] acceptance traceability（acceptance → capability/journey 追溯表）
+- [ ] SPEC_ADAPTER_COMPAT 格式 + spec_adapter.py
+- [ ] environment_provision.py（ENV 文件自动生成）
+- [ ] test_exec_runtime.py 兼容性修改（SPEC_ADAPTER_COMPAT 分支）
+- [ ] test_orchestrator.py（含 StepResult + manifest 更新乐观锁）
+- [ ] ll-qa-test-run Skill（用户入口，支持 --resume）
+- [ ] Phase 1 集成测试（API chain + E2E chain 端到端）
+- [ ] Phase 2: run_manifest_gen + scenario_spec_compile + state_machine_executor
+- [ ] Phase 3: independent_verifier + settlement + gate-evaluate
 
 ### Out of Scope
 
-- [FRZ 生成工具实现] — 本轮仅定义治理规则，FRZ 仍通过 BMAD 等框架产出
-- [复杂 DAG 调度] — ADR-050/051 明确采用顺序 loop
-- [三轴一律强管理] — ADR-050 §7 明确差异化强度
-- [FEAT-009-E 状态机执行] — 独立 FEAT，延期到后续 milestone
-- [FEAT-009-A 独立验证审计] — 独立 FEAT，延期到后续 milestone
-- [FEAT-009-S Skill 编排 DAG] — 独立 FEAT，延期到后续 milestone
+- [ADR-048 Mission Compiler] — 替代 SPEC_ADAPTER_COMPAT 的长期方案，Mission Compiler 实现后废弃桥接层
+- [FEAT-009-E 状态机执行 P0 升级] — Phase 2 state_machine_executor 为简化版，完整 9 节点模型延期
+- [FEAT-009-A 独立验证 P0] — Phase 3 independent_verifier 为基础版，HAR 捕获和独立 API 查询延期
+- [多 feat 共享 ENV 粒度管理] — OQ-2，延期到 Phase 2 review
 
 ## Context
 
@@ -91,4 +98,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-04-18 after v2.0 milestone initialization*
+*Last updated: 2026-04-24 after v2.2 milestone initialization*
