@@ -2,14 +2,14 @@
 gsd_state_version: 1.0
 milestone: v2.2
 milestone_name: 双链执行闭环
-status: Defining requirements
-last_updated: "2026-04-24T00:00:00.000Z"
+status: In progress
+last_updated: "2026-04-24T12:00:00.000Z"
 progress:
-  total_phases: 0
-  completed_phases: 0
-  total_plans: 0
-  completed_plans: 0
-  percent: 0
+  total_phases: 3
+  completed_phases: 1
+  total_plans: 11
+  completed_plans: 4
+  percent: 36
 ---
 
 # Project State
@@ -17,7 +17,7 @@ progress:
 **Project:** v2.2 双链执行闭环 — 需求轴统一入口 + 实施轴桥接
 **Status:** Milestone started
 **Core value:** 废弃 TESTSET 策略层，构建需求轴统一入口 Skill，补齐 spec → 实施的桥接，打通从 feat 到 gate 的完整测试闭环
-**Current focus:** v2.2 milestone defining requirements
+**Current focus:** Phase 18 execution-axis (实施轴 P0 模块)
 
 ## Deferred Items
 
@@ -76,16 +76,9 @@ Delivered:
 
 ## Pending Todos
 
-- [ ] v2.2 requirements definition (in progress)
-- [ ] ADR-053 implement: ll-qa-api-from-feat Skill
-- [ ] ADR-053 implement: ll-qa-e2e-from-proto Skill
-- [ ] ADR-053 implement: acceptance traceability
-- [ ] ADR-054 implement: spec_adapter.py + SPEC_ADAPTER_COMPAT
-- [ ] ADR-054 implement: environment_provision.py
-- [ ] ADR-054 implement: test_exec_runtime.py 兼容性修改
-- [ ] ADR-054 implement: test_orchestrator.py
-- [ ] ADR-054 implement: ll-qa-test-run Skill
-- [ ] Phase 1 集成测试
+- [x] Phase 17: 双链统一入口 + spec 桥接跑通 (✓ complete)
+- [ ] Phase 18: 实施轴 P0 模块 (in progress)
+- [ ] Phase 19: 验收闭环
 
 ## Artifacts
 
@@ -100,4 +93,4 @@ Delivered:
 - `ssot/adr/ADR-054-实施轴接入需求轴-双链桥接与执行闭环.md` — v1.1-draft
 
 ---
-*Last updated: 2026-04-24 — v2.2 milestone started*
+*Last updated: 2026-04-24 — Phase 17 complete, Phase 18 next*

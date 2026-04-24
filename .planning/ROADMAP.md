@@ -9,7 +9,7 @@
 
 ## Phases
 
-- [ ] **Phase 17: 双链统一入口 + spec 桥接跑通** — 废弃 TESTSET，统一入口 Skill 编排，spec adapter 桥接，ll-qa-test-run 用户入口
+- [x] **Phase 17: 双链统一入口 + spec 桥接跑通** — 废弃 TESTSET，统一入口 Skill 编排，spec adapter 桥接，ll-qa-test-run 用户入口
 - [ ] **Phase 18: 实施轴 P0 模块** — run_manifest_gen, scenario_spec_compile, state_machine_executor 3状态模型
 - [ ] **Phase 19: 验收闭环** — independent_verifier, settlement 集成, gate-evaluate 集成
 
@@ -17,7 +17,7 @@
 
 ## Phase Details
 
-### Phase 17: 双链统一入口 + spec 桥接跑通
+### Phase 17: 双链统一入口 + spec 桥接跑通 ✓ COMPLETE
 
 **Goal:** 构建需求轴统一入口 Skill（ll-qa-api-from-feat, ll-qa-e2e-from-proto），废弃 TESTSET 策略层，补齐 SPEC_ADAPTER_COMPAT 桥接，打通 spec → 实施的完整路径，ll-qa-test-run 用户入口就绪。
 
@@ -35,7 +35,11 @@
 7. `ll-qa-test-run --app-url X --api-url Y --chain api` 端到端跑通 manifest 更新
 8. `ll-qa-test-run --resume` 重跑失败用例正确执行
 
-**Plans:** TBD
+**Plans:** 4/4 ✓ Complete
+- [x] 17-01: ll-qa-api-from-feat + ll-qa-e2e-from-proto Skill 创建 + ll-qa-feat-to-testset 废弃
+- [x] 17-02: cli/lib/contracts.py + spec_adapter.py + environment_provision.py
+- [x] 17-03: test_orchestrator.py + SPEC_ADAPTER_COMPAT 分支 + ll-qa-test-run Skill + CLI 注册
+- [x] 17-04: 集成测试（24 tests passed）
 
 **UI hint:** no
 
@@ -93,7 +97,7 @@
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 17. 双链统一入口 + spec 桥接跑通 | 0/N | Not started | - |
+| 17. 双链统一入口 + spec 桥接跑通 | 4/4 | ✓ Complete | 2026-04-24 |
 | 18. 实施轴 P0 模块 | 0/4 | Planned | - |
 | 19. 验收闭环 | 0/3 | Planned | - |
 
@@ -103,27 +107,27 @@
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| ENTRY-01 | Phase 17 | Pending |
-| ENTRY-02 | Phase 17 | Pending |
-| ENTRY-03 | Phase 17 | Pending |
-| ENTRY-04 | Phase 17 | Pending |
-| BRIDGE-01 | Phase 17 | Pending |
-| BRIDGE-02 | Phase 17 | Pending |
-| BRIDGE-03 | Phase 17 | Pending |
-| BRIDGE-04 | Phase 17 | Pending |
-| BRIDGE-05 | Phase 17 | Pending |
-| BRIDGE-06 | Phase 17 | Pending |
-| BRIDGE-07 | Phase 17 | Pending |
-| BRIDGE-08 | Phase 17 | Pending |
-| ENV-01 | Phase 17 | Pending |
-| ENV-02 | Phase 17 | Pending |
+| ENTRY-01 | Phase 17 | ✓ Done |
+| ENTRY-02 | Phase 17 | ✓ Done |
+| ENTRY-03 | Phase 17 | ✓ Done |
+| ENTRY-04 | Phase 17 | ✓ Done |
+| BRIDGE-01 | Phase 17 | ✓ Done |
+| BRIDGE-02 | Phase 17 | ✓ Done |
+| BRIDGE-03 | Phase 17 | ✓ Done |
+| BRIDGE-04 | Phase 17 | ✓ Done |
+| BRIDGE-05 | Phase 17 | ✓ Done |
+| BRIDGE-06 | Phase 17 | ✓ Done |
+| BRIDGE-07 | Phase 17 | ✓ Done |
+| BRIDGE-08 | Phase 17 | ✓ Done |
+| ENV-01 | Phase 17 | ✓ Done |
+| ENV-02 | Phase 17 | ✓ Done | |
 | EXEC-01 | Phase 18 | Planned |
 | EXEC-02 | Phase 18 | Planned |
 | EXEC-03 | Phase 18 | Planned |
 | GATE-01 | Phase 19 | Pending |
 | GATE-02 | Phase 19 | Pending |
 | GATE-03 | Phase 19 | Pending |
-| TEST-01 | Phase 17 | Pending |
+| TEST-01 | Phase 17 | ✓ Done |
 | TEST-02 | Phase 18 | Planned |
 | TEST-03 | Phase 18 | Planned |
 | TEST-04 | Phase 19 | Pending |
@@ -156,4 +160,4 @@ Phase 17 ──> Phase 18 ──> Phase 19
 ---
 
 *Roadmap created: 2026-04-24*
-*Last updated: 2026-04-24 — Phase 18 plans created (4 plans)*
+*Last updated: 2026-04-24 — Phase 17 complete (14 commits, 238 tests passed)*
