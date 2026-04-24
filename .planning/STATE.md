@@ -8,8 +8,8 @@ progress:
   total_phases: 3
   completed_phases: 1
   total_plans: 11
-  completed_plans: 6
-  percent: 55
+  completed_plans: 7
+  percent: 64
 ---
 
 # Project State
@@ -81,7 +81,7 @@ Delivered:
   - [x] Plan 18-01: run-manifest-gen.py (complete)
   - [ ] Plan 18-02: (pending)
   - [x] Plan 18-03: state_machine_executor.py (complete)
-  - [ ] Plan 18-04: (pending)
+  - [x] Plan 18-04: Integration tests for E2E chain and resume (complete)
 - [ ] Phase 19: 验收闭环
 
 ## Artifacts
@@ -97,4 +97,4 @@ Delivered:
 - `ssot/adr/ADR-054-实施轴接入需求轴-双链桥接与执行闭环.md` — v1.1-draft
 
 ---
-*Last updated: 2026-04-24 — Phase 18-01 complete, plan 18-02 next*
+*Last updated: 2026-04-24 — Phase 18-04 complete, plan 18-02 next*
