@@ -1,0 +1,11 @@
+# Input Contract: ll-qa-api-from-feat
+
+## Required Input
+- feat_freeze_package: directory path from ll-product-epic-to-feat (must be frozen)
+- feat_ref: the specific FEAT identifier
+
+## Input Validation
+- [ ] FEAT status is `frozen`
+- [ ] FEAT contains `Scope` section
+- [ ] FEAT contains `Acceptance Checks` section
+- [ ] feat_ref matches a FEAT in the freeze package

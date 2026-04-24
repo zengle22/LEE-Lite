@@ -1,0 +1,7 @@
+skill: ll-qa-api-from-feat
+version: "1.0"
+adr: ADR-047, ADR-052, ADR-053
+category: qa
+chain: api-test
+phase: full-chain
+supersedes: []
