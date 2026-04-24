@@ -16,7 +16,7 @@ from cli.lib.test_exec_runtime import execute_test_exec_skill
 
 def _skill_handler(ctx: CommandContext):
     ensure(
-        ctx.action in {"impl-spec-test", "test-exec-web-e2e", "test-exec-cli", "gate-human-orchestrator", "failure-capture", "spec-reconcile", "tech-to-impl", "feat-to-apiplan", "prototype-to-e2eplan", "api-manifest-init", "e2e-manifest-init", "api-spec-gen", "e2e-spec-gen", "settlement", "gate-evaluate", "render-testset-view"},
+        ctx.action in {"impl-spec-test", "test-exec-web-e2e", "test-exec-cli", "gate-human-orchestrator", "failure-capture", "spec-reconcile", "tech-to-impl", "feat-to-apiplan", "prototype-to-e2eplan", "api-manifest-init", "e2e-manifest-init", "api-spec-gen", "e2e-spec-gen", "settlement", "gate-evaluate", "render-testset-view", "qa-test-run"},
         "INVALID_REQUEST",
         "unsupported skill action",
     )
@@ -138,6 +138,45 @@ def _skill_handler(ctx: CommandContext):
         return "OK", f"governed {ctx.action} completed", {
             "canonical_path": result.get("canonical_path", ""),
             **result,
+        }, [], evidence_refs
+
+    if ctx.action == "qa-test-run":
+        from cli.lib.test_orchestrator import run_spec_test
+
+        # Extract parameters from payload
+        feat_ref = ctx.payload.get("feat_ref")
+        proto_ref = ctx.payload.get("proto_ref")
+        app_url = ctx.payload.get("app_url", "http://localhost:3000")
+        api_url = ctx.payload.get("api_url")
+        chain = ctx.payload.get("chain", "api")
+        coverage_mode = ctx.payload.get("coverage_mode", "smoke")
+        resume = ctx.payload.get("resume", False)
+        resume_from = ctx.payload.get("resume_from")
+
+        # Determine modality from chain
+        modality = "api" if chain == "api" else "web_e2e"
+
+        result = run_spec_test(
+            workspace_root=ctx.workspace_root,
+            feat_ref=feat_ref,
+            proto_ref=proto_ref,
+            base_url=api_url or app_url,
+            app_url=app_url,
+            api_url=api_url,
+            modality=modality,
+            coverage_mode=coverage_mode,
+            resume=resume,
+            resume_from=resume_from,
+        )
+
+        evidence_refs = _collect_refs({
+            "candidate_artifact_ref": result.execution_refs.get("candidate_artifact_ref", ""),
+        })
+
+        return "OK", f"governed qa-test-run completed", {
+            "run_id": result.run_id,
+            "executed_count": len(result.case_results),
+            "manifest_items_count": len(result.manifest_items),
         }, [], evidence_refs
 
     payload = ctx.payload
