@@ -1,0 +1,7 @@
+skill: ll-qa-e2e-from-proto
+version: "1.0"
+adr: ADR-047, ADR-052, ADR-053
+category: qa
+chain: e2e-test
+phase: full-chain
+supersedes: []

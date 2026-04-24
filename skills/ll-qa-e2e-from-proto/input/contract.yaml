@@ -1,0 +1,10 @@
+# Input Contract: ll-qa-e2e-from-proto
+
+## Required Input
+- prototype_freeze_package: directory path from ll-dev-feat-to-proto OR
+- feat_ref: from ll-product-epic-to-feat (api-derived mode)
+
+## Input Validation
+- [ ] Either prototype_freeze_package or feat_ref is provided
+- [ ] Source document is frozen
+- [ ] Contains prototype/FEAT journey definitions
