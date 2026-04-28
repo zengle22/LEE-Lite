@@ -215,12 +215,33 @@ def _normalized_source_refs(
         "TESTSET-": str(selected_upstream_refs.get("testset_ref") or "").strip() or None,
     }
     normalized: list[str] = []
+
+    # Core upstream traceability chain (per D-16)
+    core_refs = [
+        f"dev.feat-to-tech::{upstream_run_id}",
+        refs["feat_ref"],
+        refs["tech_ref"],
+    ]
+
+    # Add optional SSOT refs with type tagging (per D-17)
+    if refs.get("arch_ref"):
+        core_refs.append(f"ARCH:{refs['arch_ref']}")
+    if refs.get("api_ref"):
+        core_refs.append(f"API:{refs['api_ref']}")
+    if refs.get("epic_ref"):
+        core_refs.append(f"EPIC:{refs['epic_ref']}")
+    if refs.get("src_ref"):
+        core_refs.append(f"SRC:{refs['src_ref']}")
+    if refs.get("surface_map_ref"):
+        core_refs.append(f"SURFACE:{refs['surface_map_ref']}")
+
     seed_refs = unique_strings(
-        [f"dev.feat-to-tech::{upstream_run_id}", refs["feat_ref"], refs["tech_ref"]]
+        core_refs
         + upstream_source_refs
         + ensure_list(selected_upstream_refs.get("adr_refs"))
         + [value for value in selected_optional_refs.values() if value]
     )
+
     for ref in seed_refs:
         optional_prefix = next((prefix for prefix in selected_optional_refs if ref.startswith(prefix)), None)
         if optional_prefix:

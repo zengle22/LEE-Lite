@@ -39,6 +39,8 @@ def build_refs(package: Any) -> dict[str, str | None]:
         "surface_map_ref": package.surface_map_ref,
         "arch_ref": package.arch_ref,
         "api_ref": package.api_ref,
+        "epic_ref": str(package.tech_json.get("epic_freeze_ref") or "").strip() or None,
+        "src_ref": str(package.tech_json.get("src_root_id") or "").strip() or None,
     }
 
 
