@@ -34,9 +34,18 @@ ARCH_KEYWORDS = [
     "cross-skill",
 ]
 
-STRONG_API_KEYWORDS = ["api", "接口", "contract", "schema", "request", "response", "webhook"]
-WEAK_API_KEYWORDS = ["event", "message", "proposal", "decision", "consumer", "provider", "handoff", "queue"]
-NEGATION_MARKERS = ["不", "无", "without", "no ", "not ", "do not"]
+API_SURFACE_PATTERNS = [
+    # REST/gRPC endpoint patterns
+    r"/v\d+/", r"\b(GET|POST|PUT|PATCH|DELETE)\s+/",
+    # Command handler patterns
+    r"command\s+handler", r"handler\s+contract",
+    # Backend service interface patterns
+    r"backend\s+service", r"service\s+interface",
+    # Webhook patterns
+    r"webhook", r"callback\s+contract",
+    # API/schema patterns
+    r"\bapi\b.*\b(contract|endpoint|schema)\b", r"\bREST\b", r"\bgRPC\b",
+]
 
 REVIEW_PROJECTION_AXIS_MAP = {
     "projection-generation": "projection_generation",
@@ -337,6 +346,32 @@ def _axis_text(feature: dict[str, Any], section: str) -> str | None:
     return content if isinstance(content, str) else None
 
 
+def detect_api_surface_in_scope(feature: dict[str, Any]) -> bool:
+    # Collect text from scope and outputs only (primary signal per D-06)
+    text_parts: list[str] = []
+    scope = feature.get("scope")
+    if scope:
+        text_parts.extend(ensure_list(scope))
+    outputs = feature.get("outputs")
+    if outputs:
+        text_parts.extend(ensure_list(outputs))
+
+    # Flatten to string and lowercase
+    text = "\n".join(str(part).lower().strip() for part in text_parts if str(part).strip())
+
+    # Check for API surface patterns
+    import re
+    for pattern in API_SURFACE_PATTERNS:
+        if re.search(pattern, text):
+            return True
+
+    # For engineering baseline FEATs, return False unless explicit API surface pattern found (per D-08)
+    if is_engineering_baseline_feature(feature):
+        return False
+
+    return False
+
+
 def keyword_hits(feature: dict[str, Any], keywords: list[str]) -> list[str]:
     hits: list[str] = []
     segments: list[str] = []
@@ -351,7 +386,7 @@ def keyword_hits(feature: dict[str, Any], keywords: list[str]) -> list[str]:
             segments.extend([str(check.get("scenario") or ""), str(check.get("given") or ""), str(check.get("when") or ""), str(check.get("then") or "")])
     for segment in segments:
         lowered = segment.lower().strip()
-        if not lowered or any(marker in lowered for marker in NEGATION_MARKERS):
+        if not lowered:
             continue
         for keyword in keywords:
             if keyword in lowered and keyword not in hits:
@@ -420,14 +455,12 @@ def assess_optional_artifacts(feature: dict[str, Any], package: Any | None = Non
     is_engineering = is_engineering_baseline_feature(feature)
 
     arch_hits = keyword_hits(feature, ARCH_KEYWORDS)
-    api_hits = keyword_hits(feature, STRONG_API_KEYWORDS)
-    weak_api_hits = keyword_hits(feature, WEAK_API_KEYWORDS)
+    api_required = detect_api_surface_in_scope(feature)
     axis = feature_axis(feature)
 
-    # For engineering baseline FEATs, only require ARCH/API if there are explicit keyword hits
+    # Keep ARCH keyword detection as-is (only API detection changed per D-05)
     if is_engineering:
         arch_required = bool(arch_hits)
-        api_required = bool(api_hits) or (axis == "collaboration" and bool(weak_api_hits))
     else:
         # Original logic for non-engineering FEATs
         arch_required = bool(arch_hits) or axis in {
@@ -449,35 +482,16 @@ def assess_optional_artifacts(feature: dict[str, Any], package: Any | None = Non
             "runner_feedback",
             "runner_observability",
         }
-        api_required = bool(api_hits) or axis in {
-            "formalization",
-            "layering",
-            "io_governance",
-            "first_ai_advice",
-            "extended_profile_completion",
-            "device_deferred_entry",
-            "state_profile_boundary",
-            "minimal_onboarding",
-            "adoption_e2e",
-            "runner_ready_job",
-            "runner_operator_entry",
-            "runner_control_surface",
-            "runner_intake",
-            "runner_dispatch",
-            "runner_feedback",
-            "runner_observability",
-        } or (axis == "collaboration" and bool(weak_api_hits))
+
     arch_rationale = ["ARCH required by boundary/runtime placement."] if arch_required else ["ARCH omitted because the FEAT does not introduce a dedicated boundary/topology surface."]
     if arch_hits:
         arch_rationale.append(f"Keyword hits: {', '.join(arch_hits[:4])}.")
-    api_rationale = ["API required by command-level contract surface."] if api_required else ["API omitted because no explicit command-level contract surface was detected."]
-    if api_hits or weak_api_hits:
-        api_rationale.append(f"Keyword hits: {', '.join((api_hits + weak_api_hits)[:4])}.")
+    api_rationale = ["API required by explicit surface declaration in FEAT scope/outputs."] if api_required else ["API omitted because FEAT scope/outputs do not declare an explicit command-level contract surface."]
     return {
         "arch_required": arch_required,
         "api_required": api_required,
         "arch_hits": arch_hits,
-        "api_hits": api_hits + weak_api_hits,
+        "api_hits": [],
         "arch_rationale": arch_rationale,
         "api_rationale": api_rationale,
         "reasons": arch_rationale + api_rationale,
@@ -632,6 +646,15 @@ def consistency_check(feature: dict[str, Any], assessment: dict[str, Any]) -> di
     else:
         api_complete = True
     add_check("semantic", "API contract completeness", api_complete, "API contracts carry schema, semantics, invariants, and canonical refs.", "API is still too thin; command specs are missing schema, invariants, or canonical ref semantics.")
+    if assessment["api_required"]:
+        specs = api_command_specs(feature)
+        preconditions_complete = bool(specs) and all(
+            spec.get("caller_context") and spec.get("idempotency_key_strategy")
+            and spec.get("post_conditions") and spec.get("system_dependency_pre_state")
+            and spec.get("side_effects") is not None and spec.get("ui_surface_impact") and spec.get("event_outputs") is not None
+            for spec in specs
+        )
+        add_check("semantic", "API preconditions completeness", preconditions_complete, "API contracts carry caller context, idempotency strategy, post-conditions, and state transition fields.", "API is missing preconditions/post-conditions chapter fields.")
     if feature_axis(feature) == "collaboration":
         scope = collaboration_reentry_scope(feature)
         add_check("semantic", "Collaboration re-entry boundary", scope != "ambiguous", "Collaboration FEATs keep decision-driven runtime routing in scope without claiming gate/publication ownership.", "The FEAT carries ambiguous or unresolved revise/retry re-entry ownership.")

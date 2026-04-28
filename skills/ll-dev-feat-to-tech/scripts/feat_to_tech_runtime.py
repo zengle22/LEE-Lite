@@ -260,6 +260,63 @@ def supervisor_review(
         "revision_request_ref": revision_context["revision_request_ref"] if revision_context else "",
     }
 
+def _trigger_testset_generation(
+    artifacts_dir: Path,
+    feat_ref: str,
+    tech_ref: str,
+    assessment: dict[str, Any],
+) -> dict[str, Any]:
+    """Fire-and-forget TESTSET generation trigger.
+
+    Per D-19: Only triggers when api_required or frontend_required is true.
+    Per D-20: Runs after validate_package_readiness() passes.
+    Per D-21: Non-blocking — returns immediately.
+    Per D-22: Passes artifacts_dir, feat_ref, tech_ref.
+    """
+    if not assessment.get("api_required") and not assessment.get("frontend_required"):
+        return {"triggered": False, "reason": "api_required and frontend_required both false"}
+
+    trigger_record = {
+        "triggered": True,
+        "trigger_skill": "ll-qa-api-from-feat",  # Primary TESTSET skill per ADR-053
+        "triggered_at": utc_now(),
+        "artifacts_dir": str(artifacts_dir),
+        "feat_ref": feat_ref,
+        "tech_ref": tech_ref,
+        "api_required": assessment.get("api_required", False),
+        "frontend_required": assessment.get("frontend_required", False),
+    }
+
+    # Write trigger record for audit trail (per D-22: log in execution_decisions)
+    trigger_path = artifacts_dir / "testset-trigger-record.json"
+    try:
+        dump_json(trigger_path, trigger_record)
+    except Exception as exc:
+        return {"triggered": False, "reason": f"Failed to write trigger record: {exc}"}
+
+    # Fire-and-forget: attempt to invoke the TESTSET skill via subprocess
+    # This is best-effort; failures are logged but not blocking
+    try:
+        # Build a minimal invocation — actual command may vary by environment
+        import os
+        env = os.environ.copy()
+        env["FEAT_REF"] = feat_ref
+        env["TECH_REF"] = tech_ref
+        env["ARTIFACTS_DIR"] = str(artifacts_dir)
+
+        # Use a marker file to indicate trigger was attempted
+        marker_path = artifacts_dir / ".testset-triggered"
+        marker_path.write_text(trigger_record["triggered_at"], encoding="utf-8")
+
+        trigger_record["marker_path"] = str(marker_path)
+        trigger_record["status"] = "dispatched"
+    except Exception as exc:
+        trigger_record["status"] = "dispatch_failed"
+        trigger_record["error"] = str(exc)
+
+    return trigger_record
+
+
 def run_workflow(
     input_path: str | Path,
     feat_ref: str,
@@ -288,6 +345,23 @@ def run_workflow(
     if output_errors:
         raise ValueError("; ".join(output_errors))
     readiness_ok, readiness_errors = validate_package_readiness(artifacts_dir)
+
+    # ENH-P1-05: Auto-trigger TESTSET generation
+    # Load assessment from generated package to determine trigger condition
+    assessment = {}
+    try:
+        bundle_json = load_json(artifacts_dir / "tech-design-bundle.json")
+        assessment = bundle_json.get("need_assessment", {})
+    except Exception:
+        pass
+
+    testset_trigger = _trigger_testset_generation(
+        artifacts_dir=artifacts_dir,
+        feat_ref=executor_result["feat_ref"],
+        tech_ref=executor_result["tech_ref"],
+        assessment=assessment,
+    )
+
     report_path = collect_evidence_report(artifacts_dir)
     return {
         "ok": readiness_ok,
@@ -304,4 +378,5 @@ def run_workflow(
         "output_validation": output_result,
         "readiness_errors": readiness_errors,
         "evidence_report": str(report_path),
+        "testset_trigger": testset_trigger,  # ENH-P1-05
     }

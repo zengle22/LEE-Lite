@@ -150,6 +150,7 @@ def build_tech_docs(refs, source_refs, feature, focus, rules, nfrs, implementati
         "tech_ref": refs["tech_ref"],
         "feat_ref": refs["feat_ref"],
         "source_refs": source_refs,
+        "ssot_type": "TECH",
     }
 
     is_engineering = is_engineering_baseline_feature(feature)
@@ -268,6 +269,7 @@ def build_arch_docs(feature, refs, source_refs, assessment, arch_diagram, json_p
         "arch_ref": refs["arch_ref"],
         "feat_ref": refs["feat_ref"],
         "source_refs": source_refs,
+        "ssot_type": "ARCH",
     }
     body = "\n\n".join(
         [
@@ -282,6 +284,33 @@ def build_arch_docs(feature, refs, source_refs, assessment, arch_diagram, json_p
     return frontmatter, body
 
 
+def build_api_state_transition_table(api_specs):
+    """Build markdown table for state transitions per D-14/D-15."""
+    header = "| command | pre-state | post-state | side_effects | ui_surface_impact | event_outputs |"
+    separator = "|---------|-----------|------------|--------------|-------------------|---------------|"
+    rows = []
+    for spec in api_specs:
+        command = f"`{spec['command']}`"
+        pre_state = spec.get("system_dependency_pre_state", "N/A")
+        post_state = "; ".join(spec.get("post_conditions", ["N/A"]))
+        side_effects = "; ".join(spec.get("side_effects", ["N/A"]))
+        ui_impact = spec.get("ui_surface_impact", "N/A")
+        event_outputs = ", ".join(spec.get("event_outputs", ["N/A"]))
+        rows.append(f"| {command} | {pre_state} | {post_state} | {side_effects} | {ui_impact} | {event_outputs} |")
+    return "\n".join([header, separator] + rows)
+
+
+def build_api_preconditions_narrative(api_specs):
+    """Build narrative summary of state flow per D-13/D-15."""
+    if not api_specs:
+        return "No API commands defined."
+    commands = [spec['command'] for spec in api_specs]
+    narrative = f"This API defines {len(commands)} command(s): {', '.join(commands)}. "
+    narrative += "All commands enforce preconditions before execution and guarantee post-conditions upon success. "
+    narrative += "State transitions are trackable through emitted events and UI surface impacts."
+    return narrative
+
+
 def build_api_docs(refs, source_refs, assessment, feature, api_specs, json_payload):
     if not assessment["api_required"]:
         return None, None
@@ -292,7 +321,20 @@ def build_api_docs(refs, source_refs, assessment, feature, api_specs, json_paylo
         "api_ref": refs["api_ref"],
         "feat_ref": refs["feat_ref"],
         "source_refs": source_refs,
+        "ssot_type": "API",
     }
+
+    # Build per-command preconditions section
+    per_command_preconditions = []
+    for spec in api_specs:
+        per_command_preconditions.extend([
+            f"- **{spec['command']}**",
+            f"  - Caller context: {spec.get('caller_context', 'N/A')}",
+            f"  - Idempotency key strategy: {spec.get('idempotency_key_strategy', 'N/A')}",
+            f"  - Preconditions: {'; '.join(spec.get('preconditions', ['N/A']))}",
+            f"  - Post-conditions: {'; '.join(spec.get('post_conditions', ['N/A']))}",
+        ])
+
     body = "\n\n".join(
         [
             f"# {refs['api_ref']}",
@@ -324,6 +366,14 @@ def build_api_docs(refs, source_refs, assessment, feature, api_specs, json_paylo
                 )
                 for spec in api_specs
             ),
+            "## Preconditions and Post-conditions\n\n" + "\n".join([
+                "### Per-Command Context\n",
+                "\n".join(per_command_preconditions),
+                "\n### Global API-Level State Transitions\n",
+                build_api_state_transition_table(api_specs),
+                "\n### Narrative Summary\n",
+                build_api_preconditions_narrative(api_specs),
+            ]),
             "## Compatibility and Versioning\n\n" + "\n".join([f"- {item}" for item in api_compatibility_rules(feature)]),
         ]
     )

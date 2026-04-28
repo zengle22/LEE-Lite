@@ -10,8 +10,7 @@ from typing import Any
 from feat_to_tech_common import ensure_list, unique_strings
 from feat_to_tech_derivation import (
     ARCH_KEYWORDS,
-    STRONG_API_KEYWORDS,
-    WEAK_API_KEYWORDS,
+    detect_api_surface_in_scope,
     api_command_specs,
     collaboration_reentry_scope,
     architecture_diagram,
@@ -26,8 +25,7 @@ from feat_to_tech_integration_context import integration_sufficiency_check
 
 def assess_optional_artifacts(feature: dict[str, Any], integration_context: dict[str, Any]) -> dict[str, Any]:
     arch_hits = keyword_hits(feature, ARCH_KEYWORDS)
-    api_hits = keyword_hits(feature, STRONG_API_KEYWORDS)
-    weak_api_hits = keyword_hits(feature, WEAK_API_KEYWORDS)
+    api_required = detect_api_surface_in_scope(feature)
     axis = feature_axis(feature)
     arch_required = bool(arch_hits) or axis in {
         "collaboration",
@@ -48,38 +46,18 @@ def assess_optional_artifacts(feature: dict[str, Any], integration_context: dict
         "runner_feedback",
         "runner_observability",
     }
-    api_required = bool(api_hits) or axis in {
-        "formalization",
-        "layering",
-        "io_governance",
-        "first_ai_advice",
-        "extended_profile_completion",
-        "device_deferred_entry",
-        "state_profile_boundary",
-        "minimal_onboarding",
-        "adoption_e2e",
-        "runner_ready_job",
-        "runner_operator_entry",
-        "runner_control_surface",
-        "runner_intake",
-        "runner_dispatch",
-        "runner_feedback",
-        "runner_observability",
-    } or (axis == "collaboration" and bool(weak_api_hits))
     integration_gate = integration_sufficiency_check(integration_context)
     arch_rationale = ["ARCH required by boundary/runtime placement."] if arch_required else ["ARCH omitted because the FEAT does not introduce a dedicated boundary/topology surface."]
     if arch_hits:
         arch_rationale.append(f"Keyword hits: {', '.join(arch_hits[:4])}.")
-    api_rationale = ["API required by command-level contract surface."] if api_required else ["API omitted because no explicit command-level contract surface was detected."]
-    if api_hits or weak_api_hits:
-        api_rationale.append(f"Keyword hits: {', '.join((api_hits + weak_api_hits)[:4])}.")
+    api_rationale = ["API required by explicit surface declaration in FEAT scope/outputs."] if api_required else ["API omitted because FEAT scope/outputs do not declare an explicit command-level contract surface."]
     return {
         "arch_required": arch_required,
         "api_required": api_required,
         "integration_context_sufficient": integration_gate["passed"],
         "stateful_design_present": False,
         "arch_hits": arch_hits,
-        "api_hits": api_hits + weak_api_hits,
+        "api_hits": [],
         "arch_rationale": arch_rationale,
         "api_rationale": api_rationale,
         "integration_context_rationale": [integration_gate["summary"], *integration_gate["issues"]],
@@ -169,6 +147,15 @@ def consistency_check(feature: dict[str, Any], assessment: dict[str, Any], conte
         specs = api_command_specs(feature)
         api_complete = bool(specs) and all(spec.get("request_schema") and spec.get("response_schema") and spec.get("field_semantics") and spec.get("enum_domain") is not None and spec.get("invariants") and spec.get("canonical_refs") for spec in specs)
     add_check("semantic", "API contract completeness", api_complete, "API contracts carry schema, semantics, invariants, and canonical refs.", "API is still too thin; command specs are missing schema, invariants, or canonical ref semantics.")
+    if assessment["api_required"]:
+        specs = api_command_specs(feature)
+        preconditions_complete = bool(specs) and all(
+            spec.get("caller_context") and spec.get("idempotency_key_strategy")
+            and spec.get("post_conditions") and spec.get("system_dependency_pre_state")
+            and spec.get("side_effects") is not None and spec.get("ui_surface_impact") and spec.get("event_outputs") is not None
+            for spec in specs
+        )
+        add_check("semantic", "API preconditions completeness", preconditions_complete, "API contracts carry caller context, idempotency strategy, post-conditions, and state transition fields.", "API is missing preconditions/post-conditions chapter fields.")
     if feature_axis(feature) == "collaboration":
         scope = collaboration_reentry_scope(feature)
         add_check("semantic", "Collaboration re-entry boundary", scope != "ambiguous", "Collaboration FEATs keep decision-driven runtime routing in scope without claiming gate/publication ownership.", "The FEAT carries ambiguous or unresolved revise/retry re-entry ownership.")

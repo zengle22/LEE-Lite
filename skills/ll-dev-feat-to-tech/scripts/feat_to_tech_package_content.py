@@ -187,6 +187,7 @@ def build_json_payload(run_id, feature, refs, source_refs, assessment, context, 
         "src_root_id": refs["src_ref"],
         "source_refs": source_refs,
         "semantic_lock": feature["semantic_lock"],
+        "ssot_type": "TECH",
         "arch_required": assessment["arch_required"],
         "api_required": assessment["api_required"],
         "need_assessment": assessment,
@@ -239,13 +240,13 @@ def build_tech_design_block(context):
 def build_optional_arch_block(feature, refs, assessment):
     if not assessment["arch_required"]:
         return None
-    return {"arch_ref": refs["arch_ref"], "topics": architecture_topics(feature), "rationale": assessment["arch_rationale"]}
+    return {"arch_ref": refs["arch_ref"], "topics": architecture_topics(feature), "rationale": assessment["arch_rationale"], "ssot_type": "ARCH"}
 
 
 def build_optional_api_block(feature, refs, assessment, api_specs):
     if not assessment["api_required"]:
         return None
-    return {"api_ref": refs["api_ref"], "surfaces": api_surfaces(feature), "command_refs": [spec["command"] for spec in api_specs], "response_envelope": {"success": "{ ok: true, command_ref, trace_ref, result }", "error": "{ ok: false, command_ref, trace_ref, error }"}, "compatibility_rules": api_compatibility_rules(feature), "rationale": assessment["api_rationale"]}
+    return {"api_ref": refs["api_ref"], "surfaces": api_surfaces(feature), "command_refs": [spec["command"] for spec in api_specs], "response_envelope": {"success": "{ ok: true, command_ref, trace_ref, result }", "error": "{ ok: false, command_ref, trace_ref, error }"}, "compatibility_rules": api_compatibility_rules(feature), "rationale": assessment["api_rationale"], "ssot_type": "API"}
 
 
 def build_frontmatter(run_id, refs, assessment, source_refs, feature, status, revision_context=None):
@@ -264,6 +265,7 @@ def build_frontmatter(run_id, refs, assessment, source_refs, feature, status, re
         "stateful_design_present": assessment["stateful_design_present"],
         "source_refs": source_refs,
         "semantic_lock": feature["semantic_lock"],
+        "ssot_type": "TECH",
         **({"revision_request_ref": revision_context["revision_request_ref"], "revision_summary": revision_context["summary"]} if revision_context else {}),
     }
 
