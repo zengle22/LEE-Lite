@@ -1808,18 +1808,23 @@ def derive_feat_axes(package: Any) -> list[dict[str, str]]:
             if not isinstance(item, dict):
                 continue
             normalized_item = dict(item)
+
+            # Get capability_axes first to determine primary capability for feat_axis
+            capability_axes = ensure_list(item.get("capability_axes"))
+            primary_capability = capability_axes[0] if capability_axes else None
+
             normalized_item.update(
                 {
                     "id": str(item.get("id") or f"slice-{index}").strip(),
                     "name": str(item.get("name") or f"Feature Slice {index}").strip(),
                     "scope": ensure_list(item.get("scope")) or [str(item.get("scope") or item.get("name") or "").strip()],
-                    "feat_axis": str(item.get("product_surface") or item.get("name") or f"Feature Slice {index}").strip(),
+                    "feat_axis": str(primary_capability or item.get("name") or item.get("product_surface") or f"Feature Slice {index}").strip(),
                     "goal": str(item.get("goal") or "").strip(),
                     "track": str(item.get("track") or ("adoption_e2e" if str(item.get("id") or "") == "skill-adoption-e2e" else "foundation")).strip(),
                     "product_surface": str(item.get("product_surface") or "").strip(),
                     "completed_state": str(item.get("completed_state") or "").strip(),
                     "business_deliverable": str(item.get("business_deliverable") or "").strip(),
-                    "capability_axes": ensure_list(item.get("capability_axes")),
+                    "capability_axes": capability_axes,
                     "overlay_families": ensure_list(item.get("overlay_families")),
                 }
             )
