@@ -8,9 +8,17 @@
 
 确保 SSOT 不再逐层生成，而是从 FRZ 冻结包中分层语义抽取，执行层只能补全不能改写语义，所有变更通过分级机制回流治理。
 
-## Current Milestone: Next Milestone (TBD)
+## Current Milestone: v2.2.1 Failure Case Resolution
 
-**Goal:** TBD — use `/gsd-new-milestone` to define next milestone
+**Goal:** 修复 `tests/defect/failure-cases/` 目录下记录的所有缺陷，同时系统性改进相关技能的质量和稳健性
+
+**Target fixes:**
+- P0: 修复 SRC003 SSOT 多维度漂移（API authority 重复、surface-map 所有权漂移、TECH/IMPL 语义与仓库不匹配）
+- P0: 修复 FEAT 分解按 UI 表面而非能力边界的问题（ll-product-epic-to-feat）
+- P1: 修复 PROTO 相关缺陷（ll-dev-feat-to-proto 的低保真问题、菜单遮罩默认遮挡、页面泛化、旅程闭环拆分）
+- P1: 修复 TECH/IMPL 缺陷（ll-dev-feat-to-tech 主语漂移、模板过度共享；ll-dev-tech-to-impl 执行层漂移）
+- P1: 修复 TESTSET/治理技能缺陷（TESTSET 套用 gate 模板、governance-failure-capture 位置错误、UI-spec 输出结构）
+- P1: 修复 impl-spec-test 中文解析问题，增强检测能力
 
 ## Validated Requirements
 
@@ -29,9 +37,30 @@
 - ✓ SSOT 语义治理（ADR-050/051，v2.0）
 - ✓ 测试双轴治理（v2.1）
 
-## Next Milestone Goals
+## Active Requirements (v2.2.1)
 
-- /gsd-new-milestone — Define next milestone
+- [ ] FIX-P0-01: 修复 SRC003 SSOT 多维度漂移（API authority 重复、surface-map 所有权漂移、TECH/IMPL 语义与仓库不匹配）
+- [ ] FIX-P0-02: 修复 FEAT 分解按 UI 表面而非能力边界的问题（ll-product-epic-to-feat）
+- [ ] FIX-P1-01: 修复 ll-dev-feat-to-proto 的低保真问题（菜单遮罩默认遮挡、页面内容泛化占位）
+- [ ] FIX-P1-02: 修复 ll-dev-feat-to-proto 的旅程闭环拆分问题（6个FEAT拆成孤立页面）
+- [ ] FIX-P1-03: 修复 ll-dev-feat-to-tech 的主语漂移（从工程基线漂移到ADR-005治理）
+- [ ] FIX-P1-04: 修复 ll-dev-feat-to-tech 的模板过度共享（每份TECH重复全工程骨架）
+- [ ] FIX-P1-05: 修复 ll-dev-tech-to-impl 的执行层系统性漂移（触点回到src/be、吸入.tmp/external）
+- [ ] FIX-P1-06: 修复 ll-qa-feat-to-testset 的TESTSET套用gate模板问题
+- [ ] FIX-P1-07: 修复 ll-governance-failure-capture 的位置错误（应输出到tests/defect/failure-cases）
+- [ ] FIX-P1-08: 修复 ll-dev-proto-to-ui 的UI-spec输出结构问题（应合并为单一文档）
+- [ ] FIX-P1-09: 修复 ll-qa-impl-spec-test 的中文解析问题（不识别中文章节标题）
+- [ ] ENH-P1-01: 增强 ll-dev-feat-to-tech 的 api_required 判定逻辑（基于能力边界而非关键词）
+- [ ] ENH-P1-02: 增强 ll-dev-feat-to-tech 的 ssot_type 声明（强制为TECH/ARCH/API添加ssot_type）
+- [ ] ENH-P1-03: 增强 ll-dev-feat-to-tech 的API设计质量（增加前置条件和后置输出章节）
+- [ ] ENH-P1-04: 增强 ll-dev-tech-to-impl 的 source_refs 生成（自动包含完整追溯链）
+- [ ] ENH-P1-05: 增强 ll-qa-feat-to-testset 的自动触发（feat-to-tech后自动触发）
+
+## Out of Scope (v2.2.1)
+
+- 任何新功能开发（仅bug修复和质量改进）
+- 架构重构（保持v2.2架构不变）
+- ADR-048 Mission Compiler（继续延期）
 
 ## Context
 
@@ -40,6 +69,8 @@
 - 已有 51 个 ADR 文件在 `ssot/adr/`
 - SSOT 主链对象（SRC/EPIC/FEAT 等）存在于 `ssot/` 目录
 - v1.0 (ADR-047) 和 v1.1 (ADR-049) 已交付完整基础设施
+- v2.0/v2.1/v2.2 已交付语义治理、双轴测试、双链闭环
+- tests/defect/failure-cases/ 记录了 20+ 个需要修复的缺陷
 
 ## Key Decisions
 
@@ -68,4 +99,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-04-24 after v2.2 milestone shipped*
+*Last updated: 2026-04-27 after v2.2.1 milestone started*

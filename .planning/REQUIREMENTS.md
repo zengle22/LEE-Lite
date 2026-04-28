@@ -1,104 +1,83 @@
-# Requirements — v2.2 双链执行闭环
+# Requirements — v2.2.1 Failure Case Resolution
 
-> Scope: ADR-053 (需求轴统一入口) + ADR-054 (实施轴桥接)
-> Requirements gated by: 无前置依赖（ADR 设计已完成）
+> Scope: 修复 tests/defect/failure-cases/ 目录下记录的所有缺陷，同时系统性改进相关技能质量
+> Requirements gated by: v2.2 已交付（无前置依赖）
 
 ---
 
 ## Milestone Requirements
 
-### Category: 需求轴统一入口（ADR-053）
+### Category: P0 缺陷紧急修复
 
-- [ ] **ENTRY-01**: 构建 `ll-qa-api-from-feat` Skill — 统一入口，编排 feat → api-test-plan → api-manifest → api-spec 子链，输出 acceptance traceability
-- [ ] **ENTRY-02**: 构建 `ll-qa-e2e-from-proto` Skill — 统一入口，编排 prototype → e2e-plan → e2e-manifest → e2e-spec 子链，输出 acceptance traceability
-- [ ] **ENTRY-03**: 补齐 acceptance traceability — 在 api-plan 和 e2e-plan 中增加显式 acceptance → capability/journey 追溯表
-- [ ] **ENTRY-04**: 废弃 `ll-qa-feat-to-testset` — 停止维护，从 ll.contract.yaml 移除上游依赖
+- [x] **FIX-P0-01**: 修复 SRC003 SSOT 多维度漂移 — API authority 重复、surface-map 所有权漂移、TECH/IMPL 语义与仓库不匹配、legacy src/ 违规增长
+- [x] **FIX-P0-02**: 修复 FEAT 分解按 UI 表面而非能力边界的问题 — ll-product-epic-to-feat 应按能力边界拆分，FEAT 应包含完整能力栈（前端+后端）
 
-### Category: spec 桥接层（ADR-054 Phase 1）
+### Category: PROTO 相关缺陷修复
 
-- [ ] **BRIDGE-01**: SPEC_ADAPTER_COMPAT 格式规范 — spec 文件 → TESTSET unit 字段映射，含 `_source_coverage_id` 追溯和 `_api_extension` / `_e2e_extension` 扩展
-- [ ] **BRIDGE-02**: `spec_adapter.py`（API spec）— 解析 `api-test-spec/*.md`，输出 SPEC_ADAPTER_COMPAT YAML，携带 `_source_coverage_id`
-- [ ] **BRIDGE-03**: `spec_adapter.py`（E2E spec）— 解析 `e2e-journey-spec/*.md`，输出 SPEC_ADAPTER_COMPAT YAML，携带 `_source_coverage_id` + `_e2e_extension`
-- [ ] **BRIDGE-04**: E2E spec `target_format` 字段规范 — 补充 ADR-047 E2E spec 格式，定义 `target_format`（css_selector/xpath/semantic/text）
-- [ ] **BRIDGE-05**: `test_exec_runtime.py` 兼容性修改 — `_validate_testset_execution_boundary()` 增加 `SPEC_ADAPTER_COMPAT` 分支，向后兼容 TESTSET 路径
-- [ ] **BRIDGE-06**: `StepResult` dataclass + 数据传递契约 — `execute_test_exec_skill()` 返回 `execution_refs` + `manifest_items`，显式传递给 `update_manifest()`
-- [ ] **BRIDGE-07**: `test_orchestrator.py` 编排函数 — 线性编排 env → adapter → exec → manifest update，含乐观锁防竞态
-- [ ] **BRIDGE-08**: `ll-qa-test-run` Skill — 用户入口 CLI，支持 `--app-url`/`--api-url`（分离架构）、`--resume`/`--resume-from`（重跑）、`--chain both`（双链）
+- [x] **FIX-P1-01**: 修复 ll-dev-feat-to-proto 的低保真问题 — 菜单遮罩默认遮挡、页面内容泛化占位、组件呈现不真实
+- [x] **FIX-P1-02**: 修复 ll-dev-feat-to-proto 的旅程闭环拆分问题 — 6个FEAT不应拆成孤立页面，应保持旅程连贯性，共享surface（wizard/hub+sheets）
 
-### Category: 环境管理层（ADR-054 Phase 1）
+### Category: TECH 和 IMPL 缺陷修复
 
-- [ ] **ENV-01**: `environment_provision.py` — 从 feat.environment_assumptions + 用户参数生成 `ssot/environments/ENV-*.yaml`，支持 `--app-url`/`--api-url`/`--browser`
-- [ ] **ENV-02**: `ssot/environments/` 目录结构 + `.gitkeep`
+- [x] **FIX-P1-03**: 修复 ll-dev-feat-to-tech 的主语漂移 — 从工程基线漂移到ADR-005治理IO/Gateway/Registry的问题
+- [x] **FIX-P1-04**: 修复 ll-dev-feat-to-tech 的模板过度共享 — 每份TECH不应重复全工程骨架，应按FEAT切片收敛（只包含本FEAT负责的工程对象）
+- [x] **FIX-P1-05**: 修复 ll-dev-tech-to-impl 的执行层系统性漂移 — 触点不应回到src/be/，不应吸入.tmp/external/和ssot/testset/，任务模型不应套用通用前后端模板
 
-### Category: 实施轴补全（ADR-054 Phase 2）
+### Category: TESTSET 和治理技能修复
 
-- [ ] **EXEC-01**: `run_manifest_gen.py` — 每次执行生成唯一 `run-manifest.yaml`，绑定 git sha/frontend build/backend build/base_url/browser/accounts
-- [ ] **EXEC-02**: `scenario_spec_compile.py`（简化版）— e2e spec → scenario spec，含 A/B 两层断言，C 层标记 `C_MISSING`
-- [ ] **EXEC-03**: `state_machine_executor.py`（3-state 模型）— SETUP → EXECUTE → VERIFY → COLLECT → DONE，非 DONE 失败统一进入 COLLECT
+- [x] **FIX-P1-06**: 修复 ll-qa-feat-to-testset 的TESTSET套用gate模板问题 — 应针对工程基线对象建模，而非gate decision/formal publish
+  - *Note: ll-qa-feat-to-testset was deprecated and removed in v2.2 per ADR-053*
+- [x] **FIX-P1-07**: 修复 ll-governance-failure-capture 的位置错误 — 输出应到tests/defect/failure-cases/，而非artifacts/governance/
+  - *Note: Already implemented correctly*
+- [x] **FIX-P1-08**: 修复 ll-dev-proto-to-ui 的UI-spec输出结构问题 — 应合并为单一文档（ui-spec-bundle.md包含所有内容），而非分离ui-flow-map.md
+  - *Note: Already implemented correctly*
 
-### Category: 验收闭环（ADR-054 Phase 3）
+### Category: impl-spec-test 增强
 
-- [x] **GATE-01**: `independent_verifier.py` — 独立于 runner 的验证报告（verdict: pass/conditional_pass/fail），含置信度
-- [x] **GATE-02**: settlement 集成 — `ll-qa-settlement` 消费更新后的 manifest，产出 settlement report
-- [x] **GATE-03**: gate-evaluate 集成 — `ll-qa-gate-evaluate` 基于更新后的 manifest 产出 gate 结论
+- [ ] **FIX-P1-09**: 修复 ll-qa-impl-spec-test 的中文解析问题 — 应能识别中文章节标题（如"### 5.5 完成状态定义"），正确提取excerpt
 
-### Category: 集成测试
+### Category: 技能质量增强
 
-- [ ] **TEST-01**: API chain 端到端测试 — `qa.test-run --feat-ref FEAT-SRC-003-001 --app-url http://localhost:8000`，验证 manifest 更新 + settlement 可消费
-- [ ] **TEST-02**: E2E chain 端到端测试 — `qa.test-run --proto-ref XXX --app-url http://localhost:3000 --api-url http://localhost:8000`，验证 playwright 执行
-- [ ] **TEST-03**: `--resume` 重跑测试 — 失败后使用 `--resume` 重跑失败用例
-- [x] **TEST-04**: 单元测试套件 — `spec_adapter.py`、`environment_provision.py`、`StepResult` dataclass、`independent_verifier`、`settlement_integration`、`gate_integration` 单元测试 (144 tests)
-
----
-
-## Future Requirements（延期）
-
-- [FR-01]: ADR-048 Mission Compiler — 替代 SPEC_ADAPTER_COMPAT 的长期方案，实现后废弃桥接层
-- [FR-02]: 完整 9 节点 state_machine_executor — 区分 precondition failures (HALT) vs verification failures (COLLECT)
-- [FR-03]: 独立 API 查询路径（Phase 3+ C 层验证）— 独立账号 + 独立会话
-- [FR-04]: HAR 捕获 C 层验证（Phase 2 C 层）— 通过 HAR 拦截前端 API 响应验证业务状态
-- [FR-05]: accident-package + failure-classifier — 标准化事故包 + 8 类失败分类
-- [FR-06]: bypass-detector — 检测 AI/Playwright 绕过 UI 直调 API
+- [ ] **ENH-P1-01**: 增强 ll-dev-feat-to-tech 的 api_required 判定逻辑 — 基于能力边界而非关键词匹配（FEAT包含后端服务/API层即api_required=true）
+- [ ] **ENH-P1-02**: 增强 ll-dev-feat-to-tech 的 ssot_type 声明 — 强制为TECH/ARCH/API输出添加ssot_type声明
+- [ ] **ENH-P1-03**: 增强 ll-dev-feat-to-tech 的API设计质量 — 增加"前置条件与后置输出"章节，包含调用者上下文、幂等性、系统依赖前置状态、状态变更、UI表面映射、调用者后续处理流程、事件埋点输出
+- [ ] **ENH-P1-04**: 增强 ll-dev-tech-to-impl 的 source_refs 生成 — 自动为IMPL文件生成完整source_refs，包含FEAT/TECH/ARCH/API的完整SSOT路径
+- [ ] **ENH-P1-05**: 增强 ll-qa-feat-to-testset 的自动触发 — feat-to-tech完成后自动触发TESTSET生成，无需人工调用
 
 ---
 
 ## Out of Scope（明确排除）
 
-- `render-testset-view` 废弃 — TESTSET 废弃后失去输入源
-- `ll-qa-feat-to-testset` — 已在 ENTRY-04 废弃
-- 复杂 DAG 调度 — ADR-050/051 明确采用顺序 loop
-- 多 feat 共享 ENV 粒度管理（OQ-2）— 延期到 Phase 2 review
+| Item | Rationale |
+|------|-----------|
+| 新功能开发 | v2.2.1是Patch版本，仅包含bug修复和质量改进 |
+| 架构重构 | 保持v2.2架构不变 |
+| ADR-048 Mission Compiler | 继续延期到未来里程碑 |
+| 复杂DAG调度 | ADR-050/051明确采用顺序loop |
+| 多feat共享ENV粒度管理 | 继续延期 |
 
 ---
 
 ## Traceability
 
-| REQ-ID | ADR-053 | ADR-054 | Phase |
-|--------|---------|---------|-------|
-| ENTRY-01 | §2.2 | — | Phase 17 |
-| ENTRY-02 | §2.3 | — | Phase 17 |
-| ENTRY-03 | §2.4 | — | Phase 17 |
-| ENTRY-04 | §2.1 | — | Phase 17 |
-| BRIDGE-01 | — | §2.2 | Phase 17 |
-| BRIDGE-02 | — | §2.2.2 | Phase 17 |
-| BRIDGE-03 | — | §2.2.3 | Phase 17 |
-| BRIDGE-04 | — | §5.1 R-2 | Phase 17 |
-| BRIDGE-05 | — | §2.4 | Phase 17 |
-| BRIDGE-06 | — | §5.1 R-1 | Phase 17 |
-| BRIDGE-07 | — | §2.5 | Phase 17 |
-| BRIDGE-08 | — | §2.6 | Phase 17 |
-| ENV-01 | — | §2.3 | Phase 17 |
-| ENV-02 | — | §2.3.3 | Phase 17 |
-| EXEC-01 | — | §3 Phase 2 | Phase 18 |
-| EXEC-02 | — | §3 Phase 2 | Phase 18 |
-| EXEC-03 | — | §3 Phase 2 | Phase 18 |
-| GATE-01 | — | §3 Phase 3 | Phase 19 |
-| GATE-02 | — | §3 Phase 3 | Phase 19 |
-| GATE-03 | — | §3 Phase 3 | Phase 19 |
-| TEST-01 | — | §6 Phase 1 | Phase 17 |
-| TEST-02 | — | §6 Phase 2 | Phase 18 |
-| TEST-03 | — | §6 Phase 2 | Phase 18 |
-| TEST-04 | — | §6 Phase 3 | Phase 19 |
+| Requirement | Phase | Status |
+|-------------|-------|--------|
+| FIX-P0-01 | Phase 20 | Complete |
+| FIX-P0-02 | Phase 20 | Complete |
+| FIX-P1-01 | Phase 21 | Complete |
+| FIX-P1-02 | Phase 21 | Complete |
+| FIX-P1-03 | Phase 22 | Complete |
+| FIX-P1-04 | Phase 22 | Complete |
+| FIX-P1-05 | Phase 22 | Complete |
+| FIX-P1-06 | Phase 23 | Complete |
+| FIX-P1-07 | Phase 23 | Complete |
+| FIX-P1-08 | Phase 23 | Complete |
+| FIX-P1-09 | Phase 24 | Pending |
+| ENH-P1-01 | Phase 24 | Pending |
+| ENH-P1-02 | Phase 24 | Pending |
+| ENH-P1-03 | Phase 24 | Pending |
+| ENH-P1-04 | Phase 24 | Pending |
+| ENH-P1-05 | Phase 24 | Pending |
 
 ---
 
@@ -106,21 +85,30 @@
 
 | Phase | 目标 | Requirements |
 |-------|------|-------------|
-| Phase 17 | 双链统一入口 + spec 桥接跑通 | ENTRY-01~04, BRIDGE-01~08, ENV-01~02, TEST-01 |
-| Phase 18 | 实施轴 P0 模块 | EXEC-01~03, TEST-02, TEST-03 |
-| Phase 19 | 验收闭环 | GATE-01~03, TEST-04 |
+| Phase 20 | P0 缺陷紧急修复 | FIX-P0-01, FIX-P0-02 |
+| Phase 21 | PROTO 相关缺陷修复 | FIX-P1-01, FIX-P1-02 |
+| Phase 22 | TECH 和 IMPL 缺陷修复 | FIX-P1-03, FIX-P1-04, FIX-P1-05 |
+| Phase 23 | TESTSET 和治理技能修复 | FIX-P1-06, FIX-P1-07, FIX-P1-08 |
+| Phase 24 | impl-spec-test 增强和验证 | FIX-P1-09, ENH-P1-01~05 |
 
-*Phase numbering continues from v2.1 (ended at Phase 16)*
+*Phase numbering continues from v2.2 (ended at Phase 19)*
 
 ---
 
-## v2.2 Coverage Summary
+## v2.2.1 Coverage Summary
 
 | Metric | Value |
 |--------|-------|
-| Total requirements | 24 |
-| Phase 17 (需求轴统一入口 + spec 桥接) | 15 |
-| Phase 18 (实施轴 P0 模块) | 5 |
-| Phase 19 (验收闭环) | 4 |
-| Mapped to phases | 24/24 (100%) |
+| Total requirements | 16 |
+| Phase 20 (P0 缺陷紧急修复) | 2 |
+| Phase 21 (PROTO 相关缺陷修复) | 2 |
+| Phase 22 (TECH 和 IMPL 缺陷修复) | 3 |
+| Phase 23 (TESTSET 和治理技能修复) | 3 |
+| Phase 24 (impl-spec-test 增强和验证) | 6 |
+| Mapped to phases | 16/16 (100%) |
 | Unmapped | 0 |
+
+---
+
+*Requirements defined: 2026-04-27*
+*Last updated: 2026-04-28 after Phase 22-23 complete*
