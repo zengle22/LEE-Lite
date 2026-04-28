@@ -11,6 +11,7 @@ from feat_to_tech_derivation import (
     api_surfaces,
     architecture_topics,
     feature_axis,
+    is_engineering_baseline_feature,
     responsibility_splits,
 )
 
@@ -150,31 +151,88 @@ def build_tech_docs(refs, source_refs, feature, focus, rules, nfrs, implementati
         "feat_ref": refs["feat_ref"],
         "source_refs": source_refs,
     }
-    body = "\n\n".join(
-        [
-            f"# {refs['tech_ref']}",
-            "## Overview\n\n" + str(feature.get("goal") or ""),
-            "## Design Focus\n\n" + "\n".join(f"- {item}" for item in focus),
-            "## Implementation Rules\n\n" + "\n".join(f"- {item}" for item in rules),
-            "## Non-Functional Requirements\n\n" + "\n".join(f"- {item}" for item in nfrs),
-            "## Implementation Carrier View\n\n" + "\n".join(f"- {item}" for item in implementation_arch) + "\n\n" + runtime_view,
-            "## State Model\n\n" + "\n".join(f"- {item}" for item in states),
-            "## State Machine\n\n" + "\n".join(f"- {item}" for item in state_machine),
-            "## Module Plan\n\n" + "\n".join(f"- {item}" for item in modules),
-            "## Implementation Strategy\n\n" + "\n".join(f"- {item}" for item in strategy),
-            "## Implementation Unit Mapping\n\n" + "\n".join(f"- {item}" for item in unit_mapping),
-            "## Interface Contracts\n\n" + "\n".join(f"- {item}" for item in contracts),
-            "## Main Sequence\n\n" + "\n".join(f"- {item}" for item in sequence_steps) + "\n\n" + main_flow_diagram,
-            "## Exception and Compensation\n\n" + "\n".join(f"- {item}" for item in exception_rules),
-            "## Integration Points\n\n" + "\n".join(f"- {item}" for item in integrations),
-            "## Algorithm Constraints\n\n" + "\n".join(f"- {item}" for item in algorithm_constraints),
-            "## Input / Output Matrix and Side Effects\n\n" + "\n".join(f"- {item}" for item in io_matrix),
-            "## Technical Glossary and Canonical Ownership\n\n" + "\n".join(f"- {item}" for item in glossary),
-            "## Migration Constraints\n\n" + "\n".join(f"- {item}" for item in migration_constraints),
-            "## Minimal Code Skeleton\n\n- Happy path:\n\n" + skeleton["happy_path"] + "\n\n- Failure path:\n\n" + skeleton["failure_path"],
-            "## Traceability\n\n" + "\n".join(f"- {item['design_section']}: {', '.join(item['source_refs'])}" for item in traceability),
-        ]
-    )
+
+    is_engineering = is_engineering_baseline_feature(feature)
+
+    # Build sections conditionally based on FEAT type
+    sections = [
+        f"# {refs['tech_ref']}",
+        "## Overview\n\n" + str(feature.get("goal") or ""),
+        "## Design Focus\n\n" + "\n".join(f"- {item}" for item in focus),
+        "## Implementation Rules\n\n" + "\n".join(f"- {item}" for item in rules),
+    ]
+
+    # Add NFRs if they exist
+    if nfrs:
+        sections.append("## Non-Functional Requirements\n\n" + "\n".join(f"- {item}" for item in nfrs))
+
+    # Add implementation carrier view
+    sections.append("## Implementation Carrier View\n\n" + "\n".join(f"- {item}" for item in implementation_arch) + "\n\n" + runtime_view)
+
+    # Add state model only if it's meaningful (not just the generic default)
+    if states and not (len(states) == 1 and "prepared -> executed -> recorded" in states[0]):
+        sections.append("## State Model\n\n" + "\n".join(f"- {item}" for item in states))
+
+    # Add state machine only if meaningful
+    if state_machine:
+        sections.append("## State Machine\n\n" + "\n".join(f"- {item}" for item in state_machine))
+
+    # Add module plan
+    if modules:
+        sections.append("## Module Plan\n\n" + "\n".join(f"- {item}" for item in modules))
+
+    # Add implementation strategy
+    if strategy:
+        sections.append("## Implementation Strategy\n\n" + "\n".join(f"- {item}" for item in strategy))
+
+    # Add implementation unit mapping (always include - this is core)
+    if unit_mapping:
+        sections.append("## Implementation Unit Mapping\n\n" + "\n".join(f"- {item}" for item in unit_mapping))
+
+    # Add interface contracts
+    if contracts:
+        sections.append("## Interface Contracts\n\n" + "\n".join(f"- {item}" for item in contracts))
+
+    # Add main sequence
+    if sequence_steps:
+        sections.append("## Main Sequence\n\n" + "\n".join(f"- {item}" for item in sequence_steps))
+        if main_flow_diagram:
+            sections[-1] = sections[-1] + "\n\n" + main_flow_diagram
+
+    # Add exception and compensation
+    if exception_rules:
+        sections.append("## Exception and Compensation\n\n" + "\n".join(f"- {item}" for item in exception_rules))
+
+    # Add integration points
+    if integrations:
+        sections.append("## Integration Points\n\n" + "\n".join(f"- {item}" for item in integrations))
+
+    # Add algorithm constraints only if meaningful
+    if algorithm_constraints:
+        sections.append("## Algorithm Constraints\n\n" + "\n".join(f"- {item}" for item in algorithm_constraints))
+
+    # Add IO matrix only if meaningful
+    if io_matrix:
+        sections.append("## Input / Output Matrix and Side Effects\n\n" + "\n".join(f"- {item}" for item in io_matrix))
+
+    # Add technical glossary only if meaningful
+    if glossary:
+        sections.append("## Technical Glossary and Canonical Ownership\n\n" + "\n".join(f"- {item}" for item in glossary))
+
+    # Add migration constraints only if meaningful
+    if migration_constraints:
+        sections.append("## Migration Constraints\n\n" + "\n".join(f"- {item}" for item in migration_constraints))
+
+    # For engineering baseline FEATs, skip the generic minimal code skeleton
+    # since unit mapping already provides the specific skeleton
+    if not is_engineering and skeleton["happy_path"] and skeleton["failure_path"]:
+        sections.append("## Minimal Code Skeleton\n\n- Happy path:\n\n" + skeleton["happy_path"] + "\n\n- Failure path:\n\n" + skeleton["failure_path"])
+
+    # Always add traceability
+    if traceability:
+        sections.append("## Traceability\n\n" + "\n".join(f"- {item['design_section']}: {', '.join(item['source_refs'])}" for item in traceability))
+
+    body = "\n\n".join(sections)
     return frontmatter, body
 
 

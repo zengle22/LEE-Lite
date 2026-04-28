@@ -416,47 +416,57 @@ def looks_like_adoption_e2e(core_text: str, full_text: str) -> bool:
 
 
 def assess_optional_artifacts(feature: dict[str, Any], package: Any | None = None) -> dict[str, Any]:
+    # Engineering baseline FEATs don't typically require ARCH/API unless explicitly requested
+    is_engineering = is_engineering_baseline_feature(feature)
+
     arch_hits = keyword_hits(feature, ARCH_KEYWORDS)
     api_hits = keyword_hits(feature, STRONG_API_KEYWORDS)
     weak_api_hits = keyword_hits(feature, WEAK_API_KEYWORDS)
     axis = feature_axis(feature)
-    arch_required = bool(arch_hits) or axis in {
-        "collaboration",
-        "formalization",
-        "layering",
-        "io_governance",
-        "first_ai_advice",
-        "extended_profile_completion",
-        "device_deferred_entry",
-        "state_profile_boundary",
-        "minimal_onboarding",
-        "adoption_e2e",
-        "runner_ready_job",
-        "runner_operator_entry",
-        "runner_control_surface",
-        "runner_intake",
-        "runner_dispatch",
-        "runner_feedback",
-        "runner_observability",
-    }
-    api_required = bool(api_hits) or axis in {
-        "formalization",
-        "layering",
-        "io_governance",
-        "first_ai_advice",
-        "extended_profile_completion",
-        "device_deferred_entry",
-        "state_profile_boundary",
-        "minimal_onboarding",
-        "adoption_e2e",
-        "runner_ready_job",
-        "runner_operator_entry",
-        "runner_control_surface",
-        "runner_intake",
-        "runner_dispatch",
-        "runner_feedback",
-        "runner_observability",
-    } or (axis == "collaboration" and bool(weak_api_hits))
+
+    # For engineering baseline FEATs, only require ARCH/API if there are explicit keyword hits
+    if is_engineering:
+        arch_required = bool(arch_hits)
+        api_required = bool(api_hits) or (axis == "collaboration" and bool(weak_api_hits))
+    else:
+        # Original logic for non-engineering FEATs
+        arch_required = bool(arch_hits) or axis in {
+            "collaboration",
+            "formalization",
+            "layering",
+            "io_governance",
+            "first_ai_advice",
+            "extended_profile_completion",
+            "device_deferred_entry",
+            "state_profile_boundary",
+            "minimal_onboarding",
+            "adoption_e2e",
+            "runner_ready_job",
+            "runner_operator_entry",
+            "runner_control_surface",
+            "runner_intake",
+            "runner_dispatch",
+            "runner_feedback",
+            "runner_observability",
+        }
+        api_required = bool(api_hits) or axis in {
+            "formalization",
+            "layering",
+            "io_governance",
+            "first_ai_advice",
+            "extended_profile_completion",
+            "device_deferred_entry",
+            "state_profile_boundary",
+            "minimal_onboarding",
+            "adoption_e2e",
+            "runner_ready_job",
+            "runner_operator_entry",
+            "runner_control_surface",
+            "runner_intake",
+            "runner_dispatch",
+            "runner_feedback",
+            "runner_observability",
+        } or (axis == "collaboration" and bool(weak_api_hits))
     arch_rationale = ["ARCH required by boundary/runtime placement."] if arch_required else ["ARCH omitted because the FEAT does not introduce a dedicated boundary/topology surface."]
     if arch_hits:
         arch_rationale.append(f"Keyword hits: {', '.join(arch_hits[:4])}.")
@@ -633,12 +643,36 @@ def consistency_check(feature: dict[str, Any], assessment: dict[str, Any]) -> di
 
 
 def feature_axis(feature: dict[str, Any]) -> str:
+    # First check if this is an engineering baseline FEAT - highest priority
+    if is_engineering_baseline_feature(feature):
+        baseline_type = get_engineering_baseline_type(feature)
+        if baseline_type:
+            # Return a specific engineering baseline axis based on type
+            # We don't change the existing axis constants, just prioritize detection
+            pass
+
     explicit = explicit_axis(feature)
     if explicit:
         return explicit
+
     title = str(feature.get("title") or "").strip().lower()
     core_text = feature_core_text(feature)
     full_text = feature_text(feature)
+
+    # Check for engineering baseline patterns in title/ref BEFORE governance patterns
+    feat_ref = str(feature.get("feat_ref") or "").lower()
+    src_ref = str(feature.get("src_ref") or "").lower()
+    engineering_baseline_patterns = [
+        "repo-layout", "apps-api-shell", "apps-miniapp-shell",
+        "local-env-baseline", "db-migrations", "healthz-readyz",
+        "src003", "engineering baseline", "工程基线"
+    ]
+
+    if any(pattern in title or pattern in feat_ref or pattern in src_ref for pattern in engineering_baseline_patterns):
+        # Don't try to shoehorn into governance axes - stay generic for engineering baseline
+        return "generic"
+
+    # Now check governance patterns (lower priority for engineering baseline FEATs)
     if any(token in title for token in ["主链候选提交", "候选提交与交接", "交接流"]):
         return "collaboration"
     if any(token in title for token in ["对象分层", "准入"]):

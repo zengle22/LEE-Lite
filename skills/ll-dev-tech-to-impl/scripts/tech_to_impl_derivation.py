@@ -65,6 +65,36 @@ def _split_path_and_mode(left: str) -> tuple[str, str]:
     return candidate, "touch"
 
 
+def is_engineering_baseline_feature(feature: dict[str, Any]) -> bool:
+    """Check if this is an engineering baseline FEAT (SRC003-style code bootstrap)."""
+    src_ref = str(feature.get("src_root_id") or feature.get("src_ref") or "")
+    feat_ref = str(feature.get("feat_ref") or "")
+    title = str(feature.get("title") or "").lower()
+    axis_id = str(feature.get("axis_id") or "").lower()
+
+    engineering_baseline_patterns = [
+        "repo-layout",
+        "apps-api-shell",
+        "apps-miniapp-shell",
+        "local-env-baseline",
+        "db-migrations",
+        "healthz-readyz",
+        "repo-layout-baseline",
+        "api-shell",
+        "miniapp-shell",
+        "local-env",
+        "health-readiness",
+    ]
+
+    if "SRC-003" in src_ref or "SRC003" in src_ref:
+        return True
+    if any(pattern in feat_ref.lower() or pattern in title or pattern in axis_id for pattern in engineering_baseline_patterns):
+        return True
+    if "engineering" in axis_id or "baseline" in axis_id:
+        return True
+    return False
+
+
 def implementation_units(package: Any) -> list[dict[str, str]]:
     units: list[dict[str, str]] = []
     for raw in tech_list(package, "implementation_unit_mapping"):
@@ -76,17 +106,49 @@ def implementation_units(package: Any) -> list[dict[str, str]]:
         else:
             left, detail = cleaned, cleaned
         path, mode = _split_path_and_mode(left)
-        units.append({"path": path, "mode": mode, "detail": detail.strip() or cleaned})
+
+        filtered_path = path.strip()
+        normalized_path = filtered_path.lower().replace("\\", "/")
+
+        # Exclude problematic paths for execution layer drift fix
+        excluded_patterns = [
+            "src/be/",
+            ".tmp/external/",
+            "ssot/testset/",
+        ]
+
+        if any(pattern in normalized_path for pattern in excluded_patterns):
+            continue
+
+        units.append({"path": filtered_path, "mode": mode, "detail": detail.strip() or cleaned})
     return units
 
 
-def classified_touch_units(package: Any, assessment: dict[str, Any] | None = None) -> list[dict[str, str]]:
+def classified_touch_units(feature: dict[str, Any], package: Any, assessment: dict[str, Any] | None = None) -> list[dict[str, str]]:
     assessment = assessment or {}
     touch_units: list[dict[str, str]] = []
+
+    is_engineering = is_engineering_baseline_feature(feature)
+
     for unit in implementation_units(package):
         text = f"{unit['path']} {unit['detail']}".lower()
+
+        normalized_path = unit["path"].lower().replace("\\", "/")
+        excluded_patterns = [
+            "src/be/",
+            ".tmp/external/",
+            "ssot/testset/",
+        ]
+        if any(pattern in normalized_path for pattern in excluded_patterns):
+            continue
+
         if any(marker in text for marker in ["migration", "cutover", "rollout", "rollback", "fallback", "compat", "迁移", "切换", "回滚", "灰度"]):
             surface = "migration"
+        elif is_engineering:
+            if "apps/miniapp" in normalized_path or "miniapp" in text:
+                surface = "frontend"
+            else:
+                surface = "backend"
         elif any(marker in text for marker in ["ui", "frontend", "front-end", "page", "screen", "view", "panel", "home/", "页面", "前端", "交互"]):
             surface = "frontend"
         elif assessment.get("frontend_required") and not assessment.get("backend_required"):
