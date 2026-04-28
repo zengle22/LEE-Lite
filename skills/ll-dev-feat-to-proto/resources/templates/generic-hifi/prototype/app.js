@@ -18,6 +18,18 @@
     debug: document.getElementById('debug'),
     reset: document.getElementById('reset'),
     toast: document.getElementById('toast'),
+    modal: document.getElementById('modal'),
+    modalScrim: document.getElementById('modal-scrim'),
+    modalTitle: document.getElementById('modal-title'),
+    modalBody: document.getElementById('modal-body'),
+    modalActions: document.getElementById('modal-actions'),
+    drawer: document.getElementById('drawer'),
+    drawerScrim: document.getElementById('drawer-scrim'),
+    drawerClose: document.getElementById('drawer-close'),
+    drawerTitle: document.getElementById('drawer-title'),
+    drawerSub: document.getElementById('drawer-sub'),
+    drawerBody: document.getElementById('drawer-body'),
+    drawerFoot: document.getElementById('drawer-foot'),
   };
 
   const safeParse = (t, fb) => { try { return JSON.parse(t); } catch { return fb; } };
@@ -57,6 +69,38 @@
 
   function openSheet() { els.sheet.hidden = false; }
   function closeSheet() { els.sheet.hidden = true; }
+
+  function openModal(title, body, actions) {
+    els.modalTitle.textContent = title || '';
+    els.modalBody.innerHTML = body || '';
+    els.modalActions.innerHTML = '';
+    (actions || []).forEach((a) => {
+      const btn = document.createElement('button');
+      btn.className = `btn ${a.tone || 'ghost'}`;
+      btn.textContent = a.label || 'OK';
+      btn.addEventListener('click', () => { a.onClick && a.onClick(); closeModal(); });
+      els.modalActions.appendChild(btn);
+    });
+    els.modal.hidden = false;
+  }
+  function closeModal() { els.modal.hidden = true; }
+
+  function openDrawer({ title, sub, body, actions }) {
+    els.drawerTitle.textContent = title || '';
+    els.drawerSub.textContent = sub || '';
+    els.drawerBody.innerHTML = body || '';
+    els.drawerFoot.innerHTML = '';
+    (actions || []).forEach((a) => {
+      const btn = document.createElement('button');
+      btn.className = `btn ${a.tone || 'ghost'}`;
+      btn.textContent = a.label || 'OK';
+      if (a.disabled) btn.disabled = true;
+      btn.addEventListener('click', () => a.onClick && a.onClick());
+      els.drawerFoot.appendChild(btn);
+    });
+    els.drawer.hidden = false;
+  }
+  function closeDrawer() { els.drawer.hidden = true; }
 
   function setRoute(route, opts) {
     const next = String(route || '').trim();
@@ -247,7 +291,10 @@
   els.navMenu.addEventListener('click', () => openSheet());
   els.sheetClose.addEventListener('click', () => closeSheet());
   els.sheetScrim.addEventListener('click', () => closeSheet());
-  els.reset.addEventListener('click', () => { state = defaults(); save(); closeSheet(); toast('已重置'); render(); });
+  els.modalScrim.addEventListener('click', () => closeModal());
+  els.drawerClose.addEventListener('click', () => closeDrawer());
+  els.drawerScrim.addEventListener('click', () => closeDrawer());
+  els.reset.addEventListener('click', () => { state = defaults(); save(); closeSheet(); closeModal(); closeDrawer(); toast('已重置'); render(); });
 
   bindInputs();
   render();

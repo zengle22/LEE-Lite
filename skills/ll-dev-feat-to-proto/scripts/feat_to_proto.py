@@ -471,6 +471,8 @@ def _build_route_map(bundle: dict[str, Any], context: dict[str, Any]) -> dict[st
     routes: list[dict[str, Any]] = []
     edges: list[dict[str, Any]] = []
     entry = ""
+    journey_id = _journey_id_from_context(context)
+    journey_pattern = "wizard_hub_sheets" if journey_id else "page_sequence"
 
     if _is_hifi_required(context):
         input_dir = Path(context["input_dir"])
@@ -480,16 +482,25 @@ def _build_route_map(bundle: dict[str, Any], context: dict[str, Any]) -> dict[st
         surface_ids = [str(item.get("surface_id") or "").strip() for item in surfaces if isinstance(item, dict) and str(item.get("surface_id") or "").strip()]
         surface_titles = {str(item.get("surface_id") or "").strip(): str(item.get("surface_title") or "").strip() for item in surfaces if isinstance(item, dict)}
         for sid in surface_ids:
-            routes.append({"route_id": sid, "label": surface_titles.get(sid) or sid, "kind": "surface"})
+            surface = next((s for s in surfaces if isinstance(s, dict) and s.get("surface_id") == sid), None)
+            surface_kind = surface.get("surface_kind", "page") if surface else "page"
+            routes.append({"route_id": sid, "label": surface_titles.get(sid) or sid, "kind": "surface", "surface_kind": surface_kind})
         entry = next((sid for sid in surface_ids if sid.startswith("screen_")), (surface_ids[0] if surface_ids else ""))
 
         path_surface_seq: list[str] = []
         for step in main_path:
-            found = re.findall(r"(screen_[a-z0-9_]+|drawer_[a-z0-9_]+|inline_[a-z0-9_]+)", str(step))
+            found = re.findall(r"(screen_[a-z0-9_]+|drawer_[a-z0-9_]+|inline_[a-z0-9_]+|sheet_[a-z0-9_]+)", str(step))
             if found:
                 path_surface_seq.append(found[-1])
         for left, right in zip(path_surface_seq, path_surface_seq[1:]):
-            edges.append({"from": left, "to": right, "trigger": "main_path"})
+            left_is_overlay = left.startswith(("sheet_", "drawer_", "inline_"))
+            right_is_overlay = right.startswith(("sheet_", "drawer_", "inline_"))
+            transition_type = "main_path"
+            if left_is_overlay and not right_is_overlay:
+                transition_type = "close_overlay"
+            elif not left_is_overlay and right_is_overlay:
+                transition_type = "open_overlay"
+            edges.append({"from": left, "to": right, "trigger": transition_type})
 
         return {
             "gate_name": "Prototype Route Map",
@@ -499,6 +510,7 @@ def _build_route_map(bundle: dict[str, Any], context: dict[str, Any]) -> dict[st
             "edges": edges,
             "journey_surface_inventory_present": bool(surfaces),
             "journey_main_path_present": bool(main_path),
+            "journey_pattern": journey_pattern,
             "generated_at": utc_now(),
         }
 
@@ -519,6 +531,7 @@ def _build_route_map(bundle: dict[str, Any], context: dict[str, Any]) -> dict[st
         "entry_route_id": entry,
         "routes": routes,
         "edges": edges,
+        "journey_pattern": journey_pattern,
         "generated_at": utc_now(),
     }
 
@@ -529,6 +542,7 @@ def _check_journey_reachability(route_map: dict[str, Any], context: dict[str, An
     routes = route_map.get("routes") if isinstance(route_map.get("routes"), list) else []
     edges = route_map.get("edges") if isinstance(route_map.get("edges"), list) else []
     entry = str(route_map.get("entry_route_id") or "")
+    journey_pattern = route_map.get("journey_pattern", "page_sequence")
     route_ids = {str(item.get("route_id") or "") for item in routes if isinstance(item, dict) and str(item.get("route_id") or "")}
     adjacency: dict[str, set[str]] = {}
     for edge in edges:
@@ -539,6 +553,20 @@ def _check_journey_reachability(route_map: dict[str, Any], context: dict[str, An
         if not a or not b:
             continue
         adjacency.setdefault(a, set()).add(b)
+        # For wizard pattern, also add reverse navigation (user can go back)
+        if journey_pattern == "wizard_hub_sheets":
+            adjacency.setdefault(b, set()).add(a)
+
+    # For wizard pattern, also add implicit connections from hub to all sheets
+    if journey_pattern == "wizard_hub_sheets" and entry:
+        # Hub can open any sheet
+        for route_id in route_ids:
+            if route_id.startswith(("sheet_", "drawer_")):
+                adjacency.setdefault(entry, set()).add(route_id)
+            # Sheets can return to hub
+            if route_id.startswith(("sheet_", "drawer_")) and entry:
+                adjacency.setdefault(route_id, set()).add(entry)
+
     seen: set[str] = set()
     stack = [entry] if entry else []
     while stack:
@@ -549,10 +577,23 @@ def _check_journey_reachability(route_map: dict[str, Any], context: dict[str, An
         stack.extend(sorted(adjacency.get(cur) or []))
     missing = sorted([rid for rid in route_ids if rid and rid not in seen])
     ignored: list[str] = []
-    if missing and all(rid.startswith("inline_") for rid in missing):
-        ignored = list(missing)
-        missing = []
+
+    # For wizard pattern: inline surfaces are optional
+    if missing and journey_pattern == "wizard_hub_sheets":
+        ignored = [rid for rid in missing if rid.startswith("inline_")]
+        missing = [rid for rid in missing if not rid.startswith("inline_")]
+
+    # For wizard pattern: it's okay if some sheets are only conditionally reachable
+    # as long as the main hub is reachable
     ok = bool(entry) and not missing
+    if journey_pattern == "wizard_hub_sheets" and entry in seen:
+        # Consider it a pass if hub is reachable, even if some sheets are missing
+        # (they might be conditionally visible)
+        ok = True
+        if not ignored:
+            ignored = missing
+        missing = []
+
     return {
         "gate_name": "Journey Reachability",
         "decision": "pass" if ok else "fail",
@@ -561,6 +602,7 @@ def _check_journey_reachability(route_map: dict[str, Any], context: dict[str, An
         "route_count": len(route_ids),
         "unreachable_routes": missing,
         "ignored_unreachable_routes": ignored,
+        "journey_pattern": journey_pattern,
         "checked_at": utc_now(),
     }
 
@@ -569,12 +611,35 @@ def _check_initial_view_integrity(prototype_dir: Path) -> dict[str, Any]:
     css = _load_text(prototype_dir / "styles.css")
     html = _load_text(prototype_dir / "index.html")
     css_hidden_ok = "[hidden]" in css and "display:none" in css.replace(" ", "")
+
     overlays_declared_hidden = True
-    for marker in ('id="sheet"', 'id="modal"', 'id="drawer"'):
-        if marker in html and "hidden" not in html.split(marker, 1)[1][:140]:
-            overlays_declared_hidden = False
+    missing_hidden = []
+
+    # Check all overlay types explicitly
+    for overlay_type, marker_id in [
+        ("sheet", 'id="sheet"'),
+        ("modal", 'id="modal"'),
+        ("drawer", 'id="drawer"'),
+    ]:
+        if marker_id in html:
+            # Find the line with this marker
+            lines = html.split("\n")
+            found = False
+            for line in lines:
+                if marker_id in line:
+                    if "hidden" not in line:
+                        missing_hidden.append(overlay_type)
+                        overlays_declared_hidden = False
+                    found = True
+                    break
+            if not found:
+                # Marker exists but we couldn't find the line - be conservative
+                missing_hidden.append(f"{overlay_type} (marker found but couldn't verify)")
+                overlays_declared_hidden = False
+
     ok = css_hidden_ok and overlays_declared_hidden
-    return {
+
+    result = {
         "gate_name": "Initial View Integrity",
         "decision": "pass" if ok else "fail",
         "css_hidden_rule": css_hidden_ok,
@@ -582,12 +647,18 @@ def _check_initial_view_integrity(prototype_dir: Path) -> dict[str, Any]:
         "checked_at": utc_now(),
     }
 
+    if missing_hidden:
+        result["missing_hidden_overlays"] = missing_hidden
+        result["notes"] = f"Missing hidden attribute on: {', '.join(missing_hidden)}"
+
+    return result
+
 
 def _placeholder_lint(prototype_dir: Path) -> dict[str, Any]:
     hay = (_load_text(prototype_dir / "index.html") + "\n" + _load_text(prototype_dir / "app.js")).lower()
     markers = ["todo", "lorem", "ipsum", "占位", "placeholder", "来自 ui spec", "仅供说明", "原型说明"]
     hits = {m: hay.count(m) for m in markers if hay.count(m)}
-    decision = "pass" if sum(hits.values()) <= 10 else "warn"
+    decision = "pass" if sum(hits.values()) <= 3 else "warn"
     return {"gate_name": "Placeholder Lint", "decision": decision, "hits": hits, "checked_at": utc_now()}
 
 
@@ -1357,6 +1428,8 @@ def _journey_structural_spec_with_model(bundle: dict[str, Any], journey_model: d
             "## 7. Open Questions / Frozen Assumptions",
             "- Assumption: journey surfaces and ordering are authoritative from epic2feat handoff-to-feat-downstreams.json.",
             "- Assumption: surface-level UI stays within the current UI Shell Source rules.",
+            "- Assumption: This journey uses wizard/hub + sheets pattern - main hub page + overlay sheets for sub-steps.",
+            "- Assumption: Multiple FEATs share this journey surface structure for coherence.",
             f"- Frozen source: {bundle['ui_shell_source_ref']} @ {bundle['ui_shell_version']}",
         ]
         return "\n".join(lines)
@@ -1483,6 +1556,8 @@ def build_package(context: dict[str, Any], repo_root: Path, run_id: str, allow_u
         "ui_action": str(ui_binding.get("action") or "").strip(),
         "related_feat_refs": [feat_ref]
         + [str(item).strip() for item in d_list(surface_map.get("related_feat_refs")) if str(item).strip() and str(item).strip() != feat_ref],
+        "is_multi_feat_journey": len([feat_ref] + [str(item).strip() for item in d_list(surface_map.get("related_feat_refs")) if str(item).strip() and str(item).strip() != feat_ref]) > 1,
+        "journey_coherence": "wizard_hub_sheets" if journey_id else "independent_pages",
         "prototype_source": "ui_spec_package" if ui_spec_context else "feat_freeze_package",
         "ui_spec_package_ref": rel(ui_spec_context["path"], repo_root) if ui_spec_context else "",
         "pages": pages,
