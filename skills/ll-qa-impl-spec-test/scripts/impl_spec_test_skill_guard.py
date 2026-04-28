@@ -5,14 +5,57 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
 import sys
 from pathlib import Path
+from typing import Any
 
 try:
     from cli.lib.silent_override import OverrideResult  # type reference for semantic_stability dimension
 except ImportError:
     OverrideResult = None  # type: ignore[misc]  # available when run from project root
 
+
+# Markdown parsing constants
+_HEADING_RE = re.compile(r'^(#{2,4})\s+(.+)$', re.MULTILINE)
+_MAX_EXCERPT_LINES = 3
+
+def _parse_markdown_sections(content: str) -> list[dict[str, Any]]:
+    sections = []
+    lines = content.split('\n')
+    for line_number, line in enumerate(lines, 1):
+        match = _HEADING_RE.match(line)
+        if match:
+            heading_level = len(match.group(1))
+            heading_text = match.group(2).strip()
+            collected_lines = []
+            # Collect up to _MAX_EXCERPT_LINES non-empty lines after the heading
+            i = line_number  # line_number is 1-based
+            while len(collected_lines) < _MAX_EXCERPT_LINES and i < len(lines):
+                next_line = lines[i]
+                # Stop if we encounter another heading
+                if _HEADING_RE.match(next_line):
+                    break
+                stripped_line = next_line.strip()
+                if stripped_line:
+                    collected_lines.append(stripped_line)
+                # Continue searching for non-empty lines even if we encounter empty ones
+                i += 1
+            excerpt = "\n".join(collected_lines) if collected_lines else heading_text
+            sections.append({
+                "heading_level": heading_level,
+                "heading_text": heading_text,
+                "excerpt": excerpt,
+                "line_number": line_number
+            })
+    return sections
+
+def validate_markdown_sections(path: Path) -> list[dict[str, str]]:
+    content = path.read_text(encoding="utf-8")
+    sections = _parse_markdown_sections(content)
+    if not sections:
+        return [{"severity": "warning", "title": "No markdown sections detected", "detail": f"File {path.name} contains no recognizable headings."}]
+    return []
 
 ALLOWED_VERDICTS = {"pass", "pass_with_revisions", "block"}
 ALLOWED_RUN_STATUSES = {"completed", "completed_with_findings", "completed_with_blockers"}
