@@ -36,7 +36,7 @@ class FeatToTechWorkflowTests(FeatToTechWorkflowHarness):
             "scope": ["登录/注册完成后，未完成最小建档的用户进入单页最小建档页。", "最小建档页必须稳定收集 gender、birthdate、height、weight、running_level、recent_injury_status。", "用户提交最小建档后立即允许进入首页，设备连接保持后置，不阻塞首进链路。"],
             "constraints": ["最小建档必须维持单页完成，不拆成多步向导。", "birthdate 是 canonical 年龄相关字段，不能用自由推测字段替代。", "device connection 只能作为 deferred follow-up entry，不能重新变成 blocking prerequisite。"],
             "dependencies": ["Boundary to auth: 登录/注册已经完成。", "Boundary to homepage: 首页内容本身不在本 FEAT 内。"],
-            "outputs": ["minimal profile completion", "homepage entry allowance"],
+            "outputs": ["minimal profile completion", "homepage entry allowance", "API contract"],
             "acceptance_checks": [{"scenario": "Minimal profile submit allows homepage entry", "given": "required fields valid", "when": "submit minimal profile", "then": "profile_minimal_done and homepage entry allowed"}, {"scenario": "Device connection remains deferred", "given": "minimal profile submit succeeds", "when": "home is entered", "then": "device connection is follow-up only"}, {"scenario": "Invalid required fields stay on the page", "given": "birthdate or required fields invalid", "when": "submit is attempted", "then": "field-level errors are returned and homepage entry stays blocked"}],
             "source_refs": [feat_ref, "EPIC-SRC-001-001", "SRC-001"],
         }
@@ -54,7 +54,7 @@ class FeatToTechWorkflowTests(FeatToTechWorkflowHarness):
             "scope": ["定义 onboarding directive、pilot evidence 与 cutover guard 的业务交付物。", "定义 producer -> gate -> formal -> consumer -> audit 的最小 pilot 闭环。", "定义 compat mode、fallback 与 cutover 的业务边界。"],
             "constraints": ["本 FEAT 不重写 foundation FEAT 的内部实现。", "pilot evidence 必须成为 authoritative rollout input。", "fallback 结果必须显式记录到 receipt。"],
             "dependencies": ["Boundary to formal 发布与下游准入流: pilot 只能消费已发布 formal refs。", "Boundary to 主链候选提交与交接流: producer 提交仍沿 authoritative handoff 进入 gate pending。"],
-            "outputs": ["onboarding directive", "pilot evidence submission", "cutover recommendation"],
+            "outputs": ["onboarding directive", "pilot evidence submission", "cutover recommendation", "API contract"],
             "acceptance_checks": [{"scenario": "Pilot chain is complete", "given": "producer to audit", "when": "validated", "then": "闭环证据齐全"}, {"scenario": "Fallback is explicit", "given": "pilot failure", "when": "cutover reviewed", "then": "fallback outcome 被记录"}, {"scenario": "Compat mode is frozen", "given": "legacy skill", "when": "onboarded", "then": "compat mode 明确可追踪"}],
             "source_refs": [feat_ref, "EPIC-SRC-001-001", "SRC-001"],
         }
@@ -82,7 +82,7 @@ class FeatToTechWorkflowTests(FeatToTechWorkflowHarness):
                 "Boundary to 最小建档主链: 只消费 profile_minimal_done 和 canonical minimal profile fields。",
                 "Boundary to 扩展画像: 补全任务卡与增量保存不在本 FEAT 内。",
             ],
-            "outputs": ["first advice payload", "risk gate decision", "homepage advice visibility"],
+            "outputs": ["first advice payload", "risk gate decision", "homepage advice visibility", "API contract"],
             "acceptance_checks": [
                 {"scenario": "Advice is released after minimal profile completion", "given": "minimal profile is done and risk inputs are present", "when": "homepage opens", "then": "first advice becomes visible"},
                 {"scenario": "Missing risk inputs block normal advice", "given": "running_level or recent_injury_status missing", "when": "advice generation is attempted", "then": "normal advice branch is blocked and a completion prompt is shown"},
@@ -114,7 +114,7 @@ class FeatToTechWorkflowTests(FeatToTechWorkflowHarness):
                 "Boundary to 首页 shell: 只依赖首页容器承载任务卡，不定义首页其他内容。",
                 "Boundary to 最小建档: 最小建档完成态仍由上游主链负责。",
             ],
-            "outputs": ["profile completion tasks", "extended profile patch result", "completion projection"],
+            "outputs": ["profile completion tasks", "extended profile patch result", "completion projection", "API contract"],
             "acceptance_checks": [
                 {"scenario": "Task cards guide progressive completion", "given": "homepage entered", "when": "tasks are loaded", "then": "user sees next profile completion tasks"},
                 {"scenario": "Incremental save updates completion", "given": "patch fields are valid", "when": "user saves a task", "then": "completion percent and next task cards refresh"},
@@ -146,7 +146,7 @@ class FeatToTechWorkflowTests(FeatToTechWorkflowHarness):
                 "Boundary to 首页主链: 只消费 homepage_entered 前置，不改写主链放行逻辑。",
                 "Boundary to 设备厂商接入: 厂商协议细节不在本 FEAT 内。",
             ],
-            "outputs": ["deferred device connection status", "enhancement readiness", "retry or skip entry"],
+            "outputs": ["deferred device connection status", "enhancement readiness", "retry or skip entry", "API contract"],
             "acceptance_checks": [
                 {"scenario": "Deferred entry stays skippable", "given": "homepage entered", "when": "device entry is shown", "then": "user can skip without losing homepage access"},
                 {"scenario": "Connection failure is non-blocking", "given": "device auth or sync fails", "when": "connection finalizes", "then": "homepage and first advice remain available"},
@@ -178,7 +178,7 @@ class FeatToTechWorkflowTests(FeatToTechWorkflowHarness):
                 "Boundary to 页面层: 页面局部态不承担业务完成态权威。",
                 "Boundary to 下游 runtime: 下游只允许读 unified onboarding state。",
             ],
-            "outputs": ["primary state record", "canonical physical profile write", "unified onboarding state"],
+            "outputs": ["primary state record", "canonical physical profile write", "unified onboarding state", "API contract"],
             "acceptance_checks": [
                 {"scenario": "Primary state and flags are explicit", "given": "onboarding progresses", "when": "state is written", "then": "primary_state and capability_flags remain distinct"},
                 {"scenario": "Canonical profile boundary is enforced", "given": "body field writes conflict", "when": "boundary is evaluated", "then": "non-canonical write is blocked"},
@@ -215,6 +215,7 @@ class FeatToTechWorkflowTests(FeatToTechWorkflowHarness):
                     "handoff contract",
                     "proposal object",
                     "decision object",
+                    "API contract",
                 ],
                 "acceptance_checks": [
                     {"scenario": "Loop responsibility split is explicit", "given": "mainline loop", "when": "reviewed", "then": "明确 queue/handoff/gate 边界"},
@@ -319,7 +320,7 @@ class FeatToTechWorkflowTests(FeatToTechWorkflowHarness):
             feature = {
                 "feat_ref": "FEAT-SRC-001-002",
                 "title": "配置页文案统一能力",
-                "goal": "统一配置页文案，不改变系统边界或接口契约。",
+                "goal": "统一配置页文案，不改变系统结构或接口契约。",
                 "scope": [
                     "统一页面标题文案。",
                     "统一帮助提示文案。",
@@ -327,8 +328,8 @@ class FeatToTechWorkflowTests(FeatToTechWorkflowHarness):
                 ],
                 "constraints": [
                     "不改变接口结构。",
-                    "不新增跨模块 contract。",
-                    "不改变模块边界。",
+                    "不新增跨页面 contract。",
+                    "不改变页面结构范围。",
                     "只做现有页面文案收口。",
                 ],
                 "dependencies": [],
@@ -467,6 +468,7 @@ class FeatToTechWorkflowTests(FeatToTechWorkflowHarness):
                 "outputs": [
                     "Frozen FEAT definition for FEAT-SRC-001-004",
                     "Traceable handoff metadata for downstream derivation",
+                    "API contract",
                 ],
                 "acceptance_checks": [
                     {"scenario": "Mainline IO boundary is explicit", "given": "mainline path boundary", "when": "reviewed", "then": "主链 IO 与全局文件治理边界清晰"},
@@ -504,7 +506,7 @@ class FeatToTechWorkflowTests(FeatToTechWorkflowHarness):
             feature = {
                 "feat_ref": "FEAT-SRC-001-005",
                 "title": "配置页文案统一能力",
-                "goal": "统一配置页文案，不改变系统边界或接口契约。",
+                "goal": "统一配置页文案，不改变系统结构或接口契约。",
                 "scope": [
                     "统一页面标题文案。",
                     "统一帮助提示文案。",
@@ -611,7 +613,7 @@ class FeatToTechWorkflowTests(FeatToTechWorkflowHarness):
                     "上游依赖 FEAT-SRC-001-009 提供 authoritative handoff submission。",
                     "下游依赖 FEAT-SRC-001-011 负责 formal publication 与 admission。",
                 ],
-                "outputs": ["authoritative decision object", "formal publication trigger"],
+                "outputs": ["authoritative decision object", "formal publication trigger", "API contract"],
                 "upstream_feat": ["FEAT-SRC-001-009"],
                 "downstream_feat": ["FEAT-SRC-001-011"],
                 "consumes": ["authoritative handoff submission", "proposal", "evidence"],
@@ -678,7 +680,7 @@ class FeatToTechWorkflowTests(FeatToTechWorkflowHarness):
                     "Boundary to 主链协作闭环能力: handoff runtime 仍负责主链提交与回流。",
                     "Boundary to 对象分层与准入能力: formal refs 与 lineage 需要后续准入消费。",
                 ],
-                "outputs": ["decision object", "formal publish contract"],
+                "outputs": ["decision object", "formal publish contract", "API contract"],
                 "acceptance_checks": [
                     {"scenario": "Gate decision vocabulary is explicit", "given": "handoff", "when": "reviewed", "then": "决策词表固定"},
                     {"scenario": "Formal object publish is explicit", "given": "approve", "when": "materialized", "then": "形成 formal refs"},
@@ -999,7 +1001,7 @@ class FeatToTechWorkflowTests(FeatToTechWorkflowHarness):
                     "Boundary to ready-job FEAT: 本 FEAT 不负责生成 ready execution job。",
                     "Boundary to runner-control-surface FEAT: 入口启动后，后续控制语义由控制面 FEAT 承担。",
                 ],
-                "outputs": ["runner skill entry definition", "runner invocation record", "runner start receipt"],
+                "outputs": ["runner skill entry definition", "runner invocation record", "runner start receipt", "API contract"],
                 "acceptance_checks": [
                     {"scenario": "Runner skill entry is explicit", "given": "Claude/Codex CLI operator", "when": "runner is started", "then": "存在一个明确的 runner skill entry"},
                     {"scenario": "Runner entry preserves authoritative context", "given": "resume path", "when": "runner resumes", "then": "保留 authoritative run context"},
