@@ -171,13 +171,23 @@ def build_results_summary(
     }
 
 
-def build_bug_bundle(case_results: list[dict[str, Any]], output_root: Path, workspace_root: Path) -> str:
+def _infer_gap_type(case_result: dict[str, Any]) -> str:
+    diagnostics = case_result.get("diagnostics", [])
+    for d in diagnostics:
+        dl = str(d).lower()
+        if any(kw in dl for kw in ("timeout", "connection reset", "flaky", "intermittent")):
+            return "env_issue"
+    return "code_defect"
+
+
+def build_bug_bundle(case_results: list[dict[str, Any]], output_root: Path, workspace_root: Path, run_id: str | None = None) -> str:
     bug_root = output_root / "bugs"
     bugs = []
     for item in case_results:
         if item["status"] != "failed":
             continue
-        digest = hashlib.sha1(str(item["case_id"]).encode("utf-8")).hexdigest()[:10]
+        hash_input = f"{item['case_id']}{run_id or ''}{item.get('title', '')}"
+        digest = hashlib.md5(hash_input.encode("utf-8")).hexdigest()[:6].upper()
         bug_id = f"BUG-{slugify(item['case_id'])[:48]}-{digest}"
         bug_ref = to_canonical_path(bug_root / f"{bug_id}.json", workspace_root)
         bug_path = canonical_to_path(bug_ref, workspace_root)
@@ -191,6 +201,10 @@ def build_bug_bundle(case_results: list[dict[str, Any]], output_root: Path, work
                 "actual": item["actual"],
                 "expected": item["expected"],
                 "evidence_ref": item["evidence_ref"],
+                "status": "detected",
+                "gap_type": _infer_gap_type(item),
+                "diagnostics": item.get("diagnostics", [])[:5],
+                "run_id": run_id,
             },
         )
         bugs.append({"bug_id": bug_id, "bug_ref": bug_ref, "case_id": item["case_id"]})
