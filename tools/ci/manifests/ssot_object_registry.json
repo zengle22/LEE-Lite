@@ -12,6 +12,7 @@
     {"directory": "devplan", "classification": "historical", "filename_regex": "^DEVPLAN-[A-Z0-9-]+__.*\\.(?:yaml|yml)$"},
     {"directory": "tasks", "classification": "historical", "filename_regex": "^(SRC-\\d{3}|FEAT-[A-Z0-9-]+|TASK-[A-Z0-9-]+__.*\\.(?:md|MD))$", "allow_any_nested": true},
     {"directory": "release", "classification": "historical", "filename_regex": "^(REL-[A-Z0-9-]+.*|RELEASE_NOTE-[A-Z0-9-]+.*)$", "allow_any_nested": true},
-    {"directory": "testplan", "classification": "historical", "filename_regex": "^(TESTPLAN-[A-Z0-9-]+.*|REL-[A-Z0-9-]+)$", "allow_any_nested": true}
+    {"directory": "testplan", "classification": "historical", "filename_regex": "^(TESTPLAN-[A-Z0-9-]+.*|REL-[A-Z0-9-]+)$", "allow_any_nested": true},
+    {"directory": "tests", "classification": "canonical", "filename_regex": "^.*\\.(?:yaml|yml|json)$", "allow_any_nested": true}
   ]
 }

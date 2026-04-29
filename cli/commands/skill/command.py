@@ -98,7 +98,6 @@ def _skill_handler(ctx: CommandContext):
             **result,
         }, [], evidence_refs
 
-    # QA skill actions — Prompt-first via skill's agents/executor.md
     _QA_SKILL_MAP = {
         "feat-to-apiplan": ("ll-qa-feat-to-apiplan", "feat_to_apiplan"),
         "prototype-to-e2eplan": ("ll-qa-prototype-to-e2eplan", "prototype_to_e2eplan"),
@@ -139,7 +138,6 @@ def _skill_handler(ctx: CommandContext):
             "canonical_path": result.get("canonical_path", ""),
             **result,
         }, [], evidence_refs
-
     if ctx.action == "qa-test-run":
         from cli.lib.test_orchestrator import run_spec_test
 
@@ -174,6 +172,7 @@ def _skill_handler(ctx: CommandContext):
         })
 
         return "OK", f"governed qa-test-run completed", {
+            "canonical_path": result.candidate_path or f"artifacts/active/qa/candidates/{result.run_id}.json",
             "run_id": result.run_id,
             "executed_count": len(result.case_results),
             "manifest_items_count": len(result.manifest_items),

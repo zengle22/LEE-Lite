@@ -1,0 +1,92 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "ll-project-init execution evidence",
+  "type": "object",
+  "required": [
+    "skill_id",
+    "run_id",
+    "role",
+    "request_path",
+    "repo_root",
+    "inputs",
+    "outputs",
+    "commands_run",
+    "structural_results",
+    "key_decisions",
+    "uncertainties",
+    "created_paths",
+    "updated_paths",
+    "skipped_existing_paths"
+  ],
+  "properties": {
+    "skill_id": {
+      "type": "string",
+      "const": "ll-project-init"
+    },
+    "run_id": {
+      "type": "string"
+    },
+    "role": {
+      "type": "string",
+      "const": "executor"
+    },
+    "request_path": {
+      "type": "string"
+    },
+    "repo_root": {
+      "type": "string"
+    },
+    "inputs": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "outputs": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "commands_run": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "structural_results": {
+      "type": "object"
+    },
+    "key_decisions": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "uncertainties": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "created_paths": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "updated_paths": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "skipped_existing_paths": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    }
+  },
+  "additionalProperties": true
+}

@@ -312,6 +312,19 @@
         "preconditions": [
           "`decision_ref` already resolves to an approve decision",
           "`authoritative_input_ref` is readable by the runner pipeline"
+        ],
+        "caller_context": "Operator calls ll gate dispatch via CLI with valid request envelope.",
+        "idempotency_key_strategy": "`decision_ref + next_skill_ref + authoritative_input_ref`",
+        "post_conditions": [
+          "ready_job_ref are authoritative and consistent"
+        ],
+        "system_dependency_pre_state": "`decision_ref` already resolves to an approve decision",
+        "side_effects": [
+          "Emits dispatch trace event"
+        ],
+        "ui_surface_impact": "CLI output reflects ll gate dispatch result state.",
+        "event_outputs": [
+          "ll.gate.dispatch.executed"
         ]
       }
     ],
@@ -416,6 +429,19 @@
         "idempotency": "`runner_scope_ref + entry_mode`",
         "preconditions": [
           "`runner_scope_ref` resolves to a governed execution-runner scope"
+        ],
+        "caller_context": "Operator calls ll loop run-execution via CLI with valid request envelope.",
+        "idempotency_key_strategy": "`runner_scope_ref + entry_mode`",
+        "post_conditions": [
+          "runner_run_ref are authoritative and consistent"
+        ],
+        "system_dependency_pre_state": "`runner_scope_ref` resolves to a governed execution-runner scope",
+        "side_effects": [
+          "Emits run-execution trace event"
+        ],
+        "ui_surface_impact": "CLI output reflects ll loop run-execution result state.",
+        "event_outputs": [
+          "ll.loop.run_execution.executed"
         ]
       }
     ],
@@ -518,6 +544,19 @@
         "preconditions": [
           "`runner_context_ref` is active",
           "`ready_job_ref` resolves inside artifacts/jobs/ready"
+        ],
+        "caller_context": "Operator calls ll job claim via CLI with valid request envelope.",
+        "idempotency_key_strategy": "`runner_context_ref + ready_job_ref`",
+        "post_conditions": [
+          "claimed_job_ref are authoritative and consistent"
+        ],
+        "system_dependency_pre_state": "`runner_context_ref` is active",
+        "side_effects": [
+          "Emits claim trace event"
+        ],
+        "ui_surface_impact": "CLI output reflects ll job claim result state.",
+        "event_outputs": [
+          "ll.job.claim.executed"
         ]
       },
       {
@@ -555,6 +594,19 @@
         "idempotency": "`runner_context_ref + claimed_job_ref + command`",
         "preconditions": [
           "`claimed_job_ref` is already owned by `runner_context_ref`"
+        ],
+        "caller_context": "Operator calls ll job run / complete / fail via CLI with valid request envelope.",
+        "idempotency_key_strategy": "`runner_context_ref + claimed_job_ref + command`",
+        "post_conditions": [
+          "runner_state_ref are authoritative and consistent"
+        ],
+        "system_dependency_pre_state": "`claimed_job_ref` is already owned by `runner_context_ref`",
+        "side_effects": [
+          "Emits fail trace event"
+        ],
+        "ui_surface_impact": "CLI output reflects ll job run / complete / fail result state.",
+        "event_outputs": [
+          "ll.job.run...complete...fail.executed"
         ]
       }
     ],
@@ -653,6 +705,19 @@
         "idempotency": "`runner_context_ref + ready_job_ref`",
         "preconditions": [
           "`ready_job_ref` exists in ready queue"
+        ],
+        "caller_context": "Operator calls ll job claim via CLI with valid request envelope.",
+        "idempotency_key_strategy": "`runner_context_ref + ready_job_ref`",
+        "post_conditions": [
+          "claimed_job_ref are authoritative and consistent"
+        ],
+        "system_dependency_pre_state": "`ready_job_ref` exists in ready queue",
+        "side_effects": [
+          "Emits claim trace event"
+        ],
+        "ui_surface_impact": "CLI output reflects ll job claim result state.",
+        "event_outputs": [
+          "ll.job.claim.executed"
         ]
       }
     ],
@@ -753,6 +818,19 @@
         "idempotency": "`claimed_job_ref + target_skill_ref + authoritative_input_ref`",
         "preconditions": [
           "`claimed_job_ref` is already in running ownership state"
+        ],
+        "caller_context": "Operator calls ll job run via CLI with valid request envelope.",
+        "idempotency_key_strategy": "`claimed_job_ref + target_skill_ref + authoritative_input_ref`",
+        "post_conditions": [
+          "invocation_ref are authoritative and consistent"
+        ],
+        "system_dependency_pre_state": "`claimed_job_ref` is already in running ownership state",
+        "side_effects": [
+          "Emits run trace event"
+        ],
+        "ui_surface_impact": "CLI output reflects ll job run result state.",
+        "event_outputs": [
+          "ll.job.run.executed"
         ]
       }
     ],
@@ -855,6 +933,19 @@
         "idempotency": "`execution_attempt_ref + outcome`",
         "preconditions": [
           "`execution_attempt_ref` exists and belongs to a runner-owned dispatch"
+        ],
+        "caller_context": "Operator calls ll job complete / fail via CLI with valid request envelope.",
+        "idempotency_key_strategy": "`execution_attempt_ref + outcome`",
+        "post_conditions": [
+          "execution_outcome_ref are authoritative and consistent"
+        ],
+        "system_dependency_pre_state": "`execution_attempt_ref` exists and belongs to a runner-owned dispatch",
+        "side_effects": [
+          "Emits fail trace event"
+        ],
+        "ui_surface_impact": "CLI output reflects ll job complete / fail result state.",
+        "event_outputs": [
+          "ll.job.complete...fail.executed"
         ]
       }
     ],
@@ -954,6 +1045,19 @@
         "idempotency": "`runner_scope_ref + status_filter`",
         "preconditions": [
           "`runner_scope_ref` resolves to an existing execution runner scope"
+        ],
+        "caller_context": "Operator calls ll loop show-status / show-backlog via CLI with valid request envelope.",
+        "idempotency_key_strategy": "`runner_scope_ref + status_filter`",
+        "post_conditions": [
+          "observability_snapshot_ref are authoritative and consistent"
+        ],
+        "system_dependency_pre_state": "`runner_scope_ref` resolves to an existing execution runner scope",
+        "side_effects": [
+          "Emits show-backlog trace event"
+        ],
+        "ui_surface_impact": "CLI output reflects ll loop show-status / show-backlog result state.",
+        "event_outputs": [
+          "ll.loop.show_status...show_backlog.executed"
         ]
       }
     ],
@@ -1071,6 +1175,19 @@
         "preconditions": [
           "`payload_ref` is already readable from the governed runtime carrier",
           "`proposal_ref` resolves to the same submission intent as the payload"
+        ],
+        "caller_context": "Operator calls ll gate submit-handoff via CLI with valid request envelope.",
+        "idempotency_key_strategy": "`producer_ref + proposal_ref + payload_digest`",
+        "post_conditions": [
+          "handoff_ref are authoritative and consistent"
+        ],
+        "system_dependency_pre_state": "`payload_ref` is already readable from the governed runtime carrier",
+        "side_effects": [
+          "Emits submit-handoff trace event"
+        ],
+        "ui_surface_impact": "CLI output reflects ll gate submit-handoff result state.",
+        "event_outputs": [
+          "ll.gate.submit_handoff.executed"
         ]
       },
       {
@@ -1108,6 +1225,19 @@
         "idempotency": "`handoff_ref`",
         "preconditions": [
           "`handoff_ref` has been submitted into the mainline runtime"
+        ],
+        "caller_context": "Operator calls ll gate show-pending via CLI with valid request envelope.",
+        "idempotency_key_strategy": "`handoff_ref`",
+        "post_conditions": [
+          "handoff_ref are authoritative and consistent"
+        ],
+        "system_dependency_pre_state": "`handoff_ref` has been submitted into the mainline runtime",
+        "side_effects": [
+          "Emits show-pending trace event"
+        ],
+        "ui_surface_impact": "CLI output reflects ll gate show-pending result state.",
+        "event_outputs": [
+          "ll.gate.show_pending.executed"
         ]
       }
     ],
@@ -1233,6 +1363,19 @@
         "preconditions": [
           "`handoff_ref` is already in gate-pending state",
           "the pending human decision is active and uniquely claimed"
+        ],
+        "caller_context": "Operator calls ll gate evaluate via CLI with valid request envelope.",
+        "idempotency_key_strategy": "`pending_human_decision_ref + decision_round`",
+        "post_conditions": [
+          "brief_record_ref are authoritative and consistent"
+        ],
+        "system_dependency_pre_state": "`handoff_ref` is already in gate-pending state",
+        "side_effects": [
+          "Emits evaluate trace event"
+        ],
+        "ui_surface_impact": "CLI output reflects ll gate evaluate result state.",
+        "event_outputs": [
+          "ll.gate.evaluate.executed"
         ]
       },
       {
@@ -1275,6 +1418,19 @@
         "preconditions": [
           "`decision_ref` resolves to one authoritative decision object",
           "`decision_target` and `decision_basis_refs` are already present on the decision object"
+        ],
+        "caller_context": "Operator calls ll gate dispatch via CLI with valid request envelope.",
+        "idempotency_key_strategy": "`decision_ref + dispatch_target`",
+        "post_conditions": [
+          "dispatch_receipt_ref are authoritative and consistent"
+        ],
+        "system_dependency_pre_state": "`decision_ref` resolves to one authoritative decision object",
+        "side_effects": [
+          "Emits dispatch trace event"
+        ],
+        "ui_surface_impact": "CLI output reflects ll gate dispatch result state.",
+        "event_outputs": [
+          "ll.gate.dispatch.executed"
         ]
       }
     ],
@@ -1383,6 +1539,19 @@
         "idempotency": "`requested_ref`",
         "preconditions": [
           "`requested_ref` exists in registry or lineage storage"
+        ],
+        "caller_context": "Operator calls ll registry resolve-formal-ref via CLI with valid request envelope.",
+        "idempotency_key_strategy": "`requested_ref`",
+        "post_conditions": [
+          "authoritative_ref are authoritative and consistent"
+        ],
+        "system_dependency_pre_state": "`requested_ref` exists in registry or lineage storage",
+        "side_effects": [
+          "Emits resolve-formal-ref trace event"
+        ],
+        "ui_surface_impact": "CLI output reflects ll registry resolve-formal-ref result state.",
+        "event_outputs": [
+          "ll.registry.resolve_formal_ref.executed"
         ]
       },
       {
@@ -1420,6 +1589,19 @@
         "idempotency": "`consumer_ref + requested_ref`",
         "preconditions": [
           "`requested_ref` resolves through lineage or registry"
+        ],
+        "caller_context": "Operator calls ll registry validate-admission via CLI with valid request envelope.",
+        "idempotency_key_strategy": "`consumer_ref + requested_ref`",
+        "post_conditions": [
+          "allow are authoritative and consistent"
+        ],
+        "system_dependency_pre_state": "`requested_ref` resolves through lineage or registry",
+        "side_effects": [
+          "Emits validate-admission trace event"
+        ],
+        "ui_surface_impact": "CLI output reflects ll registry validate-admission result state.",
+        "event_outputs": [
+          "ll.registry.validate_admission.executed"
         ]
       }
     ],
@@ -1534,6 +1716,19 @@
         "idempotency": "`logical_path + payload_digest + mode`",
         "preconditions": [
           "request is normalized and payload is readable"
+        ],
+        "caller_context": "Operator calls ll artifact commit via CLI with valid request envelope.",
+        "idempotency_key_strategy": "`logical_path + payload_digest + mode`",
+        "post_conditions": [
+          "managed_ref are authoritative and consistent"
+        ],
+        "system_dependency_pre_state": "request is normalized and payload is readable",
+        "side_effects": [
+          "Emits commit trace event"
+        ],
+        "ui_surface_impact": "CLI output reflects ll artifact commit result state.",
+        "event_outputs": [
+          "ll.artifact.commit.executed"
         ]
       },
       {
@@ -1567,6 +1762,19 @@
         "idempotency": "`managed_ref`",
         "preconditions": [
           "`managed_ref` is already registered"
+        ],
+        "caller_context": "Operator calls ll artifact read via CLI with valid request envelope.",
+        "idempotency_key_strategy": "`managed_ref`",
+        "post_conditions": [
+          "payload_ref are authoritative and consistent"
+        ],
+        "system_dependency_pre_state": "`managed_ref` is already registered",
+        "side_effects": [
+          "Emits read trace event"
+        ],
+        "ui_surface_impact": "CLI output reflects ll artifact read result state.",
+        "event_outputs": [
+          "ll.artifact.read.executed"
         ]
       }
     ],
@@ -1681,6 +1889,19 @@
         "idempotency": "`user_ref + profile_ref`",
         "preconditions": [
           "minimal profile already completed"
+        ],
+        "caller_context": "Operator calls POST /v1/home/first-advice/generate via CLI with valid request envelope.",
+        "idempotency_key_strategy": "`user_ref + profile_ref`",
+        "post_conditions": [
+          "training_advice_level are authoritative and consistent"
+        ],
+        "system_dependency_pre_state": "minimal profile already completed",
+        "side_effects": [
+          "Emits /v1/home/first-advice/generate trace event"
+        ],
+        "ui_surface_impact": "CLI output reflects POST /v1/home/first-advice/generate result state.",
+        "event_outputs": [
+          "post..v1.home.first_advice.generate.executed"
         ]
       },
       {
@@ -1715,6 +1936,19 @@
         "idempotency": "`running_level + recent_injury_status`",
         "preconditions": [
           "risk inputs are present"
+        ],
+        "caller_context": "Operator calls POST /v1/home/first-advice/risk-gate via CLI with valid request envelope.",
+        "idempotency_key_strategy": "`running_level + recent_injury_status`",
+        "post_conditions": [
+          "risk_gate_passed are authoritative and consistent"
+        ],
+        "system_dependency_pre_state": "risk inputs are present",
+        "side_effects": [
+          "Emits /v1/home/first-advice/risk-gate trace event"
+        ],
+        "ui_surface_impact": "CLI output reflects POST /v1/home/first-advice/risk-gate result state.",
+        "event_outputs": [
+          "post..v1.home.first_advice.risk_gate.executed"
         ]
       }
     ],
@@ -1823,6 +2057,19 @@
         "idempotency": "`user_ref + patch_digest`",
         "preconditions": [
           "homepage already entered"
+        ],
+        "caller_context": "Operator calls PATCH /v1/profile/extended-patch via CLI with valid request envelope.",
+        "idempotency_key_strategy": "`user_ref + patch_digest`",
+        "post_conditions": [
+          "saved_patch_ref are authoritative and consistent"
+        ],
+        "system_dependency_pre_state": "homepage already entered",
+        "side_effects": [
+          "Emits /v1/profile/extended-patch trace event"
+        ],
+        "ui_surface_impact": "CLI output reflects PATCH /v1/profile/extended-patch result state.",
+        "event_outputs": [
+          "patch..v1.profile.extended_patch.executed"
         ]
       },
       {
@@ -1853,6 +2100,19 @@
         "idempotency": "`user_ref`",
         "preconditions": [
           "extended profile completion already enabled for homepage"
+        ],
+        "caller_context": "Operator calls GET /v1/profile/completion-tasks via CLI with valid request envelope.",
+        "idempotency_key_strategy": "`user_ref`",
+        "post_conditions": [
+          "task_cards are authoritative and consistent"
+        ],
+        "system_dependency_pre_state": "extended profile completion already enabled for homepage",
+        "side_effects": [
+          "Emits /v1/profile/completion-tasks trace event"
+        ],
+        "ui_surface_impact": "CLI output reflects GET /v1/profile/completion-tasks result state.",
+        "event_outputs": [
+          "get..v1.profile.completion_tasks.executed"
         ]
       }
     ],
@@ -1963,6 +2223,19 @@
         "idempotency": "`user_ref + device_vendor + homepage_session_ref`",
         "preconditions": [
           "user has already entered homepage"
+        ],
+        "caller_context": "Operator calls POST /v1/device/deferred-connection/start via CLI with valid request envelope.",
+        "idempotency_key_strategy": "`user_ref + device_vendor + homepage_session_ref`",
+        "post_conditions": [
+          "connection_attempt_ref are authoritative and consistent"
+        ],
+        "system_dependency_pre_state": "user has already entered homepage",
+        "side_effects": [
+          "Emits /v1/device/deferred-connection/start trace event"
+        ],
+        "ui_surface_impact": "CLI output reflects POST /v1/device/deferred-connection/start result state.",
+        "event_outputs": [
+          "post..v1.device.deferred_connection.start.executed"
         ]
       },
       {
@@ -2000,6 +2273,19 @@
         "idempotency": "`connection_attempt_ref + callback_payload_ref`",
         "preconditions": [
           "connection attempt has been started from deferred homepage entry"
+        ],
+        "caller_context": "Operator calls POST /v1/device/deferred-connection/finalize via CLI with valid request envelope.",
+        "idempotency_key_strategy": "`connection_attempt_ref + callback_payload_ref`",
+        "post_conditions": [
+          "connection_status are authoritative and consistent"
+        ],
+        "system_dependency_pre_state": "connection attempt has been started from deferred homepage entry",
+        "side_effects": [
+          "Emits /v1/device/deferred-connection/finalize trace event"
+        ],
+        "ui_surface_impact": "CLI output reflects POST /v1/device/deferred-connection/finalize result state.",
+        "event_outputs": [
+          "post..v1.device.deferred_connection.finalize.executed"
         ]
       }
     ],
@@ -2115,6 +2401,19 @@
         "idempotency": "`user_ref + primary_state + capability_flags_digest`",
         "preconditions": [
           "user exists in onboarding state boundary"
+        ],
+        "caller_context": "Operator calls POST /v1/onboarding/primary-state via CLI with valid request envelope.",
+        "idempotency_key_strategy": "`user_ref + primary_state + capability_flags_digest`",
+        "post_conditions": [
+          "primary_state are authoritative and consistent"
+        ],
+        "system_dependency_pre_state": "user exists in onboarding state boundary",
+        "side_effects": [
+          "Emits /v1/onboarding/primary-state trace event"
+        ],
+        "ui_surface_impact": "CLI output reflects POST /v1/onboarding/primary-state result state.",
+        "event_outputs": [
+          "post..v1.onboarding.primary_state.executed"
         ]
       },
       {
@@ -2155,6 +2454,19 @@
         "idempotency": "`user_ref + canonical_profile_digest`",
         "preconditions": [
           "user identity is resolved"
+        ],
+        "caller_context": "Operator calls POST /v1/profile/physical-canonical via CLI with valid request envelope.",
+        "idempotency_key_strategy": "`user_ref + canonical_profile_digest`",
+        "post_conditions": [
+          "physical_profile_ref are authoritative and consistent"
+        ],
+        "system_dependency_pre_state": "user identity is resolved",
+        "side_effects": [
+          "Emits /v1/profile/physical-canonical trace event"
+        ],
+        "ui_surface_impact": "CLI output reflects POST /v1/profile/physical-canonical result state.",
+        "event_outputs": [
+          "post..v1.profile.physical_canonical.executed"
         ]
       },
       {
@@ -2191,6 +2503,19 @@
         "idempotency": "`user_ref`",
         "preconditions": [
           "user exists in canonical boundary services"
+        ],
+        "caller_context": "Operator calls GET /v1/onboarding/unified-state via CLI with valid request envelope.",
+        "idempotency_key_strategy": "`user_ref`",
+        "post_conditions": [
+          "primary_state are authoritative and consistent"
+        ],
+        "system_dependency_pre_state": "user exists in canonical boundary services",
+        "side_effects": [
+          "Emits /v1/onboarding/unified-state trace event"
+        ],
+        "ui_surface_impact": "CLI output reflects GET /v1/onboarding/unified-state result state.",
+        "event_outputs": [
+          "get..v1.onboarding.unified_state.executed"
         ]
       }
     ],
@@ -2309,6 +2634,19 @@
         "idempotency": "`user_ref + payload_digest`",
         "preconditions": [
           "user has completed login/registration and is routed into the minimal profile page"
+        ],
+        "caller_context": "Operator calls POST /v1/onboarding/minimal-profile via CLI with valid request envelope.",
+        "idempotency_key_strategy": "`user_ref + payload_digest`",
+        "post_conditions": [
+          "profile_ref are authoritative and consistent"
+        ],
+        "system_dependency_pre_state": "user has completed login/registration and is routed into the minimal profile page",
+        "side_effects": [
+          "Emits /v1/onboarding/minimal-profile trace event"
+        ],
+        "ui_surface_impact": "CLI output reflects POST /v1/onboarding/minimal-profile result state.",
+        "event_outputs": [
+          "post..v1.onboarding.minimal_profile.executed"
         ]
       },
       {
@@ -2342,6 +2680,19 @@
         "idempotency": "`user_ref`",
         "preconditions": [
           "user already exists in onboarding state store"
+        ],
+        "caller_context": "Operator calls GET /v1/onboarding/minimal-profile-state via CLI with valid request envelope.",
+        "idempotency_key_strategy": "`user_ref`",
+        "post_conditions": [
+          "onboarding_state are authoritative and consistent"
+        ],
+        "system_dependency_pre_state": "user already exists in onboarding state store",
+        "side_effects": [
+          "Emits /v1/onboarding/minimal-profile-state trace event"
+        ],
+        "ui_surface_impact": "CLI output reflects GET /v1/onboarding/minimal-profile-state result state.",
+        "event_outputs": [
+          "get..v1.onboarding.minimal_profile_state.executed"
         ]
       }
     ],
@@ -2459,6 +2810,19 @@
         "preconditions": [
           "minimal profile has reached completed state",
           "safety gate resolved from running_level and recent_injury_status"
+        ],
+        "caller_context": "Operator calls POST /v1/advice/first-release via CLI with valid request envelope.",
+        "idempotency_key_strategy": "`profile_ref + minimal_profile_snapshot_ref`",
+        "post_conditions": [
+          "advice_release_ref are authoritative and consistent"
+        ],
+        "system_dependency_pre_state": "minimal profile has reached completed state",
+        "side_effects": [
+          "Emits /v1/advice/first-release trace event"
+        ],
+        "ui_surface_impact": "CLI output reflects POST /v1/advice/first-release result state.",
+        "event_outputs": [
+          "post..v1.advice.first_release.executed"
         ]
       },
       {
@@ -2494,6 +2858,19 @@
         "idempotency": "`user_ref`",
         "preconditions": [
           "user onboarding state is already known"
+        ],
+        "caller_context": "Operator calls GET /v1/advice/first-release-state via CLI with valid request envelope.",
+        "idempotency_key_strategy": "`user_ref`",
+        "post_conditions": [
+          "advice_state are authoritative and consistent"
+        ],
+        "system_dependency_pre_state": "user onboarding state is already known",
+        "side_effects": [
+          "Emits /v1/advice/first-release-state trace event"
+        ],
+        "ui_surface_impact": "CLI output reflects GET /v1/advice/first-release-state result state.",
+        "event_outputs": [
+          "get..v1.advice.first_release_state.executed"
         ]
       }
     ],
@@ -2603,6 +2980,19 @@
         "preconditions": [
           "homepage is already entered",
           "task card metadata has been resolved"
+        ],
+        "caller_context": "Operator calls POST /v1/profile/extended-patch via CLI with valid request envelope.",
+        "idempotency_key_strategy": "`user_ref + task_card_ref + patch_digest`",
+        "post_conditions": [
+          "saved_patch_ref are authoritative and consistent"
+        ],
+        "system_dependency_pre_state": "homepage is already entered",
+        "side_effects": [
+          "Emits /v1/profile/extended-patch trace event"
+        ],
+        "ui_surface_impact": "CLI output reflects POST /v1/profile/extended-patch result state.",
+        "event_outputs": [
+          "post..v1.profile.extended_patch.executed"
         ]
       },
       {
@@ -2636,6 +3026,19 @@
         "idempotency": "`user_ref`",
         "preconditions": [
           "extended profile flow is available from homepage"
+        ],
+        "caller_context": "Operator calls GET /v1/profile/extended-tasks via CLI with valid request envelope.",
+        "idempotency_key_strategy": "`user_ref`",
+        "post_conditions": [
+          "task_cards are authoritative and consistent"
+        ],
+        "system_dependency_pre_state": "extended profile flow is available from homepage",
+        "side_effects": [
+          "Emits /v1/profile/extended-tasks trace event"
+        ],
+        "ui_surface_impact": "CLI output reflects GET /v1/profile/extended-tasks result state.",
+        "event_outputs": [
+          "get..v1.profile.extended_tasks.executed"
         ]
       }
     ],
@@ -2743,6 +3146,19 @@
         "idempotency": "`user_ref + provider + entry_context`",
         "preconditions": [
           "homepage is already entered"
+        ],
+        "caller_context": "Operator calls POST /v1/device/connect/deferred via CLI with valid request envelope.",
+        "idempotency_key_strategy": "`user_ref + provider + entry_context`",
+        "post_conditions": [
+          "connection_session_ref are authoritative and consistent"
+        ],
+        "system_dependency_pre_state": "homepage is already entered",
+        "side_effects": [
+          "Emits /v1/device/connect/deferred trace event"
+        ],
+        "ui_surface_impact": "CLI output reflects POST /v1/device/connect/deferred result state.",
+        "event_outputs": [
+          "post..v1.device.connect.deferred.executed"
         ]
       },
       {
@@ -2775,6 +3191,19 @@
         "idempotency": "`user_ref`",
         "preconditions": [
           "onboarding state is already known"
+        ],
+        "caller_context": "Operator calls GET /v1/device/connect/deferred-state via CLI with valid request envelope.",
+        "idempotency_key_strategy": "`user_ref`",
+        "post_conditions": [
+          "device_connection_state are authoritative and consistent"
+        ],
+        "system_dependency_pre_state": "onboarding state is already known",
+        "side_effects": [
+          "Emits /v1/device/connect/deferred-state trace event"
+        ],
+        "ui_surface_impact": "CLI output reflects GET /v1/device/connect/deferred-state result state.",
+        "event_outputs": [
+          "get..v1.device.connect.deferred_state.executed"
         ]
       }
     ],
@@ -2881,6 +3310,19 @@
         "idempotency": "`user_ref + primary_state`",
         "preconditions": [
           "state boundary service initialized"
+        ],
+        "caller_context": "Operator calls POST /v1/onboarding/primary-state via CLI with valid request envelope.",
+        "idempotency_key_strategy": "`user_ref + primary_state`",
+        "post_conditions": [
+          "primary_state_ref are authoritative and consistent"
+        ],
+        "system_dependency_pre_state": "state boundary service initialized",
+        "side_effects": [
+          "Emits /v1/onboarding/primary-state trace event"
+        ],
+        "ui_surface_impact": "CLI output reflects POST /v1/onboarding/primary-state result state.",
+        "event_outputs": [
+          "post..v1.onboarding.primary_state.executed"
         ]
       },
       {
@@ -2913,6 +3355,19 @@
         "idempotency": "`user_ref`",
         "preconditions": [
           "at least one state or profile record exists"
+        ],
+        "caller_context": "Operator calls GET /v1/onboarding/unified-state via CLI with valid request envelope.",
+        "idempotency_key_strategy": "`user_ref`",
+        "post_conditions": [
+          "primary_state are authoritative and consistent"
+        ],
+        "system_dependency_pre_state": "at least one state or profile record exists",
+        "side_effects": [
+          "Emits /v1/onboarding/unified-state trace event"
+        ],
+        "ui_surface_impact": "CLI output reflects GET /v1/onboarding/unified-state result state.",
+        "event_outputs": [
+          "get..v1.onboarding.unified_state.executed"
         ]
       }
     ],
@@ -3019,6 +3474,22 @@
         "idempotency": "`skill_ref + wave_id`",
         "preconditions": [
           "foundation features are freeze-ready"
+        ],
+        "caller_context": "Rollout controller calls this after verifying foundation readiness and wave scope.",
+        "idempotency_key_strategy": "Composite key: skill_ref + wave_id",
+        "post_conditions": [
+          "runtime_binding_ref is authoritative",
+          "cutover_guard_ref is persisted"
+        ],
+        "system_dependency_pre_state": "Foundation features must be freeze-ready and runtime must be accessible",
+        "side_effects": [
+          "Creates onboarding registry entry",
+          "Emits skill onboarded trace event"
+        ],
+        "ui_surface_impact": "Onboarding matrix UI updates to show new skill in wave",
+        "event_outputs": [
+          "rollout.skill_onboarded",
+          "rollout.wave_updated"
         ]
       },
       {
@@ -3054,6 +3525,22 @@
         "idempotency": "`pilot_chain_ref`",
         "preconditions": [
           "pilot chain has executed at least once"
+        ],
+        "caller_context": "Pilot orchestrator calls this after producer -> consumer -> audit -> gate chain completes.",
+        "idempotency_key_strategy": "Composite key: pilot_chain_ref",
+        "post_conditions": [
+          "evidence_ref is authoritative",
+          "cutover_recommendation is emitted"
+        ],
+        "system_dependency_pre_state": "Pilot chain must have executed at least once with all steps traceable",
+        "side_effects": [
+          "Creates pilot evidence record",
+          "Emits evidence submitted trace event"
+        ],
+        "ui_surface_impact": "Pilot evidence dashboard updates with latest submission",
+        "event_outputs": [
+          "audit.pilot_evidence_submitted",
+          "audit.cutover_recommendation_ready"
         ]
       }
     ],

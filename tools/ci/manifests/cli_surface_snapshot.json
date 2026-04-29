@@ -1744,6 +1744,123 @@
             ]
           }
         ]
+      },
+      "failure-capture": {
+        "args": [
+          {
+            "dest": "request",
+            "required": true,
+            "option_strings": [
+              "--request"
+            ]
+          },
+          {
+            "dest": "response_out",
+            "required": true,
+            "option_strings": [
+              "--response-out"
+            ]
+          },
+          {
+            "dest": "evidence_out",
+            "required": false,
+            "option_strings": [
+              "--evidence-out"
+            ]
+          },
+          {
+            "dest": "workspace_root",
+            "required": false,
+            "option_strings": [
+              "--workspace-root"
+            ]
+          },
+          {
+            "dest": "strict",
+            "required": false,
+            "option_strings": [
+              "--strict"
+            ]
+          }
+        ]
+      },
+      "spec-reconcile": {
+        "args": [
+          {
+            "dest": "request",
+            "required": true,
+            "option_strings": [
+              "--request"
+            ]
+          },
+          {
+            "dest": "response_out",
+            "required": true,
+            "option_strings": [
+              "--response-out"
+            ]
+          },
+          {
+            "dest": "evidence_out",
+            "required": false,
+            "option_strings": [
+              "--evidence-out"
+            ]
+          },
+          {
+            "dest": "workspace_root",
+            "required": false,
+            "option_strings": [
+              "--workspace-root"
+            ]
+          },
+          {
+            "dest": "strict",
+            "required": false,
+            "option_strings": [
+              "--strict"
+            ]
+          }
+        ]
+      },
+      "qa-test-run": {
+        "args": [
+          {
+            "dest": "request",
+            "required": true,
+            "option_strings": [
+              "--request"
+            ]
+          },
+          {
+            "dest": "response_out",
+            "required": true,
+            "option_strings": [
+              "--response-out"
+            ]
+          },
+          {
+            "dest": "evidence_out",
+            "required": false,
+            "option_strings": [
+              "--evidence-out"
+            ]
+          },
+          {
+            "dest": "workspace_root",
+            "required": false,
+            "option_strings": [
+              "--workspace-root"
+            ]
+          },
+          {
+            "dest": "strict",
+            "required": false,
+            "option_strings": [
+              "--strict"
+            ]
+          }
+        ]
       }
     }
   },

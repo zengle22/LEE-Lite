@@ -1,0 +1,13 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "required": ["skill_id", "run_id", "role", "decision", "semantic_findings"],
+  "properties": {
+    "skill_id": {"type": "string"},
+    "run_id": {"type": "string"},
+    "role": {"type": "string"},
+    "decision": {"type": "string"},
+    "semantic_findings": {"type": "array", "items": {"type": "object"}}
+  },
+  "additionalProperties": true
+}

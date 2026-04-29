@@ -90,11 +90,13 @@ def update_manifest(
         return
 
     # Determine manifest path based on chain
+    # Priority: proto_ref (E2E chain) > feat_ref (API chain) to avoid wrong manifest selection
+    # when both are present in the payload.
     first_item = manifest_items[0]
-    if "feat_ref" in first_item and first_item.get("feat_ref"):
-        manifest_path = workspace_root / f"ssot/tests/api/{first_item['feat_ref']}/api-coverage-manifest.yaml"
-    elif "proto_ref" in first_item and first_item.get("proto_ref"):
+    if "proto_ref" in first_item and first_item.get("proto_ref"):
         manifest_path = workspace_root / f"ssot/tests/e2e/{first_item['proto_ref']}/e2e-coverage-manifest.yaml"
+    elif "feat_ref" in first_item and first_item.get("feat_ref"):
+        manifest_path = workspace_root / f"ssot/tests/api/{first_item['feat_ref']}/api-coverage-manifest.yaml"
     else:
         # Fallback: cannot determine manifest path
         return
@@ -104,8 +106,15 @@ def update_manifest(
 
     manifest = yaml.safe_load(manifest_path.read_text(encoding="utf-8")) or {}
 
+    # Handle nested manifest structures (e.g., api_coverage_manifest: { items: [...] })
+    manifest_root = manifest
+    if "api_coverage_manifest" in manifest:
+        manifest_root = manifest["api_coverage_manifest"]
+    elif "e2e_coverage_manifest" in manifest:
+        manifest_root = manifest["e2e_coverage_manifest"]
+
     # Optimistic lock: read version, update, write with new version
-    expected_version = manifest.get("_version", "0")
+    expected_version = manifest_root.get("_version", manifest.get("_version", "0"))
 
     for item in manifest_items:
         coverage_id = item.get("coverage_id")
@@ -115,7 +124,7 @@ def update_manifest(
         feat_ref = item.get("feat_ref")
         proto_ref = item.get("proto_ref")
 
-        for existing in manifest.get("items", []):
+        for existing in manifest_root.get("items", manifest.get("items", [])):
             if existing.get("coverage_id") == coverage_id:
                 existing["lifecycle_status"] = status
                 existing["last_run_id"] = run_id
@@ -128,8 +137,11 @@ def update_manifest(
                     existing["proto_ref"] = proto_ref
 
     # Update version and timestamp
-    manifest["_version"] = str(uuid.uuid4())
-    manifest["_last_updated"] = _timestamp()
+    manifest_root["_version"] = str(uuid.uuid4())
+    manifest_root["_last_updated"] = _timestamp()
+    # Also update root-level keys for backward compatibility
+    manifest["_version"] = manifest_root["_version"]
+    manifest["_last_updated"] = manifest_root["_last_updated"]
 
     manifest_path.write_text(
         yaml.safe_dump(manifest, allow_unicode=True, sort_keys=False),
@@ -193,7 +205,6 @@ def run_spec_test(
         timeout=30000,
         feat_assumptions=None,
     )
-
     # -------------------------------------------------------------------------
     # Step 2: spec_to_testset()
     # -------------------------------------------------------------------------
@@ -237,7 +248,7 @@ def run_spec_test(
     execution_result = execute_test_exec_skill(
         workspace_root=workspace_root,
         trace={"run_ref": run_id},
-        action=f"test-exec-{modality}",
+        action=f"test-exec-{modality.replace('_', '-')}",
         request_id=run_id,
         payload=payload,
     )

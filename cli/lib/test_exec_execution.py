@@ -52,6 +52,8 @@ def _execution_env(case: dict[str, Any], environment: dict[str, Any]) -> dict[st
         extra["LEE_BASE_URL"] = str(environment["base_url"])
     if environment.get("browser"):
         extra["LEE_BROWSER"] = str(environment["browser"])
+    if environment.get("source_feat_ref"):
+        extra["LEE_FEAT_REF"] = str(environment["source_feat_ref"])
     return extra
 
 
@@ -152,7 +154,6 @@ def _qualification_lineage_entry(
         "coverage_scope": coverage_summary.get("scope", []),
     }
 
-
 def _coverage_expansion_targets(workspace_root: Path, refs: dict[str, str]) -> list[str]:
     details_ref = refs.get("coverage_details_ref", "")
     summary_ref = refs.get("coverage_summary_ref", "")
@@ -187,12 +188,7 @@ def _coverage_expansion_targets(workspace_root: Path, refs: dict[str, str]) -> l
     def _variants(value: str) -> list[str]:
         path = Path(str(value))
         raw = str(value).strip().lower().replace("\\", "/")
-        variants = [raw, path.as_posix().lower(), path.name.lower(), path.stem.lower()]
-        seen: list[str] = []
-        for item in variants:
-            if item and item not in seen:
-                seen.append(item)
-        return seen
+        return list(dict.fromkeys(v for v in [raw, path.as_posix().lower(), path.name.lower(), path.stem.lower()] if v))
 
     def _priority_index(file_name: str) -> int:
         variants = _variants(file_name)
@@ -209,8 +205,7 @@ def _coverage_expansion_targets(workspace_root: Path, refs: dict[str, str]) -> l
         if not isinstance(missing_lines, list):
             continue
         missing_branches = file_payload.get("missing_branches", [])
-        if not isinstance(missing_branches, list):
-            missing_branches = []
+        missing_branches = missing_branches if isinstance(missing_branches, list) else []
         summary = file_payload.get("summary", {})
         covered_ratio = 0.0
         if isinstance(summary, dict):
@@ -241,7 +236,7 @@ def _coverage_expansion_targets(workspace_root: Path, refs: dict[str, str]) -> l
     ranked_files.sort(key=lambda item: (-item[0], -item[1], item[2], item[3]))
     targets: list[str] = []
     for _, _, _, _, file_info in ranked_files:
-        file_slug = slugify(Path(file_info["file_name"]).stem) or "coverage-file"
+        file_slug = slugify(Path(str(file_info["file_name"]).replace("\\", "/")).stem) or "coverage-file"
         if branch_coverage_enabled:
             for branch in file_info["missing_branches"][:2]:
                 branch_slug = slugify(branch.replace("->", " to ")) or "branch"
@@ -253,7 +248,6 @@ def _coverage_expansion_targets(workspace_root: Path, refs: dict[str, str]) -> l
                 branch_slug = slugify(branch.replace("->", " to ")) or "branch"
                 targets.append(f"{file_slug}-missing-branch-{branch_slug}")
     return targets
-
 
 def _execute_round(
     workspace_root: Path,
@@ -330,7 +324,6 @@ def _execute_round(
         "coverage_summary": outcome.get("coverage_summary", {}),
     }
 
-
 def _promote_round_artifacts(workspace_root: Path, source_refs: dict[str, str], target_refs: dict[str, str]) -> None:
     for key in (
         "resolved_ssot_context_ref",
@@ -351,7 +344,6 @@ def _promote_round_artifacts(workspace_root: Path, source_refs: dict[str, str], 
             continue
         target_path.parent.mkdir(parents=True, exist_ok=True)
         shutil.copy2(source_path, target_path)
-
 
 def _evidence_refs(case_dir: Path, workspace_root: Path) -> dict[str, str]:
     return {
@@ -391,7 +383,6 @@ def _write_case_manifests(
         },
     )
     return refs
-
 
 def _coverage_command(command_entry: str, workspace_root: Path, coverage_ref: str) -> tuple[str | list[str], bool, str, str]:
     try:
@@ -436,7 +427,6 @@ def _run_subprocess(
         stderr_text = str(exc)
         diagnostics.append(f"runner error: {exc}")
     return stdout_text, stderr_text, exit_code, raw_status, diagnostics
-
 
 def execute_case(
     workspace_root: Path,
@@ -492,7 +482,6 @@ def execute_case(
     write_json(workspace_root / refs["result_ref"], payload)
     payload["result_ref"] = refs["result_ref"]
     return payload
-
 
 def execute_cases(
     workspace_root: Path,
@@ -560,7 +549,6 @@ def run_narrow_execution(
     final_pack = dict(round0_pack)
     stable_expansion_targets: list[str] = []
     round_index = 0
-
     while _should_expand_qualification(
         test_set,
         final_result["coverage_summary"],
@@ -597,7 +585,6 @@ def run_narrow_execution(
         lineage = lineage + [_qualification_lineage_entry(round_index, round_pack, round_result["coverage_summary"], stop_reason)]
         final_result = round_result
         final_pack = dict(round_pack)
-
     final_pack["qualification_lineage"] = lineage
     final_pack["expansion_stop_reason"] = stop_reason
     final_pack["qualification_max_expansion_rounds"] = max_expansion_rounds

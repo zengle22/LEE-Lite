@@ -132,21 +132,14 @@ def provision_environment(
     """
     if feat_assumptions is None:
         feat_assumptions = []
-
     if not feat_ref and not proto_ref:
         raise ValueError("Either feat_ref or proto_ref must be provided")
 
-    # Merge assumptions from feat
     merged_assumptions = _merge_assumptions(feat_assumptions)
-
-    # Resolve URLs with priority: explicit params > assumptions > defaults
     resolved_base_url = merged_assumptions.get("base_url", base_url)
     resolved_app_url = merged_assumptions.get("app_url", app_url)
     resolved_api_url = merged_assumptions.get("api_url", api_url)
-
-    # Generate ENV ID
     env_id = _generate_env_id(feat_ref, proto_ref)
-
     # Build the ENV document (ADR-054 §2.3.2)
     env_doc: dict[str, Any] = {
         "ssot_type": "TEST_ENVIRONMENT_SPEC",
@@ -170,9 +163,10 @@ def provision_environment(
         if resolved_api_url:
             env_doc["api_base_url"] = resolved_api_url
 
-    # For API chain, also support api_base_url if provided
-    if modality == "api" and resolved_api_url:
-        env_doc["api_base_url"] = resolved_api_url
+    if modality == "api":
+        if resolved_api_url:
+            env_doc["api_base_url"] = resolved_api_url
+        env_doc["command_entry"] = f"python scripts/api_spec_runner.py"
 
     # Remove None values
     env_doc = {k: v for k, v in env_doc.items() if v is not None}

@@ -68,11 +68,23 @@ def _compute_statistics(items: list[dict]) -> dict[str, Any]:
     designed = sum(1 for i in items if i.get("lifecycle_status") == "designed")
     executed = sum(
         1 for i in items
-        if i.get("lifecycle_status") in ("passed", "failed", "blocked")
+        if i.get("lifecycle_status") in ("passed", "failed", "blocked", "executed")
     )
-    passed = sum(1 for i in items if i.get("lifecycle_status") == "passed")
-    failed = sum(1 for i in items if i.get("lifecycle_status") == "failed")
-    blocked = sum(1 for i in items if i.get("lifecycle_status") == "blocked")
+    passed = sum(
+        1 for i in items
+        if i.get("lifecycle_status") == "passed"
+        or (i.get("lifecycle_status") == "executed" and i.get("last_run_status") == "passed")
+    )
+    failed = sum(
+        1 for i in items
+        if i.get("lifecycle_status") == "failed"
+        or (i.get("lifecycle_status") == "executed" and i.get("last_run_status") == "failed")
+    )
+    blocked = sum(
+        1 for i in items
+        if i.get("lifecycle_status") == "blocked"
+        or (i.get("lifecycle_status") == "executed" and i.get("last_run_status") == "blocked")
+    )
     uncovered = designed  # designed but never executed
     cut = sum(1 for i in items if i.get("lifecycle_status") == "cut")
     obsolete = sum(1 for i in items if i.get("obsolete", False))
@@ -102,7 +114,11 @@ def _build_gap_list(items: list[dict]) -> list[GapEntry]:
     gaps = []
     for item in items:
         status = item.get("lifecycle_status", "")
-        if status in ("failed", "blocked", "designed"):
+        last_run = item.get("last_run_status", "")
+        is_failed = status == "failed" or (status == "executed" and last_run == "failed")
+        is_blocked = status == "blocked" or (status == "executed" and last_run == "blocked")
+        is_uncovered = status in ("designed", "generated", "executable", "drafted", "contract_verified")
+        if is_failed or is_blocked or is_uncovered:
             gaps.append(GapEntry(
                 coverage_id=item.get("coverage_id", ""),
                 capability=item.get("capability", ""),
@@ -219,12 +235,25 @@ def generate_settlement_from_manifest(
     """
     p = Path(manifest_path)
     data = _load_manifest(p)
-    items = data.get("items", [])
-    feature_id = data.get("feature_id", "")
+    items = (
+        data.get("api_coverage_manifest", {}).get("items", [])
+        or data.get("e2e_coverage_manifest", {}).get("items", [])
+        or data.get("items", [])
+    )
+    feature_id = (
+        data.get("api_coverage_manifest", {}).get("feature_id", "")
+        or data.get("e2e_coverage_manifest", {}).get("prototype_id", "")
+        or data.get("feature_id", "")
+    )
 
     # If no verdict_report provided, compute from manifest
+    run_id = (
+        data.get("api_coverage_manifest", {}).get("run_id")
+        or data.get("e2e_coverage_manifest", {}).get("run_id")
+        or data.get("run_id")
+    )
     if verdict_report is None:
-        verdict_report = verify(items, run_id=data.get("run_id"))
+        verdict_report = verify(items, run_id=run_id)
 
     report = generate_settlement(items, verdict_report, chain=chain, feature_id=feature_id)
 

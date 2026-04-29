@@ -1,0 +1,62 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "ll-dev-feat-to-ui execution evidence",
+  "type": "object",
+  "required": [
+    "skill_id",
+    "run_id",
+    "role",
+    "inputs",
+    "outputs",
+    "commands_run",
+    "structural_results",
+    "key_decisions",
+    "uncertainties"
+  ],
+  "properties": {
+    "skill_id": {
+      "type": "string"
+    },
+    "run_id": {
+      "type": "string"
+    },
+    "role": {
+      "type": "string",
+      "const": "executor"
+    },
+    "inputs": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "outputs": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "commands_run": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "structural_results": {
+      "type": "object"
+    },
+    "key_decisions": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "uncertainties": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    }
+  },
+  "additionalProperties": true
+}

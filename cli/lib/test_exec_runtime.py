@@ -23,6 +23,12 @@ SKILL_CONFIG = {
         "execution_modality": "web_e2e",
         "required_env_fields": ("base_url", "browser"),
     },
+    "test-exec-api": {
+        "skill_ref": "skill.qa.test_exec_api",
+        "runner_skill_ref": "skill.runner.test_api",
+        "execution_modality": "api",
+        "required_env_fields": ("base_url",),
+    },
     "test-exec-cli": {
         "skill_ref": "skill.qa.test_exec_cli",
         "runner_skill_ref": "skill.runner.test_cli",

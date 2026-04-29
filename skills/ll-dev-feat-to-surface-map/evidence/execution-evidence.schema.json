@@ -1,0 +1,14 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "surface-map execution evidence",
+  "type": "object",
+  "required": ["workflow_key", "run_id", "commands", "artifacts"],
+  "properties": {
+    "workflow_key": { "type": "string" },
+    "run_id": { "type": "string" },
+    "commands": { "type": "array", "items": { "type": "string" } },
+    "artifacts": { "type": "array", "items": { "type": "string" } },
+    "generated_at": { "type": "string" }
+  },
+  "additionalProperties": true
+}

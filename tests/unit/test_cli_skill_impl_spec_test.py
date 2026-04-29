@@ -16,10 +16,8 @@ def write_json(path: Path, payload: dict) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
 
-
 def read_json(path: Path) -> dict:
     return json.loads(path.read_text(encoding="utf-8"))
-
 
 def write_yaml(path: Path, text: str) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -83,37 +81,24 @@ class TestImplSpecSkillRuntime(SkillRuntimeHarness):
             "impl-spec-test-report.json": {"artifact_type": "impl_spec_test_report"},
             "semantic-review.json": {"artifacts": ["IMPL", "FEAT", "TECH"]},
             "system-views.json": {"functional_chain": {}, "user_journey": {}},
-            "logic-risk-inventory.json": {
-                "items": [
-                    {"id": "logic-state-001", "severity": "high", "title": "completion state and guard can diverge"},
-                    {"id": "logic-state-002", "severity": "medium", "title": "state transition is not explicitly reversible"},
-                ]
-            },
-            "ux-risk-inventory.json": {
-                "items": [
-                    {"id": "ux-friction-001", "severity": "medium", "title": "deferred device entry may not expose a clear skip affordance"},
-                ]
-            },
-            "ux-improvement-inventory.json": {
-                "items": [
-                    {"id": "ux-improve-001", "priority": "opportunity", "title": "surface deferred device entry earlier"},
-                ]
-            },
+            "logic-risk-inventory.json": {"items": [
+                {"id": "logic-state-001", "severity": "high", "title": "completion state and guard can diverge"},
+                {"id": "logic-state-002", "severity": "medium", "title": "state transition is not explicitly reversible"},
+            ]},
+            "ux-risk-inventory.json": {"items": [
+                {"id": "ux-friction-001", "severity": "medium", "title": "deferred device entry may not expose a clear skip affordance"},
+            ]},
+            "ux-improvement-inventory.json": {"items": [
+                {"id": "ux-improve-001", "priority": "opportunity", "title": "surface deferred device entry earlier"},
+            ]},
             "journey-simulation.json": {
                 "personas": ["first_time_user", "high_risk_user", "returning_user"],
                 "scenarios": ["invalid_input", "network_failure", "device_finalize_failure"],
             },
-            "state-invariant-check.json": {
-                "invariants": ["profile_ready implies homepage_entry_allowed"],
-                "violations": [],
-            },
-            "cross-artifact-trace.json": {
-                "trace": [{"from": "FEAT", "to": "IMPL"}, {"from": "TECH", "to": "TESTSET"}],
-            },
+            "state-invariant-check.json": {"invariants": ["profile_ready implies homepage_entry_allowed"], "violations": []},
+            "cross-artifact-trace.json": {"trace": [{"from": "FEAT", "to": "IMPL"}, {"from": "TECH", "to": "TESTSET"}]},
             "open-questions.json": ["Should deferred device entry be skip-first or continue-first?"],
-            "false-negative-challenge.json": {
-                "challenges": ["happy-path-only review would miss recovery coverage gaps"],
-            },
+            "false-negative-challenge.json": {"challenges": ["happy-path-only review would miss recovery coverage gaps"]},
             "dimension-reviews.json": {
                 "functional_logic": {"score": 8, "coverage_confidence": 0.9},
                 "data_modeling": {"score": 8, "coverage_confidence": 0.9},
@@ -123,29 +108,22 @@ class TestImplSpecSkillRuntime(SkillRuntimeHarness):
                 "implementation_executability": {"score": 8, "coverage_confidence": 0.9},
                 "testability": {"score": 8, "coverage_confidence": 0.9},
                 "migration_compatibility": {"score": 8, "coverage_confidence": 0.9},
+                "semantic_stability": {
+                    "checked": True,
+                    "frz_refs": [],
+                    "semantic_drift": {"has_drift": False, "drift_results": [], "classification": "stable"},
+                    "verdict": "pass",
+                },
             },
             "review-coverage.json": {
                 "status": review_coverage_status,
                 "counterexample_gap_dimensions": [] if review_coverage_status != "insufficient" else ["data_modeling"],
             },
-            "impl-spec-test-defects.json": {
-                "blocking_issues": [],
-                "high_priority_issues": [],
-                "normal_issues": [],
-            },
-            "impl-spec-test-gate-subject.json": {
-                "artifact_type": "implementation_readiness_gate_subject",
-                "verdict": verdict,
-            },
-            "implementation-readiness-intake.json": {
-                "main_test_object_ref": "ssot/impl/IMPL-IMPL-SPEC-001__demo.md",
-                "authority_bindings": [],
-            },
+            "impl-spec-test-defects.json": {"blocking_issues": [], "high_priority_issues": [], "normal_issues": []},
+            "impl-spec-test-gate-subject.json": {"artifact_type": "implementation_readiness_gate_subject", "verdict": verdict},
+            "implementation-readiness-intake.json": {"main_test_object_ref": "ssot/impl/IMPL-IMPL-SPEC-001__demo.md", "authority_bindings": []},
             "cross-artifact-issue-inventory.json": {"summary": {"blocking": 0, "high_priority": 0, "normal": 0}},
-            "implementation-readiness-verdict.json": {
-                "verdict": verdict,
-                "implementation_readiness": "partial" if verdict != "pass" else "ready",
-            },
+            "implementation-readiness-verdict.json": {"verdict": verdict, "implementation_readiness": "partial" if verdict != "pass" else "ready"},
             "execution-evidence.json": {"request_id": "phase2", "execution_mode": {"mode": "deep_spec_testing"}},
             "supervision-evidence.json": {"authority_bindings": [], "issue_counts": {}, "review_coverage": {}, "dimension_reviews": {}},
             "repair-patch-suggestions.md": "# Repair Suggestions\n",
@@ -458,14 +436,10 @@ class TestImplSpecSkillRuntime(SkillRuntimeHarness):
             + "\n",
         )
         return {
-            "impl_ref": impl_id,
-            "impl_package_ref": impl_id,
-            "feat_ref": feat_id,
-            "tech_ref": tech_id,
-            "arch_ref": "ARCH-IMPL-SPEC-001",
-            "api_ref": "API-IMPL-SPEC-001",
-            "ui_refs": [ui_id],
-            "testset_refs": [testset_id],
+            "impl_ref": impl_id, "impl_package_ref": impl_id,
+            "feat_ref": feat_id, "tech_ref": tech_id,
+            "arch_ref": "ARCH-IMPL-SPEC-001", "api_ref": "API-IMPL-SPEC-001",
+            "ui_refs": [ui_id], "testset_refs": [testset_id],
         }
 
     def assert_ref_set(self, payload: dict, keys: list[str]) -> None:

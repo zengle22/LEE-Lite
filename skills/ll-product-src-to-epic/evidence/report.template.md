@@ -1,0 +1,33 @@
+# ll-product-src-to-epic Review Report
+
+## Run Summary
+
+- run_id:
+- workflow:
+- upstream_skill:
+- downstream_workflow:
+- input_ref:
+- output_ref:
+
+## Structural Validation
+
+- input:
+- output:
+
+## Execution Evidence
+
+- commands:
+- decisions:
+- uncertainties:
+
+## Supervision Evidence
+
+- findings:
+- decision:
+- reason:
+
+## Freeze Decision
+
+- status:
+- gate_results:
+- epic_freeze_ref:
