@@ -105,11 +105,14 @@ def _compute_confidence(manifest_items: list[dict]) -> float:
     """
     executed = [
         item for item in manifest_items
-        if item.get("lifecycle_status") in ("passed", "failed", "blocked")
+        if item.get("lifecycle_status") in ("passed", "failed", "blocked", "executed")
     ]
     if not executed:
         return 0.0
-    with_refs = sum(1 for item in executed if item.get("evidence_refs"))
+    with_refs = sum(
+        1 for item in executed
+        if item.get("evidence_refs")
+    )
     return with_refs / len(executed)
 
 
@@ -146,13 +149,14 @@ def _compute_flow_metrics(items: list[dict], is_main: bool) -> FlowMetrics:
     else:
         executed = [
             i for i in items
-            if i.get("lifecycle_status") in ("passed", "failed", "blocked")
+            if i.get("lifecycle_status") in ("passed", "failed", "blocked", "executed")
         ]
         coverage = len(executed) / total
 
     failures = sum(
         1 for i in items
         if i.get("lifecycle_status") == "failed"
+        or (i.get("lifecycle_status") == "executed" and i.get("last_run_status") == "failed")
     )
 
     status = _determine_flow_verdict(coverage, failures, is_main)
@@ -228,8 +232,16 @@ def verify_from_manifest_file(manifest_path: str | Path) -> VerdictReport:
     with open(p, encoding="utf-8") as f:
         data = yaml.safe_load(f) or {}
 
-    items = data.get("items", [])
-    run_id = data.get("run_id")
+    items = (
+        data.get("api_coverage_manifest", {}).get("items", [])
+        or data.get("e2e_coverage_manifest", {}).get("items", [])
+        or data.get("items", [])
+    )
+    run_id = (
+        data.get("api_coverage_manifest", {}).get("run_id")
+        or data.get("e2e_coverage_manifest", {}).get("run_id")
+        or data.get("run_id")
+    )
 
     return verify(items, run_id=run_id)
 
