@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import uuid
 from datetime import datetime, timezone
+from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
@@ -161,6 +162,7 @@ def run_spec_test(
     coverage_mode: str = "smoke",
     resume: bool = False,
     resume_from: str | None = None,
+    on_complete: Callable[..., None] | None = None,
 ) -> StepResult:
     """End-to-end orchestration: env → adapter → exec → manifest update.
 
@@ -293,6 +295,12 @@ def run_spec_test(
     # -------------------------------------------------------------------------
     if manifest_items:
         update_manifest(workspace_root, manifest_items, run_id)
+
+    # -------------------------------------------------------------------------
+    # Step 4.5: on_complete callback (Phase 25 integration point)
+    # -------------------------------------------------------------------------
+    if on_complete is not None:
+        on_complete(workspace_root, feat_ref, proto_ref, run_id, case_results)
 
     # -------------------------------------------------------------------------
     # Return StepResult for Step 4 data passing
