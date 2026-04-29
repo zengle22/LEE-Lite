@@ -179,7 +179,7 @@ def _raw_to_src_package_dir(ctx: CommandContext, candidate_ref: str) -> Path | N
 def _ui_spec_package_dir(ctx: CommandContext, candidate_ref: str, machine_ssot_ref: str) -> tuple[Path | None, dict[str, Any]]:
     if machine_ssot_ref:
         machine_path = canonical_to_path(machine_ssot_ref, ctx.workspace_root)
-        if machine_path.exists():
+        if machine_path.exists() and machine_path.suffix.lower() == ".json":
             return machine_path.parent, load_json(machine_path)
     if not candidate_ref:
         return None, {}
@@ -187,11 +187,14 @@ def _ui_spec_package_dir(ctx: CommandContext, candidate_ref: str, machine_ssot_r
         record = resolve_registry_record(ctx.workspace_root, candidate_ref)
     except CommandError:
         return None, {}
+    trace = record.get("trace", {})
+    if str(trace.get("workflow_key") or "").strip() != "dev.proto-to-ui":
+        return None, {}
     managed_artifact_ref = str(record.get("managed_artifact_ref") or "").strip()
     if not managed_artifact_ref:
         return None, {}
     path = canonical_to_path(managed_artifact_ref, ctx.workspace_root)
-    if not path.exists():
+    if not path.exists() or path.suffix.lower() != ".json":
         return None, {}
     return path.parent, load_json(path)
 
