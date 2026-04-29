@@ -122,7 +122,7 @@ def changed_with_prefix(changed_files: list[str], prefix: str) -> list[str]:
 
 
 def run_pytest(test_paths: list[str], report_path: Path) -> tuple[int, dict[str, Any]]:
-    command = [sys.executable, "-m", "pytest", *test_paths]
+    command = [sys.executable, "-m", "pytest", "--no-cov", *test_paths]
     result = subprocess.run(
         command,
         cwd=str(ROOT),

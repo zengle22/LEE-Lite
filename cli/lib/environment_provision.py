@@ -174,6 +174,10 @@ def provision_environment(
     if modality == "api" and resolved_api_url:
         env_doc["api_base_url"] = resolved_api_url
 
+    # Add command_entry for API chain so test_exec_runtime has a runner
+    if modality == "api":
+        env_doc["command_entry"] = f"python scripts/api_spec_runner.py"
+
     # Remove None values
     env_doc = {k: v for k, v in env_doc.items() if v is not None}
 

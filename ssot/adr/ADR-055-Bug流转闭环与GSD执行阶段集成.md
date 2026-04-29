@@ -469,6 +469,117 @@ def run_spec_test(..., verify_bugs: bool = False, verify_mode: str = "targeted")
 | OQ-5 | Severity 分级标准（谁定？ settlement 自动定还是人工定？） | 待决策 | Phase 1 review |
 | OQ-6 | `ll-bug-remediate` 是否支持 `--auto-close` 跳过人工确认？ | 待决策 | Phase 3 review（默认禁止，可选开启） |
 
+### 5.1 开放问题展开与推荐方案
+
+#### OQ-2：`detected` 状态 bug 的自动清理策略
+
+**问题背景**：`detected` 是 test-run 的原始观察，可能包含 flaky test、环境波动、spec 漂移等**假失败**。如果无限期保留，bug-registry 会持续膨胀，产生"幽灵 bug"噪音。
+
+**可选策略对比**：
+
+| 策略 | 机制 | 优点 | 缺点 |
+|------|------|------|------|
+| A. 时间淘汰制 | 30 天无更新的 `detected` 自动删除 | 简单可预测 | 可能误删间歇性 bug；时间阈值任意 |
+| B. Gate 结果联动 | Gate PASS 后，本次 run 的 `detected` 降级为 `archived` | 与验收层逻辑一致，只保留经 gate 确认的失败 | 需要 gate 明确关联到具体 run |
+| C. 复现计数制 | 连续 N 次 test-run 未复现 → 自动标记 `not_reproducible` | 基于证据而非时间，更可靠 | 需要维护复现计数器 |
+| D. 保留最近 K 次 | 只保留最近 3 次 test-run 的 `detected` | 控制 registry 大小 | 可能丢失历史上下文 |
+
+**推荐方案：B + C 混合**
+
+1. **主路径**：每次 gate-evaluate 产出 `PASS` 后，系统扫描本次关联的 `detected` bug。若某个 `detected` bug 的 case_id 在 gap_list 中**不存在**（即 settlement 认为它不构成阻塞），自动将其降级为 `archived`（软删除，保留记录但不再出现在活跃视图）。
+2. **兜底路径**：若某个 `detected` bug 连续 **3 次** gate-evaluate 都未进入 gap_list（即 3 次都被 settlement 过滤），自动流转为 `not_reproducible`（终止状态），并保留 `auto_marked: true` 标记供审计。
+3. **保护规则**：`archived`/`not_reproducible` 的 bug 若在新一轮 test-run 中再次失败，应**自动复活**为 `detected`（恢复跟踪），而非创建重复记录。
+
+**理由**：`detected` 的价值在于等待 gate 的确认。如果 gate 已经多次否定它的严重性，继续保留只会增加噪音。3 次是一个经验平衡点——足以排除偶发 flaky，又不会过快丢弃间歇性问题。
+
+---
+
+#### OQ-4：`not_reproducible` 的"连续 N 次未复现"阈值
+
+**问题背景**：`not_reproducible` 是终止状态，意味着"我们尝试复现但失败了，暂不考虑修复"。阈值 N 太小会导致 flaky test 被误标为终结，太大则 registry 清理不及时。
+
+**可选阈值对比**：
+
+| N 值 | 场景 | 风险 |
+|------|------|------|
+| N=2 | 敏捷清理 | 极易误标，很多间歇性 bug 2 次未复现很正常 |
+| **N=3** | **平衡** | **3 次独立 test-run 都未触发，偶发概率已低于 12.5%（假设 flaky 率 50%）** |
+| N=5 | 保守策略 | 清理慢，registry 堆积；适合高稳定性要求的金融/医疗场景 |
+| 动态 N | smoke 用 3，full-suite 用 5 | 复杂度高，不同 mode 的 test-run 频次不同，难以对齐计数 |
+
+**推荐方案：N = 3（全局固定）**
+
+**理由**：
+1. **统计直觉**：假设一个失败是 flaky（50% 概率复现），连续 3 次未复现的概率是 12.5%，已足够低。
+2. **开发节奏**：通常一个 feature 的开发-测试周期内会经历至少 3 次 test-run（初测 → 修复后复测 → 最终验证），3 次覆盖了一个完整的反馈循环。
+3. **简单性**：动态阈值增加了理解和维护成本，当前项目没有高稳定性合规要求，不需要为此增加复杂度。
+
+**例外**：若 bug 被标记为 `critical` severity，则**永不自动标记为 `not_reproducible`**，必须由开发者人工判定。这是安全网。
+
+---
+
+#### OQ-5：Severity 分级标准（谁定？）
+
+**问题背景**：Severity 决定 bug 是否独立 phase（critical/high 默认独立）、修复优先级、以及是否受 `not_reproducible` 自动清理保护。分级必须有一致的标准，否则开发者会频繁手动调整。
+
+**可选方案对比**：
+
+| 方案 | 机制 | 优点 | 缺点 |
+|------|------|------|------|
+| A. 全自动 | settlement/gate 根据断言失败类型、影响 API 数量自动定级 | 无人工摩擦，速度快 | 缺乏业务上下文，可能定级不准（如边缘功能但 contract violation 被标 critical） |
+| B. 全人工 | test-run 后开发者逐个 review 并手动标记 | 最准确 | 高摩擦，开发者可能跳过或随意标记 |
+| C. 系统初分 + 人工仲裁 | 系统根据规则给出初分，开发者在 `ll-bug-remediate` 前可调整 | 兼顾效率和准确性 | 需要实现仲裁 UI/CLI |
+
+**推荐方案：C（系统初分 + 人工仲裁）**
+
+**初分规则（v1）**：
+
+| gap_type | 附加条件 | 初分 severity | 说明 |
+|----------|----------|---------------|------|
+| `contract_violation` | 任意 | **critical** | API 契约被破坏（如 HTTP 200 返回了非法 JSON），影响所有消费者 |
+| `functional_failure` | core API / 主流程 | **high** | 阻断核心功能，用户体验严重受损 |
+| `functional_failure` | 边缘功能 / 次要流程 | **medium** | 功能异常但不阻断主流程 |
+| `coverage_gap` | 任意 | **low** | 测试覆盖不足，功能本身可能正常 |
+| `performance_regression` | P95 延迟增加 > 50% | **high** | 显著性能劣化 |
+| `performance_regression` | P95 延迟增加 20%~50% | **medium** | 可接受范围内但需关注 |
+| `env_flake` | 任意 | **无** | 不赋值 severity，不作为修复对象 |
+
+**仲裁机制**：
+- 系统初分后写入 `bug-registry.yaml` 的 `severity` + `severity_source: auto`
+- 开发者运行 `ll-bug-review --feat-ref {ref}` 查看初分列表
+- 开发者可运行 `ll-bug-transition --bug-id {id} --severity {level} --reason "..."` 调整
+- 人工调整后的 `severity_source` 变为 `manual`，优先于初分规则
+
+**理由**：完全自动缺乏业务上下文（如一个边缘功能的 contract violation 可能实际影响很小），完全人工则高摩擦。初分规则覆盖了 80% 的常见场景，人工仲裁只处理 20% 的边界情况，是成本-收益最优解。
+
+---
+
+#### OQ-6：`ll-bug-remediate` 是否支持 `--auto-close` 跳过人工确认？
+
+**问题背景**：当前设计要求 `re_verify_passed → closed` 必须经过开发者人工确认（`ll-bug-close`），这是安全网。但在 CI/CD 管道或高频迭代场景下，人工确认可能成为瓶颈。
+
+**可选方案对比**：
+
+| 方案 | 机制 | 优点 | 缺点 |
+|------|------|------|------|
+| A. 默认禁止，可选开启 | `--auto-close` flag 或环境变量开启 | 安全默认，CI 场景可自动化 | 需要额外配置 |
+| B. 默认允许，可选关闭 | 自动关闭，提供 `--manual-close` flag | 低摩擦 | 可能误关闭 critical bug，风险高 |
+| C. Severity 分级策略 | medium/low 自动关闭，critical/high 人工确认 | 按风险区分 | 逻辑复杂，medium 被误关闭仍然有害 |
+| D. 永不支持 | 坚持 100% 人工确认 | 最安全 | CI 管道无法全自动 |
+
+**推荐方案：A（默认禁止，可选开启）**
+
+**具体设计**：
+1. **默认行为**：`--verify-bugs` 通过后，bug 状态变为 `re_verify_passed`，终端输出提示：`Bug {id} verified. Run 'll-bug-close --bug-id {id}' to close.`
+2. **显式开启**：开发者或 CI 脚本可添加 `--auto-close` flag：`ll-bug-remediate --feat-ref {ref} --auto-close`
+3. **CI 场景**：在 GitHub Actions / CI 管道中，通过环境变量 `BUG_AUTO_CLOSE=1` 开启，避免每次加 flag
+4. **审计保护**：即使 auto-close，仍记录 `closed_by: auto-close`，保留 `closed_at`，可追溯
+
+**理由**：
+- 默认人工确认是最安全的底线。ADR-055 的核心价值是"不丢 bug"，而不是"最快关闭 bug"。
+- 但在 CI/CD 中（尤其是 nightly build 或 PR check），人工介入不现实。提供显式开关让团队根据成熟度自行选择。
+- 方案 C 的 severity 分级看似聪明，实则制造了"medium bug 可以随便关闭"的心理暗示，长期会积累技术债务。
+
 ---
 
 ## 6. 验收标准

@@ -1,0 +1,12 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "impl-spec-test supervision evidence",
+  "type": "object",
+  "required": ["authority_bindings", "issue_counts", "review_coverage", "dimension_reviews"],
+  "properties": {
+    "authority_bindings": { "type": "array" },
+    "issue_counts": { "type": "object" },
+    "review_coverage": { "type": "object" },
+    "dimension_reviews": { "type": "object" }
+  }
+}

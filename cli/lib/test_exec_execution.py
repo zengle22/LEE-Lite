@@ -52,6 +52,8 @@ def _execution_env(case: dict[str, Any], environment: dict[str, Any]) -> dict[st
         extra["LEE_BASE_URL"] = str(environment["base_url"])
     if environment.get("browser"):
         extra["LEE_BROWSER"] = str(environment["browser"])
+    if environment.get("source_feat_ref"):
+        extra["LEE_FEAT_REF"] = str(environment["source_feat_ref"])
     return extra
 
 
@@ -241,7 +243,7 @@ def _coverage_expansion_targets(workspace_root: Path, refs: dict[str, str]) -> l
     ranked_files.sort(key=lambda item: (-item[0], -item[1], item[2], item[3]))
     targets: list[str] = []
     for _, _, _, _, file_info in ranked_files:
-        file_slug = slugify(Path(file_info["file_name"]).stem) or "coverage-file"
+        file_slug = slugify(Path(str(file_info["file_name"]).replace("\\", "/")).stem) or "coverage-file"
         if branch_coverage_enabled:
             for branch in file_info["missing_branches"][:2]:
                 branch_slug = slugify(branch.replace("->", " to ")) or "branch"

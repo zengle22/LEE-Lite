@@ -1,0 +1,15 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "surface-map supervision evidence",
+  "type": "object",
+  "required": ["workflow_key", "run_id", "reviewed_at", "reviewer"],
+  "properties": {
+    "workflow_key": { "type": "string" },
+    "run_id": { "type": "string" },
+    "reviewed_at": { "type": "string" },
+    "reviewer": { "type": "string" },
+    "decision": { "type": "string" },
+    "notes": { "type": "array", "items": { "type": "string" } }
+  },
+  "additionalProperties": true
+}

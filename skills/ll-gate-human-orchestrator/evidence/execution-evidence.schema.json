@@ -1,0 +1,15 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "required": ["skill_id", "run_id", "role", "inputs", "outputs", "commands_run", "structural_results"],
+  "properties": {
+    "skill_id": {"type": "string"},
+    "run_id": {"type": "string"},
+    "role": {"type": "string"},
+    "inputs": {"type": "array", "items": {"type": "string"}},
+    "outputs": {"type": "array", "items": {"type": "string"}},
+    "commands_run": {"type": "array", "items": {"type": "string"}},
+    "structural_results": {"type": "object"}
+  },
+  "additionalProperties": true
+}

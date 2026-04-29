@@ -174,6 +174,7 @@ def _skill_handler(ctx: CommandContext):
         })
 
         return "OK", f"governed qa-test-run completed", {
+            "canonical_path": result.candidate_path or f"artifacts/active/qa/candidates/{result.run_id}.json",
             "run_id": result.run_id,
             "executed_count": len(result.case_results),
             "manifest_items_count": len(result.manifest_items),

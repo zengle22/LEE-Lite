@@ -1,0 +1,1 @@
+{"type": "object", "required": ["response_ref", "trace", "execution_status"], "properties": {"response_ref": {"type": "string"}, "trace": {"type": "object"}, "execution_status": {"enum": ["success", "partial", "failed"]}, "output_artifacts": {"type": "array", "items": {"type": "string"}}}}

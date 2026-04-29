@@ -1,0 +1,57 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "ll-product-feat-to-tech supervision evidence",
+  "type": "object",
+  "required": [
+    "skill_id",
+    "run_id",
+    "role",
+    "reviewed_inputs",
+    "reviewed_outputs",
+    "semantic_findings",
+    "decision",
+    "reason"
+  ],
+  "properties": {
+    "skill_id": {
+      "type": "string"
+    },
+    "run_id": {
+      "type": "string"
+    },
+    "role": {
+      "type": "string",
+      "const": "supervisor"
+    },
+    "reviewed_inputs": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "reviewed_outputs": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "semantic_findings": {
+      "type": "array",
+      "items": {
+        "type": "object"
+      }
+    },
+    "decision": {
+      "type": "string",
+      "enum": [
+        "pass",
+        "revise",
+        "reject"
+      ]
+    },
+    "reason": {
+      "type": "string"
+    }
+  },
+  "additionalProperties": true
+}

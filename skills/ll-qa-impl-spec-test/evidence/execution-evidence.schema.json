@@ -1,0 +1,13 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "impl-spec-test execution evidence",
+  "type": "object",
+  "required": ["request_id", "execution_mode", "repo_context", "risk_profile", "refs"],
+  "properties": {
+    "request_id": { "type": "string" },
+    "execution_mode": { "type": "object" },
+    "repo_context": { "type": "object" },
+    "risk_profile": { "type": "object" },
+    "refs": { "type": "object" }
+  }
+}

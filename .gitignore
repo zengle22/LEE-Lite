@@ -19,6 +19,14 @@ new/
 # Python runtime residue.
 __pycache__/
 *.py[cod]
+.coverage
+
+# CI/runtime generated outputs
+tmp_code_size/
+tmp_diag/
+tmp_gov_out/
+ssot/environments/
+ssot/tests/.spec-adapter/
 
 # Local environment and machine files.
 .env
@@ -92,8 +100,8 @@ artifacts/reports/governance/spec-backport/*
 .project/*
 
 # Evidence outputs (runtime)
-evidence/
-evidence/*/
+/evidence/
+/evidence/*/
 
 # Keep CLI evidence command
 !cli/commands/evidence/__init__.py
