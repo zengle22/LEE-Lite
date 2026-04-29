@@ -2,10 +2,10 @@
 gsd_state_version: 1.0
 milestone: v2.3
 milestone_name: ADR-055 Bug 流转闭环与 GSD Execute-Phase 集成
-status: DEFINING_REQUIREMENTS
+status: ROADMAP_CREATED
 last_updated: "2026-04-29"
 progress:
-  total_phases: TBD
+  total_phases: 3
   completed_phases: 0
   total_plans: TBD
   completed_plans: 0
@@ -15,9 +15,9 @@ progress:
 # Project State
 
 **Project:** v2.3 ADR-055 Bug 流转闭环与 GSD Execute-Phase 集成
-**Status:** Defining requirements
+**Status:** Roadmap created, ready for phase planning
 **Core Value:** 建立 Bug 发现→验收确认→修复→再验证的完整流转机制，与 GSD execute-phase 无缝集成
-**Current focus:** 定义需求，准备 roadmap
+**Current focus:** Execute Phase 25 — Bug 注册表与状态机
 
 ## Accumulated Context from Previous Milestones
 
@@ -49,7 +49,13 @@ Delivered:
 
 ## Roadmap Summary
 
-Phase 25 TBD: ADR-055 Phase A — Bug 注册表与状态机. Awaiting requirements definition and roadmap creation.
+| Phase | Goal | Requirements | Status |
+|-------|------|-------------|--------|
+| 25 | Bug 注册表与状态机 | BUG-REG-01~03, BUG-PHASE-01~02, BUG-INTEG-01~02 | Pending |
+| 26 | 验收层集成 | GATE-REM-01~02, GATE-INTEG-01~02, PUSH-MODEL-01 | Pending |
+| 27 | GSD 闭环验证 | VERIFY-01~04, CLI-01~02, SHADOW-01, AUDIT-01, INTEG-TEST-01 | Pending |
+
+**Coverage:** 19/19 requirements mapped (100%)
 
 ## Phase 20 Results
 
@@ -161,9 +167,9 @@ Phase 25 TBD: ADR-055 Phase A — Bug 注册表与状态机. Awaiting requiremen
 
 - `.planning/PROJECT.md` — Project context (updated for v2.3)
 - `.planning/config.json` — Workflow preferences
-- `.planning/ROADMAP.md` — Phase structure (pending creation)
-- `.planning/REQUIREMENTS.md` — Requirements (pending creation)
+- `.planning/ROADMAP.md` — Phase structure (v2.3 roadmap created)
+- `.planning/REQUIREMENTS.md` — Requirements (19 v2.3 requirements defined)
 - `ssot/adr/ADR-055-Bug流转闭环与GSD执行阶段集成.md` — ADR (source of truth)
 
 ---
-*Last updated: 2026-04-29 — v2.3 milestone started, defining requirements*
+*Last updated: 2026-04-29 — v2.3 roadmap created, Phase 25-27 defined, ready for planning*
