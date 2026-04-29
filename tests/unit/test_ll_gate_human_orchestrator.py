@@ -1,6 +1,11 @@
 import json
+import sys
 import tempfile
 from pathlib import Path
+
+TESTS_UNIT = Path(__file__).resolve().parent
+if str(TESTS_UNIT) not in sys.path:
+    sys.path.insert(0, str(TESTS_UNIT))
 
 from gate_human_orchestrator_test_support import GateHumanOrchestratorTestSupport, ROOT
 

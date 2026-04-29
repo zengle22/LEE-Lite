@@ -123,6 +123,12 @@ class TestImplSpecSkillRuntime(SkillRuntimeHarness):
                 "implementation_executability": {"score": 8, "coverage_confidence": 0.9},
                 "testability": {"score": 8, "coverage_confidence": 0.9},
                 "migration_compatibility": {"score": 8, "coverage_confidence": 0.9},
+                "semantic_stability": {
+                    "checked": True,
+                    "frz_refs": [],
+                    "semantic_drift": {"has_drift": False, "drift_results": [], "classification": "stable"},
+                    "verdict": "pass",
+                },
             },
             "review-coverage.json": {
                 "status": review_coverage_status,

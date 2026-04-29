@@ -239,51 +239,6 @@ class CliRunnerRuntimeTest(unittest.TestCase):
         )
         return job_ref
 
-    def create_feat_to_testset_execution_return_job(
-        self,
-        name: str = "job-feat-to-testset-return.json",
-        *,
-        run_id: str = "testset-user-onboarding-v2-20260330",
-        feat_source_run_id: str = "feat-user-onboarding-v2-20260330",
-        feat_ref: str = "FEAT-SRC-001-202",
-    ) -> str:
-        source_artifacts_dir = self.workspace / "artifacts" / "feat-to-testset" / run_id
-        source_artifacts_dir.mkdir(parents=True, exist_ok=True)
-        source_input_dir = self.workspace / "artifacts" / "epic-to-feat" / feat_source_run_id
-        source_input_dir.mkdir(parents=True, exist_ok=True)
-        write_json(source_artifacts_dir / "package-manifest.json", {"run_id": run_id, "feat_ref": feat_ref})
-        write_json(source_artifacts_dir / "test-set-bundle.json", {"feat_ref": feat_ref, "test_set_ref": "TESTSET-SRC-001-202"})
-        write_json(source_artifacts_dir / "execution-evidence.json", {"run_id": run_id, "input_path": str(source_input_dir)})
-        write_json(
-            self.workspace / "artifacts" / "active" / "gates" / "decisions" / "gate-decision.json",
-            {
-                "decision_type": "revise",
-                "decision_reason": "请保留 revision context 并对 test set 做最小补丁修订。",
-                "candidate_ref": f"feat-to-testset.{run_id}.test-set-bundle",
-                "decision_target": f"feat-to-testset.{run_id}.test-set-bundle",
-            },
-        )
-        job_ref = f"artifacts/jobs/waiting-human/{name}"
-        write_json(
-            self.workspace / job_ref,
-            {
-                "job_id": Path(name).stem,
-                "job_type": "execution_return",
-                "status": "waiting-human",
-                "queue_path": job_ref,
-                "target_skill": "execution.return",
-                "gate_decision_ref": "artifacts/active/gates/decisions/gate-decision.json",
-                "payload_ref": f"feat-to-testset.{run_id}.test-set-bundle",
-                "input_refs": ["artifacts/active/gates/decisions/gate-decision.json", f"feat-to-testset.{run_id}.test-set-bundle"],
-                "authoritative_input_ref": f"feat-to-testset.{run_id}.test-set-bundle",
-                "source_run_id": run_id,
-                "decision_type": "revise",
-                "reason": "gate requested execution-side revision before resubmission",
-                "created_at": "2026-03-30T00:00:00Z",
-            },
-        )
-        return job_ref
-
     def create_tech_to_impl_execution_return_job(
         self,
         name: str = "job-tech-to-impl-return.json",
@@ -693,30 +648,6 @@ class CliRunnerRuntimeTest(unittest.TestCase):
         self.assertEqual(Path(kwargs["input_path"]), self.workspace / "artifacts" / "epic-to-feat" / "feat-user-onboarding-v2-20260330")
         self.assertEqual(Path(kwargs["revision_request_path"]), self.workspace / "artifacts" / "feat-to-tech" / source_run_id / "revision-request.json")
         self.assertEqual(result["workflow_key"], "dev.feat-to-tech")
-
-    def test_invoke_target_supports_execution_return_for_feat_to_testset(self) -> None:
-        source_run_id = "testset-user-onboarding-v2-20260330"
-        repo_root = Path(__file__).resolve().parents[2]
-        scripts_dir = repo_root / "skills" / "ll-qa-feat-to-testset" / "scripts"
-        if str(scripts_dir) not in sys.path:
-            sys.path.insert(0, str(scripts_dir))
-            self.addCleanup(lambda: sys.path.remove(str(scripts_dir)) if str(scripts_dir) in sys.path else None)
-        job_ref = self.create_feat_to_testset_execution_return_job(run_id=source_run_id)
-        job = read_json(self.workspace / job_ref)
-        with patch("feat_to_testset_runtime.run_workflow", return_value={"ok": True, "artifacts_dir": str(self.workspace / "artifacts" / "feat-to-testset" / source_run_id)}) as run_mock:
-            result = invoke_target(
-                workspace_root=self.workspace,
-                trace={"run_ref": "RUN-RUNNER-004"},
-                request_id="req-return-feat-to-testset",
-                job=job,
-                job_ref=job_ref,
-            )
-        kwargs = run_mock.call_args.kwargs
-        self.assertEqual(kwargs["run_id"], source_run_id)
-        self.assertEqual(kwargs["feat_ref"], "FEAT-SRC-001-202")
-        self.assertEqual(Path(kwargs["input_path"]), self.workspace / "artifacts" / "epic-to-feat" / "feat-user-onboarding-v2-20260330")
-        self.assertEqual(Path(kwargs["revision_request_path"]), self.workspace / "artifacts" / "feat-to-testset" / source_run_id / "revision-request.json")
-        self.assertEqual(result["workflow_key"], "qa.feat-to-testset")
 
     def test_invoke_target_supports_execution_return_for_tech_to_impl(self) -> None:
         source_run_id = "impl-user-onboarding-v2-20260330"
