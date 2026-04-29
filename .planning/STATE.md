@@ -171,5 +171,13 @@ Delivered:
 - `.planning/REQUIREMENTS.md` — Requirements (19 v2.3 requirements defined)
 - `ssot/adr/ADR-055-Bug流转闭环与GSD执行阶段集成.md` — ADR (source of truth)
 
+## Deferred Items
+
+Items acknowledged and deferred at v2.2.1 milestone close on 2026-04-29:
+
+| Category | Item | Status |
+|----------|------|--------|
+| planning | ADR-052 out-of-scope (FEAT-009-E, FEAT-009-A partial, FEAT-009-S) | pending — not scheduled in any milestone |
+
 ---
 *Last updated: 2026-04-29 — v2.3 roadmap created, Phase 25-27 defined, ready for planning*
