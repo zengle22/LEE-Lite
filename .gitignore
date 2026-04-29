@@ -8,6 +8,8 @@ cache/
 logs/
 debug/
 drafts/
+.ci-changed-files.txt
+.ci-base-ref.txt
 misc/
 stuff/
 backup/

@@ -234,12 +234,8 @@ class FeatToTechWorkflowTests(FeatToTechWorkflowHarness):
             tech_md = (artifacts_dir / "tech-spec.md").read_text(encoding="utf-8")
             arch_md = (artifacts_dir / "arch-design.md").read_text(encoding="utf-8")
             api_md = (artifacts_dir / "api-contract.md").read_text(encoding="utf-8")
-            executor_cli = json.loads(
-                (artifacts_dir / "_cli" / "tech-design-bundle-executor-commit.response.json").read_text(encoding="utf-8")
-            )
-            supervisor_cli = json.loads(
-                (artifacts_dir / "_cli" / "tech-design-bundle-supervisor-commit.response.json").read_text(encoding="utf-8")
-            )
+            executor_cli = json.loads((artifacts_dir / "_cli" / "tech-design-bundle-executor-commit.response.json").read_text(encoding="utf-8"))
+            supervisor_cli = json.loads((artifacts_dir / "_cli" / "tech-design-bundle-supervisor-commit.response.json").read_text(encoding="utf-8"))
             execution = json.loads((artifacts_dir / "execution-evidence.json").read_text(encoding="utf-8"))
 
             self.assertTrue((artifacts_dir / "tech-spec.md").exists())
@@ -410,17 +406,11 @@ class FeatToTechWorkflowTests(FeatToTechWorkflowHarness):
             revision_request_path.write_text(json.dumps(revision_request, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
 
             rerun = self.run_cmd(
-                "run",
-                "--input",
-                str(input_dir),
-                "--feat-ref",
-                "FEAT-SRC-001-REVISION",
-                "--repo-root",
-                str(repo_root),
-                "--run-id",
-                "tech-revision",
-                "--allow-update",
-                "--revision-request",
+                "run", "--input", str(input_dir),
+                "--feat-ref", "FEAT-SRC-001-REVISION",
+                "--repo-root", str(repo_root),
+                "--run-id", "tech-revision",
+                "--allow-update", "--revision-request",
                 str(revision_request_path),
             )
             self.assertEqual(rerun.returncode, 0, rerun.stderr)
@@ -1333,15 +1323,10 @@ class FeatToTechWorkflowTests(FeatToTechWorkflowHarness):
             )
 
             result = self.run_cmd(
-                "run",
-                "--input",
-                "formal.feat.feat-src-001-201",
-                "--feat-ref",
-                "FEAT-SRC-001-201",
-                "--repo-root",
-                str(repo_root),
-                "--run-id",
-                "tech-from-formal",
+                "run", "--input", "formal.feat.feat-src-001-201",
+                "--feat-ref", "FEAT-SRC-001-201",
+                "--repo-root", str(repo_root),
+                "--run-id", "tech-from-formal",
             )
             self.assertEqual(result.returncode, 0, result.stderr)
             payload = json.loads(result.stdout)
@@ -1353,13 +1338,9 @@ class FeatToTechWorkflowTests(FeatToTechWorkflowHarness):
             )
 
             validate = self.run_cmd(
-                "validate-input",
-                "--input",
-                "formal.feat.feat-src-001-201",
-                "--feat-ref",
-                "FEAT-SRC-001-201",
-                "--repo-root",
-                str(repo_root),
+                "validate-input", "--input", "formal.feat.feat-src-001-201",
+                "--feat-ref", "FEAT-SRC-001-201",
+                "--repo-root", str(repo_root),
             )
             self.assertEqual(validate.returncode, 0, validate.stderr)
 

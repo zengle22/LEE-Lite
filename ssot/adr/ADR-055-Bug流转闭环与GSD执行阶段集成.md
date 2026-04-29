@@ -11,6 +11,10 @@
 > **Audience**: AI 实施代理、QA 技能编排层、GSD 执行代理、开发者
 > **Depends On**: ADR-047 (双链测试架构), ADR-054 (实施轴桥接与执行闭环), ADR-053 (需求轴统一入口)
 > **Supersedes**: 无
+>
+> 状态：Draft
+> 日期：2026-04-28
+> 相关 ADR：ADR-047, ADR-053, ADR-054
 
 ---
 
@@ -410,6 +414,70 @@ def run_spec_test(..., verify_bugs: bool = False, verify_mode: str = "targeted")
 1. **gate-evaluate → 开发者**：gate 产出 FAIL 后，系统在终端输出 `⚠️ Gate FAILED: X bugs opened. Run 'll-bug-remediate --feat-ref {ref}' to generate fix phases.` 开发者**主动决定是否立即修复**。
 2. **re_verify_passed → closed**：系统输出 `✅ Bug {id} verified. Run 'll-bug-close --bug-id {id}' to close.` 开发者**确认无误后手动关闭**，防止自动化误杀。
 3. **detected → wont_fix / duplicate**：开发者在 review bug-registry 后，使用 `ll-bug-transition --bug-id {id} --to wont_fix --reason "..."` 人工标记。
+
+### 2.9 执行主体矩阵：LLM / 脚本 / 人类
+
+以下按 Bug 生命周期逐项标明执行主体，消除"这步是 AI 做还是脚本做"的模糊地带。
+
+#### 阶段 1：测试发现（Test Discovery）
+
+| 功能 / 动作 | 执行者 | 说明 |
+|-------------|--------|------|
+| 执行测试用例（API/E2E） | **Python 脚本** | `test_exec_execution.py` 调用 pytest / Playwright，纯工具执行 |
+| 聚合 case_results | **Python 脚本** | `test_exec_reporting.py` 按 passed/failed/blocked 分类 |
+| 提取 failed case 列表 | **Python 脚本** | `build_bug_bundle()` 过滤 `status=failed` |
+| 生成 human-readable 诊断信息 | **LLM** | 分析 stdout/stderr/assertion trace，生成 `diagnostics[]` 描述 |
+| 写入 bug-registry.yaml | **Python 脚本** | `sync_bugs_to_registry()` 持久化到 `artifacts/bugs/` |
+| **状态流转**：(无) → `detected` | **Python 脚本** | 自动，test-run 完成后触发 |
+
+#### 阶段 2：验收确认（Acceptance）
+
+| 功能 / 动作 | 执行者 | 说明 |
+|-------------|--------|------|
+| 统计 gap_list / waiver_list | **Python 脚本** | settlement 聚合执行结果与豁免清单 |
+| 根因分类（gap_type） | **LLM** | `independent_verifier` 分析失败模式，判定是 `functional_failure` / `env_flake` / `contract_violation` 等 |
+| 判定是否为 flaky / 环境噪音 | **LLM** | 结合历史 run 数据与日志模式做判断 |
+| Gate 决策（FAIL / PASS） | **LLM** | `gate-evaluate` 综合 settlement、waivers、anti-laziness checks 产出 verdict |
+| **状态流转**：`detected` → `open` | **Python 脚本** | `gate_remediation.py` 读取 gate FAIL verdict 后自动提升 |
+
+#### 阶段 3：修复触发（Remediation Trigger）
+
+| 功能 / 动作 | 执行者 | 说明 |
+|-------------|--------|------|
+| 决定是否生成 fix phase | **人类** | 开发者阅读 gate 输出后，**主动**运行 `ll-bug-remediate`（Pull Model） |
+| 选择单 bug 还是批量模式 | **人类** | 开发者添加 `--batch` 或 `--severity` 参数 |
+| 生成 phase 目录结构 | **Python 脚本** | `bug_phase_generator.py` 创建 `{N}-bug-fix-*/` 目录 |
+| 生成 `{N}-CONTEXT.md` | **LLM** | 读取 bug 证据、代码引用、相关 ADR，生成修复上下文 |
+| 生成 `{N}-01-PLAN.md` | **LLM** | 根据 bug 类型、severity、gap_type 生成 6 个标准 tasks |
+| 生成 `tests/defect/failure-cases/BUG-{id}.md` | **LLM** | 基于证据生成失败案例文档 |
+
+#### 阶段 4：修复执行（Fix Implementation）
+
+| 功能 / 动作 | 执行者 | 说明 |
+|-------------|--------|------|
+| Task 1: Root Cause Analysis | **人类 + LLM** | 人类主导判断，LLM 辅助分析代码路径和日志 |
+| Task 2: Implement Fix | **LLM** | `/gsd-execute-phase` 的 `auto` task，生成修复代码 |
+| Task 3: Update Bug Status → `fixed` | **Python 脚本** | `transition_bug_status()` 在 commit 后自动触发 |
+| 代码审阅与合并 | **人类** | 开发者 review LLM 生成的修复，确认后合并 |
+
+#### 阶段 5：再验证（Re-verification）
+
+| 功能 / 动作 | 执行者 | 说明 |
+|-------------|--------|------|
+| 筛选 fixed bug 关联的 coverage_ids | **Python 脚本** | `get_bugs_for_re_verify()` 读取 registry |
+| 运行 targeted / full-suite 测试 | **Python 脚本** | `--verify-bugs` / `--verify-mode=full-suite` |
+| 断言比对（actual vs expected）| **Python 脚本** | 测试框架自动判定 pass/fail |
+| **状态流转**：`fixed` → `re_verify_passed` | **Python 脚本** | 验证通过，自动流转 |
+| **状态流转**：`fixed` → `open`（回退）| **Python 脚本** | 验证失败，自动回退 |
+
+#### 阶段 6：关闭（Closure）
+
+| 功能 / 动作 | 执行者 | 说明 |
+|-------------|--------|------|
+| 审阅验证结果并确认关闭 | **人类** | 开发者确认修复无后遗症后运行 `ll-bug-close` |
+| **状态流转**：`re_verify_passed` → `closed` | **Python 脚本** | 开发者触发后自动更新 |
+| 更新 failure-case 文档（记录根因与修复）| **人类** | Task 6 由开发者补充修复方法和根因总结 |
+| 标记 `wont_fix` / `duplicate` / `not_reproducible` | **混合** | `wont_fix`/`duplicate` **人类**标记；`not_reproducible` **脚本**自动标记（连续 3 次未复现） |
 
 ---
 

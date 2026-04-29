@@ -28,12 +28,10 @@ GATE_DECISIONS = {"approve", "revise", "retry", "handoff", "reject"}
 PROGRESSION_MODES = {"auto-continue", "hold"}
 
 
-def _artifact_path(ctx: CommandContext, relative: str):
-    return ctx.workspace_root / relative
+def _artifact_path(ctx: CommandContext, relative: str): return ctx.workspace_root / relative
 
 
-def _utc_now() -> str:
-    return datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
+def _utc_now() -> str: return datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
 
 
 def _decision_type(findings: list[dict[str, object]]) -> str:
@@ -54,9 +52,7 @@ def _load_json_if_exists(ctx: CommandContext, ref_value: str | None) -> dict[str
     if not ref_value:
         return {}
     path = canonical_to_path(str(ref_value), ctx.workspace_root)
-    if not path.exists():
-        return {}
-    return load_json(path)
+    return load_json(path) if path.exists() else {}
 
 
 def _gate_key(payload: dict[str, Any]) -> str:
@@ -106,11 +102,7 @@ def _normalize_progression_mode(value: object) -> str:
     progression_mode = str(value or "").strip()
     if not progression_mode:
         return ""
-    ensure(
-        progression_mode in PROGRESSION_MODES,
-        "INVALID_REQUEST",
-        f"unknown progression_mode: {progression_mode}",
-    )
+    ensure(progression_mode in PROGRESSION_MODES, "INVALID_REQUEST", f"unknown progression_mode: {progression_mode}")
     return progression_mode
 
 
@@ -363,9 +355,7 @@ def _persist_brief_and_pending(
         keyed_payload["_gate_key_hint"] = decision_target
     paths = _gate_paths(keyed_payload)
     brief = {
-        "trace": ctx.trace,
-        "handoff_ref": handoff_ref,
-        "proposal_ref": proposal_ref,
+        "trace": ctx.trace, "handoff_ref": handoff_ref, "proposal_ref": proposal_ref,
         "gate_type": str(payload.get("gate_type", "quality_gate")),
         "priority": str(payload.get("priority_hint", "P1")),
         "merge_group": str(payload.get("merge_group_hint", "")),
@@ -373,15 +363,10 @@ def _persist_brief_and_pending(
         "human_projection": build_gate_human_projection(ctx.workspace_root, payload, decision_target, findings),
     }
     pending = {
-        "trace": ctx.trace,
-        "handoff_ref": handoff_ref,
-        "proposal_ref": proposal_ref,
-        "brief_record_ref": paths["brief"],
-        "claim_owner": str(ctx.request.get("actor_ref", "")),
-        "claim_status": "active",
-        "decision_round": int(payload.get("decision_round", 1)),
-        "priority": brief["priority"],
-        "merge_group": brief["merge_group"],
+        "trace": ctx.trace, "handoff_ref": handoff_ref, "proposal_ref": proposal_ref,
+        "brief_record_ref": paths["brief"], "claim_owner": str(ctx.request.get("actor_ref", "")),
+        "claim_status": "active", "decision_round": int(payload.get("decision_round", 1)),
+        "priority": brief["priority"], "merge_group": brief["merge_group"],
         "state": "pending_human_decision",
     }
     write_json(_artifact_path(ctx, paths["brief"]), brief)
@@ -397,10 +382,7 @@ def _materialize_decision(
 ) -> dict[str, str]:
     ensure(candidate_ref, "INVALID_REQUEST", "candidate_ref is required for approve materialization")
     result = materialize_formal(
-        ctx.workspace_root,
-        trace=ctx.trace,
-        candidate_ref=candidate_ref,
-        decision_ref=decision_ref,
+        ctx.workspace_root, trace=ctx.trace, candidate_ref=candidate_ref, decision_ref=decision_ref,
         target_formal_kind=str(payload["target_formal_kind"]).strip() if payload.get("target_formal_kind") else None,
         formal_artifact_ref=str(payload["formal_artifact_ref"]) if payload.get("formal_artifact_ref") else None,
         materialized_by=str(ctx.request.get("actor_ref", "gate.runtime")),
@@ -465,8 +447,7 @@ def _evaluate_action(ctx: CommandContext):
     handoff_ref = str(payload.get("handoff_ref") or package_payload.get("handoff_ref") or "")
     proposal_ref = str(payload.get("proposal_ref") or package_payload.get("proposal_ref") or "")
     handoff_payload = _load_handoff_payload(ctx, handoff_ref)
-    if package_payload.get("evidence_bundle_ref"):
-        evidence_refs.append(package_payload["evidence_bundle_ref"])
+    if package_payload.get("evidence_bundle_ref"): evidence_refs.append(package_payload["evidence_bundle_ref"])
     decision_type = _normalize_decision(payload, findings)
     decision_target = _decision_target(payload, package_payload, handoff_payload)
     ensure(decision_target, "INVALID_REQUEST", "decision_target is required")
@@ -484,26 +465,18 @@ def _evaluate_action(ctx: CommandContext):
     dispatch_target = str(payload.get("dispatch_target") or _dispatch_target(decision_type))
     decision_ref = _gate_paths(keyed_payload)["decision"]
     decision = {
-        "trace": ctx.trace,
-        "handoff_ref": handoff_ref,
-        "proposal_ref": proposal_ref,
+        "trace": ctx.trace, "handoff_ref": handoff_ref, "proposal_ref": proposal_ref,
         "gate_ready_package_ref": str(payload.get("gate_ready_package_ref", "")),
-        "brief_record_ref": brief_record_ref,
-        "pending_human_decision_ref": pending_human_decision_ref,
-        "decision_type": decision_type,
-        "decision": decision_type,
+        "brief_record_ref": brief_record_ref, "pending_human_decision_ref": pending_human_decision_ref,
+        "decision_type": decision_type, "decision": decision_type,
         "decision_reason": str(payload.get("decision_reason", "derived from audit findings and target constraints")),
-        "decision_target": decision_target,
-        "decision_basis_refs": decision_basis_refs,
-        "dispatch_target": dispatch_target,
-        "target_matrix": payload["target_matrix"],
-        "rationale": "derived from audit findings and target constraints",
-        "candidate_ref": decision_target,
+        "decision_target": decision_target, "decision_basis_refs": decision_basis_refs,
+        "dispatch_target": dispatch_target, "target_matrix": payload["target_matrix"],
+        "rationale": "derived from audit findings and target constraints", "candidate_ref": decision_target,
     }
     for field in ("target_formal_kind", "formal_artifact_ref"):
         value = _optional_materialization_field(payload, package_payload, field)
-        if value:
-            decision[field] = value
+        if value: decision[field] = value
     created_refs = [brief_record_ref, pending_human_decision_ref, decision_ref]
     write_json(_artifact_path(ctx, decision_ref), decision)
     if decision_type == "approve":
@@ -519,16 +492,9 @@ def _evaluate_action(ctx: CommandContext):
         decision["materialization_state"] = "materialized"
         progression_mode, hold_reason, required_preconditions = _resolve_progression_policy(payload, decision)
         decision["progression_mode"] = progression_mode
-        if hold_reason:
-            decision["hold_reason"] = hold_reason
-        if required_preconditions:
-            decision["required_preconditions"] = required_preconditions
-        created_refs.extend(
-            [
-                materialized["materialized_handoff_ref"],
-                materialized["formalization_receipt_ref"],
-            ]
-        )
+        if hold_reason: decision["hold_reason"] = hold_reason
+        if required_preconditions: decision["required_preconditions"] = required_preconditions
+        created_refs.extend([materialized["materialized_handoff_ref"], materialized["formalization_receipt_ref"]])
     write_json(_artifact_path(ctx, decision_ref), decision)
     return "OK", "gate decision produced", {
         "canonical_path": decision_ref,
@@ -604,16 +570,15 @@ def _dispatch_action(ctx: CommandContext):
     progression_mode, hold_reason, required_preconditions = _resolve_progression_policy(payload, decision)
     if decision_type == "approve":
         decision["progression_mode"] = progression_mode
-        if hold_reason:
-            decision["hold_reason"] = hold_reason
-        if required_preconditions:
-            decision["required_preconditions"] = required_preconditions
+        if hold_reason: decision["hold_reason"] = hold_reason
+        if required_preconditions: decision["required_preconditions"] = required_preconditions
         write_json(_artifact_path(ctx, decision_ref), decision)
     dispatch_ref = _gate_paths(decision)["dispatch"]
     materialized_job_ref = ""
     materialized_handoff_ref = ""
     materialized_job_refs: list[str] = []
     materialized_handoff_refs: list[str] = []
+    def _pick_first(refs, fallback=""): return refs[0] if refs else fallback
     if dispatch_target == "formal_publication_trigger":
         ensure(decision_type == "approve", "PRECONDITION_FAILED", "formal_publication_trigger requires approve")
         if decision.get("materialized_handoff_ref"):
@@ -627,36 +592,27 @@ def _dispatch_action(ctx: CommandContext):
             decision.update(materialized)
             write_json(_artifact_path(ctx, decision_ref), decision)
             materialized_handoff_ref = materialized["materialized_handoff_ref"]
-        if str(decision.get("formal_ref") or "").startswith("formal.src."):
-            materialized_handoff_refs, materialized_job_refs = build_src_downstream_dispatch(
-                ctx.workspace_root, ctx.trace, decision_ref, decision
-            )
-            materialized_handoff_ref = materialized_handoff_refs[0] if materialized_handoff_refs else materialized_handoff_ref
-            materialized_job_ref = materialized_job_refs[0] if materialized_job_refs else ""
-        elif str(decision.get("formal_ref") or "").startswith("formal.epic."):
-            materialized_handoff_refs, materialized_job_refs = build_epic_downstream_dispatch(
-                ctx.workspace_root, ctx.trace, decision_ref, decision
-            )
-            materialized_handoff_ref = materialized_handoff_refs[0] if materialized_handoff_refs else materialized_handoff_ref
-            materialized_job_ref = materialized_job_refs[0] if materialized_job_refs else ""
-        elif str(decision.get("formal_ref") or "").startswith("formal.feat."):
-            materialized_handoff_refs, materialized_job_refs = build_feat_downstream_dispatch(
-                ctx.workspace_root, ctx.trace, decision_ref, decision
-            )
-            materialized_handoff_ref = materialized_handoff_refs[0] if materialized_handoff_refs else materialized_handoff_ref
-            materialized_job_ref = materialized_job_refs[0] if materialized_job_refs else ""
-        elif str(decision.get("formal_ref") or "").startswith("formal.tech."):
-            materialized_handoff_refs, materialized_job_refs = build_tech_downstream_dispatch(
-                ctx.workspace_root, ctx.trace, decision_ref, decision
-            )
-            materialized_handoff_ref = materialized_handoff_refs[0] if materialized_handoff_refs else materialized_handoff_ref
-            materialized_job_ref = materialized_job_refs[0] if materialized_job_refs else ""
-        elif str(decision.get("formal_ref") or "").startswith("formal.testset."):
-            materialized_handoff_refs, materialized_job_refs = build_testset_downstream_dispatch(
-                ctx.workspace_root, ctx.trace, decision_ref, decision
-            )
-            materialized_handoff_ref = materialized_handoff_refs[0] if materialized_handoff_refs else materialized_handoff_ref
-            materialized_job_ref = materialized_job_refs[0] if materialized_job_refs else ""
+        formal_ref = str(decision.get("formal_ref") or "")
+        if formal_ref.startswith("formal.src."):
+            materialized_handoff_refs, materialized_job_refs = build_src_downstream_dispatch(ctx.workspace_root, ctx.trace, decision_ref, decision)
+            materialized_handoff_ref = _pick_first(materialized_handoff_refs, materialized_handoff_ref)
+            materialized_job_ref = _pick_first(materialized_job_refs)
+        elif formal_ref.startswith("formal.epic."):
+            materialized_handoff_refs, materialized_job_refs = build_epic_downstream_dispatch(ctx.workspace_root, ctx.trace, decision_ref, decision)
+            materialized_handoff_ref = _pick_first(materialized_handoff_refs, materialized_handoff_ref)
+            materialized_job_ref = _pick_first(materialized_job_refs)
+        elif formal_ref.startswith("formal.feat."):
+            materialized_handoff_refs, materialized_job_refs = build_feat_downstream_dispatch(ctx.workspace_root, ctx.trace, decision_ref, decision)
+            materialized_handoff_ref = _pick_first(materialized_handoff_refs, materialized_handoff_ref)
+            materialized_job_ref = _pick_first(materialized_job_refs)
+        elif formal_ref.startswith("formal.tech."):
+            materialized_handoff_refs, materialized_job_refs = build_tech_downstream_dispatch(ctx.workspace_root, ctx.trace, decision_ref, decision)
+            materialized_handoff_ref = _pick_first(materialized_handoff_refs, materialized_handoff_ref)
+            materialized_job_ref = _pick_first(materialized_job_refs)
+        elif formal_ref.startswith("formal.testset."):
+            materialized_handoff_refs, materialized_job_refs = build_testset_downstream_dispatch(ctx.workspace_root, ctx.trace, decision_ref, decision)
+            materialized_handoff_ref = _pick_first(materialized_handoff_refs, materialized_handoff_ref)
+            materialized_job_ref = _pick_first(materialized_job_refs)
     elif dispatch_target == "delegated_handler":
         materialized_handoff_ref = f"artifacts/active/handoffs/{Path(decision_ref).stem}-delegated.json"
         write_json(

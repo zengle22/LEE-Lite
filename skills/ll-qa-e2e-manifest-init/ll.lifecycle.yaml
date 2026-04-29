@@ -1,0 +1,11 @@
+version: "0.1.0"
+states:
+  - drafted
+  - accepted
+transitions:
+  drafted:
+    - accepted
+  accepted: []
+state_semantics: {}
+limits:
+  max_revision_rounds: 3

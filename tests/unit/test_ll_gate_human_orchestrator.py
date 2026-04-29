@@ -86,13 +86,8 @@ class GateHumanOrchestratorWorkflowTests(GateHumanOrchestratorTestSupport):
             input_dir = self.make_gate_ready_package(repo_root)
 
             prepare = self.run_cmd(
-                "prepare-round",
-                "--input",
-                str(input_dir),
-                "--repo-root",
-                str(repo_root),
-                "--run-id",
-                "gate-round",
+                "prepare-round", "--input", str(input_dir),
+                "--repo-root", str(repo_root), "--run-id", "gate-round",
                 cwd=ROOT,
             )
             self.assertEqual(prepare.returncode, 0, prepare.stderr)
@@ -123,15 +118,10 @@ class GateHumanOrchestratorWorkflowTests(GateHumanOrchestratorTestSupport):
             self.assertTrue(pending_payload["items"][0]["review_summary"]["review_checkpoints"])
 
             capture = self.run_cmd(
-                "capture-decision",
-                "--artifacts-dir",
-                str(artifacts_dir),
-                "--repo-root",
-                str(repo_root),
-                "--reply",
-                "revise: Please tighten the evidence and target wording.",
-                "--approver",
-                "human/reviewer-001",
+                "capture-decision", "--artifacts-dir", str(artifacts_dir),
+                "--repo-root", str(repo_root),
+                "--reply", "revise: Please tighten the evidence and target wording.",
+                "--approver", "human/reviewer-001",
                 cwd=ROOT,
             )
             self.assertEqual(capture.returncode, 0, capture.stderr)
@@ -154,11 +144,8 @@ class GateHumanOrchestratorWorkflowTests(GateHumanOrchestratorTestSupport):
             self.make_runtime_pending_item(repo_root, key="queue-item-001")
 
             claim = self.run_cmd(
-                "claim-next",
-                "--repo-root",
-                str(repo_root),
-                "--run-id",
-                "queue-round",
+                "claim-next", "--repo-root", str(repo_root),
+                "--run-id", "queue-round",
                 cwd=ROOT,
             )
             self.assertEqual(claim.returncode, 0, claim.stderr)
@@ -227,20 +214,14 @@ class GateHumanOrchestratorWorkflowTests(GateHumanOrchestratorTestSupport):
             self.make_runtime_pending_item(repo_root, key="queue-item-002")
 
             first = self.run_cmd(
-                "claim-next",
-                "--repo-root",
-                str(repo_root),
-                "--run-id",
-                "queue-round-reuse",
+                "claim-next", "--repo-root", str(repo_root),
+                "--run-id", "queue-round-reuse",
                 cwd=ROOT,
             )
             self.assertEqual(first.returncode, 0, first.stderr)
             second = self.run_cmd(
-                "claim-next",
-                "--repo-root",
-                str(repo_root),
-                "--run-id",
-                "queue-round-new",
+                "claim-next", "--repo-root", str(repo_root),
+                "--run-id", "queue-round-new",
                 cwd=ROOT,
             )
             self.assertEqual(second.returncode, 0, second.stderr)
@@ -258,11 +239,8 @@ class GateHumanOrchestratorWorkflowTests(GateHumanOrchestratorTestSupport):
             self.make_runtime_pending_item(repo_root, key="queue-item-refresh")
 
             first = self.run_cmd(
-                "claim-next",
-                "--repo-root",
-                str(repo_root),
-                "--run-id",
-                "queue-round-refresh",
+                "claim-next", "--repo-root", str(repo_root),
+                "--run-id", "queue-round-refresh",
                 cwd=ROOT,
             )
             self.assertEqual(first.returncode, 0, first.stderr)
