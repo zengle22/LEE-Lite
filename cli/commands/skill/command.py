@@ -140,6 +140,7 @@ def _skill_handler(ctx: CommandContext):
         }, [], evidence_refs
     if ctx.action == "qa-test-run":
         from cli.lib.test_orchestrator import run_spec_test
+        from cli.lib.bug_registry import sync_bugs_to_registry
 
         # Extract parameters from payload
         feat_ref = ctx.payload.get("feat_ref")
@@ -150,6 +151,54 @@ def _skill_handler(ctx: CommandContext):
         coverage_mode = ctx.payload.get("coverage_mode", "smoke")
         resume = ctx.payload.get("resume", False)
         resume_from = ctx.payload.get("resume_from")
+
+        if chain == "both":
+            # Execute API chain first, then E2E chain
+            api_result = run_spec_test(
+                workspace_root=ctx.workspace_root,
+                feat_ref=feat_ref,
+                proto_ref=proto_ref,
+                base_url=api_url or app_url,
+                app_url=app_url,
+                api_url=api_url,
+                modality="api",
+                coverage_mode=coverage_mode,
+                resume=resume,
+                resume_from=resume_from,
+                on_complete=sync_bugs_to_registry,
+            )
+            e2e_result = run_spec_test(
+                workspace_root=ctx.workspace_root,
+                feat_ref=feat_ref,
+                proto_ref=proto_ref,
+                base_url=api_url or app_url,
+                app_url=app_url,
+                api_url=api_url,
+                modality="web_e2e",
+                coverage_mode=coverage_mode,
+                resume=resume,
+                resume_from=resume_from,
+                on_complete=sync_bugs_to_registry,
+            )
+            # Merge results
+            merged_case_results = api_result.case_results + e2e_result.case_results
+            merged_manifest_items = api_result.manifest_items + e2e_result.manifest_items
+            merged_run_id = api_result.run_id
+            merged_candidate_path = api_result.candidate_path or e2e_result.candidate_path
+
+            evidence_refs = _collect_refs({
+                "candidate_artifact_ref": api_result.execution_refs.get("candidate_artifact_ref", ""),
+            })
+            evidence_refs.extend(_collect_refs({
+                "candidate_artifact_ref": e2e_result.execution_refs.get("candidate_artifact_ref", ""),
+            }))
+
+            return "OK", "governed qa-test-run completed (api + e2e)", {
+                "canonical_path": merged_candidate_path or f"artifacts/active/qa/candidates/{merged_run_id}.json",
+                "run_id": merged_run_id,
+                "executed_count": len(merged_case_results),
+                "manifest_items_count": len(merged_manifest_items),
+            }, [], evidence_refs
 
         # Determine modality from chain
         modality = "api" if chain == "api" else "web_e2e"
@@ -165,6 +214,7 @@ def _skill_handler(ctx: CommandContext):
             coverage_mode=coverage_mode,
             resume=resume,
             resume_from=resume_from,
+            on_complete=sync_bugs_to_registry,
         )
 
         evidence_refs = _collect_refs({
