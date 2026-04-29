@@ -8,17 +8,14 @@
 
 确保 SSOT 不再逐层生成，而是从 FRZ 冻结包中分层语义抽取，执行层只能补全不能改写语义，所有变更通过分级机制回流治理。
 
-## Current Milestone: v2.2.1 Failure Case Resolution
+## Current Milestone: v2.3 ADR-055 Bug 流转闭环与 GSD Execute-Phase 集成
 
-**Goal:** 修复 `tests/defect/failure-cases/` 目录下记录的所有缺陷，同时系统性改进相关技能的质量和稳健性
+**Goal:** 在 ADR-054 测试执行闭环基础上，建立 Bug 发现→验收确认→修复→再验证的完整流转机制，并与 GSD execute-phase 研发流程无缝集成
 
-**Target fixes:**
-- P0: 修复 SRC003 SSOT 多维度漂移（API authority 重复、surface-map 所有权漂移、TECH/IMPL 语义与仓库不匹配）
-- P0: 修复 FEAT 分解按 UI 表面而非能力边界的问题（ll-product-epic-to-feat）
-- P1: 修复 PROTO 相关缺陷（ll-dev-feat-to-proto 的低保真问题、菜单遮罩默认遮挡、页面泛化、旅程闭环拆分）
-- P1: 修复 TECH/IMPL 缺陷（ll-dev-feat-to-tech 主语漂移、模板过度共享；ll-dev-tech-to-impl 执行层漂移）
-- P1: 修复 TESTSET/治理技能缺陷（TESTSET 套用 gate 模板、governance-failure-capture 位置错误、UI-spec 输出结构）
-- P1: 修复 impl-spec-test 中文解析问题，增强检测能力
+**Target features:**
+- Bug 注册表与状态机（bug_registry.py, bug_phase_generator.py, test_orchestrator.py 集成）
+- 验收层集成（gate_remediation.py, gate-evaluate 集成, settlement 消费 bug 注册表）
+- GSD 闭环验证（--verify-bugs 模式, bug transition CLI, 集成测试）
 
 ## Validated Requirements
 
@@ -36,41 +33,55 @@
 - ✓ Patch 基础设施（v1.1）
 - ✓ SSOT 语义治理（ADR-050/051，v2.0）
 - ✓ 测试双轴治理（v2.1）
+- ✓ 测试双链执行闭环（v2.2，2026-04-24）
+- ✓ Failure Case 修复闭环（v2.2.1，2026-04-28）
 
-## Active Requirements (v2.2.1)
+## Active Requirements (v2.3)
 
-- [ ] FIX-P0-01: 修复 SRC003 SSOT 多维度漂移（API authority 重复、surface-map 所有权漂移、TECH/IMPL 语义与仓库不匹配）
-- [ ] FIX-P0-02: 修复 FEAT 分解按 UI 表面而非能力边界的问题（ll-product-epic-to-feat）
-- [ ] FIX-P1-01: 修复 ll-dev-feat-to-proto 的低保真问题（菜单遮罩默认遮挡、页面内容泛化占位）
-- [ ] FIX-P1-02: 修复 ll-dev-feat-to-proto 的旅程闭环拆分问题（6个FEAT拆成孤立页面）
-- [ ] FIX-P1-03: 修复 ll-dev-feat-to-tech 的主语漂移（从工程基线漂移到ADR-005治理）
-- [ ] FIX-P1-04: 修复 ll-dev-feat-to-tech 的模板过度共享（每份TECH重复全工程骨架）
-- [ ] FIX-P1-05: 修复 ll-dev-tech-to-impl 的执行层系统性漂移（触点回到src/be、吸入.tmp/external）
-- [ ] FIX-P1-06: 修复 ll-qa-feat-to-testset 的TESTSET套用gate模板问题
-- [ ] FIX-P1-07: 修复 ll-governance-failure-capture 的位置错误（应输出到tests/defect/failure-cases）
-- [ ] FIX-P1-08: 修复 ll-dev-proto-to-ui 的UI-spec输出结构问题（应合并为单一文档）
-- [ ] FIX-P1-09: 修复 ll-qa-impl-spec-test 的中文解析问题（不识别中文章节标题）
-- [ ] ENH-P1-01: 增强 ll-dev-feat-to-tech 的 api_required 判定逻辑（基于能力边界而非关键词）
-- [ ] ENH-P1-02: 增强 ll-dev-feat-to-tech 的 ssot_type 声明（强制为TECH/ARCH/API添加ssot_type）
-- [ ] ENH-P1-03: 增强 ll-dev-feat-to-tech 的API设计质量（增加前置条件和后置输出章节）
-- [ ] ENH-P1-04: 增强 ll-dev-tech-to-impl 的 source_refs 生成（自动包含完整追溯链）
-- [ ] ENH-P1-05: 增强 ll-qa-feat-to-testset 的自动触发（feat-to-tech后自动触发）
+**Phase A: Bug 注册表与状态机**
+- [ ] BUG-REG-01: Bug 注册表模块（cli/lib/bug_registry.py）— 创建、读取、更新 artifacts/bugs/{feat_ref}/bug-registry.yaml
+- [ ] BUG-REG-02: Bug 核心状态机流转 — detected → open → fixing → fixed → re_verify_passed → closed
+- [ ] BUG-REG-03: Bug 终止状态 — wont_fix, duplicate, not_reproducible（含复活策略：创建新记录而非回退）
+- [ ] BUG-PHASE-01: Bug Phase 生成器（cli/lib/bug_phase_generator.py）— 生成 .planning/phases/{N}-bug-fix-*/ 目录结构
+- [ ] BUG-PHASE-02: 单 bug 单 phase 生成 + mini-batch 模式（--batch，max 2-3）
+- [ ] BUG-INTEG-01: test-run 集成（test_orchestrator.py）— build_bug_bundle() 产出含 status:detected 和 gap_type
+- [ ] BUG-INTEG-02: sync_bugs_to_registry() 将 detected bug 持久化到 artifacts/bugs/
 
-## Out of Scope (v2.2.1)
+**Phase B: 验收层集成**
+- [ ] GATE-REM-01: Gate Remediation 模块（cli/lib/gate_remediation.py）— gate FAIL 时读取 bug-registry 和 settlement gap_list
+- [ ] GATE-REM-02: detected → open 自动提升 — gate FAIL 后确认真缺陷
+- [ ] GATE-INTEG-01: gate-evaluate 集成 — 输出契约包含 bug 关联信息
+- [ ] GATE-INTEG-02: settlement 消费 bug 注册表（input contract 更新）
+- [ ] PUSH-MODEL-01: Push model — gate FAIL 后自动创建 draft phase 并通知开发者（T+4h 提醒）
 
-- 任何新功能开发（仅bug修复和质量改进）
-- 架构重构（保持v2.2架构不变）
+**Phase C: GSD 闭环验证**
+- [ ] VERIFY-01: --verify-bugs targeted 模式 — 只运行 status=fixed 关联测试
+- [ ] VERIFY-02: --verify-mode=full-suite — 运行完整 suite 并检测回归
+- [ ] VERIFY-03: 验证后状态流转 — 通过→re_verify_passed，失败→回退 open
+- [ ] VERIFY-04: 2 条件自动关闭 — 满足条件后 closed + 通知开发者
+- [ ] CLI-01: Bug transition CLI（ll-bug-transition）— 支持 wont_fix/duplicate/not_reproducible 人工标记
+- [ ] CLI-02: ll-bug-remediate --feat-ref — 开发者确认修复计划，生成 phase
+- [ ] SHADOW-01: Shadow Fix Detection — commit hook 扫描与 open bug 关联的文件变更
+- [ ] AUDIT-01: 审计日志 — 每次状态变更写入 artifacts/bugs/{feat_ref}/audit.log
+- [ ] INTEG-TEST-01: 集成测试（tests/integration/test_bug_closure.py）— 完整闭环验证
+
+## Out of Scope (v2.3)
+
+- Autonomy Grant 机制（v2 评估后引入）
+- 多 feat 并行冲突策略（MVP 假设单 feat）
+- full-suite 强制触发（MVP 开发者手动选择）
+- Break-Glass 协议（MVP 无 autonomy 门限可绕）
 - ADR-048 Mission Compiler（继续延期）
 
 ## Context
 
-- ADR-050 是总纲，ADR-051 是 Task Pack 的具体实现规范
-- 现有 ADR-045/047/049/018 各司其职，ADR-050/051 填补灰色地带
-- 已有 51 个 ADR 文件在 `ssot/adr/`
+- ADR-055 依赖：ADR-047 (双链测试), ADR-054 (实施轴桥接), ADR-053 (需求轴统一入口)
+- ADR-055 状态：Draft v1.6-final-2，3 个实现 phase（Bug 注册表→验收层→GSD 闭环）
+- MVP 策略：砍半 — 人工确认（autonomous:false）+ 单 bug/mini-batch(max 2-3) + 2 条件自动关闭
+- 存储：artifacts/bugs/{feat_ref}/bug-registry.yaml（非 ssot/，bug 是执行观察产物）
+- 已有 52 个 ADR 文件在 `ssot/adr/`
 - SSOT 主链对象（SRC/EPIC/FEAT 等）存在于 `ssot/` 目录
-- v1.0 (ADR-047) 和 v1.1 (ADR-049) 已交付完整基础设施
-- v2.0/v2.1/v2.2 已交付语义治理、双轴测试、双链闭环
-- tests/defect/failure-cases/ 记录了 20+ 个需要修复的缺陷
+- v1.0~v2.2.1 已全部交付：QA 技能、Patch 基础设施、语义治理、双轴测试、双链闭环、Failure Case 修复
 
 ## Key Decisions
 
@@ -99,4 +110,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-04-27 after v2.2.1 milestone started*
+*Last updated: 2026-04-29 after v2.3 milestone started*

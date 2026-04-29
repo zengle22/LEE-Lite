@@ -1,23 +1,23 @@
 ---
 gsd_state_version: 1.0
-milestone: v2.2.1
-milestone_name: Failure Case Resolution
-status: COMPLETE
-last_updated: "2026-04-28"
+milestone: v2.3
+milestone_name: ADR-055 Bug 流转闭环与 GSD Execute-Phase 集成
+status: DEFINING_REQUIREMENTS
+last_updated: "2026-04-29"
 progress:
-  total_phases: 5
-  completed_phases: 5
-  total_plans: 4
-  completed_plans: 4
-  percent: 100
+  total_phases: TBD
+  completed_phases: 0
+  total_plans: TBD
+  completed_plans: 0
+  percent: 0
 ---
 
 # Project State
 
-**Project:** v2.2.1 Failure Case Resolution — 修复 failure-cases 目录下记录的所有缺陷，系统性改进相关技能质量
-**Status:** COMPLETE (Phase 24 Complete, v2.2.1 Shipped)
-**Core Value:** 确保所有记录的缺陷得到解决，提升技能的稳健性和可用性
-**Current focus:** v2.2.1 milestone complete — all failure cases resolved
+**Project:** v2.3 ADR-055 Bug 流转闭环与 GSD Execute-Phase 集成
+**Status:** Defining requirements
+**Core Value:** 建立 Bug 发现→验收确认→修复→再验证的完整流转机制，与 GSD execute-phase 无缝集成
+**Current focus:** 定义需求，准备 roadmap
 
 ## Accumulated Context from Previous Milestones
 
@@ -49,7 +49,7 @@ Delivered:
 
 ## Roadmap Summary
 
-Phase 21 Complete: PROTO-related defect fixes delivered. Next: Phase 22 — TECH 和 IMPL 缺陷修复
+Phase 25 TBD: ADR-055 Phase A — Bug 注册表与状态机. Awaiting requirements definition and roadmap creation.
 
 ## Phase 20 Results
 
@@ -149,24 +149,21 @@ Phase 21 Complete: PROTO-related defect fixes delivered. Next: Phase 22 — TECH
   - Writes audit trail to testset-trigger-record.json
   - Integrated into run_workflow() after validate_package_readiness()
 
-## v2.2.1 Phase Overview
+## v2.3 Phase Overview
 
 | Phase | Name | Target Requirements | Status |
 |-------|------|-------------------|--------|
-| 20 | P0 缺陷紧急修复 | FIX-P0-01, FIX-P0-02 | **Complete** |
-| 21 | PROTO 相关缺陷修复 | FIX-P1-01, FIX-P1-02 | **Complete** |
-| 22 | TECH 和 IMPL 缺陷修复 | FIX-P1-03, FIX-P1-04, FIX-P1-05 | **Complete** |
-| 23 | TESTSET 和治理技能修复 | FIX-P1-06, FIX-P1-07, FIX-P1-08 | **Complete** |
-| 24 | impl-spec-test 增强和验证 | FIX-P1-09, ENH-P1-01~05 | **Complete** |
+| 25 | Bug 注册表与状态机 | BUG-REG-01~03, BUG-PHASE-01~02, BUG-INTEG-01~02 | **Pending** |
+| 26 | 验收层集成 | GATE-REM-01~02, GATE-INTEG-01~02, PUSH-MODEL-01 | **Pending** |
+| 27 | GSD 闭环验证 | VERIFY-01~04, CLI-01~02, SHADOW-01, AUDIT-01, INTEG-TEST-01 | **Pending** |
 
 ## Artifacts
 
-- `.planning/PROJECT.md` — Project context (updated)
+- `.planning/PROJECT.md` — Project context (updated for v2.3)
 - `.planning/config.json` — Workflow preferences
-- `.planning/ROADMAP.md` — Phase structure
-- `.planning/REQUIREMENTS.md` — Requirements
-- `.planning/phases/20-p0-defect-fix/` — Phase 20 artifacts
-- `.planning/codebase/` — Codebase map
+- `.planning/ROADMAP.md` — Phase structure (pending creation)
+- `.planning/REQUIREMENTS.md` — Requirements (pending creation)
+- `ssot/adr/ADR-055-Bug流转闭环与GSD执行阶段集成.md` — ADR (source of truth)
 
 ---
-*Last updated: 2026-04-28 — Phase 24 complete, v2.2.1 shipped*
+*Last updated: 2026-04-29 — v2.3 milestone started, defining requirements*
