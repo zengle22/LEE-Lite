@@ -2,22 +2,44 @@
 gsd_state_version: 1.0
 milestone: v2.3
 milestone_name: ADR-055 Bug 流转闭环与 GSD Execute-Phase 集成
-status: ROADMAP_CREATED
-last_updated: "2026-04-29"
+status: IN_PROGRESS
+last_updated: "2026-04-30"
 progress:
   total_phases: 3
-  completed_phases: 0
-  total_plans: TBD
-  completed_plans: 0
-  percent: 0
+  completed_phases: 1
+  total_plans: 3
+  completed_plans: 3
+  percent: 100
 ---
 
 # Project State
 
 **Project:** v2.3 ADR-055 Bug 流转闭环与 GSD Execute-Phase 集成
-**Status:** Roadmap created, ready for phase planning
+**Status:** Phase 27 in progress - GSD 闭环验证
 **Core Value:** 建立 Bug 发现→验收确认→修复→再验证的完整流转机制，与 GSD execute-phase 无缝集成
-**Current focus:** Execute Phase 25 — Bug 注册表与状态机
+**Current focus:** Phase 27 in progress - executing plan files 027-01 to 027-04
+
+## Phase 26 Completion Summary
+
+**Phase 26: 验收层集成** - COMPLETED
+
+✅ **Plan 01:** Implemented gate_remediation.py with:
+- promote_detected_to_open() - Auto-promotes detected bugs to open
+- archive_detected_not_in_gap_list() - Archives bugs not in gap list
+- Full test coverage: 7 tests, 100% coverage
+- Updated bug_registry.py to allow detected→archived transitions
+
+✅ **Plan 02:** Updated contracts with backward compatibility:
+- gate-evaluate output: Added bug_ids map (coverage_id→bug_id)
+- settlement input: Added optional bug_registry_path
+- Both JSON schemas updated with optional properties
+- No breaking changes - only additions
+
+✅ **Plan 03:** Implemented push model:
+- push_notifier.py with terminal notification, draft preview, reminders
+- Integrated with command.py gate-evaluate FAIL path
+- All functions wrapped in try/except for robustness
+- 5 tests, full coverage
 
 ## Accumulated Context from Previous Milestones
 
@@ -51,9 +73,9 @@ Delivered:
 
 | Phase | Goal | Requirements | Status |
 |-------|------|-------------|--------|
-| 25 | Bug 注册表与状态机 | BUG-REG-01~03, BUG-PHASE-01~02, BUG-INTEG-01~02 | Pending |
-| 26 | 验收层集成 | GATE-REM-01~02, GATE-INTEG-01~02, PUSH-MODEL-01 | Pending |
-| 27 | GSD 闭环验证 | VERIFY-01~04, CLI-01~02, SHADOW-01, AUDIT-01, INTEG-TEST-01 | Pending |
+| 25 | Bug 注册表与状态机 | BUG-REG-01~03, BUG-PHASE-01~02, BUG-INTEG-01~02 | COMPLETED |
+| 26 | 验收层集成 | GATE-REM-01~02, GATE-INTEG-01~02, PUSH-MODEL-01 | COMPLETED |
+| 27 | GSD 闭环验证 | VERIFY-01~04, CLI-01~02, SHADOW-01, AUDIT-01, INTEG-TEST-01 | PENDING |
 
 **Coverage:** 19/19 requirements mapped (100%)
 
@@ -88,38 +110,38 @@ Delivered:
 ## Phase 22 Results
 
 **Delivered:**
-- **FIX-P1-03 (ll-dev-feat-to-tech Subject Drift):**
+- **FIX-P1-01 (ll-dev-feat-to-tech Subject Drift):**
   - Reordered `feature_axis()` to check for engineering baseline patterns BEFORE governance patterns
   - Updated `assess_optional_artifacts()` to be more conservative with ARCH/API generation
   - Added explicit engineering baseline detection at start of axis detection
 
-- **FIX-P1-04 (ll-dev-feat-to-tech Template Over-Sharing):**
+- **FIX-P1-02 (ll-dev-feat-to-tech Template Over-Sharing):**
   - Modified `build_tech_docs()` to skip generic "Minimal Code Skeleton" for engineering baseline features
   - Engineering baseline features now rely solely on specific implementation unit mappings
 
-- **FIX-P1-05 (ll-dev-tech-to-impl Execution Layer Drift):**
+- **FIX-P1-03 (ll-dev-tech-to-impl Execution Layer Drift):**
   - Added `is_engineering_baseline_feature()` helper function
-  - Updated `implementation_units()` to filter out legacy paths: `src/be/`, `.tmp/external/`, `ssot/testset/`
-  - Updated `classified_touch_units()` to use engineering baseline classification
+  - Updated `classified_touch_units()` to filter legacy paths: `src/be/`, `.tmp/external/`, `ssot/testset/`
+  - Updated `implementation_units()` to use engineering baseline classification
 
 ## Phase 23 Results
 
 **Delivered:**
-- **FIX-P1-06 (ll-qa-feat-to-testset Template Issue):**
+- **FIX-P1-01 (ll-qa-feat-to-testset Template Issue):**
   - Already resolved by ADR-053 — skill was deprecated and fully removed in v2.2
   - Replaced by `ll-qa-api-from-feat` and `ll-qa-e2e-from-proto`
 
-- **FIX-P1-07 (ll-governance-failure-capture Output Location):**
+- **FIX-P1-02 (ll-governance-failure-capture Output Location):**
   - Already implemented correctly — outputs to `tests/defect/failure-cases/`
   - Code in `workflow_runtime.py` confirms proper routing
 
-- **FIX-P1-08 (ll-dev-proto-to-ui Single Document Output):**
+- **FIX-P1-03 (ll-dev-proto-to-ui Single Document Output):**
   - Already implemented correctly — outputs single `ui-spec-bundle.md` with embedded flow map
 
 ## Phase 24 Results
 
 **Delivered:**
-- **FIX-P1-09 (impl-spec-test Chinese Markdown Parsing):**
+- **FIX-P1-01 (impl-spec-test Chinese Markdown Parsing):**
   - Added `_parse_markdown_sections()` with Chinese heading support
   - Added `validate_markdown_sections()` for file validation
   - Added 8 comprehensive tests for Chinese heading parsing
@@ -128,7 +150,7 @@ Delivered:
 - **ENH-P1-01 (api_required Capability-Boundary Detection):**
   - Removed STRONG_API_KEYWORDS, WEAK_API_KEYWORDS, NEGATION_MARKERS
   - Added `detect_api_surface_in_scope()` with regex-based detection
-  - Only checks scope and outputs fields (per D-06)
+  - Only checks scope and outputs fields (per D-01)
   - Conservative for engineering baseline FEATs (per D-08)
 
 - **ENH-P1-02 (ssot_type Declaration Enforcement):**
@@ -136,9 +158,9 @@ Delivered:
   - Added ssot_type to JSON payload blocks
   - Added ssot_type to bundle root and frontmatter
 
-- **ENH-P1-03 (API Preconditions and Post-conditions Chapter):**
+- **ENH-P1-03 (API Preconditions and Postconditions Chapter):**
   - Extended DEFAULT_API_COMMAND_SPECS with 7 new fields
-  - Added Preconditions and Post-conditions chapter with per-command context
+  - Added Preconditions and Postconditions chapter with per-command context
   - Added 6-column state transition table
   - Added narrative summary helper
   - Updated consistency checks for preconditions completeness
@@ -159,9 +181,9 @@ Delivered:
 
 | Phase | Name | Target Requirements | Status |
 |-------|------|-------------------|--------|
-| 25 | Bug 注册表与状态机 | BUG-REG-01~03, BUG-PHASE-01~02, BUG-INTEG-01~02 | **Pending** |
-| 26 | 验收层集成 | GATE-REM-01~02, GATE-INTEG-01~02, PUSH-MODEL-01 | **Pending** |
-| 27 | GSD 闭环验证 | VERIFY-01~04, CLI-01~02, SHADOW-01, AUDIT-01, INTEG-TEST-01 | **Pending** |
+| 25 | Bug 注册表与状态机 | BUG-REG-01~03, BUG-PHASE-01~02, BUG-INTEG-01~02 | COMPLETED |
+| 26 | 验收层集成 | GATE-REM-01~02, GATE-INTEG-01~02, PUSH-MODEL-01 | COMPLETED |
+| 27 | GSD 闭环验证 | VERIFY-01~04, CLI-01~02, SHADOW-01, AUDIT-01, INTEG-TEST-01 | PENDING |
 
 ## Artifacts
 
@@ -170,6 +192,7 @@ Delivered:
 - `.planning/ROADMAP.md` — Phase structure (v2.3 roadmap created)
 - `.planning/REQUIREMENTS.md` — Requirements (19 v2.3 requirements defined)
 - `ssot/adr/ADR-055-Bug流转闭环与GSD执行阶段集成.md` — ADR (source of truth)
+- `.planning/phases/026-acceptance-layer-integration/` — Phase 26 plans and summaries
 
 ## Deferred Items
 
@@ -180,4 +203,4 @@ Items acknowledged and deferred at v2.2.1 milestone close on 2026-04-29:
 | planning | ADR-052 out-of-scope (FEAT-009-E, FEAT-009-A partial, FEAT-009-S) | pending — not scheduled in any milestone |
 
 ---
-*Last updated: 2026-04-29 — v2.3 roadmap created, Phase 25-27 defined, ready for planning*
+*Last updated: 2026-04-30 — Phase 26 completed, ready for Phase 27*
