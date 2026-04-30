@@ -1,3 +1,9 @@
 # Output Contract: ll-qa-gate-evaluate
 ## Required Output: ssot/tests/.artifacts/tests/settlement/release_gate_input.yaml
 ## See input/contract.yaml for full schema.
+
+## Output Schema Additions
+- bug_ids: map[string, string] (coverage_id → bug_id mapping, present when final_decision=fail)
+
+## Output Semantic Checklist Additions
+- [ ] bug_ids map exists in output when final_decision=fail

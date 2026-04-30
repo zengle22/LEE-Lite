@@ -4,6 +4,7 @@
 - [ ] Updated e2e-coverage-manifest.yaml exists (post-execution)
 - [ ] Manifests have lifecycle_status and evidence_status updated for executed items
 - [ ] Evidence refs are non-empty for executed items
+- [ ] bug_registry_path accepted but not required
 
 ---
 
@@ -26,6 +27,9 @@
 ## Required Input
 - Updated api-coverage-manifest.yaml (post-execution)
 - Updated e2e-coverage-manifest.yaml (post-execution)
+
+## Optional Input
+- bug_registry_path: string (path to bug registry yaml)
 
 ## Input Validation
 - [ ] Both manifests exist and are valid YAML

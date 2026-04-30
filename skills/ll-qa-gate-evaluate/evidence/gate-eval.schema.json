@@ -27,6 +27,11 @@
       "pattern": "^[a-f0-9]{64}$",
       "description": "SHA-256 hash of all evidence file contents (64-char lowercase hex)"
     },
+    "bug_ids": {
+      "type": "object",
+      "additionalProperties": { "type": "string" },
+      "description": "Mapping from coverage_id to bug_id (present when final_decision=fail)"
+    },
     "api_chain": {
       "type": "object",
       "required": ["total", "passed", "failed", "pass_rate"],
