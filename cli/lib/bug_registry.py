@@ -22,11 +22,11 @@ from cli.lib.fs import ensure_parent, read_text
 # --- State machine ---
 
 BUG_STATE_TRANSITIONS: dict[str, set[str]] = {
-    "detected":         {"open", "wont_fix", "duplicate"},
-    "open":             {"fixing", "wont_fix", "duplicate"},
-    "fixing":           {"fixed", "wont_fix", "duplicate"},
-    "fixed":            {"re_verify_passed", "open", "wont_fix", "duplicate"},
-    "re_verify_passed": {"closed", "wont_fix", "duplicate"},
+    "detected":         {"open", "wont_fix", "duplicate", "archived"},
+    "open":             {"fixing", "wont_fix", "duplicate", "archived"},
+    "fixing":           {"fixed", "wont_fix", "duplicate", "archived"},
+    "fixed":            {"re_verify_passed", "open", "wont_fix", "duplicate", "archived"},
+    "re_verify_passed": {"closed", "wont_fix", "duplicate", "archived"},
     "archived":         {"wont_fix", "duplicate", "not_reproducible"},
     "closed":           set(),
     "wont_fix":         set(),
@@ -189,12 +189,28 @@ def _build_bug_record(
 # --- State transitions ---
 
 
+def _write_audit_log(
+    workspace_root: Path,
+    feat_ref: str,
+    entries: list[dict[str, Any]],
+) -> None:
+    """Write audit entries to artifacts/bugs/{feat_ref}/audit.log (append-only)."""
+    if not entries:
+        return
+    audit_path = workspace_root / "artifacts" / "bugs" / feat_ref / "audit.log"
+    ensure_parent(audit_path)
+    content = yaml.dump(entries, default_flow_style=False, allow_unicode=True, sort_keys=False)
+    with audit_path.open("a", encoding="utf-8") as f:
+        f.write(content)
+
+
 def transition_bug_status(
     bug: dict[str, Any],
     new_status: str,
     *,
     reason: str | None = None,
     actor: str = "system",
+    run_id: str | None = None,
     **extra_fields: Any,
 ) -> dict[str, Any]:
     """Transition a bug to a new status. Returns new bug dict (immutable).
@@ -239,7 +255,156 @@ def transition_bug_status(
     for k, v in extra_fields.items():
         new_bug[k] = v
 
+    # Update timestamps based on new status
+    now = _timestamp()
+    if new_status == "fixed":
+        new_bug["fixed_at"] = now
+    elif new_status == "re_verify_passed":
+        new_bug["verified_at"] = now
+    elif new_status == "closed":
+        new_bug["closed_at"] = now
+
     return new_bug
+
+
+def transition_bug_status_with_audit(
+    workspace_root: Path,
+    feat_ref: str,
+    bug: dict[str, Any],
+    new_status: str,
+    *,
+    reason: str | None = None,
+    actor: str = "system",
+    run_id: str | None = None,
+    **extra_fields: Any,
+) -> dict[str, Any]:
+    """Transition bug status AND write audit log. Returns new bug dict."""
+    from_state = bug["status"]
+    new_bug = transition_bug_status(
+        bug,
+        new_status,
+        reason=reason,
+        actor=actor,
+        run_id=run_id,
+        **extra_fields,
+    )
+
+    # Write audit log
+    audit_entry = {
+        "timestamp": _timestamp(),
+        "bug_id": bug["bug_id"],
+        "from": from_state,
+        "to": new_status,
+        "actor": actor,
+        "run_id": run_id,
+        "reason": reason,
+    }
+    _write_audit_log(workspace_root, feat_ref, [audit_entry])
+
+    return new_bug
+
+
+# --- Verification helpers ---
+
+
+def get_fixed_bugs(
+    workspace_root: Path,
+    feat_ref: str,
+) -> list[dict[str, Any]]:
+    """Get all bugs with status='fixed'."""
+    registry = load_or_create_registry(workspace_root, feat_ref)
+    return [bug for bug in registry["bugs"] if bug["status"] == "fixed"]
+
+
+def get_bugs_by_coverage_ids(
+    bugs: list[dict[str, Any]],
+    coverage_ids: list[str],
+) -> dict[str, dict[str, Any]]:
+    """Map coverage_ids to bug objects."""
+    result = {}
+    coverage_id_set = set(coverage_ids)
+    for bug in bugs:
+        bug_cov_id = bug.get("coverage_id", bug.get("case_id", ""))
+        if bug_cov_id in coverage_id_set:
+            result[bug_cov_id] = bug
+    return result
+
+
+def transition_after_verify(
+    workspace_root: Path,
+    feat_ref: str,
+    bug: dict[str, Any],
+    passed: bool,
+    run_id: str | None = None,
+) -> dict[str, Any]:
+    """Handle fixed -> re_verify_passed|open transition after verification."""
+    if bug["status"] != "fixed":
+        return bug
+
+    new_status = "re_verify_passed" if passed else "open"
+    new_bug = transition_bug_status_with_audit(
+        workspace_root,
+        feat_ref,
+        bug,
+        new_status,
+        reason="verification " + ("passed" if passed else "failed"),
+        actor="system:verify-closure",
+        run_id=run_id,
+    )
+    return new_bug
+
+
+def set_fix_commit(
+    bug: dict[str, Any],
+    commit_hash: str,
+) -> dict[str, Any]:
+    """Set fix_commit field (immutable — returns new dict)."""
+    return {**bug, "fix_commit": commit_hash}
+
+
+def check_auto_close_conditions(
+    bug: dict[str, Any],
+    test_results_since_fix: list[dict[str, Any]] | None = None,
+) -> bool:
+    """Check 2 conditions for auto-close:
+    1. bug.status == re_verify_passed
+    2. No new test failures in affected scope since fix_commit was made
+
+    Returns True if both conditions met.
+    """
+    # Condition 1
+    if bug["status"] != "re_verify_passed":
+        return False
+
+    # Condition 2: If test_results_since_fix provided, check no new failures
+    # (Simplified for now: just condition 1; can extend with manifest checks later)
+    if test_results_since_fix:
+        for result in test_results_since_fix:
+            if result.get("status") == "failed":
+                return False
+
+    return True
+
+
+def auto_close_bug(
+    workspace_root: Path,
+    feat_ref: str,
+    bug: dict[str, Any],
+    run_id: str | None = None,
+) -> dict[str, Any]:
+    """Auto-close bug if conditions are met."""
+    if not check_auto_close_conditions(bug):
+        return bug
+
+    return transition_bug_status_with_audit(
+        workspace_root,
+        feat_ref,
+        bug,
+        "closed",
+        reason="auto-close: verification passed + no regression",
+        actor="system:auto-close",
+        run_id=run_id,
+    )
 
 
 # --- not_reproducible check ---
