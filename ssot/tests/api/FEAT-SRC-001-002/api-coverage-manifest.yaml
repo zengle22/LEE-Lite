@@ -9,16 +9,20 @@ api_coverage_manifest:
     dimension: 正常路径
     priority: P0
     source_feat_ref: FEAT-SRC-001-002.AC-01
-    lifecycle_status: designed
+    lifecycle_status: executed
     mapping_status: unmapped
     evidence_status: missing
     waiver_status: none
     mapped_case_ids: []
-    evidence_refs: []
+    evidence_refs:
+    - candidate.skill-qa-test-exec-api-run-20260429-9fa5ef47
+    - candidate.skill-qa-test-exec-api-run-20260429-245d126b
     rerun_count: 0
-    last_run_id: null
+    last_run_id: RUN-20260429-245D126B
     obsolete: false
     superseded_by: null
+    last_run_status: completed_with_failures
+    feat_ref: FEAT-SRC-001-002
   - coverage_id: api.handoff.upgrade.missing-gate-decision
     capability: HANDOFF-UPGRADE-001
     scenario_type: parameter_validation
@@ -397,5 +401,7 @@ api_coverage_manifest:
       source_ref: ADR-047 Section 4.1.3
       approver: qa-lead
       approved_at: '2026-04-11T00:00:00Z'
-_version: d958a127-907e-433c-b7f2-3679a702e2fa
-_last_updated: '2026-04-29T01:16:55Z'
+  _version: 5f649cf0-0c7c-4eb4-ab0f-dba2486f61dd
+  _last_updated: '2026-04-29T05:52:42Z'
+_version: 5f649cf0-0c7c-4eb4-ab0f-dba2486f61dd
+_last_updated: '2026-04-29T05:52:42Z'

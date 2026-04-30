@@ -21,11 +21,12 @@ e2e_coverage_manifest:
     - candidate.skill-qa-test-exec-web-e2e-run-20260429-ec6d3f14
     - candidate.skill-qa-test-exec-web-e2e-run-20260429-b237d5b3
     - candidate.skill-qa-test-exec-web-e2e-run-20260429-300be29b
+    - candidate.skill-qa-test-exec-web-e2e-run-20260429-f6c3912a
     rerun_count: 0
-    last_run_id: RUN-20260429-300BE29B
+    last_run_id: RUN-20260429-F6C3912A
     obsolete: false
     superseded_by: null
-    last_run_status: invalid_run
+    last_run_status: completed
     proto_ref: PROTOTYPE-FEAT-SRC-001-004
     feat_ref: FEAT-SRC-001-004
   - coverage_id: e2e.journey.main.network-failure
@@ -140,7 +141,7 @@ e2e_coverage_manifest:
     last_run_id: null
     obsolete: false
     superseded_by: null
-  _version: 89293df8-b148-4b4d-9a2a-ba72dce131c3
-  _last_updated: '2026-04-29T01:45:07Z'
-_version: 89293df8-b148-4b4d-9a2a-ba72dce131c3
-_last_updated: '2026-04-29T01:45:07Z'
+  _version: 0fa1ddbb-7e9c-4538-b8f8-11f9af9c2cd6
+  _last_updated: '2026-04-29T05:52:14Z'
+_version: 0fa1ddbb-7e9c-4538-b8f8-11f9af9c2cd6
+_last_updated: '2026-04-29T05:52:14Z'
