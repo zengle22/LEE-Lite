@@ -63,7 +63,15 @@ def _semantic_targets(case: dict[str, Any]) -> list[str]:
 def _infer_action_skeleton(case: dict[str, Any], semantic_page: str, semantic_targets: list[str]) -> list[dict[str, str]]:
     explicit_steps = case.get("ui_steps", [])
     if explicit_steps:
-        return [{"action": str(step.get("action", "")), "target": str(step.get("target", step.get("semantic_target", "")))} for step in explicit_steps]
+        result = []
+        for step in explicit_steps:
+            if isinstance(step, dict):
+                result.append({"action": str(step.get("action", "")), "target": str(step.get("target", step.get("semantic_target", "")))})
+            elif isinstance(step, str):
+                result.append({"action": step, "target": ""})
+            else:
+                result.append({"action": str(step), "target": ""})
+        return result
     skeleton = []
     if semantic_page:
         skeleton.append({"action": "goto", "target": "entry_page"})
@@ -152,7 +160,15 @@ def _resolved_steps(case: dict[str, Any], intent: dict[str, Any]) -> list[dict[s
     selectors = case.get("selectors", {}) if isinstance(case.get("selectors"), dict) else {}
     explicit_steps = case.get("ui_steps", [])
     if explicit_steps:
-        return [_resolve_step(step, selectors) for step in explicit_steps if isinstance(step, dict)]
+        resolved = []
+        for step in explicit_steps:
+            if isinstance(step, dict):
+                resolved.append(_resolve_step(step, selectors))
+            elif isinstance(step, str):
+                resolved.append(_resolve_step({"action": step, "target": ""}, selectors))
+            else:
+                resolved.append(_resolve_step({"action": str(step), "target": ""}, selectors))
+        return resolved
     return [_resolve_step(step, selectors) for step in intent.get("action_skeleton", [])]
 
 

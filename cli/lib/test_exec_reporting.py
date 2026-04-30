@@ -106,7 +106,7 @@ def judge_case_results(
             status = "not_executed"
         elif not check["compliant"]:
             status = "invalid"
-        elif run["raw_status"] == "timeout":
+        elif run["raw_status"] in ("timeout", "timedOut"):
             status = "blocked"
         elif run["raw_status"] == "runner_error":
             status = "invalid"
