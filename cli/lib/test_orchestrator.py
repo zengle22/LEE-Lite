@@ -72,6 +72,113 @@ def _filter_test_units_by_failed(
     ]
 
 
+def _filter_test_units_by_fixed_bugs(
+    workspace_root: Path,
+    feat_ref: str | None,
+    proto_ref: str | None,
+    test_units: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    """Filter test_units to only include coverage_ids for fixed bugs."""
+    ref = feat_ref or proto_ref
+    if not ref:
+        return test_units
+
+    try:
+        from cli.lib.bug_registry import get_fixed_bugs
+        fixed_bugs = get_fixed_bugs(workspace_root, ref)
+        if not fixed_bugs:
+            return test_units
+
+        fixed_coverage_ids = {b.get("coverage_id", b.get("case_id", "")) for b in fixed_bugs}
+        return [
+            unit
+            for unit in test_units
+            if unit.get("_source_coverage_id") in fixed_coverage_ids
+        ]
+    except ImportError:
+        return test_units
+
+
+def _post_execution_verify_bugs(
+    workspace_root: Path,
+    feat_ref: str | None,
+    proto_ref: str | None,
+    run_id: str,
+    case_results: list[dict[str, Any]],
+) -> dict[str, Any]:
+    """Handle post-execution bug state transitions when verify_bugs is enabled."""
+    ref = feat_ref or proto_ref
+    if not ref:
+        return {"skipped": True}
+
+    try:
+        from cli.lib.bug_registry import (
+            auto_close_bug,
+            get_fixed_bugs,
+            load_or_create_registry,
+            registry_path,
+            transition_after_verify,
+            _save_registry,
+        )
+
+        registry = load_or_create_registry(workspace_root, ref)
+        fixed_bugs_before = get_fixed_bugs(workspace_root, ref)
+        if not fixed_bugs_before:
+            return {"no_fixed_bugs": True}
+
+        # Create coverage_id -> result map
+        result_map = {
+            r.get("coverage_id", r.get("case_id", "")): r
+            for r in case_results
+        }
+
+        # Process each fixed bug
+        transitioned_count = 0
+        auto_closed_count = 0
+        new_bugs = []
+        for bug in registry["bugs"]:
+            if bug["status"] != "fixed":
+                new_bugs.append(bug)
+                continue
+
+            # Check if this bug had a test run
+            bug_cov_id = bug.get("coverage_id", bug.get("case_id", ""))
+            result = result_map.get(bug_cov_id)
+            passed = result.get("run_status") == "passed" if result else False
+
+            # Transition
+            new_bug = transition_after_verify(
+                workspace_root,
+                ref,
+                bug,
+                passed,
+                run_id,
+            )
+
+            # Try auto-close
+            if new_bug["status"] == "re_verify_passed":
+                new_bug = auto_close_bug(workspace_root, ref, new_bug, run_id)
+                if new_bug["status"] == "closed":
+                    auto_closed_count += 1
+
+            if new_bug["status"] != "fixed":
+                transitioned_count += 1
+            new_bugs.append(new_bug)
+
+        # Update registry
+        if transitioned_count > 0:
+            registry["bugs"] = new_bugs
+            registry["version"] = str(uuid.uuid4())
+            _save_registry(registry_path(workspace_root, ref), registry)
+
+        return {
+            "transitioned_count": transitioned_count,
+            "auto_closed_count": auto_closed_count,
+        }
+    except ImportError:
+        return {"import_error": True}
+
+
 def update_manifest(
     workspace_root: Path,
     manifest_items: list[dict[str, Any]],
@@ -163,6 +270,9 @@ def run_spec_test(
     resume: bool = False,
     resume_from: str | None = None,
     on_complete: Callable[..., None] | None = None,
+    timeout: int = 30000,
+    verify_bugs: bool = False,
+    verify_mode: str = "targeted",
 ) -> StepResult:
     """End-to-end orchestration: env → adapter → exec → manifest update.
 
@@ -204,7 +314,7 @@ def run_spec_test(
         api_url=api_url,
         modality=modality,
         browser="chromium",
-        timeout=30000,
+        timeout=timeout,
         feat_assumptions=None,
     )
     # -------------------------------------------------------------------------
@@ -289,6 +399,37 @@ def run_spec_test(
                 item for item in manifest_items
                 if item.get("coverage_id") in failed_coverage_ids
             ]
+    # -------------------------------------------------------------------------
+    # Verify bugs: filter to fixed bugs' coverage_ids if requested (targeted mode)
+    # -------------------------------------------------------------------------
+    elif verify_bugs and verify_mode == "targeted":
+        # Get spec_compat again for filtering
+        spec_compat = spec_to_testset(workspace_root, spec_adapter_input)
+        filtered_test_units = _filter_test_units_by_fixed_bugs(
+            workspace_root,
+            feat_ref,
+            proto_ref,
+            spec_compat.get("test_units", []),
+        )
+        # Recreate manifest_items from filtered units
+        if filtered_test_units != spec_compat.get("test_units", []):
+            manifest_items = []
+            case_results = []
+            for unit in filtered_test_units:
+                coverage_id = unit.get("_source_coverage_id", unit.get("unit_ref", ""))
+                case_results.append({
+                    "coverage_id": coverage_id,
+                    "case_id": unit.get("unit_ref", ""),
+                    "status": execution_result.get("run_status", "completed"),
+                })
+                manifest_items.append({
+                    "coverage_id": coverage_id,
+                    "status": "executed",
+                    "run_status": execution_result.get("run_status", "passed"),
+                    "evidence_ref": candidate_artifact_ref,
+                    "feat_ref": feat_ref,
+                    "proto_ref": proto_ref,
+                })
 
     # -------------------------------------------------------------------------
     # Step 4: update_manifest()
@@ -297,7 +438,19 @@ def run_spec_test(
         update_manifest(workspace_root, manifest_items, run_id)
 
     # -------------------------------------------------------------------------
-    # Step 4.5: on_complete callback (Phase 25 integration point)
+    # Step 4.5: Post-execution bug verification (Phase 27 integration)
+    # -------------------------------------------------------------------------
+    if verify_bugs:
+        _post_execution_verify_bugs(
+            workspace_root,
+            feat_ref,
+            proto_ref,
+            run_id,
+            case_results,
+        )
+
+    # -------------------------------------------------------------------------
+    # Step 4.6: on_complete callback (Phase 25 integration point)
     # -------------------------------------------------------------------------
     if on_complete is not None:
         on_complete(workspace_root, feat_ref, proto_ref, run_id, case_results)
