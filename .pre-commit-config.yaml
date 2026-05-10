@@ -1,0 +1,9 @@
+repos:
+  - repo: local
+    hooks:
+      - id: validate-ai-governance
+        name: Validate AI governance
+        entry: python tools/validate_ai_governance.py
+        language: system
+        pass_filenames: false
+        files: ^(CLAUDE\.md|AGENTS\.md|ssot/governance/|ssot/registry/(knowledge_registry|rule_registry|skill_registry)\.yaml|skills/.+/(SKILL\.md|ll\.contract\.yaml|lifecycle\.yaml|agents/|scripts/)|tools/validate_ai_governance\.py)$
