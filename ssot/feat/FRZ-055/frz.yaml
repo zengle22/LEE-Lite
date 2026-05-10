@@ -1,0 +1,169 @@
+frz_package:
+  artifact_type: frz_package
+  frz_id: FRZ-055
+  version: 1.6-final-2
+  status: frozen
+  created_at: '2026-05-07T00:00:00+08:00'
+  frozen_at: '2026-05-07T02:24:21.202616+00:00'
+  product_boundary:
+    in_scope:
+    - Bug生命周期管理（detected→open→fixing→fixed→re_verify_passed→closed）
+    - 终止状态（wont_fix, duplicate, not_reproducible）
+    - Gate与Bug注册表集成（gate FAIL → open bug）
+    - ll-bug-remediate技能（生成bug fix phase）
+    - --verify-bugs再验证机制
+    - 影子修复检测（commit hook + registry reconciliation）
+    - 与GSD execute-phase集成
+    out_of_scope:
+    - 自动修复（LLM仅辅助，修复由开发者确认）
+    - Autonomy grant机制（MVP阶段所有修复人工确认）
+    - 6条件auto-close（简化为2条件+通知）
+    - Break-glass协议（无autonomy门限可绕）
+  core_journeys:
+  - id: JRN-001
+    name: 标准Bug修复流程
+    steps:
+    - test-run执行测试，发现失败用例
+    - build_bug_bundle生成detected状态bug，写入bug registry
+    - gate-evaluate分析，输出FAIL verdict
+    - gate_remediation将detected提升为open，生成draft phase
+    - 开发者运行ll-bug-remediate --feat-ref {ref}确认修复计划
+    - 生成GSD phase（{N}-bug-fix-{bug_id}）
+    - 执行/gsd-execute-phase {N}完成修复
+    - commit后status变为fixed
+    - CI自动触发--verify-bugs targeted验证
+    - 验证通过后status变为re_verify_passed
+    - 满足2条件后系统自动closed，通知开发者
+  - id: JRN-002
+    name: 验证失败回退流程
+    steps:
+    - test-run发现失败用例 → detected → gate FAIL → open
+    - ll-bug-remediate生成phase → 修复代码 → commit → fixed
+    - CI触发--verify-bugs targeted验证 → 验证失败
+    - status自动回退到open
+    - 开发者重新分析修复
+  - id: JRN-003
+    name: 人工终止流程
+    steps:
+    - test-run发现失败用例 → detected
+    - 开发者review后认为是wont_fix/duplicate
+    - 运行ll-bug-transition --bug-id {id} --to wont_fix --reason {reason}
+    - status更新为终止状态，审计日志记录
+  - id: JRN-004
+    name: Gate PASS归档流程
+    steps:
+    - test-run发现失败用例 → detected
+    - settlement分析认为是环境问题/flaky
+    - gate-evaluate输出PASS verdict
+    - detected bug自动降级为archived
+  domain_model:
+  - id: ENT-001
+    name: BugRegistry
+    contract:
+      object: BugRegistry
+      description: 按feat隔离的Bug注册表
+      required_fields:
+      - bug_id
+      - case_id
+      - coverage_id
+      - status
+      - severity
+      - gap_type
+  - id: ENT-002
+    name: Bug
+    contract:
+      object: Bug
+      description: 单条Bug记录
+      required_fields:
+      - bug_id: 唯一标识符
+      - case_id: 关联测试用例ID
+      - status: 当前状态
+  - id: ENT-003
+    name: FixHypothesis
+    contract:
+      object: FixHypothesis
+      description: LLM生成的修复假设
+      required_fields:
+      - root_cause: 根因分析
+      - expected_behavior_change: 预期行为变化
+  state_machine:
+  - id: SM-001
+    name: Bug生命周期状态机
+    states:
+    - detected
+    - open
+    - fixing
+    - fixed
+    - re_verify_passed
+    - closed
+    - wont_fix
+    - duplicate
+    - not_reproducible
+    - archived
+    transitions:
+    - from: null
+      to: detected
+      trigger: test-run发现用例失败
+    - from: detected
+      to: open
+      trigger: gate FAIL
+    - from: detected
+      to: archived
+      trigger: gate PASS
+    - from: open
+      to: fixing
+      trigger: 开发者开始修复
+    - from: open
+      to: wont_fix
+      trigger: 开发者人工标记
+    - from: open
+      to: duplicate
+      trigger: 开发者人工标记
+    - from: fixing
+      to: fixed
+      trigger: 修复代码已提交
+    - from: fixed
+      to: re_verify_passed
+      trigger: --verify-bugs通过
+    - from: fixed
+      to: open
+      trigger: --verify-bugs失败
+    - from: re_verify_passed
+      to: closed
+      trigger: 满足2条件自动关闭
+  acceptance_contract:
+    expected_outcomes:
+    - 'TC-001: test-run失败用例应自动生成detected状态bug写入registry'
+    - 'TC-002: gate FAIL应自动将detected提升为open'
+    - 'TC-003: gate PASS应自动将detected降级为archived'
+    - 'TC-004: ll-bug-remediate应生成符合GSD规范的bug-fix phase'
+    acceptance_impact:
+    - 必须验证：gate FAIL → open bug → GSD phase → 修复 → verify → closed的完整闭环
+  constraints:
+  - 三层分离原则：执行层（test-run）仅记录，验收层（gate）仅决策，修复层（GSD）仅修复
+  - 按feat隔离：每个feat有独立的bug registry，避免跨feat干扰
+  - 幂等性：多次运行ll-bug-remediate不应重复生成相同phase
+  derived_allowed:
+  - scope
+  - user_journeys
+  - entities
+  - state_transitions
+  - acceptance_criteria
+  - constraints
+  - open_questions
+  known_unknowns:
+  - id: UNK-001
+    topic: 测试层级not-reproducible阈值N的具体数值
+    status: open
+    owner: QA治理
+    expires_in: 2 cycles
+  - id: UNK-002
+    topic: 影子修复检测PR check层的ROI评估
+    status: open
+    owner: 架构
+    expires_in: 2 cycles
+  enums: []
+  evidence:
+    source_refs:
+    - ssot/adr/ADR-055-Bug流转闭环与GSD执行阶段集成.md
+    raw_path: ssot/adr/ADR-055-Bug流转闭环与GSD执行阶段集成.md

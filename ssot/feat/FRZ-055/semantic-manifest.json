@@ -1,0 +1,8 @@
+{
+  "frz_id": "FRZ-055",
+  "status": "frozen",
+  "journeys": ["JRN-001", "JRN-002", "JRN-003", "JRN-004"],
+  "entities": ["ENT-001", "ENT-002", "ENT-003"],
+  "state_machines": ["SM-001"],
+  "known_unknowns": ["UNK-001", "UNK-002"]
+}

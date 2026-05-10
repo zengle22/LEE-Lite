@@ -1,0 +1,13 @@
+frz_id: FRZ-055
+freeze_type: new
+frozen_at: "2026-05-07T02:24:21.202616+00:00"
+frozen_by: system
+msc_result: pass
+validation_summary:
+  minimum: pass
+  structured: pass
+  completeness: pass
+source_documents:
+  - "ssot/adr/ADR-055-Bug流转闭环与GSD执行阶段集成.md"
+adr_review_rounds: 1
+adr_final_verdict: "FROZEN (system)"
