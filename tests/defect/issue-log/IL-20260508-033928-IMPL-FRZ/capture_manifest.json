@@ -1,0 +1,112 @@
+{
+  "artifact_type": "failure_capture_package",
+  "schema_version": "0.1.0",
+  "status": "captured",
+  "workflow_key": "governance.failure-capture",
+  "package_kind": "issue_log",
+  "package_id": "IL-20260508-033928-IMPL-FRZ",
+  "triage_level": "P2",
+  "skill_id": "ll-qa-impl-spec-test",
+  "sku": "impl_spec_tester",
+  "run_id": "frz055-qa-001-20260507",
+  "artifact_id": "IMPL-FRZ-055-001",
+  "failure_scope": "artifact",
+  "package_dir_ref": "tests/defect/issue-log/IL-20260508-033928-IMPL-FRZ",
+  "request_ref": ".local/frz055-failure-capture/request-001.json",
+  "source_refs": [
+    ".local/frz055-failure-capture/request-001.json",
+    "artifacts/active/qa/impl-spec-tests/frz055-qa-001-20260507-impl-frz-055-001/impl-spec-test-report.md",
+    "ssot/impl/IMPL-FRZ-055-001__标准Bug修复流程.md",
+    "ssot/feat/FEAT-FRZ-055-001__标准Bug修复流程.md",
+    "ssot/tech/TECH-FRZ-055-001__标准Bug修复流程.md",
+    "ssot/arch/ARCH-FRZ-055-001__标准Bug修复流程.md",
+    "ssot/epic/EPIC-FRZ-055__bug-lifecycle-closed-loop-integration-with-gsd.md",
+    "ssot/src/SRC-FRZ-055__bug-lifecycle-governance-and-closed-loop-integration.md"
+  ],
+  "evidence_refs": [
+    "artifacts/active/qa/impl-spec-tests/frz055-qa-001-20260507-impl-frz-055-001/impl-spec-test-report.md"
+  ],
+  "ref_resolution": {
+    "source_refs": {
+      "total": 8,
+      "resolved": 4,
+      "missing": 4,
+      "resolved_ratio": 0.5,
+      "items": [
+        {
+          "ref": ".local/frz055-failure-capture/request-001.json",
+          "resolved_ref": ".local/frz055-failure-capture/request-001.json",
+          "exists": true
+        },
+        {
+          "ref": "artifacts/active/qa/impl-spec-tests/frz055-qa-001-20260507-impl-frz-055-001/impl-spec-test-report.md",
+          "resolved_ref": "artifacts/active/qa/impl-spec-tests/frz055-qa-001-20260507-impl-frz-055-001/impl-spec-test-report.md",
+          "exists": true
+        },
+        {
+          "ref": "ssot/impl/IMPL-FRZ-055-001__标准Bug修复流程.md",
+          "resolved_ref": "ssot/impl/IMPL-FRZ-055-001__标准Bug修复流程.md",
+          "exists": false
+        },
+        {
+          "ref": "ssot/feat/FEAT-FRZ-055-001__标准Bug修复流程.md",
+          "resolved_ref": "ssot/feat/FEAT-FRZ-055-001__标准Bug修复流程.md",
+          "exists": false
+        },
+        {
+          "ref": "ssot/tech/TECH-FRZ-055-001__标准Bug修复流程.md",
+          "resolved_ref": "ssot/tech/TECH-FRZ-055-001__标准Bug修复流程.md",
+          "exists": false
+        },
+        {
+          "ref": "ssot/arch/ARCH-FRZ-055-001__标准Bug修复流程.md",
+          "resolved_ref": "ssot/arch/ARCH-FRZ-055-001__标准Bug修复流程.md",
+          "exists": false
+        },
+        {
+          "ref": "ssot/epic/EPIC-FRZ-055__bug-lifecycle-closed-loop-integration-with-gsd.md",
+          "resolved_ref": "ssot/epic/EPIC-FRZ-055__bug-lifecycle-closed-loop-integration-with-gsd.md",
+          "exists": true
+        },
+        {
+          "ref": "ssot/src/SRC-FRZ-055__bug-lifecycle-governance-and-closed-loop-integration.md",
+          "resolved_ref": "ssot/src/SRC-FRZ-055__bug-lifecycle-governance-and-closed-loop-integration.md",
+          "exists": true
+        }
+      ]
+    },
+    "evidence_refs": {
+      "total": 1,
+      "resolved": 1,
+      "missing": 0,
+      "resolved_ratio": 1.0,
+      "items": [
+        {
+          "ref": "artifacts/active/qa/impl-spec-tests/frz055-qa-001-20260507-impl-frz-055-001/impl-spec-test-report.md",
+          "resolved_ref": "artifacts/active/qa/impl-spec-tests/frz055-qa-001-20260507-impl-frz-055-001/impl-spec-test-report.md",
+          "exists": true
+        }
+      ]
+    },
+    "allowed_edit_scope": {
+      "total": 1,
+      "resolved": 0,
+      "missing": 1,
+      "resolved_ratio": 0.0,
+      "items": [
+        {
+          "ref": "ssot/impl/IMPL-FRZ-055-001__标准Bug修复流程.md",
+          "resolved_ref": "ssot/impl/IMPL-FRZ-055-001__标准Bug修复流程.md",
+          "exists": false
+        }
+      ]
+    }
+  },
+  "reproducibility_status": "captured_but_not_reproducible",
+  "files": {
+    "capture_manifest_ref": "tests/defect/issue-log/IL-20260508-033928-IMPL-FRZ/capture_manifest.json",
+    "diagnosis_stub_ref": "tests/defect/issue-log/IL-20260508-033928-IMPL-FRZ/diagnosis_stub.json",
+    "repair_context_ref": "tests/defect/issue-log/IL-20260508-033928-IMPL-FRZ/repair_context.json",
+    "issue_log_ref": "tests/defect/issue-log/IL-20260508-033928-IMPL-FRZ/issue_log.json"
+  }
+}

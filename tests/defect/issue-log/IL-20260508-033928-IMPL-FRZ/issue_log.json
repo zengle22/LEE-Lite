@@ -1,0 +1,20 @@
+{
+  "artifact_type": "issue_log",
+  "schema_version": "0.1.0",
+  "status": "open",
+  "issue_id": "IL-20260508-033928-IMPL-FRZ",
+  "skill_id": "ll-qa-impl-spec-test",
+  "sku": "impl_spec_tester",
+  "run_id": "frz055-qa-001-20260507",
+  "artifact_id": "IMPL-FRZ-055-001",
+  "failure_scope": "artifact",
+  "triage_level": "P2",
+  "severity": "medium",
+  "symptom_summary": "pass_with_revisions - needs TESTSET",
+  "problem_description": "IMPL-FRZ-055-001 received verdict: pass_with_revisions, implementation_readiness: partial. Missing UI and TESTSET authorities, counterexample coverage insufficient (testability, ui_usability).",
+  "failed_artifact_ref": "artifacts/active/qa/impl-spec-tests/frz055-qa-001-20260507-impl-frz-055-001/impl-spec-test-report.md",
+  "evidence_refs": [
+    "artifacts/active/qa/impl-spec-tests/frz055-qa-001-20260507-impl-frz-055-001/impl-spec-test-report.md"
+  ],
+  "upgrade_rule": "Upgrade to failure_case when the same P2 pattern reaches the ADR-037 threshold."
+}

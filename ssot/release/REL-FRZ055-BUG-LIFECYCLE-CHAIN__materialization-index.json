@@ -1,0 +1,29 @@
+{
+  "id": "REL-FRZ055-BUG-LIFECYCLE-CHAIN",
+  "title": "FRZ-055 Bug Lifecycle Chain Materialization Index",
+  "status": "approved",
+  "gate_decision_ref": "artifacts/active/gates/decisions/frz055-chain-manual-approval-20260507.json",
+  "source_chain": {
+    "feat": "artifacts/epic-to-feat/frz-055-bug-lifecycle"
+  },
+  "formal_refs": {
+    "architecture": [
+      "ssot/architecture/ARCH-FRZ-055-001__标准-Bug-修复流程.md"
+    ],
+    "tech": [
+      "ssot/tech/FRZ-055/TECH-FRZ-055-001__标准-Bug-修复流程.md",
+      "ssot/tech/FRZ-055/TECH-FRZ-055-002__验证失败回退流程.md",
+      "ssot/tech/FRZ-055/TECH-FRZ-055-003__人工终止流程.md",
+      "ssot/tech/FRZ-055/TECH-FRZ-055-004__Gate-PASS-归档流程.md"
+    ],
+    "impl": [
+      "ssot/impl/IMPL-FRZ-055-001__标准-Bug-修复流程.md",
+      "ssot/impl/IMPL-FRZ-055-002__验证失败回退流程.md",
+      "ssot/impl/IMPL-FRZ-055-003__人工终止流程.md",
+      "ssot/impl/IMPL-FRZ-055-004__Gate-PASS-归档流程.md"
+    ]
+  },
+  "notes": [
+    "TECH and IMPL packages were materialized from approved outputs."
+  ]
+}
