@@ -1,0 +1,204 @@
+schema_version: 1
+registry_id: rule_registry
+authority_policy:
+  path_format: repo_relative
+  stable_ids: true
+  machine_parseable: true
+  no_runtime_residue: true
+primary_sources:
+  - README.md
+  - docs/repository-layout.md
+  - ssot/README.md
+  - ssot/adr/ADR-038-运行时核心抽象边界与对象分层基线.MD
+  - ssot/adr/ADR-050-SSOT语义治理总纲.md
+  - ssot/adr/ADR-049-引入体验修正层-Experience-Patch-Layer.md
+  - CLAUDE.md
+rules:
+  - rule_id: RULE-001
+    title: authority_before_carrier
+    status: active
+    statement: 新能力必须先判定 authority layer，再选择 carrier；carrier 不得反向篡改 authority。
+    authority_refs:
+      - ssot/adr/ADR-038-运行时核心抽象边界与对象分层基线.MD
+    applies_to:
+      - command
+      - skill
+      - tool
+      - workflow
+      - task
+      - session
+      - artifact
+      - evidence
+      - gate
+    enforcement: 评审新增能力时必须写清 primary abstraction、secondary abstraction、authority、carrier、not equal to。
+    notes: CLI、脚本、markdown、目录名都只是 carrier 线索，不自动成为 authority。
+
+  - rule_id: RULE-002
+    title: frz_semantic_authority
+    status: active
+    statement: FRZ 是进入 SSOT 体系前的冻结语义真相源；SSOT 通过引用 FRZ 表达语义，不直接改写 FRZ。
+    authority_refs:
+      - ssot/adr/ADR-050-SSOT语义治理总纲.md
+      - ssot/adr/ADR-045-引入 FRZ 冻结层与全链 Pre-SSOT 集成方案.MD
+    applies_to:
+      - frz
+      - src
+      - epic
+      - feat
+      - semantic_change
+    enforcement: 改变用户路径、功能逻辑或验收标准的变更必须回到 FRZ 重新冻结。
+    notes: FRZ 产物存放在 artifacts/，SSOT 对其建立引用和投影。
+
+  - rule_id: RULE-003
+    title: ssot_extraction_only
+    status: active
+    statement: SSOT 主链从 FRZ 分层抽取与归属管理，不承担逐层脑补或重新生成语义的职责。
+    authority_refs:
+      - ssot/README.md
+      - ssot/adr/ADR-050-SSOT语义治理总纲.md
+    applies_to:
+      - src
+      - epic
+      - feat
+      - surface_map
+      - tech
+      - impl
+      - testset
+    enforcement: 下游对象必须保留上游或 FRZ 引用；无法追溯的新增语义不得进入治理主线。
+    notes: SRC、EPIC、FEAT 是主链 SSOT；TECH、IMPL、TESTSET 是围绕 FEAT 的派生 SSOT。
+
+  - rule_id: RULE-004
+    title: gate_owns_promotion
+    status: active
+    statement: Gate 拥有状态推进 authority；skill、runner、agent 不能自行宣告跨治理边界推进成功。
+    authority_refs:
+      - ssot/adr/ADR-038-运行时核心抽象边界与对象分层基线.MD
+      - ssot/adr/ADR-006-External Gate 独立 Skill 化的 Decision 与 Materialization 层.MD
+      - ssot/adr/ADR-009-Gate Runtime 采用 CLI-First File Runtime 承载.MD
+    applies_to:
+      - gate
+      - workflow
+      - job
+      - skill
+      - release
+    enforcement: 所有进入下一状态的对象必须有 gate decision、dispatch、receipt 或等价证明链。
+    notes: Runner 只消费 gate 允许推进的 ready work；Gate 不是普通 review comment。
+
+  - rule_id: RULE-005
+    title: executor_supervisor_separation
+    status: active
+    statement: Governed skill 应区分 executor 与 supervisor 职责；执行产物和监督判断不得由同一语义角色混写。
+    authority_refs:
+      - ssot/adr/ADR-004-统一 Skill Execution Contract 与公共 Skill Kernel 方案.MD
+      - ssot/adr/ADR-038-运行时核心抽象边界与对象分层基线.MD
+    applies_to:
+      - skill
+      - agent
+      - evidence
+      - gate
+    enforcement: 有 agents/ 的 skill 应保持执行与监督文件分离；无 agents/ 的 skill 必须在 contract 或 notes 中说明角色边界。
+    notes: Agent 是执行主体，不是 workflow authority。
+
+  - rule_id: RULE-006
+    title: evidence_required
+    status: active
+    statement: 支撑结论、Gate、审批、修复、回归或执行结果的材料必须作为 evidence 或 evidence_ref 可追溯。
+    authority_refs:
+      - README.md
+      - ssot/adr/ADR-038-运行时核心抽象边界与对象分层基线.MD
+      - ssot/adr/ADR-047-测试体系重建 - 双链治理.md
+      - ssot/adr/ADR-050-SSOT语义治理总纲.md
+    applies_to:
+      - evidence
+      - gate
+      - test
+      - audit
+      - patch
+      - release
+    enforcement: 不能只依赖聊天记录、stdout、临时日志或 session residue 作为证明。
+    notes: Evidence 是带证明责任的 artifact specialization。
+
+  - rule_id: RULE-007
+    title: patch_grading_reflow
+    status: active
+    statement: Experience Patch 必须按 visual、interaction、semantic 或 other 分级；semantic 变更回 FRZ，minor 变更按 patch/settle 路径回流。
+    authority_refs:
+      - ssot/adr/ADR-049-引入体验修正层-Experience-Patch-Layer.md
+      - ssot/adr/ADR-050-SSOT语义治理总纲.md
+      - CLAUDE.md
+    applies_to:
+      - patch
+      - frz
+      - ui
+      - testset
+      - implementation
+    enforcement: 修改前必须运行 patch context injection；修改后不得无用户确认自动注册 patch。
+    notes: visual 和 interaction 默认属于 Minor；semantic 属于 Major 并触发 FRZ 重新冻结。
+
+  - rule_id: RULE-008
+    title: runtime_residue_outside_tree
+    status: active
+    statement: 项目树只存放可复用、可评审、可版本化、可追溯内容；runtime residue 默认留在仓库外或被忽略的本地空间。
+    authority_refs:
+      - README.md
+      - docs/repository-layout.md
+      - ssot/adr/ADR-038-运行时核心抽象边界与对象分层基线.MD
+    applies_to:
+      - repository_layout
+      - session
+      - runtime
+      - artifact
+    enforcement: session state、scratch、cache、logs、临时下载、未确认修复草稿不得作为正式 authority 进入项目树。
+    notes: 只有 durable audit object、evidence、report、lineage snapshot 等运行结果可以进入 artifacts/ 或 ssot/。
+
+  - rule_id: RULE-009
+    title: progressive_disclosure
+    status: active
+    statement: AI 和人工执行者应先读取 L0/L1 入口，再按任务需要加载最小 L2/L3 authority；不要全量加载无关上下文。
+    authority_refs:
+      - ssot/governance/maps/RULE-MAP.md
+      - ssot/governance/maps/ADR-MAP.md
+      - ssot/governance/maps/SKILL-MAP.md
+      - ssot/governance/maps/SSOT-MAP.md
+      - ssot/governance/maps/RUNTIME-MAP.md
+    applies_to:
+      - governance
+      - skill_execution
+      - review
+      - documentation
+    enforcement: 任务路由必须优先使用 registry 和 map，随后只读取选中的 ADR、SKILL.md 或对象文件。
+    notes: 该规则允许 ssot/governance/maps/*.md 先以 planned 状态被 registry 引用。
+
+  - rule_id: RULE-010
+    title: broken_references_block_governance
+    status: active
+    statement: 治理对象中的 authority_refs、source_path、map_path、evidence_ref 若断裂，应阻断对应治理推进，直到引用被修复或显式降级。
+    authority_refs:
+      - ssot/adr/ADR-038-运行时核心抽象边界与对象分层基线.MD
+      - ssot/adr/ADR-050-SSOT语义治理总纲.md
+      - docs/repository-layout.md
+    applies_to:
+      - registry
+      - map
+      - ssot
+      - evidence
+      - gate
+    enforcement: registry/map 校验必须检查仓库相对路径；planned 路径必须显式标记 planned，不得伪装为 existing。
+    notes: 断链优先视为治理风险，而不是格式小问题。
+
+  - rule_id: RULE-011
+    title: canonical_skill_authority
+    status: active
+    statement: canonical skill authority 只在 skills/ 下；.claude/.cursor/.agents 中的 skill 副本是适配面或安装副本，不是权威源。
+    authority_refs:
+      - README.md
+      - docs/repository-layout.md
+      - ssot/adr/ADR-038-运行时核心抽象边界与对象分层基线.MD
+      - ssot/governance/maps/SKILL-MAP.md
+    applies_to:
+      - skill
+      - adapter
+      - agent
+      - registry
+    enforcement: skill_registry.yaml 只登记 skills/ 下的 SKILL.md 作为 source_path。
+    notes: adapter 可以触发或投影 skill，但不得替代 canonical bundle。

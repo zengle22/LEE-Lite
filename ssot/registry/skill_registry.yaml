@@ -1,0 +1,330 @@
+schema_version: 1
+registry_id: skill_registry
+authority_policy:
+  canonical_root: skills
+  path_format: repo_relative
+  adapter_roots_are_not_authority:
+    - .claude/skills
+    - .cursor/skills
+    - .agents/skills
+  machine_parseable: true
+  stable_ids: true
+summary:
+  canonical_skill_count: 31
+  categories:
+    product: 3
+    development: 5
+    qa: 12
+    governance: 8
+    l3_governance: 3
+    tooling: 1
+skills:
+  - skill_id: ll-execution-loop-job-runner
+    category: l3_governance
+    source_path: skills/l3/ll-execution-loop-job-runner/SKILL.md
+    has_contract: true
+    has_lifecycle: true
+    has_agents: true
+    has_scripts: true
+    status: canonical
+    notes: L3 job runner and execution loop authority.
+
+  - skill_id: ll-governance-failure-capture
+    category: l3_governance
+    source_path: skills/l3/ll-governance-failure-capture/SKILL.md
+    has_contract: true
+    has_lifecycle: true
+    has_agents: true
+    has_scripts: true
+    status: canonical
+    notes: L3 failure governance capture authority.
+
+  - skill_id: ll-governance-spec-reconcile
+    category: l3_governance
+    source_path: skills/l3/ll-governance-spec-reconcile/SKILL.md
+    has_contract: true
+    has_lifecycle: true
+    has_agents: false
+    has_scripts: true
+    status: canonical
+    notes: No agents directory detected; role boundary should be read from contract and SKILL.md.
+
+  - skill_id: ll-dev-feat-to-proto
+    category: development
+    source_path: skills/ll-dev-feat-to-proto/SKILL.md
+    has_contract: true
+    has_lifecycle: true
+    has_agents: true
+    has_scripts: true
+    status: canonical
+    notes: FEAT to prototype derivation skill.
+
+  - skill_id: ll-dev-feat-to-surface-map
+    category: development
+    source_path: skills/ll-dev-feat-to-surface-map/SKILL.md
+    has_contract: true
+    has_lifecycle: true
+    has_agents: true
+    has_scripts: true
+    status: canonical
+    notes: FEAT ownership and surface mapping skill.
+
+  - skill_id: ll-dev-feat-to-tech
+    category: development
+    source_path: skills/ll-dev-feat-to-tech/SKILL.md
+    has_contract: true
+    has_lifecycle: true
+    has_agents: true
+    has_scripts: true
+    status: canonical
+    notes: FEAT to TECH design derivation skill.
+
+  - skill_id: ll-dev-proto-to-ui
+    category: development
+    source_path: skills/ll-dev-proto-to-ui/SKILL.md
+    has_contract: true
+    has_lifecycle: true
+    has_agents: true
+    has_scripts: true
+    status: canonical
+    notes: Prototype to UI spec derivation skill.
+
+  - skill_id: ll-dev-tech-to-impl
+    category: development
+    source_path: skills/ll-dev-tech-to-impl/SKILL.md
+    has_contract: true
+    has_lifecycle: true
+    has_agents: true
+    has_scripts: true
+    status: canonical
+    notes: TECH to IMPL candidate derivation skill.
+
+  - skill_id: ll-experience-patch-settle
+    category: governance
+    source_path: skills/ll-experience-patch-settle/SKILL.md
+    has_contract: true
+    has_lifecycle: true
+    has_agents: true
+    has_scripts: true
+    status: canonical
+    notes: Minor experience patch settlement and backwrite skill.
+
+  - skill_id: ll-frz-manage
+    category: governance
+    source_path: skills/ll-frz-manage/SKILL.md
+    has_contract: true
+    has_lifecycle: true
+    has_agents: true
+    has_scripts: true
+    status: canonical
+    notes: FRZ freeze and revision management skill.
+
+  - skill_id: ll-gate-human-orchestrator
+    category: governance
+    source_path: skills/ll-gate-human-orchestrator/SKILL.md
+    has_contract: true
+    has_lifecycle: true
+    has_agents: true
+    has_scripts: true
+    status: canonical
+    notes: Human gate orchestration skill; Gate remains promotion authority.
+
+  - skill_id: ll-meta-skill-creator
+    category: governance
+    source_path: skills/ll-meta-skill-creator/SKILL.md
+    has_contract: false
+    has_lifecycle: false
+    has_agents: true
+    has_scripts: true
+    status: canonical
+    notes: Meta authoring skill; contract and lifecycle files not detected in canonical bundle.
+
+  - skill_id: ll-patch-capture
+    category: governance
+    source_path: skills/ll-patch-capture/SKILL.md
+    has_contract: true
+    has_lifecycle: true
+    has_agents: true
+    has_scripts: true
+    status: canonical
+    notes: Experience patch capture skill with executor/supervisor role separation.
+
+  - skill_id: ll-product-epic-to-feat
+    category: product
+    source_path: skills/ll-product-epic-to-feat/SKILL.md
+    has_contract: true
+    has_lifecycle: true
+    has_agents: true
+    has_scripts: true
+    status: canonical
+    notes: EPIC to FEAT product derivation skill.
+
+  - skill_id: ll-product-raw-to-src
+    category: product
+    source_path: skills/ll-product-raw-to-src/SKILL.md
+    has_contract: true
+    has_lifecycle: true
+    has_agents: true
+    has_scripts: true
+    status: canonical
+    notes: Raw input to SRC normalization skill.
+
+  - skill_id: ll-product-src-to-epic
+    category: product
+    source_path: skills/ll-product-src-to-epic/SKILL.md
+    has_contract: true
+    has_lifecycle: true
+    has_agents: true
+    has_scripts: true
+    status: canonical
+    notes: SRC to EPIC product derivation skill.
+
+  - skill_id: ll-project-init
+    category: governance
+    source_path: skills/ll-project-init/SKILL.md
+    has_contract: true
+    has_lifecycle: true
+    has_agents: true
+    has_scripts: true
+    status: canonical
+    notes: Repository initialization skill.
+
+  - skill_id: ll-qa-api-from-feat
+    category: qa
+    source_path: skills/ll-qa-api-from-feat/SKILL.md
+    has_contract: true
+    has_lifecycle: false
+    has_agents: true
+    has_scripts: false
+    status: canonical
+    notes: Lifecycle and scripts files not detected; API plan generation authority is SKILL.md plus contract.
+
+  - skill_id: ll-qa-api-manifest-init
+    category: qa
+    source_path: skills/ll-qa-api-manifest-init/SKILL.md
+    has_contract: true
+    has_lifecycle: true
+    has_agents: true
+    has_scripts: false
+    status: canonical
+    notes: API manifest initialization skill; scripts directory not detected.
+
+  - skill_id: ll-qa-api-spec-gen
+    category: qa
+    source_path: skills/ll-qa-api-spec-gen/SKILL.md
+    has_contract: true
+    has_lifecycle: true
+    has_agents: true
+    has_scripts: false
+    status: canonical
+    notes: API spec generation skill; scripts directory not detected.
+
+  - skill_id: ll-qa-e2e-from-proto
+    category: qa
+    source_path: skills/ll-qa-e2e-from-proto/SKILL.md
+    has_contract: true
+    has_lifecycle: false
+    has_agents: true
+    has_scripts: false
+    status: canonical
+    notes: Lifecycle and scripts files not detected; E2E plan generation authority is SKILL.md plus contract.
+
+  - skill_id: ll-qa-e2e-manifest-init
+    category: qa
+    source_path: skills/ll-qa-e2e-manifest-init/SKILL.md
+    has_contract: true
+    has_lifecycle: true
+    has_agents: true
+    has_scripts: false
+    status: canonical
+    notes: E2E manifest initialization skill; scripts directory not detected.
+
+  - skill_id: ll-qa-e2e-spec-gen
+    category: qa
+    source_path: skills/ll-qa-e2e-spec-gen/SKILL.md
+    has_contract: true
+    has_lifecycle: true
+    has_agents: true
+    has_scripts: false
+    status: canonical
+    notes: E2E spec generation skill; scripts directory not detected.
+
+  - skill_id: ll-qa-feat-to-apiplan
+    category: qa
+    source_path: skills/ll-qa-feat-to-apiplan/SKILL.md
+    has_contract: true
+    has_lifecycle: true
+    has_agents: true
+    has_scripts: false
+    status: canonical
+    notes: FEAT to API plan skill; scripts directory not detected.
+
+  - skill_id: ll-qa-gate-evaluate
+    category: qa
+    source_path: skills/ll-qa-gate-evaluate/SKILL.md
+    has_contract: true
+    has_lifecycle: true
+    has_agents: true
+    has_scripts: true
+    status: canonical
+    notes: QA gate input evaluation skill.
+
+  - skill_id: ll-qa-impl-spec-test
+    category: qa
+    source_path: skills/ll-qa-impl-spec-test/SKILL.md
+    has_contract: true
+    has_lifecycle: true
+    has_agents: true
+    has_scripts: true
+    status: canonical
+    notes: Implementation specification stress testing skill.
+
+  - skill_id: ll-qa-prototype-to-e2eplan
+    category: qa
+    source_path: skills/ll-qa-prototype-to-e2eplan/SKILL.md
+    has_contract: true
+    has_lifecycle: true
+    has_agents: true
+    has_scripts: false
+    status: canonical
+    notes: Prototype to E2E plan skill; scripts directory not detected.
+
+  - skill_id: ll-qa-settlement
+    category: qa
+    source_path: skills/ll-qa-settlement/SKILL.md
+    has_contract: true
+    has_lifecycle: true
+    has_agents: true
+    has_scripts: true
+    status: canonical
+    notes: QA settlement and evidence closure skill.
+
+  - skill_id: ll-qa-test-run
+    category: qa
+    source_path: skills/ll-qa-test-run/SKILL.md
+    has_contract: true
+    has_lifecycle: false
+    has_agents: false
+    has_scripts: true
+    status: canonical
+    notes: Governed test execution skill; lifecycle and agents directory not detected.
+
+  - skill_id: ll-skill-install
+    category: governance
+    source_path: skills/ll-skill-install/SKILL.md
+    has_contract: false
+    has_lifecycle: false
+    has_agents: true
+    has_scripts: true
+    status: canonical
+    notes: Skill installation and adapter projection skill; contract and lifecycle files not detected.
+
+  - skill_id: render-testset-view
+    category: tooling
+    source_path: skills/render-testset-view/SKILL.md
+    has_contract: true
+    has_lifecycle: true
+    has_agents: true
+    has_scripts: true
+    status: canonical
+    notes: Human-readable TESTSET rendering skill.

@@ -1,0 +1,165 @@
+schema_version: 1
+registry_id: knowledge_registry
+authority_policy:
+  path_format: repo_relative
+  stable_ids: true
+  machine_parseable: true
+  planned_paths_allowed: true
+  no_runtime_residue: true
+primary_sources:
+  - ssot/governance/AI-CONSTITUTION.md
+knowledge_layers:
+  - layer_id: L0
+    title: constitutional_entry
+    status: active
+    purpose: 最小治理入口，只承载唯一默认加载的 AI 宪法。
+    load_policy: default_only
+    sources:
+      - source_id: ai_constitution
+        source_path: ssot/governance/AI-CONSTITUTION.md
+        status: existing
+        notes: 唯一默认上下文入口；agent 默认不得加载其他 L1/L2/L3 来源。
+
+  - layer_id: L1
+    title: governance_maps
+    status: present_in_worktree
+    purpose: 按问题路由到最小 ADR、rule、runtime、skill、SSOT 上下文。
+    load_policy: load_after_L0_when_task_needs_detail
+    sources:
+      - source_id: adr_map
+        source_path: ssot/governance/maps/ADR-MAP.md
+        status: present_in_worktree
+        notes: 按治理问题选择 ADR。
+      - source_id: rule_map
+        source_path: ssot/governance/maps/RULE-MAP.md
+        status: present_in_worktree
+        notes: 从 L0 路由到具体规则和 registry。
+      - source_id: runtime_map
+        source_path: ssot/governance/maps/RUNTIME-MAP.md
+        status: present_in_worktree
+        notes: Runtime concepts 到 authority/carrier 的索引。
+      - source_id: skill_map
+        source_path: ssot/governance/maps/SKILL-MAP.md
+        status: present_in_worktree
+        notes: 只把 skills/ 下的 SKILL.md 作为 canonical skill authority。
+      - source_id: ssot_map
+        source_path: ssot/governance/maps/SSOT-MAP.md
+        status: present_in_worktree
+        notes: FRZ 与 SSOT 对象渐进披露入口。
+
+  - layer_id: L2
+    title: canonical_authority_sources
+    status: active
+    purpose: 具体规则、对象模型、注册表、ADR 和仓库布局的权威来源。
+    load_policy: load_selected_sources_only
+    sources:
+      - source_id: rule_registry
+        source_path: ssot/registry/rule_registry.yaml
+        status: existing
+        notes: 机器可解析的治理规则入口。
+      - source_id: skill_registry
+        source_path: ssot/registry/skill_registry.yaml
+        status: existing
+        notes: Canonical skills/ bundle 清单。
+      - source_id: knowledge_registry
+        source_path: ssot/registry/knowledge_registry.yaml
+        status: existing
+        notes: L0/L1/L2/L3 知识层清单。
+      - source_id: anchor_registry
+        source_path: ssot/registry/anchor_registry.yaml
+        status: existing
+        notes: FRZ anchor 到 SSOT 投影路径的注册表。
+      - source_id: frz_registry
+        source_path: ssot/registry/frz-registry.yaml
+        status: existing
+        notes: FRZ 包注册表；后续应保持 repo-relative path policy。
+      - source_id: runtime_boundary_adr
+        source_path: ssot/adr/ADR-038-运行时核心抽象边界与对象分层基线.MD
+        status: existing
+        notes: Command、Skill、Tool、Agent、Workflow、Task、Session、Artifact、Evidence、Gate 分层基线。
+      - source_id: ssot_semantic_governance_adr
+        source_path: ssot/adr/ADR-050-SSOT语义治理总纲.md
+        status: existing
+        notes: FRZ、抽取、语义稳定、变更分级、TaskPack、双链验证总纲。
+      - source_id: ssot_baseline
+        source_path: ssot/README.md
+        status: existing
+        notes: SSOT 主链和对象命名基线。
+      - source_id: repository_layout
+        source_path: docs/repository-layout.md
+        status: existing
+        notes: 目录职责、runtime boundary、forbidden root directories。
+      - source_id: project_readme
+        source_path: README.md
+        status: existing
+        notes: 人类总览文档；不得作为默认 agent context。
+      - source_id: claude_bootloader
+        source_path: CLAUDE.md
+        status: existing
+        notes: Claude adapter bootloader；不得作为宪法副本。
+      - source_id: codex_bootloader
+        source_path: AGENTS.md
+        status: existing
+        notes: Codex adapter bootloader；不得作为宪法副本。
+
+  - layer_id: L3
+    title: execution_and_operational_context
+    status: active
+    purpose: 被 L1/L2 选中后才加载的具体 skill、对象文件、证据和执行材料。
+    load_policy: load_only_for_selected_task
+    sources:
+      - source_id: canonical_skills
+        source_path: skills/
+        status: existing
+        notes: 31 个 canonical SKILL.md 的根目录；详见 skill_registry.yaml。
+      - source_id: ssot_objects
+        source_path: ssot/
+        status: existing
+        notes: ADR、SRC、EPIC、FEAT、SURFACE_MAP、TECH、IMPL、TESTSET 等正式对象。
+      - source_id: durable_artifacts
+        source_path: artifacts/
+        status: existing_or_allowed
+        notes: 只允许 durable outputs、evidence、reports、lineage snapshots 等进入项目树。
+      - source_id: tests
+        source_path: tests/
+        status: existing
+        notes: 单元、集成、fixture、golden 和 Playwright 测试材料。
+      - source_id: docs
+        source_path: docs/
+        status: existing
+        notes: 人类可读的长期文档和操作手册。
+maps:
+  - map_id: adr_map
+    layer_id: L1
+    source_path: ssot/governance/maps/ADR-MAP.md
+    status: present_in_worktree
+    target_registry: knowledge_registry
+  - map_id: rule_map
+    layer_id: L1
+    source_path: ssot/governance/maps/RULE-MAP.md
+    status: present_in_worktree
+    target_registry: rule_registry
+  - map_id: runtime_map
+    layer_id: L1
+    source_path: ssot/governance/maps/RUNTIME-MAP.md
+    status: present_in_worktree
+    target_registry: rule_registry
+  - map_id: skill_map
+    layer_id: L1
+    source_path: ssot/governance/maps/SKILL-MAP.md
+    status: present_in_worktree
+    target_registry: skill_registry
+  - map_id: ssot_map
+    layer_id: L1
+    source_path: ssot/governance/maps/SSOT-MAP.md
+    status: present_in_worktree
+    target_registry: knowledge_registry
+validation_rules:
+  - validation_id: no_absolute_paths
+    statement: "所有 source_path、authority_refs、map source_path 必须是仓库相对路径。"
+  - validation_id: planned_paths_explicit
+    statement: "planned 文件必须显式 status: planned，不得标记 existing。"
+  - validation_id: canonical_skill_only
+    statement: "skill authority 只能指向 skills/，不能指向 .claude/.cursor/.agents 适配副本。"
+  - validation_id: broken_references_block
+    statement: "active 或 existing 引用断裂时，相关治理推进必须阻断或降级。"

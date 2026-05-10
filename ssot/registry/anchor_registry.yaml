@@ -1,0 +1,215 @@
+anchor_registry:
+- anchor_id: JRN-001
+  frz_ref: FRZ-055
+  projection_path: SRC
+  metadata:
+    source: extract_src_from_frz
+  registered_at: '2026-05-07T02:21:14.612651+00:00'
+- anchor_id: JRN-002
+  frz_ref: FRZ-055
+  projection_path: SRC
+  metadata:
+    source: extract_src_from_frz
+  registered_at: '2026-05-07T02:21:14.621195+00:00'
+- anchor_id: JRN-003
+  frz_ref: FRZ-055
+  projection_path: SRC
+  metadata:
+    source: extract_src_from_frz
+  registered_at: '2026-05-07T02:21:14.629926+00:00'
+- anchor_id: JRN-004
+  frz_ref: FRZ-055
+  projection_path: SRC
+  metadata:
+    source: extract_src_from_frz
+  registered_at: '2026-05-07T02:21:14.638350+00:00'
+- anchor_id: ENT-001
+  frz_ref: FRZ-055
+  projection_path: SRC
+  metadata:
+    source: extract_src_from_frz
+  registered_at: '2026-05-07T02:21:14.646586+00:00'
+- anchor_id: ENT-002
+  frz_ref: FRZ-055
+  projection_path: SRC
+  metadata:
+    source: extract_src_from_frz
+  registered_at: '2026-05-07T02:21:14.654486+00:00'
+- anchor_id: ENT-003
+  frz_ref: FRZ-055
+  projection_path: SRC
+  metadata:
+    source: extract_src_from_frz
+  registered_at: '2026-05-07T02:21:14.661999+00:00'
+- anchor_id: SM-001
+  frz_ref: FRZ-055
+  projection_path: SRC
+  metadata:
+    source: extract_src_from_frz
+  registered_at: '2026-05-07T02:21:14.670105+00:00'
+- anchor_id: UNK-001
+  frz_ref: FRZ-055
+  projection_path: SRC
+  metadata:
+    source: extract_src_from_frz
+  registered_at: '2026-05-07T02:21:14.680942+00:00'
+- anchor_id: UNK-002
+  frz_ref: FRZ-055
+  projection_path: SRC
+  metadata:
+    source: extract_src_from_frz
+  registered_at: '2026-05-07T02:21:14.696787+00:00'
+- anchor_id: JRN-001
+  frz_ref: FRZ-055
+  projection_path: EPIC
+  metadata:
+    dimension: core_journeys
+    src_anchor: true
+  registered_at: '2026-05-07T05:51:28.764934+00:00'
+- anchor_id: JRN-002
+  frz_ref: FRZ-055
+  projection_path: EPIC
+  metadata:
+    dimension: core_journeys
+    src_anchor: true
+  registered_at: '2026-05-07T05:51:28.778971+00:00'
+- anchor_id: JRN-003
+  frz_ref: FRZ-055
+  projection_path: EPIC
+  metadata:
+    dimension: core_journeys
+    src_anchor: true
+  registered_at: '2026-05-07T05:51:28.792366+00:00'
+- anchor_id: JRN-004
+  frz_ref: FRZ-055
+  projection_path: EPIC
+  metadata:
+    dimension: core_journeys
+    src_anchor: true
+  registered_at: '2026-05-07T05:51:28.805384+00:00'
+- anchor_id: ENT-001
+  frz_ref: FRZ-055
+  projection_path: EPIC
+  metadata:
+    dimension: domain_model
+    src_anchor: true
+  registered_at: '2026-05-07T05:51:28.818548+00:00'
+- anchor_id: ENT-002
+  frz_ref: FRZ-055
+  projection_path: EPIC
+  metadata:
+    dimension: domain_model
+    src_anchor: true
+  registered_at: '2026-05-07T05:51:28.831112+00:00'
+- anchor_id: ENT-003
+  frz_ref: FRZ-055
+  projection_path: EPIC
+  metadata:
+    dimension: domain_model
+    src_anchor: true
+  registered_at: '2026-05-07T05:51:28.845021+00:00'
+- anchor_id: SM-001
+  frz_ref: FRZ-055
+  projection_path: EPIC
+  metadata:
+    dimension: state_machine
+    src_anchor: true
+  registered_at: '2026-05-07T05:51:28.859436+00:00'
+- anchor_id: FC-001
+  frz_ref: FRZ-055
+  projection_path: EPIC
+  metadata:
+    dimension: acceptance_contract
+    src_anchor: true
+  registered_at: '2026-05-07T05:51:28.877445+00:00'
+- anchor_id: FC-002
+  frz_ref: FRZ-055
+  projection_path: EPIC
+  metadata:
+    dimension: acceptance_contract
+    src_anchor: true
+  registered_at: '2026-05-07T05:51:28.895466+00:00'
+- anchor_id: FC-003
+  frz_ref: FRZ-055
+  projection_path: EPIC
+  metadata:
+    dimension: acceptance_contract
+    src_anchor: true
+  registered_at: '2026-05-07T05:51:28.910984+00:00'
+- anchor_id: FC-004
+  frz_ref: FRZ-055
+  projection_path: EPIC
+  metadata:
+    dimension: acceptance_contract
+    src_anchor: true
+  registered_at: '2026-05-07T05:51:28.927647+00:00'
+- anchor_id: JRN-001
+  frz_ref: FRZ-055
+  projection_path: FEAT
+  metadata:
+    dimension: core_journeys
+    epic_anchor: true
+  registered_at: '2026-05-07T05:51:28.981920+00:00'
+- anchor_id: JRN-002
+  frz_ref: FRZ-055
+  projection_path: FEAT
+  metadata:
+    dimension: core_journeys
+    epic_anchor: true
+  registered_at: '2026-05-07T05:51:28.999039+00:00'
+- anchor_id: JRN-003
+  frz_ref: FRZ-055
+  projection_path: FEAT
+  metadata:
+    dimension: core_journeys
+    epic_anchor: true
+  registered_at: '2026-05-07T05:51:29.015637+00:00'
+- anchor_id: JRN-004
+  frz_ref: FRZ-055
+  projection_path: FEAT
+  metadata:
+    dimension: core_journeys
+    epic_anchor: true
+  registered_at: '2026-05-07T05:51:29.034324+00:00'
+- anchor_id: ENT-001
+  frz_ref: FRZ-055
+  projection_path: FEAT
+  metadata:
+    dimension: domain_model
+    epic_anchor: true
+  registered_at: '2026-05-07T05:51:29.053629+00:00'
+- anchor_id: ENT-002
+  frz_ref: FRZ-055
+  projection_path: FEAT
+  metadata:
+    dimension: domain_model
+    epic_anchor: true
+  registered_at: '2026-05-07T05:51:29.072175+00:00'
+- anchor_id: ENT-003
+  frz_ref: FRZ-055
+  projection_path: FEAT
+  metadata:
+    dimension: domain_model
+    epic_anchor: true
+  registered_at: '2026-05-07T05:51:29.095476+00:00'
+- anchor_id: SM-001
+  frz_ref: FRZ-055
+  projection_path: FEAT
+  metadata:
+    dimension: state_machine
+    epic_anchor: true
+  registered_at: '2026-05-07T05:51:29.116794+00:00'
+- anchor_id: UNK-001
+  frz_ref: FRZ-055
+  projection_path: FEAT
+  metadata:
+    dimension: known_unknowns
+    epic_anchor: true
+  registered_at: '2026-05-07T05:51:29.140490+00:00'
+- anchor_id: UNK-002
+  frz_ref: FRZ-055
+  projection_path: FEAT
+  metadata:
+    dimension: known_unknowns
+    epic_anchor: true
+  registered_at: '2026-05-07T05:51:29.162750+00:00'
