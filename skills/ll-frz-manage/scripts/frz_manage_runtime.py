@@ -550,18 +550,27 @@ def run_cascade(frz_id: str, workspace_root: Path) -> dict[str, Any]:
             result = extract_fn(frz_id, workspace_root)
             # Handle both ExtractResult dataclass and dict return types
             extract_ok = False
+            result_dict = None
             if isinstance(result, dict):
                 extract_ok = result.get("ok", True)
+                result_dict = result
             else:
-                # ExtractResult dataclass
+                # ExtractResult dataclass - convert to dict for JSON serialization
                 extract_ok = getattr(result, "ok", True)
+                result_dict = {
+                    "ok": extract_ok,
+                    "output_dir": getattr(result, "output_dir", None),
+                    "anchors": getattr(result, "anchors_registered", []),
+                    "guard": getattr(result, "guard_verdict", None),
+                    "warnings": getattr(result, "warnings", []),
+                }
 
             if not extract_ok:
                 print(f"[{step_n}/{total_steps}] {layer_name}: FAILED", flush=True)
                 results.append({
                     "layer": layer_name,
                     "status": "failed",
-                    "result": result,
+                    "result": result_dict,
                 })
                 return {
                     "ok": False,
