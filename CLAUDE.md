@@ -1,28 +1,45 @@
-## ADR-049: Experience Patch Layer — Automatic Patch Context
+# Claude Bootloader
 
-### Patch Context Injection (Before Code Changes)
+This file is a thin adapter bootloader for Claude in this repository.
 
-When you are about to modify code files, BEFORE making any Edit or Write:
+## Default Load
 
-1. Run: `python cli/lib/patch_context_injector.py inject --workspace-root . --target-files {list of files you plan to edit}`
-2. Read the output — it contains active Patch summaries relevant to your target files
-3. Incorporate Patch constraints into your code changes
-4. Proceed with the Edit/Write
+Load only:
 
-If the script returns "No active patches found", proceed normally.
+- `ssot/governance/AI-CONSTITUTION.md`
 
-### Automatic Patch Registration (After Code Changes)
+Do not load the full repository, mirrored adapter rules, skill copies, ADRs, or
+runtime reports by default.
 
-After you have made code changes (Edit/Write completed):
+## Progressive Load
 
-1. Run: `python cli/lib/patch_auto_register.py detect --workspace-root .`
-2. If changes detected, run: `python cli/lib/patch_auto_register.py draft --workspace-root .`
-3. Review the drafted Patch YAML — confirm or adjust `change_class` and `test_impact`
-4. Present the Patch to the user for confirmation
-5. Only after user confirmation, register the Patch
+When the task needs more detail, follow the constitution's progressive
+disclosure order:
 
-**Critical constraints:**
-- Do NOT auto-register Patches without user confirmation (ADR-049 §12.2)
-- test_impact MUST be specified (ADR-049 §10.1)
-- Context budget: max 3000 tokens for Patch injection, max 10 full Patches (ADR-049 §12.1)
-- Only show Patches relevant to the files being edited (by changed_files matching)
+1. Select the smallest relevant map under `ssot/governance/maps/`.
+2. From that map, load only the required ADR, registry, `SKILL.md`, contract,
+   checklist, schema, script, evidence, or report.
+
+The maps route context. They do not override the constitution.
+
+## Rule Authority
+
+Claude, Codex, Cursor, local CLI commands, and future adapters use the same
+governance source:
+
+- Constitution: `ssot/governance/AI-CONSTITUTION.md`
+- Rule routing and registries: `ssot/governance/maps/` and
+  `ssot/registry/rule_registry.yaml`
+
+This file must not copy, fork, extend, or replace constitutional rules. If this
+bootloader conflicts with the constitution, the constitution wins and the
+conflict must be recorded as a governance issue.
+
+## Patch Rules
+
+Patch context, grading, reflow, and registration are governed by the
+constitution and `ssot/registry/rule_registry.yaml`.
+
+Before editing target files, inject patch context for exactly those target
+files. After editing, do not register patches automatically; patch registration
+requires user confirmation.

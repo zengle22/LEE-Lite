@@ -145,4 +145,7 @@ _bmad/
 .claude/worktrees/ 
 .tmp/
 
-aiLEE-Lite-skill-first/tests/defect/failure-cases/
+tests/defect/failure-cases/
+.quality-loop/
+_bmad-output/
+aiLEE-Lite-skill-first/
