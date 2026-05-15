@@ -1,0 +1,6 @@
+skill: ll-v2-impl-verify
+version: "1.0"
+adr: ADR-056
+category: verify
+chain: ll-v2
+phase: governance

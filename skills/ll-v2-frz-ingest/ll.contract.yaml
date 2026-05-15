@@ -1,0 +1,6 @@
+skill: ll-v2-frz-ingest
+version: "1.0"
+adr: ADR-056
+category: freeze
+chain: ll-v2
+phase: governance
