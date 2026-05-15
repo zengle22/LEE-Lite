@@ -149,3 +149,16 @@ tests/defect/failure-cases/
 .quality-loop/
 _bmad-output/
 aiLEE-Lite-skill-first/
+
+# === Added by /commit (2026-05-15) ===
+# Debug and verify scripts
+tmp_*.py
+
+# Untracked doc drafts (pending review)
+docs/ai-infra/ADR-058-LL-v2-frz-ingest-编译产物验证层.md
+docs/ai-infra/ADR-058-附录A-zeng-doc-quality-loop-适配审查意见.md
+docs/ai-infra/PRE-SSOT-DESIGN-DOCUMENT-STANDARD.md
+
+# Untracked archive and tooling
+openspec/changes/archive/
+.codex/
