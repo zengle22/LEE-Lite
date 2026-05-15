@@ -707,6 +707,44 @@ frz_ingest_flow:
     output: drift_verdict (pass/drift_found)
     on_drift: 终止，输出漂移项清单
 
+  step_4_5_dimension_quality_gate:
+    action: 对 SSOT 链各维度进行质量评分，未达 A 级则打回修复
+    description: |
+      在 drift 检测之后、验收测试生成之前，对编译产出的 6 个维度（SRC/TECH/ARCH/API/UI/IMPL）
+      分别执行质量评分。每个维度按 ITERATION-DOCUMENT-CHECKLIST.md 的必输要素逐项打分，
+      100 分制，≥90 分为 A 级。
+    scoring_dimensions:
+      - src
+      - tech
+      - arch
+      - api
+      - ui
+      - impl
+    grade_thresholds:
+      A: {min_score: 90, meaning: "信息完整、无语义漂移、标准统一，可直接进入 Freeze"}
+      B: {min_score: 75, meaning: "核心信息完整，存在次要缺失，建议修复后进入 Freeze"}
+      C: {min_score: 60, meaning: "信息部分缺失，存在阻塞项，必须修复后才能进入 Freeze"}
+      D: {min_score: 40, meaning: "严重缺失，无法支持下游工程实施"}
+      F: {min_score: 0,  meaning: "维度产出为空或完全不可用"}
+    freeze_rule: "所有维度必须 ≥ A 级（score ≥ 90），否则 Freeze 被阻塞"
+    auto_repair:
+      enabled: true
+      max_iterations: 3
+      strategies:
+        parser_gap: "字段在 __raw__ 中但 Parser 未提取 → 放宽正则、降低 heading 级别、增加同义词映射"
+        compiler_gap: "字段已提取但 Compiler 未映射 → 修复映射逻辑、扩展 dataclass 字段"
+        cross_dimension_fallback: "本维度为空但其他维度有相关内容 → 跨维度回退查找"
+        markdown_noise: "内容包含 Markdown 噪音 → _clean_markdown_noise() 清洗"
+      human_escalation: "3 轮自动修复后仍不达 A 级 → 生成 HUMAN-REVIEW 阻塞清单，等待人工补充"
+    quality_report_output:
+      path: "QUALITY-REPORT-{frz_ref}__{slug}.md"
+      content: "各维度得分、空字段清单、改进建议、自动修复日志"
+    human_review_output:
+      path: "HUMAN-REVIEW-{frz_ref}__{slug}.yaml"
+      content: "需要人工补充的维度、缺失的 checklist 条目、建议补充的文档章节"
+    output: dimension_quality_verdicts (list[DimensionQualityVerdict])
+    on_blocked: 终止，输出质量报告 + 人工审查清单，进入 auto_repair 循环或人类介入
+
   step_5_generate_acceptance_tests:
     action: 调用 v1 test_generation Skill（§7.2 接口）
     input:
@@ -750,7 +788,7 @@ frz_ingest_flow:
       transitions:
         draft_to_frozen:
           trigger: frz-ingest step_6（所有检查通过后）
-          guard: completeness=pass AND alignment=pass AND drift=pass
+          guard: completeness=pass AND alignment=pass AND drift=pass AND all_dimensions_grade=A
         frozen_to_revised:
           trigger: FRZ Revise 流程
           guard: 人类发起，需记录修订原因
@@ -801,6 +839,19 @@ frz_package:
     verdict: pass | drift_found
     drift_items: list      # 漂移项清单
 
+  dimension_quality_check:
+    verdict: pass | blocked
+    dimensions:
+      - dimension: src | tech | arch | api | ui | impl
+        score: int           # 0-100
+        grade: A | B | C | D | F
+        blockers: list        # 阻塞项清单
+        warnings: list        # 警告项清单
+        auto_repairable: boolean
+        human_required: boolean
+    quality_report_ref: string    # QUALITY-REPORT 文件路径
+    human_review_ref: string      # HUMAN-REVIEW 文件路径
+
   evidence_refs:
     source_docs: list      # 源文档引用
     compilation_log: string  # 编译日志引用
@@ -832,6 +883,17 @@ frz_ingest_error_handling:
     meaning: 编译过程引入了漂移
     action: 输出漂移项清单，拒绝冻结
     retry: 修正后重新编译
+
+  quality_gate_blocked:
+    meaning: 一个或多个维度未达到 A 级质量评分
+    action: 输出 DIMENSION-QUALITY-REPORT + HUMAN-REVIEW 清单
+    retry: |
+      1. 自动修复：frz-ingest 执行最多 3 轮 auto_repair（放宽提取规则、跨维度回退、清洗噪音）
+      2. 人工补充：若 3 轮后仍不达 A 级，人类根据 HUMAN-REVIEW 清单补充设计文档
+      3. 重新编译：补充后重新运行 frz-ingest
+    escalation: |
+      当自动修复 3 轮失败且人类未补充时，FRZ Package 不允许生成。
+      产出物仅保留 QUALITY-REPORT 和 HUMAN-REVIEW，供人工决策。
 
   partial_compile:
     meaning: 可选维度缺失，部分编译

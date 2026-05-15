@@ -91,8 +91,11 @@ ssot/v2/
   │   └── UI-{src_id}-{slot}__{slug}.yaml
   ├── impl/                         # IMPL 实施包
   │   └── IMPL-{src_id}-{slot}__{slug}.yaml
-  └── prototype/                    # PROTOTYPE 高保真原型
-      └── PROTO-{src_id}-{slot}__{slug}.html
+  ├── prototype/                    # PROTOTYPE 高保真原型
+  │   └── PROTO-{src_id}-{slot}__{slug}.html
+  └── quality/                      # 质量门报告（ADR-056 §step_4_5 产出）
+      ├── QUALITY-REPORT-{frz_ref}__{slug}.md
+      └── HUMAN-REVIEW-{frz_ref}__{slug}.yaml
 ```
 
 ### 4.2 v1 目录（保持不变）
@@ -358,6 +361,9 @@ format_version: "2.0"
 status: draft | frozen | revised
 
 # === 架构设计维度（Checklist §4.2, §4.4, §4.6, §4.8）===
+target_architecture: string       # 目标架构描述（Checklist §4.1 架构总览）
+  # 示例: "用户画像 / 计划 / 历史跑后反馈 → TrainingState Engine → DecisionEngine → ActionOutput"
+
 layering:                         # 分层职责（Checklist §4.2）
   # - layer: string
   #   responsibility: string
@@ -379,6 +385,15 @@ integration: list                 # 集成点（Checklist §4.8）
   # - service: string
   #   protocol: string
   #   fallback: string
+
+frozen_contracts: list            # Frozen Contracts 架构契约（Checklist §4.x）
+  # - id: string
+  #   title: string
+  #   description: string
+
+constraints: list                 # 架构约束（Checklist §4.7 非功能性需求中的安全约束）
+  # - title: string
+  #   description: string
 
 source_refs: list
 ```
@@ -403,18 +418,22 @@ endpoints:                        # API 契约（Checklist §4.5）
     purpose: string
     consumer: string
     provider: string
-    request_schema:
+    request_schema:                 # 请求参数 schema（Checklist §4.5 核心字段）
       fields:
         # - name: string
         #   type: string
         #   required: boolean
         #   description: string
-    response_schema:
+        #   enum: list                # 枚举值（如 DecisionAction）
+    response_schema:                # 响应参数 schema
       fields:
         # - name: string
         #   type: string
         #   description: string
-    error_codes: list
+    error_codes:                    # 错误码定义（Checklist §4.5 + §3.3）
+      # - code: string              # HTTP 状态码或业务错误码
+      #   message: string
+      #   description: string
     compatibility: string
     security_constraints: string
     rate_limit: string
@@ -615,7 +634,12 @@ test_guidance:
     # - scenario: string
     #   system_behavior: string
   test_layering: string           # 测试分层策略（Checklist §5.5）
+    # 示例: "单元测试: handler/service 层 ( testify + sqlmock )"
+    #       "集成测试: AI 适配器 + 数据库 ( 需要 PostgreSQL + Redis )"
+    #       "E2E: 核心决策流 ( Playwright )"
   testability_notes: string       # 可测性评审结论（Checklist §5.6）
+  # 注：若 test_design 维度缺失，test_guidance 从 product_design 的 AC 和
+  #     engineering_design 的测试相关章节推断提取
 
 source_refs: list                 # 来源追溯（段落级，冻结后不可修改）
 ```
@@ -680,14 +704,16 @@ PROTOTYPE 使用 HTML 格式，无 YAML 模板。文件要求：
 | Checklist 条目 | SSOT 文件 | 字段 |
 |---|---|---|
 | 4.1 技术选型 | TECH | tech_stack |
+| 4.1 架构总览 | ARCH | target_architecture |
 | 4.2 分层职责 | ARCH | layering |
 | 4.3 同步/异步 | TECH | sync_async |
 | 4.4 核心数据流 | ARCH | data_flow |
-| 4.5 API 契约 | API | endpoints |
+| 4.5 API 契约 | API | endpoints (含 request_schema / response_schema / error_codes) |
 | 4.6 存储方案 | ARCH | storage |
-| 4.7 非功能性需求 | TECH | non_functional |
+| 4.7 非功能性需求 | TECH | non_functional + ARCH.constraints |
 | 4.8 集成点 | ARCH | integration |
 | 4.9 时序图 | API | sequence_diagrams |
+| 4.x Frozen Contracts | ARCH | frozen_contracts |
 
 ### 7.5 测试设计 → SRC > FEAT + IMPL
 
@@ -709,6 +735,7 @@ PROTOTYPE 使用 HTML 格式，无 YAML 模板。文件要求：
 | 6.3 依赖关系 | IMPL | dependencies |
 | 6.4 回滚策略 | IMPL | rollback_strategy |
 | 6.5 性能预估 | IMPL | capacity_estimate |
+| 6.x 测试指导 | IMPL | test_guidance (boundary_conditions + test_layering) |
 
 ### 7.7 跨维度/流程性条目
 
