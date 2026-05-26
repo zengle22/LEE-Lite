@@ -178,8 +178,9 @@ def _extract_structured_fields(data: dict[str, Any]) -> dict[str, Any]:
     # --- acceptance_criteria extraction ---
     # Matches list items like:
     #   - **AC-001.1**: Given ... When ... Then ...
+    #   - **AC-M12-001.1**: Given ... (module prefix with hyphens)
     ac_pattern = re.compile(
-        r'^\s*[-*]\s*\*\*(AC-[\w.]+)\*\*:\s*(.*?)(?=\n\s*[-*]\s*\*\*AC-|\n#{1,4}\s|\Z)',
+        r'^\s*[-*]\s*\*\*(AC-[A-Za-z0-9._-]+)\*\*:\s*(.*?)(?=\n\s*[-*]\s*\*\*AC-|\n#{1,4}\s|\Z)',
         re.MULTILINE | re.DOTALL,
     )
     ac_matches = ac_pattern.findall(raw)
@@ -191,11 +192,22 @@ def _extract_structured_fields(data: dict[str, Any]) -> dict[str, Any]:
         result["acceptance_criteria"] = ac_list
 
     # --- user_journey_map extraction ---
-    # Trigger on filename hints or explicit journey headings
+    # Content-driven heuristic: scan for journey/story headings regardless
+    # of filename. Filename hints are used as secondary signals only.
+    has_journey_heading = bool(re.search(
+        r'^#{2,4}\s*(?:用户旅程|User Journey|用户流程|User Flow|旅程|Journey)',
+        raw, re.MULTILINE | re.IGNORECASE,
+    ))
+    has_story_heading = bool(re.search(
+        r'^#{2,4}\s*(?:用户故事|User Story|US-\d+|Acceptance Criteria|验收标准)',
+        raw, re.MULTILINE | re.IGNORECASE,
+    ))
+    # Filename hints (secondary, not blocking)
     is_journey_file = "journey" in source_lower or "user_journey" in source_lower
     is_story_file = "user_stories" in source_lower or "acceptance_criteria" in source_lower
 
-    if is_journey_file or is_story_file:
+    # Always scan if content signals OR filename signals are present
+    if has_journey_heading or has_story_heading or is_journey_file or is_story_file:
         sections = _extract_markdown_sections(raw, level=2)
         journeys: list[dict[str, Any]] = []
         for section in sections:
@@ -206,10 +218,20 @@ def _extract_structured_fields(data: dict[str, Any]) -> dict[str, Any]:
             if any(kw in title for kw in _JOURNEY_SKIP_KEYWORDS):
                 continue
 
-            # For story files, treat each US-XXX heading as a journey slice
-            if is_story_file:
+            # Content-driven: match journey/story headings even without filename hint
+            is_story_section = bool(re.search(
+                r'^P\d+\s+(?:用户故事|User Story|Story)|(?:用户故事|User Story|Story)\s+P\d+',
+                title, re.IGNORECASE,
+            ))
+            is_journey_section = bool(re.search(
+                r'用户旅程|User Journey|用户流程|User Flow|旅程|Journey',
+                title, re.IGNORECASE,
+            ))
+
+            # For story sections, treat each US-XXX heading as a journey slice
+            if is_story_section or (is_story_file and not is_journey_file):
                 us_match = re.match(r'^P\d+\s+用户故事$', title)
-                if us_match:
+                if us_match or is_story_section:
                     # This is a container section; extract US-XXX subsections
                     subsections = _extract_markdown_sections(body, level=3)
                     for sub in subsections:
@@ -242,8 +264,8 @@ def _extract_structured_fields(data: dict[str, Any]) -> dict[str, Any]:
                         })
                     continue
 
-            # For journey files, treat each remaining ## section as a journey
-            if is_journey_file:
+            # For journey sections, treat each remaining ## section as a journey
+            if is_journey_section or is_journey_file:
                 # Extract first descriptive paragraph as value
                 value = ""
                 for line in body.splitlines():
@@ -392,7 +414,14 @@ def _extract_structured_fields(data: dict[str, Any]) -> dict[str, Any]:
                 continue
             headers = [h.strip().lower() for h in lines[header_idx].split("|") if h.strip()]
             # Validate that this looks like a tech stack table
-            if not any(h in headers for h in ("组件", "component", "技术", "technology", "选型", "stack", "name")):
+            _TECH_STACK_HEADERS = (
+                "组件", "component", "技术", "technology", "选型", "stack", "name",
+                "模块", "module", "服务", "service", "层", "layer",
+                "依赖", "dependency", "框架", "framework",
+                "库", "library", "工具", "tool", "平台", "platform",
+                "语言", "language", "数据库", "database", "存储", "storage",
+            )
+            if not any(h in headers for h in _TECH_STACK_HEADERS):
                 continue
             data_lines = lines[header_idx + 2:]
             for dline in data_lines:
