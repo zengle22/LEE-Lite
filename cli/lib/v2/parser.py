@@ -62,7 +62,9 @@ _FILENAME_DIMENSION_MAP: dict[str, str] = {
     # architecture_design
     "decision_engine": "architecture_design",
     "architecture": "architecture_design",
+    "arch": "architecture_design",
     "tech_stack": "architecture_design",
+    "tech": "architecture_design",
     "api": "architecture_design",
     "data_model": "architecture_design",
     "system_design": "architecture_design",
