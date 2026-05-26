@@ -657,6 +657,16 @@ _CN_TO_EN_ENDPOINT_KEYS: dict[str, str] = {
     "修改内容": "change",
     "描述": "description",
     "涉及文件": "files_involved",
+    # Channel / WebSocket / route mapping table headers
+    "通道": "channel",
+    "channel": "channel",
+    "通道名称": "channel",
+    "用途": "purpose",
+    "purpose": "purpose",
+    "使用场景": "purpose",
+    "是否经过 llm 编排": "llm_orchestrated",
+    "llm 编排": "llm_orchestrated",
+    "经过 llm": "llm_orchestrated",
 }
 
 
@@ -1150,6 +1160,12 @@ def compile_api(design_package: dict[str, Any], src_id: str = "SRC-001") -> list
 
     # Normalize all endpoint keys to English before persisting
     enriched_endpoints = [_normalize_endpoint_keys(ep) for ep in enriched_endpoints]
+
+    # Filter out endpoints with empty path or missing method (paragraph-extraction false positives)
+    enriched_endpoints = [
+        ep for ep in enriched_endpoints
+        if isinstance(ep, dict) and ep.get("path", "").strip() and ep.get("method", "").strip()
+    ]
 
     # Strip backtick wrappers from paths and add _source tracking for document-derived fields
     for ep in enriched_endpoints:
