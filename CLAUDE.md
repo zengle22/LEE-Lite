@@ -35,6 +35,18 @@ This file must not copy, fork, extend, or replace constitutional rules. If this
 bootloader conflicts with the constitution, the constitution wins and the
 conflict must be recorded as a governance issue.
 
+## Skill Runtime Environment
+
+All skills in this repository (`skills/*`) are designed to run **exclusively
+within an agent environment** (Claude Code, Codex, Cursor, etc.). They are not
+standalone CLI tools and must not embed LLM API calls within their Python code.
+
+**Architecture consequence**: When a skill needs semantic understanding
+(e.g., `ll-v2-frz-ingest` parsing non-standard Markdown), the skill delegates
+to the host agent via skill steps and natural language instructions — rather
+than calling an LLM API internally. Python code handles rule-based logic only;
+semantic extraction is performed by the agent.
+
 ## Patch Rules
 
 Patch context, grading, reflow, and registration are governed by the
