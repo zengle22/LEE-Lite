@@ -264,31 +264,49 @@ def _to_plain_dict(obj: object) -> object:
     return obj
 
 
-def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description="frz-ingest: Compile and freeze design packages")
-    parser.add_argument("--input", required=True, help="Path to Complete Design Package directory")
-    parser.add_argument("--output", required=True, help="Output directory for FRZ Package")
-    parser.add_argument("--src-id", default="SRC-001", help="SRC identifier")
-    parser.add_argument("--slug", help="Human-readable slug for file naming (kebab-case)")
-    parser.add_argument("--checkpoint", help="Checkpoint file path for idempotent retry")
-    parser.add_argument("--project-type", default="generic", help="Project type for rule selection (generic, lee-lite, ...)")
-    parser.add_argument("--rules-config", help="Path to project-specific completeness rules YAML")
-    args = parser.parse_args(argv)
-
-    input_dir = Path(args.input)
-    output_dir = Path(args.output)
-    output_dir.mkdir(parents=True, exist_ok=True)
-
-    slug = _derive_slug(args.slug) if args.slug else _derive_slug(input_dir.name)
-
-    logger.info(f"project_type={args.project_type}, input={input_dir}, output={output_dir}")
-
-    # Step 1: Parse
+def _run_parse(input_dir: Path, tmp_dir: Path) -> dict[str, Any]:
+    """Step 1: Parse design package and save to tmp dir."""
     logger.debug("Step 1: Parsing design package")
     design_package = parse_design_package(input_dir)
+    dp_path = tmp_dir / "design_package.json"
+    with open(dp_path, "w", encoding="utf-8") as f:
+        json.dump(design_package, f, ensure_ascii=False, indent=2)
+    logger.info(f"Design package written: {dp_path}")
+    print(f"Design package written: {dp_path}")
+    return design_package
 
-    # Step 2: Completeness check (input-side)
-    logger.debug("Step 2: Running completeness check")
+
+def _run_gap_report(design_package: dict[str, Any], tmp_dir: Path) -> dict[str, Any]:
+    """Step 2: Generate gap report for agent-driven semantic extraction."""
+    from cli.lib.v2.parser import generate_gap_report
+    logger.debug("Step 2: Generating gap report")
+    gap_report = generate_gap_report(design_package)
+    gaps_path = tmp_dir / "gaps.json"
+    with open(gaps_path, "w", encoding="utf-8") as f:
+        json.dump(gap_report, f, ensure_ascii=False, indent=2)
+    logger.info(f"Gap report written: {gaps_path}")
+    print(f"Gap report written: {gaps_path}")
+    if gap_report["has_gaps"]:
+        print(f"\nWARNING: {gap_report['total_gaps']} field(s) need agent semantic extraction.")
+        for g in gap_report["gaps"]:
+            print(f"  - {g['dimension']}.{g['field']}: {g['description']}")
+        print("\nNext: Run skill agent semantic extraction step, then re-run with --step compile.")
+    else:
+        print("No gaps detected. Proceeding to compile.")
+    return gap_report
+
+
+def _run_compile(
+    design_package: dict[str, Any],
+    args: argparse.Namespace,
+    output_dir: Path,
+) -> int:
+    """Step 3+: Compile SSOT chain, run checks, and freeze."""
+    slug = _derive_slug(args.slug) if args.slug else _derive_slug(Path(args.input).name)
+    logger.info(f"project_type={args.project_type}, compiling to {output_dir}")
+
+    # Completeness check (input-side)
+    logger.debug("Step 3: Running completeness check")
     completeness = check_completeness(
         design_package,
         project_type=args.project_type,
@@ -299,13 +317,12 @@ def main(argv: list[str] | None = None) -> int:
         print(f"BLOCKED: {completeness.missing_items}", file=sys.stderr)
         return 10
 
-    # Step 3: Compile
-    logger.debug("Step 3: Compiling SSOT chain")
+    # Compile
+    logger.debug("Step 4: Compiling SSOT chain")
     chain = compile_ssot_chain(design_package, args.src_id)
 
-    # Step 3.5: Post-Compilation Validation (PCV)
-    # Re-run completeness with compiled_chain to catch semantic/structural defects
-    logger.debug("Step 3.5: Post-compilation validation")
+    # Post-Compilation Validation (PCV)
+    logger.debug("Step 4.5: Post-compilation validation")
     completeness = check_completeness(
         design_package,
         compiled_chain=chain,
@@ -317,22 +334,22 @@ def main(argv: list[str] | None = None) -> int:
         print(f"BLOCKED (PCV): {completeness.missing_items}", file=sys.stderr)
         return 10
 
-    # Step 4: Alignment check
-    logger.debug("Step 4: Running alignment check")
+    # Alignment check
+    logger.debug("Step 5: Running alignment check")
     alignment = check_alignment(
         chain["src"], chain["epics"], chain["feats"],
         chain["techs"], chain["archs"], chain["apis"], chain["uis"],
     )
 
-    # Step 5: Drift detection
-    logger.debug("Step 5: Running drift detection")
+    # Drift detection
+    logger.debug("Step 6: Running drift detection")
     drift = detect_drift(
         design_package, chain["src"], chain["feats"],
         chain["techs"], chain["archs"], chain["apis"], chain["uis"],
     )
 
-    # Step 5.5: Dimension Quality Gate (ADR-056 §step_4_5)
-    logger.debug("Step 5.5: Running dimension quality gate")
+    # Dimension Quality Gate (ADR-056 §step_4_5)
+    logger.debug("Step 7: Running dimension quality gate")
     dim_qualities = check_dimension_quality(chain)
     quality_report = get_quality_report(dim_qualities)
     if not all_dimensions_grade_a(dim_qualities):
@@ -341,10 +358,9 @@ def main(argv: list[str] | None = None) -> int:
         print(f"QUALITY GATE BLOCKED: {len(failed)} dimensions below A-grade", file=sys.stderr)
         for q in failed:
             print(f"  {q.dimension}: score={q.score} grade={q.grade} blockers={q.blockers}", file=sys.stderr)
-        # Still proceed to write outputs for human review, but mark as blocked
 
-    # Step 6: Generate acceptance tests
-    logger.debug("Step 6: Generating acceptance tests")
+    # Generate acceptance tests
+    logger.debug("Step 8: Generating acceptance tests")
     acceptance_test_cases = generate_acceptance_tests(
         chain["feats"], chain["apis"], chain["uis"], design_package
     )
@@ -366,10 +382,9 @@ def main(argv: list[str] | None = None) -> int:
 
     import yaml
 
-    # Freeze chain before persisting SSOT documents
     frozen_chain = _freeze_ssot_chain(chain)
 
-    # --- Save SSOT chain documents with lineage-first naming ---
+    # --- Save SSOT chain documents ---
     src_filename = f"SRC-{args.src_id}__{slug}.yaml"
     src_path = src_dir / src_filename
     with open(src_path, "w", encoding="utf-8") as f:
@@ -403,7 +418,6 @@ def main(argv: list[str] | None = None) -> int:
         with open(impl_path, "w", encoding="utf-8") as f:
             yaml.dump({"impl": _to_plain_dict(impl)}, f, allow_unicode=True, sort_keys=False)
 
-    # Write common IMPL context if compiler extracted shared parts
     common_impl_filename: str | None = None
     if frozen_chain.get("common_impl_context"):
         common_impl_filename = f"COMMON-IMPL-{args.src_id}__{slug}.yaml"
@@ -411,8 +425,6 @@ def main(argv: list[str] | None = None) -> int:
         with open(common_impl_path, "w", encoding="utf-8") as f:
             yaml.dump({"common_impl_context": _to_plain_dict(frozen_chain["common_impl_context"])}, f, allow_unicode=True, sort_keys=False)
 
-    # --- Build frozen_ssot_chain with file-path refs per ADR-057 ---
-    # Paths are relative to output_dir for portability
     def _rel(path: Path) -> str:
         return str(path.relative_to(output_dir).as_posix())
 
@@ -428,25 +440,21 @@ def main(argv: list[str] | None = None) -> int:
     if common_impl_filename:
         frozen_ssot_chain["common_impl_ref"] = _rel(impl_dir / common_impl_filename)
 
-    # --- Evidence refs ---
     evidence_refs = {
         "source_docs": sorted(str(p.relative_to(input_dir)) for p in input_dir.iterdir() if p.is_file()),
         "compilation_log": _rel(frz_dir / f"FRZ-{args.src_id}-001__{slug}.compile.log"),
     }
 
-    # Write Quality Report (ADR-056 §step_4_5)
     quality_filename = f"QUALITY-REPORT-{args.src_id}__{slug}.yaml"
     quality_path = quality_dir / quality_filename
     with open(quality_path, "w", encoding="utf-8") as f:
         yaml.dump({"quality_report": quality_report}, f, allow_unicode=True, sort_keys=False)
 
-    # Write Source Gaps traceability document (human backtrack)
     source_gaps = _extract_source_gaps(dim_qualities, completeness, alignment)
     gaps_path = quality_dir / f"MISSING-SOURCE-{args.src_id}__{slug}.yaml"
     with open(gaps_path, "w", encoding="utf-8") as f:
         yaml.dump(source_gaps, f, allow_unicode=True, sort_keys=False)
 
-    # Write Human Review if blocked
     if not all_dimensions_grade_a(dim_qualities):
         human_review = {
             "human_review": {
@@ -462,8 +470,7 @@ def main(argv: list[str] | None = None) -> int:
         with open(human_path, "w", encoding="utf-8") as f:
             yaml.dump(human_review, f, allow_unicode=True, sort_keys=False)
 
-    # Step 7: Freeze
-    logger.debug("Step 7: Building FRZ package")
+    logger.debug("Step 9: Building FRZ package")
     try:
         frz_pkg = build_frz_package(
             frz_ref=f"FRZ-{args.src_id}-001",
@@ -483,7 +490,6 @@ def main(argv: list[str] | None = None) -> int:
         print(f"FREEZE ERROR: {e}", file=sys.stderr)
         return 20
 
-    # Save checkpoint
     if args.checkpoint:
         checkpoint = {
             "frz_ref": frz_pkg.frz_ref,
@@ -495,7 +501,6 @@ def main(argv: list[str] | None = None) -> int:
         }
         save_checkpoint(Path(args.checkpoint), checkpoint)
 
-    # Write FRZ Package
     frz_filename = f"{frz_pkg.frz_ref}__{slug}.yaml"
     frz_path = frz_dir / frz_filename
     with open(frz_path, "w", encoding="utf-8") as f:
@@ -512,9 +517,72 @@ def main(argv: list[str] | None = None) -> int:
     print(f"Verdict: completeness={completeness.verdict}, alignment={alignment.verdict}, drift={drift.verdict}, quality=[{dim_summary}]")
     if not all_dimensions_grade_a(dim_qualities):
         logger.warning("Quality gate blocked — outputs written for human review")
-        return 30  # quality_gate_blocked
+        return 30
     logger.info("frz-ingest completed successfully")
     return 0
+
+
+def main(argv: list[str] | None = None) -> int:
+    parser = argparse.ArgumentParser(description="frz-ingest: Compile and freeze design packages")
+    parser.add_argument("--input", required=True, help="Path to Complete Design Package directory")
+    parser.add_argument("--output", required=True, help="Output directory for FRZ Package")
+    parser.add_argument("--src-id", default="SRC-001", help="SRC identifier")
+    parser.add_argument("--slug", help="Human-readable slug for file naming (kebab-case)")
+    parser.add_argument("--checkpoint", help="Checkpoint file path for idempotent retry")
+    parser.add_argument("--project-type", default="generic", help="Project type for rule selection (generic, lee-lite, ...)")
+    parser.add_argument("--rules-config", help="Path to project-specific completeness rules YAML")
+    parser.add_argument(
+        "--step",
+        choices=["parse", "gap-report", "compile", "full"],
+        default="full",
+        help=(
+            "Execution step. "
+            "parse = Tier 2 extraction only; "
+            "gap-report = detect missing fields for agent; "
+            "compile = compile SSOT after agent fixes; "
+            "full = run everything (default)"
+        ),
+    )
+    args = parser.parse_args(argv)
+
+    input_dir = Path(args.input)
+    output_dir = Path(args.output)
+    output_dir.mkdir(parents=True, exist_ok=True)
+
+    # Shared tmp dir for inter-step state
+    tmp_dir = output_dir / ".frz-tmp"
+    tmp_dir.mkdir(parents=True, exist_ok=True)
+
+    if args.step == "parse":
+        design_package = _run_parse(input_dir, tmp_dir)
+        return 0
+
+    if args.step == "gap-report":
+        dp_path = tmp_dir / "design_package.json"
+        if not dp_path.exists():
+            design_package = _run_parse(input_dir, tmp_dir)
+        else:
+            with open(dp_path, encoding="utf-8") as f:
+                design_package = json.load(f)
+        _run_gap_report(design_package, tmp_dir)
+        return 0
+
+    if args.step == "compile":
+        dp_path = tmp_dir / "design_package.json"
+        if not dp_path.exists():
+            print("ERROR: design_package.json not found. Run --step parse first.", file=sys.stderr)
+            return 1
+        with open(dp_path, encoding="utf-8") as f:
+            design_package = json.load(f)
+        return _run_compile(design_package, args, output_dir)
+
+    # --step full (default)
+    design_package = _run_parse(input_dir, tmp_dir)
+    gap_report = _run_gap_report(design_package, tmp_dir)
+    if gap_report.get("has_gaps"):
+        print("\nGaps detected. In full mode, you should use --step parse + agent fix + --step compile.")
+        print("Continuing with compile using Tier 2 extraction only...\n")
+    return _run_compile(design_package, args, output_dir)
 
 
 if __name__ == "__main__":

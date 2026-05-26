@@ -4,17 +4,24 @@ Supports two layout modes:
 1. Structured: dimension subdirectories (business_design/, product_design/, ...)
 2. Flat fallback: filename-pattern mapping for flat Markdown directories
 
+Tier 3 semantic extraction is NOT implemented in Python.
+When Tier 2 rule-based extraction fails, a gap report is generated
+for the skill agent to handle via natural language reasoning.
+
 Truth source: design.md §Complete Design Package Input Structure.
 """
 
 from __future__ import annotations
 
 import json
+import logging
 import re
 from pathlib import Path
 from typing import Any
 
 import yaml
+
+logger = logging.getLogger("frz.parser")
 
 
 SUPPORTED_EXTENSIONS = {".md", ".yaml", ".yml", ".json"}
@@ -1118,6 +1125,130 @@ def _merge_dim_data(merged: dict[str, Any], data: dict[str, Any], file_path: Pat
             if not k.startswith("__"):
                 merged[k] = v
 
+
+# ---------------------------------------------------------------------------
+# Tier 3 — Gap report generation (for agent-driven semantic extraction)
+# ---------------------------------------------------------------------------
+
+# Fields that trigger completeness gates and may need agent semantic extraction.
+# Map: dimension -> list of field names with descriptions for the agent.
+_GAP_SENSITIVE_FIELDS: dict[str, list[dict[str, str]]] = {
+    "business_design": [
+        {"field": "product_vision", "description": "产品愿景 / Product Vision — 一句话描述产品要解决什么问题"},
+        {"field": "scope_declaration", "description": "范围声明 — in_scope / out_of_scope 列表"},
+    ],
+    "product_design": [
+        {"field": "user_journey_map", "description": "用户旅程 — 用户完成目标的步骤列表，每个步骤包含 name/value/steps/priority"},
+        {"field": "acceptance_criteria", "description": "验收标准 — Given/When/Then 格式的 AC 列表"},
+        {"field": "target_users", "description": "目标用户画像 — persona 列表，包含 role 和 profile"},
+    ],
+    "architecture_design": [
+        {"field": "tech_stack", "description": "技术选型 — 组件/技术/版本表格"},
+        {"field": "api_contract", "description": "API 契约 — endpoint 定义表格（方法、路径、参数）"},
+        {"field": "layering", "description": "分层架构 — 模块结构描述"},
+        {"field": "storage_design", "description": "存储设计 — 数据库/表结构设计"},
+    ],
+    "engineering_design": [
+        {"field": "implementation_scope", "description": "实施范围 — 目录和文件清单"},
+        {"field": "key_decisions", "description": "关键决策 — 技术决策记录"},
+        {"field": "risks", "description": "风险列表 — 风险描述和缓解措施"},
+    ],
+    "ux_design": [
+        {"field": "prototype", "description": "原型 — HTML 或原型引用"},
+        {"field": "design_principles", "description": "设计原则 — UX 核心原则"},
+        {"field": "interaction_flow", "description": "交互流程 — 页面跳转和状态流转"},
+    ],
+}
+
+
+def generate_gap_report(design_package: dict[str, Any]) -> dict[str, Any]:
+    """Generate a gap report for agent-driven semantic extraction.
+
+    Scans the design package for fields that Tier 2 failed to extract
+    (empty or missing) but the dimension has substantive raw content.
+    Returns a structured report that the skill agent consumes.
+    """
+    gaps: list[dict[str, Any]] = []
+
+    for dimension, field_defs in _GAP_SENSITIVE_FIELDS.items():
+        dim_data = design_package.get(dimension, {})
+        if not isinstance(dim_data, dict):
+            continue
+
+        raw = dim_data.get("__raw__", "")
+        if not raw or len(raw.strip()) < 200:
+            continue  # No substantive content to extract from
+
+        source_files = dim_data.get("__source_files__", [])
+
+        for field_def in field_defs:
+            field_name = field_def["field"]
+            value = dim_data.get(field_name)
+
+            # Check if field is empty
+            is_empty = False
+            if value is None:
+                is_empty = True
+            elif isinstance(value, (list, dict, str)) and len(value) == 0:
+                is_empty = True
+
+            if is_empty:
+                # Build a preview of the raw content (first 2000 chars)
+                raw_preview = raw[:2000].strip()
+                if len(raw) > 2000:
+                    raw_preview += "\n...[truncated]"
+
+                gaps.append({
+                    "dimension": dimension,
+                    "field": field_name,
+                    "description": field_def["description"],
+                    "source_files": source_files,
+                    "raw_preview": raw_preview,
+                    "tier2_status": "extraction_empty",
+                    "suggested_agent_action": (
+                        f"Read the source document(s) for {dimension} and extract "
+                        f"the '{field_name}' field. Return the result as structured data."
+                    ),
+                })
+
+    return {
+        "total_gaps": len(gaps),
+        "has_gaps": len(gaps) > 0,
+        "gaps": gaps,
+    }
+
+
+def apply_semantic_extraction(
+    design_package: dict[str, Any],
+    extraction_results: dict[str, dict[str, Any]],
+) -> dict[str, Any]:
+    """Apply agent-provided semantic extraction results into the design package.
+
+    Args:
+        design_package: The current design package dict (will be mutated).
+        extraction_results: Map of dimension -> {field_name: extracted_value}
+                            as provided by the skill agent.
+
+    Returns:
+        The mutated design_package with agent-extracted fields merged in.
+    """
+    for dimension, fields in extraction_results.items():
+        if dimension not in design_package:
+            logger.warning(f"Agent extraction targets unknown dimension: {dimension}")
+            continue
+        dim_data = design_package[dimension]
+        if not isinstance(dim_data, dict):
+            continue
+        for field_name, value in fields.items():
+            if value is not None and value != [] and value != {}:
+                dim_data[field_name] = value
+                logger.info(f"Agent extraction applied: {dimension}.{field_name}")
+    return design_package
+
+
+# ---------------------------------------------------------------------------
+# Public entry point
+# ---------------------------------------------------------------------------
 
 def parse_design_package(package_dir: str | Path) -> dict[str, Any]:
     """Parse a Complete Design Package directory.
