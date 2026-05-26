@@ -1060,9 +1060,13 @@ def _load_file(path: Path) -> dict[str, Any]:
 
 
 def _detect_flat_dimensions(root: Path) -> dict[str, list[Path]]:
-    """When no dimension subdirectories exist, map files by name heuristic."""
+    """When no dimension subdirectories exist, map files by name heuristic.
+
+    Recursively scans all files under root (including nested subdirectories)
+    to support projects that organize docs by type in sub-folders.
+    """
     mapping: dict[str, list[Path]] = {}
-    for file_path in sorted(root.iterdir()):
+    for file_path in sorted(root.rglob("*")):
         if not file_path.is_file():
             continue
         name_lower = file_path.stem.lower()

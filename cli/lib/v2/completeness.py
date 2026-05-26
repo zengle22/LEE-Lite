@@ -5,12 +5,105 @@ Truth source: design.md §step_1, proposal.md §Q1–Q5.
 
 from __future__ import annotations
 
+import logging
+import os
 import re
 from dataclasses import asdict
+from pathlib import Path
 from typing import Any
+
+import yaml
 
 from cli.lib.v2.exceptions import CompletenessBlockedError
 from cli.lib.v2.models import CompletenessVerdict
+
+logger = logging.getLogger("frz.completeness")
+
+
+def _load_project_rules(config_path: str | Path | None = None) -> list[dict[str, Any]]:
+    """Load project-specific semantic rules from YAML config.
+
+    Searches for config in order:
+      1. Explicit config_path argument
+      2. Environment variable FRZ_COMPLETENESS_RULES
+      3. Adjacent to this file: ../../../../../skills/ll-v2-frz-ingest/config/completeness-rules.yaml
+      4. Empty list (no project-specific rules)
+    """
+    if config_path:
+        path = Path(config_path)
+        if path.exists():
+            with open(path, encoding="utf-8") as f:
+                data = yaml.safe_load(f) or {}
+            return data.get("rules", [])
+
+    env_path = os.environ.get("FRZ_COMPLETENESS_RULES")
+    if env_path:
+        path = Path(env_path)
+        if path.exists():
+            with open(path, encoding="utf-8") as f:
+                data = yaml.safe_load(f) or {}
+            return data.get("rules", [])
+
+    # Fallback: relative to this file's location in cli/lib/v2/
+    fallback = Path(__file__).resolve().parent.parent.parent.parent / "skills" / "ll-v2-frz-ingest" / "config" / "completeness-rules.yaml"
+    if fallback.exists():
+        with open(fallback, encoding="utf-8") as f:
+            data = yaml.safe_load(f) or {}
+        return data.get("rules", [])
+
+    logger.debug("No project-specific completeness rules found; running with generic defaults")
+    return []
+
+
+def _evaluate_rules(
+    rules: list[dict[str, Any]],
+    project_type: str,
+    context: dict[str, str],
+) -> list[dict[str, Any]]:
+    """Evaluate configured rules against the extracted text context.
+
+    Args:
+        rules: Loaded rule definitions.
+        project_type: Current project type (e.g. 'generic', 'lee-lite').
+        context: Dict of target_name -> text strings (combined_raw, ux_lower, etc.)
+
+    Returns:
+        List of missing-item dicts for rules that FAIL (i.e. pattern not found).
+    """
+    if project_type == "generic":
+        return []
+
+    results: list[dict[str, Any]] = []
+    for rule in rules:
+        enabled_for = rule.get("enabled_for", [])
+        if enabled_for and project_type not in enabled_for:
+            continue
+
+        target_name = rule.get("target", "combined_raw")
+        text = context.get(target_name, "")
+        patterns = rule.get("patterns", [])
+        match_type = rule.get("match_type", "contains")
+
+        matched = False
+        if match_type == "contains":
+            matched = any(p in text for p in patterns)
+        elif match_type == "not_contains":
+            matched = all(p not in text for p in patterns)
+        elif match_type == "any_contains":
+            matched = any(p in text for p in patterns)
+        elif match_type == "all_contains":
+            matched = all(p in text for p in patterns)
+
+        if not matched:
+            results.append({
+                "dimension": rule.get("dimension", "semantic_check"),
+                "field": rule.get("id", "unknown"),
+                "reason": f"{rule.get('id', 'RULE')}: {rule.get('message', 'Rule failed')}",
+                "severity": rule.get("severity", "P2"),
+                "suggested_fix": rule.get("suggested_fix", ""),
+            })
+
+    return results
 
 
 REQUIRED_DIMENSIONS = {
@@ -233,7 +326,12 @@ def _post_compile_validation(chain: dict[str, Any]) -> tuple[list[dict], list[di
     return blockers, warnings
 
 
-def check_completeness(design_package: dict[str, Any], compiled_chain: dict[str, Any] | None = None) -> CompletenessVerdict:
+def check_completeness(
+    design_package: dict[str, Any],
+    compiled_chain: dict[str, Any] | None = None,
+    project_type: str = "generic",
+    rules_config_path: str | Path | None = None,
+) -> CompletenessVerdict:
     """Run 6-dimension completeness check + Q1–Q5 quality gates.
 
     Args:
@@ -339,76 +437,22 @@ def check_completeness(design_package: dict[str, Any], compiled_chain: dict[str,
     # (skip for minimal test fixtures that lack __raw__ Markdown content)
     _has_substantive_raw = len(combined_raw.strip()) > 200
 
-    # Critical endpoint checks
-    if _has_substantive_raw and "session-feedback" not in combined_raw:
-        missing_items.append({
-            "dimension": "api_contract",
-            "field": "session_feedback_endpoint",
-            "reason": "API-P1-001: POST /v1/training-plan/session-feedback endpoint missing",
-            "severity": "P1",
-            "suggested_fix": "Add endpoint definition to 03_session_evaluation_training_state.md §2.5.3 or API tables",
-        })
-    if _has_substantive_raw and "pre-run-checkin" not in combined_raw:
-        missing_items.append({
-            "dimension": "api_contract",
-            "field": "pre_run_checkin_endpoint",
-            "reason": "API-P1-002: POST /v1/decisions/pre-run-checkin endpoint missing",
-            "severity": "P1",
-            "suggested_fix": "Add endpoint definition to 09_user_stories_and_acceptance_criteria.md AC-007.3 or API tables",
-        })
-    if _has_substantive_raw and "start-without-checkin" not in combined_raw:
-        missing_items.append({
-            "dimension": "api_contract",
-            "field": "start_without_checkin_endpoint",
-            "reason": "API-P1-002: POST /v1/decisions/start-without-checkin endpoint missing",
-            "severity": "P1",
-            "suggested_fix": "Add endpoint definition to 09_user_stories_and_acceptance_criteria.md AC-007.3b or API tables",
-        })
-
-    # UI spec checks
-    ux_lower = ux_raw.lower()
-    if _has_substantive_raw and "card" not in ux_lower and "卡片" not in ux_lower:
-        missing_items.append({
-            "dimension": "ux_design",
-            "field": "card_specs",
-            "reason": "UI-P2-011: Core card specifications missing",
-            "severity": "P2",
-            "suggested_fix": "Add 7 core card specs (CardTrainingReady/Modified/Replaced/RestSuggested/RestRecommended/Feedback/Coach) to 11_ux_design_principles.md",
-        })
-    if _has_substantive_raw and "acknowledge" not in combined_raw.lower():
-        missing_items.append({
-            "dimension": "ux_design",
-            "field": "acknowledge_flow",
-            "reason": "UI-P2-012: Acknowledge flow missing",
-            "severity": "P2",
-            "suggested_fix": "Add Acknowledge flow specification to 07_frontend_training_loop_ux.md §4",
-        })
-    if _has_substantive_raw and "input normalization" not in combined_raw.lower() and "input_normalization" not in combined_raw.lower():
-        missing_items.append({
-            "dimension": "ux_design",
-            "field": "input_normalization",
-            "reason": "UI-P2-013: Input Normalization spec missing",
-            "severity": "P2",
-            "suggested_fix": "Add Input Normalization specification to 07_frontend_training_loop_ux.md §5",
-        })
-
-    # Test coverage checks
-    if _has_substantive_raw and "e2e" not in combined_raw.lower() and "playwright" not in combined_raw.lower():
-        missing_items.append({
-            "dimension": "test_design",
-            "field": "e2e_tests",
-            "reason": "FRZ-P2-015: E2E test specifications missing",
-            "severity": "P2",
-            "suggested_fix": "Add E2E test plan to 12_implementation_scope.md §9 or test_design dimension",
-        })
-    if _has_substantive_raw and "prototype" not in ux_lower:
-        missing_items.append({
-            "dimension": "ux_design",
-            "field": "prototype_refs",
-            "reason": "FRZ-P2-015: Prototype references missing",
-            "severity": "P2",
-            "suggested_fix": "Add prototype links or wireframe references to 11_ux_design_principles.md",
-        })
+    # Load and evaluate project-specific rules from external config
+    if _has_substantive_raw and project_type != "generic":
+        rules = _load_project_rules(rules_config_path)
+        ux_lower = ux_raw.lower()
+        context = {
+            "combined_raw": combined_raw,
+            "combined_raw_lower": combined_raw.lower(),
+            "ux_lower": ux_lower,
+        }
+        rule_results = _evaluate_rules(rules, project_type, context)
+        for result in rule_results:
+            missing_items.append(result)
+    elif _has_substantive_raw and project_type == "generic":
+        # Generic mode: skip all project-specific semantic scans.
+        # Only log at DEBUG level for transparency.
+        logger.debug("Project type is 'generic'; skipping project-specific semantic rules")
 
     # --- Post-Compilation Validation (PCV) ---
     if compiled_chain:

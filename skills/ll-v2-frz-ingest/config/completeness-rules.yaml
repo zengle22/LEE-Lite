@@ -1,0 +1,86 @@
+# Project-specific semantic completeness rules for frz-ingest.
+# Loaded by check_completeness() when project_type != generic.
+#
+# Rule evaluation order:
+#   1. If project_type is "generic", ALL project-specific rules are skipped.
+#   2. If project_type matches a rule's enabled_for list, the rule is evaluated.
+#   3. Rules with no enabled_for are treated as universal (rare).
+#
+# Match types:
+#   - contains:        target string must contain at least one pattern
+#   - not_contains:    target string must NOT contain any pattern
+#   - any_contains:    at least one pattern must be found (OR logic)
+#   - all_contains:    ALL patterns must be found (AND logic)
+
+rules:
+  - id: API-P1-001
+    severity: P1
+    match_type: contains
+    target: combined_raw
+    patterns: ["session-feedback"]
+    message: "POST /v1/training-plan/session-feedback endpoint missing"
+    suggested_fix: "Add endpoint definition to training state doc or API tables"
+    enabled_for: ["lee-lite"]
+
+  - id: API-P1-002a
+    severity: P1
+    match_type: contains
+    target: combined_raw
+    patterns: ["pre-run-checkin"]
+    message: "POST /v1/decisions/pre-run-checkin endpoint missing"
+    suggested_fix: "Add endpoint definition to user stories doc or API tables"
+    enabled_for: ["lee-lite"]
+
+  - id: API-P1-002b
+    severity: P1
+    match_type: contains
+    target: combined_raw
+    patterns: ["start-without-checkin"]
+    message: "POST /v1/decisions/start-without-checkin endpoint missing"
+    suggested_fix: "Add endpoint definition to user stories doc or API tables"
+    enabled_for: ["lee-lite"]
+
+  - id: UI-P2-011
+    severity: P2
+    match_type: any_contains
+    target: ux_lower
+    patterns: ["card", "卡片"]
+    message: "Core card specifications missing"
+    suggested_fix: "Add core card specs to UX design principles doc"
+    enabled_for: ["lee-lite"]
+
+  - id: UI-P2-012
+    severity: P2
+    match_type: contains
+    target: combined_raw_lower
+    patterns: ["acknowledge"]
+    message: "Acknowledge flow missing"
+    suggested_fix: "Add Acknowledge flow specification to frontend UX doc"
+    enabled_for: ["lee-lite"]
+
+  - id: UI-P2-013
+    severity: P2
+    match_type: any_contains
+    target: combined_raw
+    patterns: ["input normalization", "input_normalization"]
+    message: "Input Normalization spec missing"
+    suggested_fix: "Add Input Normalization specification to frontend UX doc"
+    enabled_for: ["lee-lite"]
+
+  - id: FRZ-P2-015-e2e
+    severity: P2
+    match_type: any_contains
+    target: combined_raw_lower
+    patterns: ["e2e", "playwright"]
+    message: "E2E test specifications missing"
+    suggested_fix: "Add E2E test plan to implementation scope doc or test_design dimension"
+    enabled_for: ["lee-lite"]
+
+  - id: FRZ-P2-015-proto
+    severity: P2
+    match_type: contains
+    target: ux_lower
+    patterns: ["prototype"]
+    message: "Prototype references missing"
+    suggested_fix: "Add prototype links or wireframe references to UX design doc"
+    enabled_for: ["lee-lite"]

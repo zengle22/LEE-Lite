@@ -1,7 +1,7 @@
 """frz-ingest CLI entry point — Compile and freeze a Complete Design Package.
 
 Usage:
-    python frz_ingest.py --input <design-package-dir> --output <output-dir> [--src-id SRC-001] [--slug my-feature]
+    python frz_ingest.py --input <design-package-dir> --output <output-dir> [--src-id SRC-001] [--slug my-feature] [--project-type generic]
 """
 
 from __future__ import annotations
@@ -9,14 +9,61 @@ from __future__ import annotations
 import argparse
 import enum
 import json
+import logging
+import os
 import re
 import sys
 from pathlib import Path
 
-# Ensure workspace root is on sys.path for cli.lib imports
-_workspace_root = Path(__file__).resolve().parent.parent.parent.parent
-if str(_workspace_root) not in sys.path:
-    sys.path.insert(0, str(_workspace_root))
+# --- Logging initialization (earliest possible point) ---
+_ingest_dir = Path(__file__).resolve().parent.parent
+_log_dir = _ingest_dir / "logs"
+_log_dir.mkdir(exist_ok=True)
+logging.basicConfig(
+    filename=_log_dir / "frz-ingest.log",
+    level=logging.DEBUG,
+    format="%(asctime)s %(levelname)s %(name)s %(message)s",
+)
+logger = logging.getLogger("frz.ingest")
+logger.info("frz_ingest.py starting up")
+
+# --- Path resolution: environment-driven, decoupled from directory depth ---
+# Priority: FRZ_CLI_LIB_PATH env var > upward search from __file__ > upward search from cwd > fallback
+
+def _find_cli_lib(start: Path) -> Path | None:
+    """Walk upward from start looking for cli/lib/v2/."""
+    for parent in [start, *start.parents]:
+        candidate = parent / "cli" / "lib"
+        if (candidate / "v2").is_dir():
+            return candidate
+    return None
+
+
+_cli_lib_path = os.environ.get("FRZ_CLI_LIB_PATH")
+if _cli_lib_path:
+    _lib_root = Path(_cli_lib_path).resolve()
+    logger.info(f"Using CLI_LIB_PATH from env: {_lib_root}")
+else:
+    # Try auto-discovery without hard-coding directory depth
+    # 1. Search upward from this script's resolved location (handles symlinks)
+    _lib_root = _find_cli_lib(_ingest_dir)
+    # 2. Search upward from current working directory (handles copied skills)
+    if _lib_root is None:
+        _lib_root = _find_cli_lib(Path.cwd())
+    # 3. Final fallback: the original LEE-Lite project root
+    if _lib_root is None:
+        _fallback = Path("/Users/zengle/git/LEE-Lite/cli/lib")
+        if (_fallback / "v2").is_dir():
+            _lib_root = _fallback
+        else:
+            logger.error("Could not auto-discover cli/lib. Set FRZ_CLI_LIB_PATH env var.")
+            print("ERROR: Could not find cli/lib/v2/. Set FRZ_CLI_LIB_PATH.", file=sys.stderr)
+            sys.exit(1)
+    logger.info(f"Auto-discovered CLI lib root: {_lib_root}")
+
+if str(_lib_root) not in sys.path:
+    sys.path.insert(0, str(_lib_root))
+    logger.debug(f"Added to sys.path: {_lib_root}")
 
 from cli.lib.v2.alignment import check_alignment
 from cli.lib.v2.compiler import compile_ssot_chain
@@ -224,6 +271,8 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--src-id", default="SRC-001", help="SRC identifier")
     parser.add_argument("--slug", help="Human-readable slug for file naming (kebab-case)")
     parser.add_argument("--checkpoint", help="Checkpoint file path for idempotent retry")
+    parser.add_argument("--project-type", default="generic", help="Project type for rule selection (generic, lee-lite, ...)")
+    parser.add_argument("--rules-config", help="Path to project-specific completeness rules YAML")
     args = parser.parse_args(argv)
 
     input_dir = Path(args.input)
@@ -232,48 +281,70 @@ def main(argv: list[str] | None = None) -> int:
 
     slug = _derive_slug(args.slug) if args.slug else _derive_slug(input_dir.name)
 
+    logger.info(f"project_type={args.project_type}, input={input_dir}, output={output_dir}")
+
     # Step 1: Parse
+    logger.debug("Step 1: Parsing design package")
     design_package = parse_design_package(input_dir)
 
     # Step 2: Completeness check (input-side)
-    completeness = check_completeness(design_package)
+    logger.debug("Step 2: Running completeness check")
+    completeness = check_completeness(
+        design_package,
+        project_type=args.project_type,
+        rules_config_path=args.rules_config,
+    )
     if completeness.verdict == "blocked":
+        logger.error(f"BLOCKED: {completeness.missing_items}")
         print(f"BLOCKED: {completeness.missing_items}", file=sys.stderr)
         return 10
 
     # Step 3: Compile
+    logger.debug("Step 3: Compiling SSOT chain")
     chain = compile_ssot_chain(design_package, args.src_id)
 
     # Step 3.5: Post-Compilation Validation (PCV)
     # Re-run completeness with compiled_chain to catch semantic/structural defects
-    completeness = check_completeness(design_package, compiled_chain=chain)
+    logger.debug("Step 3.5: Post-compilation validation")
+    completeness = check_completeness(
+        design_package,
+        compiled_chain=chain,
+        project_type=args.project_type,
+        rules_config_path=args.rules_config,
+    )
     if completeness.verdict == "blocked":
+        logger.error(f"BLOCKED (PCV): {completeness.missing_items}")
         print(f"BLOCKED (PCV): {completeness.missing_items}", file=sys.stderr)
         return 10
 
     # Step 4: Alignment check
+    logger.debug("Step 4: Running alignment check")
     alignment = check_alignment(
         chain["src"], chain["epics"], chain["feats"],
         chain["techs"], chain["archs"], chain["apis"], chain["uis"],
     )
 
     # Step 5: Drift detection
+    logger.debug("Step 5: Running drift detection")
     drift = detect_drift(
         design_package, chain["src"], chain["feats"],
         chain["techs"], chain["archs"], chain["apis"], chain["uis"],
     )
 
     # Step 5.5: Dimension Quality Gate (ADR-056 §step_4_5)
+    logger.debug("Step 5.5: Running dimension quality gate")
     dim_qualities = check_dimension_quality(chain)
     quality_report = get_quality_report(dim_qualities)
     if not all_dimensions_grade_a(dim_qualities):
         failed = [q for q in dim_qualities if q.grade != "A"]
+        logger.warning(f"QUALITY GATE BLOCKED: {len(failed)} dimensions below A-grade")
         print(f"QUALITY GATE BLOCKED: {len(failed)} dimensions below A-grade", file=sys.stderr)
         for q in failed:
             print(f"  {q.dimension}: score={q.score} grade={q.grade} blockers={q.blockers}", file=sys.stderr)
         # Still proceed to write outputs for human review, but mark as blocked
 
     # Step 6: Generate acceptance tests
+    logger.debug("Step 6: Generating acceptance tests")
     acceptance_test_cases = generate_acceptance_tests(
         chain["feats"], chain["apis"], chain["uis"], design_package
     )
@@ -392,6 +463,7 @@ def main(argv: list[str] | None = None) -> int:
             yaml.dump(human_review, f, allow_unicode=True, sort_keys=False)
 
     # Step 7: Freeze
+    logger.debug("Step 7: Building FRZ package")
     try:
         frz_pkg = build_frz_package(
             frz_ref=f"FRZ-{args.src_id}-001",
@@ -407,6 +479,7 @@ def main(argv: list[str] | None = None) -> int:
             evidence_refs=evidence_refs,
         )
     except Exception as e:
+        logger.exception("Freeze step failed")
         print(f"FREEZE ERROR: {e}", file=sys.stderr)
         return 20
 
@@ -428,13 +501,19 @@ def main(argv: list[str] | None = None) -> int:
     with open(frz_path, "w", encoding="utf-8") as f:
         yaml.dump({"frz_package": _to_plain_dict(frz_pkg.__dict__)}, f, allow_unicode=True, sort_keys=False)
 
+    logger.info(f"FRZ Package written: {frz_path}")
+    logger.info(f"SSOT chain written: {v2_base}")
+    logger.info(f"Quality report written: {quality_path}")
     print(f"FRZ Package written: {frz_path}")
     print(f"SSOT chain written: {v2_base}")
     print(f"Quality report written: {quality_path}")
     dim_summary = ", ".join(f"{q.dimension}={q.grade}({q.score})" for q in dim_qualities)
+    logger.info(f"Verdict: completeness={completeness.verdict}, alignment={alignment.verdict}, drift={drift.verdict}, quality=[{dim_summary}]")
     print(f"Verdict: completeness={completeness.verdict}, alignment={alignment.verdict}, drift={drift.verdict}, quality=[{dim_summary}]")
     if not all_dimensions_grade_a(dim_qualities):
+        logger.warning("Quality gate blocked — outputs written for human review")
         return 30  # quality_gate_blocked
+    logger.info("frz-ingest completed successfully")
     return 0
 
 
