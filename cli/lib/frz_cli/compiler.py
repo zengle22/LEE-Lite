@@ -163,12 +163,17 @@ def _extract_non_goals(design_package: dict[str, Any]) -> list[str]:
         sections = _extract_markdown_sections(raw, level=2)
         for section in sections:
             title = section["title"].lower()
-            if any(k in title for k in ("不做什么", "不做", "out of scope", "非目标", "non goal", "边界")):
+            # Match explicit non-goal / out-of-scope headings.
+            # Do NOT match "边界" alone — it matches "范围边界" which is a
+            # separate concept from "非目标" (non-goals).
+            if any(k in title for k in ("不做什么", "不做", "out of scope", "非目标", "non goal")):
                 items: list[str] = []
                 for line in section["body"].splitlines():
                     stripped = line.strip()
                     if stripped.startswith("- ") or stripped.startswith("* "):
                         items.append(stripped[2:].strip())
+                    elif re.match(r'^\d+\.\s+', stripped):
+                        items.append(re.sub(r'^\d+\.\s+', '', stripped))
                 return items
     return []
 

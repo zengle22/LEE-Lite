@@ -379,12 +379,28 @@ def _extract_structured_fields(data: dict[str, Any]) -> dict[str, Any]:
     all_sections = _extract_markdown_sections(raw, level=2)
     for section in all_sections:
         if any(kw in section["title"] for kw in ["约束", "限制", "Constraint", "全局约束", "Global Constraint"]):
-            for line in section["body"].splitlines():
+            body = section["body"]
+            # Try bullet / numbered list first
+            for line in body.splitlines():
                 stripped = line.strip()
                 if re.match(r'^\d+\.\s+', stripped) or stripped.startswith("- ") or stripped.startswith("* "):
                     item = re.sub(r'^\d+\.\s+', '', stripped).lstrip("- *").strip()
                     if item:
                         global_constraints.append(item)
+            # If no list items found, try table format (| 编号 | 约束 | 来源 |)
+            if not global_constraints:
+                tables = _extract_markdown_tables(body)
+                for table in tables:
+                    for row in table:
+                        # Look for a "约束" or "限制" or "constraint" column
+                        constraint_text = None
+                        for key, value in row.items():
+                            kl = key.lower()
+                            if any(k in kl for k in ("约束", "限制", "constraint", "规则", "rule")):
+                                constraint_text = value.strip()
+                                break
+                        if constraint_text and constraint_text.lower() not in ("约束", "限制", "constraint", "来源", "source", "编号", "id"):
+                            global_constraints.append(constraint_text)
     if global_constraints:
         result["global_constraints"] = global_constraints
 
@@ -486,13 +502,24 @@ def _extract_structured_fields(data: dict[str, Any]) -> dict[str, Any]:
     # ========================================================================
     # Phase 2 — Heading-driven extraction (architecture / engineering / ux)
     # ========================================================================
-    dim = _infer_dimension(source_file)
-    if dim == "architecture_design":
-        result.update(_extract_architecture_fields(raw))
-    elif dim == "engineering_design":
-        result.update(_extract_engineering_fields(raw))
-    elif dim == "ux_design":
-        result.update(_extract_ux_fields(raw))
+    # Try ALL dimension extractors, not just the one inferred from filename.
+    # Files placed in a dimension subdirectory (e.g., tech/ → engineering_design)
+    # may have filenames that map to a different dimension in flat mode.
+    # Merging results from all extractors ensures no fields are missed.
+    arch_fields = _extract_architecture_fields(raw)
+    eng_fields = _extract_engineering_fields(raw)
+    ux_fields = _extract_ux_fields(raw)
+
+    for fields in (arch_fields, eng_fields, ux_fields):
+        for key, value in fields.items():
+            if key not in result:
+                result[key] = value
+            elif isinstance(result[key], list) and isinstance(value, list):
+                for item in value:
+                    if item not in result[key]:
+                        result[key].append(item)
+            elif isinstance(result[key], dict) and isinstance(value, dict):
+                result[key].update(value)
 
     # Phase 3 — API schema enrichment from subsection paragraphs
     api_enrichment = _extract_api_schemas(raw)
@@ -684,12 +711,20 @@ def _first_paragraph(
 
 
 # Fields whose primary content lives inside code blocks (architecture diagrams,
-# flow charts, frozen contract text) and must NOT be stripped by _first_paragraph.
+# flow charts, frozen contract text, SQL DDL, mermaid diagrams) and must NOT be
+# stripped by _first_paragraph.
 _CODE_BLOCK_KEEP_FIELDS: set[str] = {
     "target_architecture",
     "data_flow",
     "frozen_contracts",
     "constraints",
+    "storage_design",
+    "layering",
+    "sequence_diagrams",
+    "integration_points",
+    "sync_async_strategy",
+    "non_functional_requirements",
+    "tech_stack",
 }
 
 
@@ -782,8 +817,15 @@ _ENG_HEADING_MAP: dict[str, str] = {
 
 
 def _extract_risks(body: str) -> list[dict[str, str]]:
-    """Parse **风险 N**: description  - 缓解: mitigation format."""
+    """Parse risks from bullet-list or table format.
+
+    Supports two formats:
+    1. Bullet list: **风险 N**: description - 缓解: mitigation
+    2. Table: | 风险 | 影响 | 缓解措施 | with header row and separator.
+    """
     risks: list[dict[str, str]] = []
+
+    # Format 1: bullet list with **风险 N**: description
     pattern = re.compile(
         r'^\s*[-*]\s*\*\*风险\s*(\d+)\s*\*\*[：:]\s*(.+?)(?=\n\s*[-*]\s*\*\*风险|\Z)',
         re.MULTILINE | re.DOTALL,
@@ -804,6 +846,43 @@ def _extract_risks(body: str) -> list[dict[str, str]]:
             "description": " ".join(desc_lines).strip(),
             "mitigation": mitigation,
         })
+    if risks:
+        return risks
+
+    # Format 2: table with | 风险 | 影响 | 缓解措施 | columns
+    tables = _extract_markdown_tables(body)
+    for table in tables:
+        if not table:
+            continue
+        # Detect column mapping from first row keys
+        first_row = table[0]
+        col_map: dict[str, str] = {}
+        for key in first_row.keys():
+            kl = key.lower()
+            if "风险" in kl or "risk" in kl or "描述" in kl or "description" in kl:
+                col_map["description"] = key
+            if "影响" in kl or "impact" in kl:
+                col_map["impact"] = key
+            if "缓解" in kl or "mitigation" in kl or "措施" in kl:
+                col_map["mitigation"] = key
+        if "description" not in col_map:
+            continue
+        for idx, row in enumerate(table):
+            desc = row.get(col_map["description"], "").strip()
+            if not desc:
+                continue
+            impact = row.get(col_map.get("impact", ""), "").strip()
+            mitigation = row.get(col_map.get("mitigation", ""), "").strip()
+            full_desc = desc
+            if impact and impact != desc:
+                full_desc = f"{desc} — {impact}"
+            risks.append({
+                "id": f"RISK-{idx + 1}",
+                "description": full_desc,
+                "mitigation": mitigation,
+            })
+        if risks:
+            break
     return risks
 
 
@@ -1126,6 +1205,7 @@ def _merge_dim_data(merged: dict[str, Any], data: dict[str, Any], file_path: Pat
 
     Preserves __raw__ by appending rather than overwriting.
     Extracts structured fields from Markdown before merging.
+    Deduplicates list items to prevent repeated content from multiple files.
     """
     # Extract structured fields from Markdown raw content
     extracted = _extract_structured_fields(data)
@@ -1133,7 +1213,10 @@ def _merge_dim_data(merged: dict[str, Any], data: dict[str, Any], file_path: Pat
         if key in merged:
             existing = merged[key]
             if isinstance(existing, list) and isinstance(value, list):
-                existing.extend(value)
+                # Deduplicate before extending to avoid repeated content
+                for item in value:
+                    if item not in existing:
+                        existing.append(item)
             elif isinstance(existing, dict) and isinstance(value, dict):
                 existing.update(value)
             else:
@@ -1281,7 +1364,32 @@ def apply_semantic_extraction(
 # Public entry point
 # ---------------------------------------------------------------------------
 
-def parse_design_package(package_dir: str | Path) -> dict[str, Any]:
+def _matches_module_filter(file_path: Path, module_filter: str | None) -> bool:
+    """Check if a file matches the module filter.
+
+    A file matches if:
+    - No filter is set (process all files)
+    - The filename contains the module identifier (e.g., 'M12')
+    - The file is a generic/cross-module doc (FLOW, MVP-LITE, STG-LITE)
+    """
+    if module_filter is None:
+        return True
+    name = file_path.name.upper()
+    mf = module_filter.upper()
+    # Direct match: filename contains module identifier
+    if mf in name:
+        return True
+    # Cross-module generic docs that should always be included
+    generic_prefixes = ("FLOW-", "MVP-LITE-", "STG-LITE-", "FRZ-", "QUALITY-", "PRD-QUALITY-")
+    if any(name.startswith(p) for p in generic_prefixes):
+        return True
+    # For M12, also include SKILL-001 (onboarding skill) which is M12-specific
+    if mf == "M12" and "SKILL-001" in name:
+        return True
+    return False
+
+
+def parse_design_package(package_dir: str | Path, module_filter: str | None = None) -> dict[str, Any]:
     """Parse a Complete Design Package directory.
 
     Supports two layouts:
@@ -1290,6 +1398,9 @@ def parse_design_package(package_dir: str | Path) -> dict[str, Any]:
 
     Args:
         package_dir: Path to the design package root directory.
+        module_filter: Optional module identifier (e.g., 'M12') to filter files.
+                       Only files whose names contain the identifier (or are
+                       cross-module generic docs) will be processed.
 
     Returns:
         Dict keyed by dimension name, each value a merged dict of files.
@@ -1298,31 +1409,80 @@ def parse_design_package(package_dir: str | Path) -> dict[str, Any]:
     if not root.is_dir():
         raise ValueError(f"Design package path is not a directory: {root}")
 
+    # Auto-detect module filter from directory name if not provided
+    if module_filter is None:
+        dir_name = root.name.upper()
+        m = re.search(r'\b(M\d+|S\d+(?:-S\d+)?)\b', dir_name)
+        if m:
+            module_filter = m.group(1)
+            logger.info(f"Auto-detected module filter from directory name: {module_filter}")
+
     result: dict[str, Any] = {}
 
-    # --- Mode 1: structured subdirectories ---
-    has_structured = any((root / dim).is_dir() for dim in DIMENSIONS)
+    # Directory name aliases for common non-standard layout conventions
+    _DIR_ALIAS: dict[str, str] = {
+        "business": "business_design",
+        "prd": "product_design",
+        "prds": "product_design",
+        "arch": "architecture_design",
+        "api": "architecture_design",
+        "tech": "engineering_design",
+        "impl": "engineering_design",
+        "implementation": "engineering_design",
+        "ux": "ux_design",
+        "ux-prototypes": "ux_design",
+        "test": "test_design",
+        "testset": "test_design",
+    }
+
+    # Build effective dimension → directory mapping
+    dim_dirs: dict[str, list[Path]] = {}
+    for dim in DIMENSIONS:
+        candidates = [root / dim]
+        for alias, target_dim in _DIR_ALIAS.items():
+            if target_dim == dim:
+                candidates.append(root / alias)
+        dim_dirs[dim] = [d for d in candidates if d.is_dir()]
+
+    has_structured = any(bool(dirs) for dirs in dim_dirs.values())
+
+    # --- Mode 1: structured subdirectories (including aliases) ---
     if has_structured:
-        for dim in DIMENSIONS:
-            dim_dir = root / dim
-            if not dim_dir.is_dir():
-                continue
+        for dim, dirs in dim_dirs.items():
             merged: dict[str, Any] = {}
-            for file_path in sorted(dim_dir.iterdir()):
-                if file_path.is_file() and file_path.suffix.lower() in SUPPORTED_EXTENSIONS:
-                    data = _load_file(file_path)
-                    if isinstance(data, dict):
-                        _merge_dim_data(merged, data, file_path)
+            for dim_dir in dirs:
+                for file_path in sorted(dim_dir.iterdir()):
+                    if file_path.is_file() and file_path.suffix.lower() in SUPPORTED_EXTENSIONS:
+                        if not _matches_module_filter(file_path, module_filter):
+                            logger.debug(f"Skipping {file_path.name} (does not match module filter {module_filter})")
+                            continue
+                        data = _load_file(file_path)
+                        if isinstance(data, dict):
+                            _merge_dim_data(merged, data, file_path)
             if merged:
                 result[dim] = merged
-        return result
 
-    # --- Mode 2: flat directory with filename heuristics ---
+    # --- Mode 2: flat files in root directory (filename heuristics) ---
+    # Exclude files already processed in Mode 1 (files inside structured subdirs).
+    # Use absolute() instead of resolve() to avoid following symlinks — root-level
+    # symlinks pointing into subdirectories should still be processed in Mode 2.
+    structured_paths = set()
+    for dim, dirs in dim_dirs.items():
+        for dim_dir in dirs:
+            for fp in dim_dir.rglob("*"):
+                if fp.is_file():
+                    structured_paths.add(fp.absolute())
+
     flat_mapping = _detect_flat_dimensions(root)
     for dim, files in flat_mapping.items():
-        merged: dict[str, Any] = {}
+        merged: dict[str, Any] = result.get(dim, {})
         for file_path in files:
             if file_path.suffix.lower() not in SUPPORTED_EXTENSIONS:
+                continue
+            if file_path.absolute() in structured_paths:
+                continue
+            if not _matches_module_filter(file_path, module_filter):
+                logger.debug(f"Skipping {file_path.name} (does not match module filter {module_filter})")
                 continue
             data = _load_file(file_path)
             if isinstance(data, dict):
