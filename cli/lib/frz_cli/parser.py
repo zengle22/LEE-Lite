@@ -302,7 +302,7 @@ def _extract_structured_fields(data: dict[str, Any]) -> dict[str, Any]:
             result["user_journey_map"] = journeys
 
     # --- product_vision extraction ---
-    if "vision" in source_lower or "blueprint" in source_lower:
+    if any(k in source_lower for k in ("vision", "blueprint", "business")):
         vision_match = re.search(
             r'^#+\s+(?:Section\s+\d+:\s+)?(?:产品愿景|Product Vision|愿景|Vision).*\n+([*>]?\s*[^\n#].*?)(?:\n\s*\n|\n#{1,2}\s|\Z)',
             raw,
@@ -371,6 +371,44 @@ def _extract_structured_fields(data: dict[str, Any]) -> dict[str, Any]:
             else:
                 profile_text = _first_paragraph(section["body"], max_len=1200)
                 personas.append({"role": section["title"], "profile": profile_text})
+        # Also check L2 "目标用户" section with table-based personas (e.g. BUSINESS-M12)
+        for section in _extract_markdown_sections(raw, level=2):
+                if not any(kw in section["title"] for kw in ["目标用户", "Target User", "用户群体"]):
+                    continue
+                tables = _extract_markdown_tables(section["body"])
+                for table in tables:
+                    for row in table:
+                        role = row.get("角色", "").strip()
+                        if not role:
+                            # Try alternative column names
+                            for k, v in row.items():
+                                if "角色" in k or "用户" in k or "name" in k.lower():
+                                    role = v.strip()
+                                    break
+                        if not role:
+                            continue
+                        # Build profile from remaining columns
+                        profile_parts: list[str] = []
+                        for k, v in row.items():
+                            v = v.strip()
+                            if v and v != role:
+                                profile_parts.append(f"{k}: {v}")
+                        profile = " | ".join(profile_parts)[:1200]
+                        personas.append({"role": role, "profile": profile})
+                # Also check for L4 subsections under L2 target_users
+                subsections = _extract_markdown_sections(section["body"], level=4)
+                for sub in subsections:
+                    profile_text = _first_paragraph(sub["body"], max_len=1200)
+                    if not profile_text:
+                        tables = _extract_markdown_tables(sub["body"])
+                        if tables:
+                            cells = []
+                            for row in tables[0]:
+                                for val in row.values():
+                                    if val and isinstance(val, str) and val not in cells:
+                                        cells.append(val)
+                            profile_text = " | ".join(cells)[:1200]
+                    personas.append({"role": sub["title"], "profile": profile_text})
         if personas:
             result["target_users"] = personas
 
@@ -520,6 +558,15 @@ def _extract_structured_fields(data: dict[str, Any]) -> dict[str, Any]:
                         result[key].append(item)
             elif isinstance(result[key], dict) and isinstance(value, dict):
                 result[key].update(value)
+            else:
+                # Type mismatch: prefer richer structure (dict with tables > plain list)
+                existing = result[key]
+                if isinstance(existing, list) and isinstance(value, dict):
+                    if value.get("tables") or value.get("text"):
+                        result[key] = value
+                elif isinstance(existing, dict) and isinstance(value, list):
+                    if not (existing.get("tables") or existing.get("text")):
+                        result[key] = value
 
     # Phase 3 — API schema enrichment from subsection paragraphs
     api_enrichment = _extract_api_schemas(raw)
@@ -649,7 +696,7 @@ def _structure_section_body(body: str, field_hint: str = "") -> Any:
         # For state-expression / design-tokens, keep tables as primary payload
         if field_hint in ("state_expression", "design_tokens", "action_card_mapping"):
             return {"tables": tables, "text": _first_paragraph(body)}
-        if field_hint in ("frozen_contracts", "design_principles", "constraints", "data_flow", "target_architecture"):
+        if field_hint in ("frozen_contracts", "design_principles", "constraints", "data_flow", "target_architecture", "non_functional_requirements"):
             return {"tables": tables, "text": _first_paragraph(body, max_len=max_len, keep_code_blocks=keep_cb)}
 
     # Fallback: cleaned text
@@ -740,8 +787,8 @@ _ARCH_HEADING_MAP: dict[str, str] = {
     # Removed "不可违反" — it appears inside section bodies and causes pollution.
     r"Frozen\s*Contracts|架构契约|Frozen": "frozen_contracts",
     r"架构约束|安全要求|约束与安全": "constraints",
-    r"非功能性|NFR|性能目标|并发|降级策略|容量预估": "non_functional_requirements",
-    r"同步|异步|调用策略|超时|重试|立即生效|延迟生效": "sync_async_strategy",
+    r"非功能性需求|NFR|性能目标|并发目标|容量预估": "non_functional_requirements",
+    r"同步异步策略|调用策略|超时|重试|立即生效|延迟生效": "sync_async_strategy",
     # Tightened "fallback" to avoid matching "Fallback Ladder" load-model sections.
     r"集成点|外部依赖|fallback\s*(策略|方案|设计|机制|降级|provider)|第三方|回调": "integration_points",
     r"时序图|序列图|Sequence\s*Diagram": "sequence_diagrams",
@@ -810,7 +857,7 @@ _ENG_HEADING_MAP: dict[str, str] = {
     r"技术选型|Tech\s*Stack|技术栈|Technology": "tech_stack",
     r"API\s*契约|接口|Endpoint|API\s*变更": "api_contract",
     r"架构约束|安全要求|约束": "constraints",
-    r"非功能性|NFR|性能|并发|降级": "non_functional_requirements",
+    r"非功能性需求|NFR|性能目标|并发目标": "non_functional_requirements",
     r"风险|Risks|已知风险": "risks",
     r"同步异步|调用策略|超时|重试|立即生效|延迟生效": "sync_async_strategy",
 }

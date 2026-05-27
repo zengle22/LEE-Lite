@@ -264,9 +264,15 @@ def compile_src(design_package: dict[str, Any], src_id: str = "SRC-001") -> SRC:
     if not problem_domain or not business_goal or problem_domain == business_goal:
         problem_domain, business_goal = _split_vision_into_problem_and_goal(vision)
 
+    # Derive a short title from document H1 or src_id — never duplicate business_goal
+    doc_title = _first_line(raw) or src_id
+    # Clean up: remove filename prefix like "BUSINESS-M12-" to get a readable title
+    short_title = re.sub(r'^[A-Z]+-[A-Za-z]*\d+[-:]?\s*', '', doc_title).strip()
+    if not short_title or short_title == doc_title:
+        short_title = src_id
     src = SRC(
         src_id=src_id,
-        title=_sentence_aware_truncate(vision, 200),
+        title=short_title,
         version="v1.0",
         problem_domain=problem_domain,
         business_goal=business_goal,
