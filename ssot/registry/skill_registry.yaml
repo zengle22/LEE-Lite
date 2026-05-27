@@ -3,10 +3,10 @@ registry_id: skill_registry
 authority_policy:
   canonical_root: skills
   path_format: repo_relative
-  adapter_roots_are_not_authority:
-    - .claude/skills
-    - .cursor/skills
-    - .agents/skills
+  adapter_surfaces_are_not_authority:
+    - claude_skill_adapter_surface
+    - cursor_skill_adapter_surface
+    - agent_skill_adapter_surface
   machine_parseable: true
   stable_ids: true
 summary:

@@ -2,7 +2,7 @@
 
 Purpose: route a task to the smallest canonical skill context. Canonical skill authority lives only under `skills/`.
 
-Do not treat `.agents/skills`, `.claude/skills`, or `.cursor/skills` as authority. Those are adapter surfaces unless a registry entry explicitly says otherwise.
+Do not treat agent, Claude, or Cursor skill adapter surfaces as authority. Those are install or projection targets unless a registry entry explicitly says otherwise.
 
 ## Product Pipeline
 

@@ -9,10 +9,10 @@ primary_sources:
   - README.md
   - docs/repository-layout.md
   - ssot/README.md
+  - ssot/governance/AI-CONSTITUTION.md
   - ssot/adr/ADR-038-运行时核心抽象边界与对象分层基线.MD
   - ssot/adr/ADR-050-SSOT语义治理总纲.md
   - ssot/adr/ADR-049-引入体验修正层-Experience-Patch-Layer.md
-  - CLAUDE.md
 rules:
   - rule_id: RULE-001
     title: authority_before_carrier
@@ -125,7 +125,7 @@ rules:
     authority_refs:
       - ssot/adr/ADR-049-引入体验修正层-Experience-Patch-Layer.md
       - ssot/adr/ADR-050-SSOT语义治理总纲.md
-      - CLAUDE.md
+      - ssot/governance/AI-CONSTITUTION.md
     applies_to:
       - patch
       - frz
@@ -202,3 +202,35 @@ rules:
       - registry
     enforcement: skill_registry.yaml 只登记 skills/ 下的 SKILL.md 作为 source_path。
     notes: adapter 可以触发或投影 skill，但不得替代 canonical bundle。
+
+  - rule_id: RULE-012
+    title: skill_runs_in_agent_environment
+    status: active
+    statement: 所有 skill 都在 agent 环境下运行；skill 不是独立 LLM 应用，脚本不得内嵌 LLM API 调用来替代宿主 agent 的语义执行。
+    authority_refs:
+      - ssot/governance/AI-CONSTITUTION.md
+      - ssot/governance/maps/SKILL-MAP.md
+    applies_to:
+      - skill
+      - agent
+      - adapter
+      - script
+    enforcement: SKILL.md 描述执行步骤时必须以宿主 agent 为执行环境；脚本只承载规则化机械操作，不承载独立语义 agent。
+    notes: Claude、Codex、Cursor 等是 skill 的运行宿主；canonical skill bundle 仍以 skills/ 为权威源。
+
+  - rule_id: RULE-013
+    title: skill_tool_failure_propagates
+    status: active
+    statement: skill 调用的脚本、命令、validator 或 tool 一旦报错，skill 执行必须报错；agent 不得手动执行失败步骤后把 skill 判为成功。
+    authority_refs:
+      - ssot/governance/AI-CONSTITUTION.md
+      - ssot/adr/ADR-038-运行时核心抽象边界与对象分层基线.MD
+    applies_to:
+      - skill
+      - tool
+      - command
+      - script
+      - agent
+      - evidence
+    enforcement: skill runner、人工执行记录和 review 必须保留失败状态；修复应作为新的修复或重试流程进入，不得覆盖原失败结论。
+    notes: agent 可以报告失败、收集 evidence、提出修复路径或重新运行修复后的 skill；不能绕过失败的工具调用来伪造成功。
