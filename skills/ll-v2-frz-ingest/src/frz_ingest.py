@@ -12,6 +12,7 @@ import json
 import logging
 import os
 import re
+import shutil
 import sys
 from pathlib import Path
 
@@ -79,6 +80,37 @@ def _derive_slug(text: str) -> str:
     """Convert arbitrary text to kebab-case slug for file naming."""
     slug = re.sub(r"[^a-zA-Z0-9]+", "-", text.lower()).strip("-")
     return slug or "ssot"
+
+
+def _discover_and_copy_prototype_artifacts(
+    input_dir: Path, prototype_dir: Path, slug: str, src_id: str
+) -> list[Path]:
+    """Discover HTML prototype files in input dir and copy to prototype_dir.
+
+    Scans recursively for .html files (common prototype artifact format).
+    Copies each to prototype_dir with a deterministic naming scheme.
+    Returns list of copied file paths (relative to prototype_dir's parent).
+    """
+    copied: list[Path] = []
+    html_files = sorted(input_dir.rglob("*.html"))
+    if not html_files:
+        logger.info("No .html prototype files found in input directory")
+        return copied
+
+    for idx, src_path in enumerate(html_files, start=1):
+        # Preserve subdirectory structure under prototype_dir
+        rel_path = src_path.relative_to(input_dir)
+        # Use deterministic naming: PROTO-{src_id}-{idx:03d}__{slug}-{original_name}
+        dest_name = f"PROTO-{src_id}-{idx:03d}__{slug}-{rel_path.name}"
+        dest_path = prototype_dir / dest_name
+        try:
+            shutil.copy2(src_path, dest_path)
+            copied.append(dest_path)
+            logger.info(f"Copied prototype: {src_path} -> {dest_path}")
+        except Exception as e:
+            logger.warning(f"Failed to copy prototype {src_path}: {e}")
+
+    return copied
 
 
 def _extract_source_gaps(dim_qualities: list, completeness: Any, alignment: Any) -> dict[str, Any]:
@@ -264,10 +296,10 @@ def _to_plain_dict(obj: object) -> object:
     return obj
 
 
-def _run_parse(input_dir: Path, tmp_dir: Path) -> dict[str, Any]:
+def _run_parse(input_dir: Path, tmp_dir: Path, module_filter: str | None = None) -> dict[str, Any]:
     """Step 1: Parse design package and save to tmp dir."""
     logger.debug("Step 1: Parsing design package")
-    design_package = parse_design_package(input_dir)
+    design_package = parse_design_package(input_dir, module_filter=module_filter)
     dp_path = tmp_dir / "design_package.json"
     with open(dp_path, "w", encoding="utf-8") as f:
         json.dump(design_package, f, ensure_ascii=False, indent=2)
@@ -359,12 +391,6 @@ def _run_compile(
         for q in failed:
             print(f"  {q.dimension}: score={q.score} grade={q.grade} blockers={q.blockers}", file=sys.stderr)
 
-    # Generate acceptance tests
-    logger.debug("Step 8: Generating acceptance tests")
-    acceptance_test_cases = generate_acceptance_tests(
-        chain["feats"], chain["apis"], chain["uis"], design_package
-    )
-
     # --- Prepare v2 directory structure per ADR-057 ---
     v2_base = output_dir / "ssot" / "v2"
     frz_dir = v2_base / "frz"
@@ -379,6 +405,19 @@ def _run_compile(
 
     for d in (frz_dir, src_dir, tech_dir, arch_dir, api_dir, ui_dir, impl_dir, prototype_dir, quality_dir):
         d.mkdir(parents=True, exist_ok=True)
+
+    # Generate acceptance tests
+    logger.debug("Step 8: Generating acceptance tests")
+    acceptance_test_cases = generate_acceptance_tests(
+        chain["feats"], chain["apis"], chain["uis"], design_package
+    )
+
+    # --- Discover and copy prototype artifacts ---
+    logger.debug("Step 8.5: Discovering prototype artifacts")
+    _input_dir = Path(args.input)
+    prototype_artifacts = _discover_and_copy_prototype_artifacts(
+        _input_dir, prototype_dir, slug, args.src_id
+    )
 
     import yaml
 
@@ -435,14 +474,13 @@ def _run_compile(
         "api_refs": [_rel(api_path)],
         "ui_refs": [_rel(ui_path)] if chain["uis"] else [],
         "impl_refs": [_rel(impl_dir / fn) for fn in impl_filenames],
-        "prototype_refs": [],
+        "prototype_refs": [_rel(p) for p in prototype_artifacts],
     }
     if common_impl_filename:
         frozen_ssot_chain["common_impl_ref"] = _rel(impl_dir / common_impl_filename)
 
-    _input_dir = Path(args.input)
     evidence_refs = {
-        "source_docs": sorted(str(p.relative_to(_input_dir)) for p in _input_dir.iterdir() if p.is_file()),
+        "source_docs": sorted(str(p.relative_to(_input_dir)) for p in _input_dir.rglob("*") if p.is_file() and not p.name.startswith(".")),
         "compilation_log": _rel(frz_dir / f"FRZ-{args.src_id}-001__{slug}.compile.log"),
     }
 
@@ -532,6 +570,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--checkpoint", help="Checkpoint file path for idempotent retry")
     parser.add_argument("--project-type", default="generic", help="Project type for rule selection (generic, lee-lite, ...)")
     parser.add_argument("--rules-config", help="Path to project-specific completeness rules YAML")
+    parser.add_argument("--module-filter", help="Module identifier to filter input files (e.g., 'M12'). Only files whose names contain this identifier (or are cross-module generic docs) will be processed. Auto-detected from directory name if not provided.")
     parser.add_argument(
         "--step",
         choices=["parse", "gap-report", "compile", "full"],
@@ -554,14 +593,16 @@ def main(argv: list[str] | None = None) -> int:
     tmp_dir = output_dir / ".frz-tmp"
     tmp_dir.mkdir(parents=True, exist_ok=True)
 
+    module_filter = getattr(args, "module_filter", None)
+
     if args.step == "parse":
-        design_package = _run_parse(input_dir, tmp_dir)
+        design_package = _run_parse(input_dir, tmp_dir, module_filter=module_filter)
         return 0
 
     if args.step == "gap-report":
         dp_path = tmp_dir / "design_package.json"
         if not dp_path.exists():
-            design_package = _run_parse(input_dir, tmp_dir)
+            design_package = _run_parse(input_dir, tmp_dir, module_filter=module_filter)
         else:
             with open(dp_path, encoding="utf-8") as f:
                 design_package = json.load(f)
@@ -578,7 +619,7 @@ def main(argv: list[str] | None = None) -> int:
         return _run_compile(design_package, args, output_dir)
 
     # --step full (default)
-    design_package = _run_parse(input_dir, tmp_dir)
+    design_package = _run_parse(input_dir, tmp_dir, module_filter=module_filter)
     gap_report = _run_gap_report(design_package, tmp_dir)
     if gap_report.get("has_gaps"):
         print("\nGaps detected. In full mode, you should use --step parse + agent fix + --step compile.")

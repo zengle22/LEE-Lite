@@ -96,7 +96,7 @@ python frz_ingest.py --input <dir> --output <dir> --step compile
 python frz_ingest.py --input <dir> --output <dir> --step full
 ```
 
-依次执行 Parse → Gap Report → Compile。如果检测到 gaps，会打印警告但继续编译（使用 Tier 2 提取结果）。
+依次执行 Parse → Gap Report → Compile。如果检测到 gaps（`has_gaps: true`），立即报错终止，禁止继续编译。
 
 ## Architecture
 
@@ -134,6 +134,7 @@ FRZ Package
 2. **Agent 做语义理解**：Tier 3 语义提取由 Skill Agent 用自然语言处理，不嵌套 LLM API 调用
 3. **分步骤运行**：Parse / Gap Report / Compile 可独立执行，Agent 在 Gap Report 后介入
 4. **无 LLM API 依赖**：frz-ingest Python 代码不调用任何 LLM API，纯本地运行
+5. **脚本错误强制传播**：任何 Python 脚本调用返回非零退出码时，skill 必须立即停止并报错，禁止手动继续运行。`full` 模式下若 `gaps.json` 存在且 `has_gaps: true`，同样必须报错终止，不得使用 Tier 2 不完整结果继续编译。
 
 ## CLI Arguments
 
