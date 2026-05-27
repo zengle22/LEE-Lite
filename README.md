@@ -314,7 +314,7 @@ We welcome contributions that align with the governed workflow philosophy.
 5. **Code review** — All changes require review via the code-reviewer agent checklist
 6. **Security review** — Use the security-reviewer agent for auth, input, or file-system changes
 
-Please read [docs/repository-layout.md](docs/repository-layout.md) for project structure conventions and [CLAUDE.md](CLAUDE.md) for patch context injection rules.
+Please read [docs/repository-layout.md](docs/repository-layout.md) for project structure conventions and [ssot/governance/AI-CONSTITUTION.md](ssot/governance/AI-CONSTITUTION.md) for patch context injection rules.
 
 ---
 

@@ -1,197 +1,46 @@
-# Agent 总地图
+# Agent Bootloader
 
-## 目录索引
-- `/.claude/`
-- `/.claude/commands/`
-- `/.claude/skills/`
-- `/.local/`
-- `/artifacts/`
-- `/artifacts/epic/`
-- `/artifacts/evidence/`
-- `/artifacts/evidence/execution/`
-- `/artifacts/evidence/supervision/`
-- `/artifacts/feat/`
-- `/artifacts/lineage/`
-- `/artifacts/lineage/snapshots/`
-- `/artifacts/reports/`
-- `/artifacts/reports/freeze/`
-- `/artifacts/reports/repair/`
-- `/artifacts/reports/review/`
-- `/artifacts/reports/validation/`
-- `/artifacts/src/`
-- `/artifacts/task/`
-- `/cli/`
-- `/cli/commands/`
-- `/cli/commands/artifact/`
-- `/cli/commands/evidence/`
-- `/cli/commands/skill/`
-- `/cli/commands/validate/`
-- `/cli/lib/`
-- `/cli/lib/parsers/`
-- `/cli/lib/reporters/`
-- `/cli/lib/rules/`
-- `/cli/lib/schemas/`
-- `/cli/lib/utils/`
-- `/docs/`
-- `/docs/adr/`
-- `/docs/architecture/`
-- `/docs/governance/`
-- `/docs/playbooks/`
-- `/examples/`
-- `/examples/sample-src/`
-- `/examples/sample-workflows/`
-- `/examples/sample-workflows/src-to-epic/`
-- `/examples/sample-workflows/src-to-epic/agents/`
-- `/examples/sample-workflows/src-to-epic/evidence/`
-- `/examples/sample-workflows/src-to-epic/input/`
-- `/examples/sample-workflows/src-to-epic/output/`
-- `/examples/sample-workflows/src-to-epic/resources/`
-- `/examples/sample-workflows/src-to-epic/resources/checklists/`
-- `/examples/sample-workflows/src-to-epic/resources/examples/`
-- `/examples/sample-workflows/src-to-epic/scripts/`
-- `/skills/`
-- `/skills/ll-meta-skill-creator/`
-- `/skills/ll-meta-skill-creator/agents/`
-- `/skills/ll-meta-skill-creator/references/`
-- `/skills/ll-meta-skill-creator/scripts/`
-- `/skills/ll-meta-skill-creator/scripts/__pycache__/`
-- `/tests/`
-- `/tests/fixtures/`
-- `/tests/golden/`
-- `/tests/integration/`
-- `/tests/unit/`
+This file is a thin adapter bootloader for generic agent entry points in this
+repository.
 
-## 文件索引
-- `/.claude/agent.md`
-- `/.claude/commands/.gitkeep`
-- `/.claude/commands/agent.md`
-- `/.claude/skills/.gitkeep`
-- `/.claude/skills/agent.md`
-- `/.editorconfig`
-- `/.env.example`
-- `/.gitignore`
-- `/.local/.gitignore`
-- `/.local/agent.md`
-- `/.local/README.md`
-- `/agent.md`
-- `/artifacts/agent.md`
-- `/artifacts/epic/.gitkeep`
-- `/artifacts/epic/agent.md`
-- `/artifacts/evidence/agent.md`
-- `/artifacts/evidence/execution/.gitkeep`
-- `/artifacts/evidence/execution/agent.md`
-- `/artifacts/evidence/supervision/.gitkeep`
-- `/artifacts/evidence/supervision/agent.md`
-- `/artifacts/feat/.gitkeep`
-- `/artifacts/feat/agent.md`
-- `/artifacts/lineage/agent.md`
-- `/artifacts/lineage/index.yaml`
-- `/artifacts/lineage/snapshots/.gitkeep`
-- `/artifacts/lineage/snapshots/agent.md`
-- `/artifacts/reports/agent.md`
-- `/artifacts/reports/freeze/.gitkeep`
-- `/artifacts/reports/freeze/agent.md`
-- `/artifacts/reports/repair/.gitkeep`
-- `/artifacts/reports/repair/agent.md`
-- `/artifacts/reports/review/.gitkeep`
-- `/artifacts/reports/review/agent.md`
-- `/artifacts/reports/validation/.gitkeep`
-- `/artifacts/reports/validation/agent.md`
-- `/artifacts/src/.gitkeep`
-- `/artifacts/src/agent.md`
-- `/artifacts/task/.gitkeep`
-- `/artifacts/task/agent.md`
-- `/cli/agent.md`
-- `/cli/commands/agent.md`
-- `/cli/commands/artifact/.gitkeep`
-- `/cli/commands/artifact/agent.md`
-- `/cli/commands/evidence/.gitkeep`
-- `/cli/commands/evidence/agent.md`
-- `/cli/commands/skill/.gitkeep`
-- `/cli/commands/skill/agent.md`
-- `/cli/commands/validate/.gitkeep`
-- `/cli/commands/validate/agent.md`
-- `/cli/lib/agent.md`
-- `/cli/lib/parsers/.gitkeep`
-- `/cli/lib/parsers/agent.md`
-- `/cli/lib/reporters/.gitkeep`
-- `/cli/lib/reporters/agent.md`
-- `/cli/lib/rules/.gitkeep`
-- `/cli/lib/rules/agent.md`
-- `/cli/lib/schemas/.gitkeep`
-- `/cli/lib/schemas/agent.md`
-- `/cli/lib/utils/.gitkeep`
-- `/cli/lib/utils/agent.md`
-- `/docs/adr/.gitkeep`
-- `/docs/adr/agent.md`
-- `/docs/agent.md`
-- `/docs/architecture/.gitkeep`
-- `/docs/architecture/agent.md`
-- `/docs/governance/.gitkeep`
-- `/docs/governance/agent.md`
-- `/docs/playbooks/.gitkeep`
-- `/docs/playbooks/agent.md`
-- `/examples/agent.md`
-- `/examples/sample-src/.gitkeep`
-- `/examples/sample-src/agent.md`
-- `/examples/sample-workflows/agent.md`
-- `/examples/sample-workflows/src-to-epic/agent.md`
-- `/examples/sample-workflows/src-to-epic/agents/agent.md`
-- `/examples/sample-workflows/src-to-epic/agents/executor.md`
-- `/examples/sample-workflows/src-to-epic/agents/openai.yaml`
-- `/examples/sample-workflows/src-to-epic/agents/supervisor.md`
-- `/examples/sample-workflows/src-to-epic/evidence/agent.md`
-- `/examples/sample-workflows/src-to-epic/evidence/execution-evidence.schema.json`
-- `/examples/sample-workflows/src-to-epic/evidence/report.template.md`
-- `/examples/sample-workflows/src-to-epic/evidence/supervision-evidence.schema.json`
-- `/examples/sample-workflows/src-to-epic/input/agent.md`
-- `/examples/sample-workflows/src-to-epic/input/contract.yaml`
-- `/examples/sample-workflows/src-to-epic/input/schema.json`
-- `/examples/sample-workflows/src-to-epic/input/semantic-checklist.md`
-- `/examples/sample-workflows/src-to-epic/ll.contract.yaml`
-- `/examples/sample-workflows/src-to-epic/ll.lifecycle.yaml`
-- `/examples/sample-workflows/src-to-epic/output/agent.md`
-- `/examples/sample-workflows/src-to-epic/output/contract.yaml`
-- `/examples/sample-workflows/src-to-epic/output/schema.json`
-- `/examples/sample-workflows/src-to-epic/output/semantic-checklist.md`
-- `/examples/sample-workflows/src-to-epic/output/template.md`
-- `/examples/sample-workflows/src-to-epic/resources/agent.md`
-- `/examples/sample-workflows/src-to-epic/resources/checklists/agent.md`
-- `/examples/sample-workflows/src-to-epic/resources/checklists/authoring-checklist.md`
-- `/examples/sample-workflows/src-to-epic/resources/checklists/review-checklist.md`
-- `/examples/sample-workflows/src-to-epic/resources/examples/agent.md`
-- `/examples/sample-workflows/src-to-epic/resources/examples/input.example.md`
-- `/examples/sample-workflows/src-to-epic/resources/examples/output.example.md`
-- `/examples/sample-workflows/src-to-epic/resources/glossary.md`
-- `/examples/sample-workflows/src-to-epic/scripts/agent.md`
-- `/examples/sample-workflows/src-to-epic/scripts/collect_evidence.sh`
-- `/examples/sample-workflows/src-to-epic/scripts/freeze_guard.sh`
-- `/examples/sample-workflows/src-to-epic/scripts/validate_input.sh`
-- `/examples/sample-workflows/src-to-epic/scripts/validate_output.sh`
-- `/examples/sample-workflows/src-to-epic/SKILL.md`
-- `/Makefile`
-- `/README.md`
-- `/skills/agent.md`
-- `/skills/ll-meta-skill-creator/agent.md`
-- `/skills/ll-meta-skill-creator/agents/agent.md`
-- `/skills/ll-meta-skill-creator/agents/openai.yaml`
-- `/skills/ll-meta-skill-creator/references/agent.md`
-- `/skills/ll-meta-skill-creator/references/authoring-patterns.md`
-- `/skills/ll-meta-skill-creator/references/ll-governance-pack.md`
-- `/skills/ll-meta-skill-creator/scripts/__pycache__/agent.md`
-- `/skills/ll-meta-skill-creator/scripts/__pycache__/install_profile.cpython-313.pyc`
-- `/skills/ll-meta-skill-creator/scripts/agent.md`
-- `/skills/ll-meta-skill-creator/scripts/init_lee_workflow_skill.py`
-- `/skills/ll-meta-skill-creator/scripts/install_profile.py`
-- `/skills/ll-meta-skill-creator/scripts/validate_lee_workflow_skill.py`
-- `/skills/ll-meta-skill-creator/SKILL.md`
-- `/docs/repository-layout.md`
-- `/tests/agent.md`
-- `/tests/fixtures/.gitkeep`
-- `/tests/fixtures/agent.md`
-- `/tests/golden/.gitkeep`
-- `/tests/golden/agent.md`
-- `/tests/integration/.gitkeep`
-- `/tests/integration/agent.md`
-- `/tests/unit/.gitkeep`
-- `/tests/unit/agent.md`
+## Default Load
+
+Load only:
+
+- `ssot/governance/AI-CONSTITUTION.md`
+
+Do not load the full repository, mirrored adapter rules, skill copies, ADRs, or
+runtime reports by default.
+
+## Progressive Load
+
+When the task needs more detail, follow the constitution's progressive
+disclosure order:
+
+1. Select the smallest relevant map under `ssot/governance/maps/`.
+2. From that map, load only the required ADR, registry, `SKILL.md`, contract,
+   checklist, schema, script, evidence, or report.
+
+The maps route context. They do not override the constitution.
+
+## Rule Authority
+
+Claude, Codex, Cursor, local CLI commands, and future adapters use the same
+governance source:
+
+- Constitution: `ssot/governance/AI-CONSTITUTION.md`
+- Rule routing and registries: `ssot/governance/maps/` and
+  `ssot/registry/rule_registry.yaml`
+
+This file must not copy, fork, extend, or replace constitutional rules. If this
+bootloader conflicts with the constitution, the constitution wins and the
+conflict must be recorded as a governance issue.
+
+## Patch Rules
+
+Patch context, grading, reflow, and registration are governed by the
+constitution and `ssot/registry/rule_registry.yaml`.
+
+Before editing target files, inject patch context for exactly those target
+files. After editing, do not register patches automatically; patch registration
+requires user confirmation.
