@@ -17,13 +17,13 @@ if str(_workspace_root) not in sys.path:
 
 import yaml
 
-from cli.lib.v2.convergence import compute_final_verdict, converge_and_gate
-from cli.lib.v2.delivery_parser import parse_gsd_delivery
-from cli.lib.v2.engineering_docs import check_engineering_docs
-from cli.lib.v2.feedback import route_issues
-from cli.lib.v2.scope_compliance import check_feature_scope
-from cli.lib.v2.task_completion import check_task_completion
-from cli.lib.v2.traceability import verify_traceability
+from frz_cli.convergence import compute_final_verdict, converge_and_gate
+from frz_cli.delivery_parser import parse_gsd_delivery
+from frz_cli.engineering_docs import check_engineering_docs
+from frz_cli.feedback import route_issues
+from frz_cli.scope_compliance import check_feature_scope
+from frz_cli.task_completion import check_task_completion
+from frz_cli.traceability import verify_traceability
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -52,7 +52,7 @@ def main(argv: list[str] | None = None) -> int:
     gsd_delivery = parse_gsd_delivery(gsd_dir)
 
     # Build minimal IMPL from FRZ (MVP: use first IMPL ref)
-    from cli.lib.v2.models import IMPL
+    from frz_cli.models import IMPL
 
     impl = IMPL(
         impl_id="IMPL-001",
@@ -75,7 +75,7 @@ def main(argv: list[str] | None = None) -> int:
     scope_result = check_feature_scope(gsd_delivery, api_specs)
 
     # Step 4: Traceability
-    from cli.lib.v2.models import FEAT
+    from frz_cli.models import FEAT
 
     feats = [FEAT(feat_id=ref, title=ref, user_value="", trigger="", main_flow=[ref], acceptance_criteria=[ref], source_refs=[]) for ref in feat_refs]
     trace_result = verify_traceability(gsd_delivery, feats)

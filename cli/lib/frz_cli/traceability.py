@@ -8,7 +8,7 @@ from __future__ import annotations
 import re
 from typing import Any
 
-from cli.lib.v2.models import FEAT
+from frz_cli.models import FEAT
 
 
 EXEMPT_PATTERNS = [

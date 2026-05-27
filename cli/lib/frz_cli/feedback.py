@@ -7,7 +7,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from cli.lib.v2.models import FEAT, UI
+from frz_cli.models import FEAT, UI
 
 
 def classify_issue(

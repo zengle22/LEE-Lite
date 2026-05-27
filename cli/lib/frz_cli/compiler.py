@@ -11,8 +11,8 @@ import json
 import re
 from typing import Any
 
-from cli.lib.v2.exceptions import CompileConflictError, InventedSemanticsError
-from cli.lib.v2.models import (
+from frz_cli.exceptions import CompileConflictError, InventedSemanticsError
+from frz_cli.models import (
     API,
     ARCH,
     EPIC,
@@ -22,7 +22,7 @@ from cli.lib.v2.models import (
     TECH,
     UI,
 )
-from cli.lib.v2.parser import _extract_markdown_sections, _extract_markdown_tables
+from frz_cli.parser import _extract_markdown_sections, _extract_markdown_tables
 
 
 def _ref(path: str, section: str, paragraph: str = "P1") -> str:

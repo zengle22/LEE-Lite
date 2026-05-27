@@ -7,7 +7,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from cli.lib.v2.models import FreezeStatus
+from frz_cli.models import FreezeStatus
 
 
 def detect_format_version(data: dict[str, Any]) -> str:

@@ -7,7 +7,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from cli.lib.v2.models import IMPL
+from frz_cli.models import IMPL
 
 
 def check_task_completion(

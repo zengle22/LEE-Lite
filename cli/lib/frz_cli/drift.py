@@ -7,9 +7,9 @@ from __future__ import annotations
 
 from typing import Any
 
-from cli.lib.v2.compiler import _plausible_keys
-from cli.lib.v2.exceptions import DriftDetectedError
-from cli.lib.v2.models import (
+from frz_cli.compiler import _plausible_keys
+from frz_cli.exceptions import DriftDetectedError
+from frz_cli.models import (
     API,
     ARCH,
     FEAT,

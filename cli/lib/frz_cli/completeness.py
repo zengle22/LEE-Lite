@@ -14,8 +14,8 @@ from typing import Any
 
 import yaml
 
-from cli.lib.v2.exceptions import CompletenessBlockedError
-from cli.lib.v2.models import CompletenessVerdict
+from frz_cli.exceptions import CompletenessBlockedError
+from frz_cli.models import CompletenessVerdict
 
 logger = logging.getLogger("frz.completeness")
 

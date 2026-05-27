@@ -31,10 +31,10 @@ logger.info("frz_ingest.py starting up")
 # Priority: FRZ_CLI_LIB_PATH env var > upward search from __file__ > upward search from cwd > fallback
 
 def _find_cli_lib(start: Path) -> Path | None:
-    """Walk upward from start looking for cli/lib/v2/."""
+    """Walk upward from start looking for cli/lib/frz_cli/."""
     for parent in [start, *start.parents]:
         candidate = parent / "cli" / "lib"
-        if (candidate / "v2").is_dir():
+        if (candidate / "frz_cli").is_dir():
             return candidate
     return None
 
@@ -53,11 +53,11 @@ else:
     # 3. Final fallback: the original LEE-Lite project root
     if _lib_root is None:
         _fallback = Path("/Users/zengle/git/LEE-Lite/cli/lib")
-        if (_fallback / "v2").is_dir():
+        if (_fallback / "frz_cli").is_dir():
             _lib_root = _fallback
         else:
             logger.error("Could not auto-discover cli/lib. Set FRZ_CLI_LIB_PATH env var.")
-            print("ERROR: Could not find cli/lib/v2/. Set FRZ_CLI_LIB_PATH.", file=sys.stderr)
+            print("ERROR: Could not find cli/lib/frz_cli/. Set FRZ_CLI_LIB_PATH.", file=sys.stderr)
             sys.exit(1)
     logger.info(f"Auto-discovered CLI lib root: {_lib_root}")
 
@@ -65,14 +65,14 @@ if str(_lib_root) not in sys.path:
     sys.path.insert(0, str(_lib_root))
     logger.debug(f"Added to sys.path: {_lib_root}")
 
-from cli.lib.v2.alignment import check_alignment
-from cli.lib.v2.compiler import compile_ssot_chain
-from cli.lib.v2.completeness import check_completeness
-from cli.lib.v2.dimension_quality import check_dimension_quality, all_dimensions_grade_a, get_quality_report
-from cli.lib.v2.drift import detect_drift
-from cli.lib.v2.freezer import build_frz_package, save_checkpoint, _freeze_ssot_chain
-from cli.lib.v2.parser import parse_design_package
-from cli.lib.v2.test_generator import generate_acceptance_tests
+from frz_cli.alignment import check_alignment
+from frz_cli.compiler import compile_ssot_chain
+from frz_cli.completeness import check_completeness
+from frz_cli.dimension_quality import check_dimension_quality, all_dimensions_grade_a, get_quality_report
+from frz_cli.drift import detect_drift
+from frz_cli.freezer import build_frz_package, save_checkpoint, _freeze_ssot_chain
+from frz_cli.parser import parse_design_package
+from frz_cli.test_generator import generate_acceptance_tests
 
 
 def _derive_slug(text: str) -> str:
@@ -278,7 +278,7 @@ def _run_parse(input_dir: Path, tmp_dir: Path) -> dict[str, Any]:
 
 def _run_gap_report(design_package: dict[str, Any], tmp_dir: Path) -> dict[str, Any]:
     """Step 2: Generate gap report for agent-driven semantic extraction."""
-    from cli.lib.v2.parser import generate_gap_report
+    from frz_cli.parser import generate_gap_report
     logger.debug("Step 2: Generating gap report")
     gap_report = generate_gap_report(design_package)
     gaps_path = tmp_dir / "gaps.json"
@@ -440,8 +440,9 @@ def _run_compile(
     if common_impl_filename:
         frozen_ssot_chain["common_impl_ref"] = _rel(impl_dir / common_impl_filename)
 
+    _input_dir = Path(args.input)
     evidence_refs = {
-        "source_docs": sorted(str(p.relative_to(input_dir)) for p in input_dir.iterdir() if p.is_file()),
+        "source_docs": sorted(str(p.relative_to(_input_dir)) for p in _input_dir.iterdir() if p.is_file()),
         "compilation_log": _rel(frz_dir / f"FRZ-{args.src_id}-001__{slug}.compile.log"),
     }
 
@@ -475,7 +476,7 @@ def _run_compile(
         frz_pkg = build_frz_package(
             frz_ref=f"FRZ-{args.src_id}-001",
             version="v1.0",
-            source_package_ref=str(input_dir),
+            source_package_ref=str(Path(args.input)),
             chain=chain,
             acceptance_test_cases=acceptance_test_cases,
             completeness_check={"verdict": completeness.verdict, "missing_items": completeness.missing_items, "warnings": completeness.warnings},

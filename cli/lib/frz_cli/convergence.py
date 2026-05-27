@@ -7,7 +7,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from cli.lib.v2.models import VerificationReport
+from frz_cli.models import VerificationReport
 
 
 def compute_final_verdict(

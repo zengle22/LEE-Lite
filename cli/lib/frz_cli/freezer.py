@@ -10,13 +10,13 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
-from cli.lib.v2.exceptions import (
+from frz_cli.exceptions import (
     AlignmentFailError,
     DriftDetectedError,
     FreezeGuardBlockedError,
     FrozenObjectError,
 )
-from cli.lib.v2.models import (
+from frz_cli.models import (
     API,
     ARCH,
     EPIC,

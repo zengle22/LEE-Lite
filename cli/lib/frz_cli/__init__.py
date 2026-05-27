@@ -5,7 +5,7 @@ Truth source: ADR-056 §6–7 (SSOT v2 schema, FRZ Package format).
 
 from __future__ import annotations
 
-from cli.lib.v2.exceptions import (
+from frz_cli.exceptions import (
     AlignmentFailError,
     CompletenessBlockedError,
     CompileConflictError,
@@ -19,7 +19,7 @@ from cli.lib.v2.exceptions import (
     V1SkillFailureError,
     V1SkillTimeoutError,
 )
-from cli.lib.v2.models import (
+from frz_cli.models import (
     API,
     ARCH,
     EPIC,
