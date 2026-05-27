@@ -83,12 +83,13 @@ def _derive_slug(text: str) -> str:
 
 
 def _discover_and_copy_prototype_artifacts(
-    input_dir: Path, prototype_dir: Path, slug: str, src_id: str
+    input_dir: Path, prototype_dir: Path, slug: str, src_id: str, module_filter: str | None = None
 ) -> list[Path]:
     """Discover HTML prototype files in input dir and copy to prototype_dir.
 
     Scans recursively for .html files (common prototype artifact format).
     Copies each to prototype_dir with a deterministic naming scheme.
+    Filters by module_filter if provided (e.g. 'M12' matches 'proto-m12-*.html').
     Returns list of copied file paths (relative to prototype_dir's parent).
     """
     copied: list[Path] = []
@@ -97,7 +98,16 @@ def _discover_and_copy_prototype_artifacts(
         logger.info("No .html prototype files found in input directory")
         return copied
 
-    for idx, src_path in enumerate(html_files, start=1):
+    idx = 0
+    for src_path in html_files:
+        # Skip non-matching module files
+        if module_filter is not None:
+            name_upper = src_path.name.upper()
+            mf = module_filter.upper()
+            if mf not in name_upper:
+                logger.debug(f"Skipping prototype {src_path.name} (does not match module filter {module_filter})")
+                continue
+        idx += 1
         # Preserve subdirectory structure under prototype_dir
         rel_path = src_path.relative_to(input_dir)
         # Use deterministic naming: PROTO-{src_id}-{idx:03d}__{slug}-{original_name}
@@ -296,8 +306,11 @@ def _to_plain_dict(obj: object) -> object:
     return obj
 
 
-def _run_parse(input_dir: Path, tmp_dir: Path, module_filter: str | None = None) -> dict[str, Any]:
-    """Step 1: Parse design package and save to tmp dir."""
+def _run_parse(input_dir: Path, tmp_dir: Path, module_filter: str | None = None) -> tuple[dict[str, Any], str | None]:
+    """Step 1: Parse design package and save to tmp dir.
+
+    Returns (design_package, detected_module_filter).
+    """
     logger.debug("Step 1: Parsing design package")
     design_package = parse_design_package(input_dir, module_filter=module_filter)
     dp_path = tmp_dir / "design_package.json"
@@ -305,7 +318,16 @@ def _run_parse(input_dir: Path, tmp_dir: Path, module_filter: str | None = None)
         json.dump(design_package, f, ensure_ascii=False, indent=2)
     logger.info(f"Design package written: {dp_path}")
     print(f"Design package written: {dp_path}")
-    return design_package
+    # Return the auto-detected module filter from parse_design_package
+    # (it may have detected from directory name even if not passed explicitly)
+    detected_filter = module_filter
+    if detected_filter is None:
+        # Replicate auto-detection logic from parse_design_package
+        name = input_dir.name
+        m = re.search(r'[Mm](\d+)', name)
+        if m:
+            detected_filter = f"M{m.group(1)}"
+    return design_package, detected_filter
 
 
 def _run_gap_report(design_package: dict[str, Any], tmp_dir: Path) -> dict[str, Any]:
@@ -337,11 +359,15 @@ def _run_compile(
     slug = _derive_slug(args.slug) if args.slug else _derive_slug(Path(args.input).name)
     logger.info(f"project_type={args.project_type}, compiling to {output_dir}")
 
+    # When compiling a single module, skip cross-module semantic rules
+    module_filter = getattr(args, "module_filter", None)
+    check_project_type = "generic" if module_filter else args.project_type
+
     # Completeness check (input-side)
     logger.debug("Step 3: Running completeness check")
     completeness = check_completeness(
         design_package,
-        project_type=args.project_type,
+        project_type=check_project_type,
         rules_config_path=args.rules_config,
     )
     if completeness.verdict == "blocked":
@@ -358,7 +384,7 @@ def _run_compile(
     completeness = check_completeness(
         design_package,
         compiled_chain=chain,
-        project_type=args.project_type,
+        project_type=check_project_type,
         rules_config_path=args.rules_config,
     )
     if completeness.verdict == "blocked":
@@ -416,7 +442,8 @@ def _run_compile(
     logger.debug("Step 8.5: Discovering prototype artifacts")
     _input_dir = Path(args.input)
     prototype_artifacts = _discover_and_copy_prototype_artifacts(
-        _input_dir, prototype_dir, slug, args.src_id
+        _input_dir, prototype_dir, slug, args.src_id,
+        module_filter=getattr(args, "module_filter", None)
     )
 
     import yaml
@@ -596,13 +623,13 @@ def main(argv: list[str] | None = None) -> int:
     module_filter = getattr(args, "module_filter", None)
 
     if args.step == "parse":
-        design_package = _run_parse(input_dir, tmp_dir, module_filter=module_filter)
+        _run_parse(input_dir, tmp_dir, module_filter=module_filter)
         return 0
 
     if args.step == "gap-report":
         dp_path = tmp_dir / "design_package.json"
         if not dp_path.exists():
-            design_package = _run_parse(input_dir, tmp_dir, module_filter=module_filter)
+            design_package, _ = _run_parse(input_dir, tmp_dir, module_filter=module_filter)
         else:
             with open(dp_path, encoding="utf-8") as f:
                 design_package = json.load(f)
@@ -619,7 +646,10 @@ def main(argv: list[str] | None = None) -> int:
         return _run_compile(design_package, args, output_dir)
 
     # --step full (default)
-    design_package = _run_parse(input_dir, tmp_dir, module_filter=module_filter)
+    design_package, detected_filter = _run_parse(input_dir, tmp_dir, module_filter=module_filter)
+    # Save detected filter to args for downstream use
+    if detected_filter and not getattr(args, "module_filter", None):
+        args.module_filter = detected_filter
     gap_report = _run_gap_report(design_package, tmp_dir)
     if gap_report.get("has_gaps"):
         print("\nGaps detected. In full mode, you should use --step parse + agent fix + --step compile.")
